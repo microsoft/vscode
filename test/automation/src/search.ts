@@ -40,13 +40,12 @@ export class Search extends Viewlet {
 	}
 
 	async openSearchViewlet(): Promise<any> {
+		const accept = () => this.waitForInputFocus(INPUT);
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+f');
+			await this.code.sendKeybinding('cmd+shift+f', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+f');
+			await this.code.sendKeybinding('ctrl+shift+f', accept);
 		}
-
-		await this.waitForInputFocus(INPUT);
 	}
 
 	async getSearchTooltip(): Promise<any> {
@@ -61,11 +60,24 @@ export class Search extends Viewlet {
 		await this.submitSearch();
 	}
 
+	async hasActivityBarMoved() {
+		await this.code.waitForElement('.activitybar');
+
+		const elementBoundingBox = await this.code.driver.getElementXY('.activitybar');
+		return elementBoundingBox !== null && elementBoundingBox.x === 48 && elementBoundingBox.y === 375;
+	}
+
+	async waitForPageUp(): Promise<void> {
+		await this.code.sendKeybinding('PageUp');
+	}
+
+	async waitForPageDown(): Promise<void> {
+		await this.code.sendKeybinding('PageDown');
+	}
+
 	async submitSearch(): Promise<void> {
 		await this.waitForInputFocus(INPUT);
-
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`${VIEWLET} .messages`);
+		await this.code.sendKeybinding('enter', async () => { await this.code.waitForElement(`${VIEWLET} .messages`); });
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
@@ -102,7 +114,7 @@ export class Search extends Viewlet {
 	}
 
 	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[title="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[aria-label="Replace"]`, text);
 	}
 
 	async replaceFileMatch(filename: string, expectedText: string): Promise<void> {

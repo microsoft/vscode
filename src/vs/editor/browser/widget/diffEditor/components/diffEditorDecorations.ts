@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, derived } from 'vs/base/common/observable';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { MovedBlocksLinesFeature } from 'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature';
-import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
-import { applyObservableDecorations } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, derived } from '../../../../../base/common/observable.js';
+import { DiffEditorEditors } from './diffEditorEditors.js';
+import { allowsTrueInlineDiffRendering } from './diffEditorViewZones/diffEditorViewZones.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { DiffEditorViewModel } from '../diffEditorViewModel.js';
+import { DiffEditorWidget } from '../diffEditorWidget.js';
+import { MovedBlocksLinesFeature } from '../features/movedBlocksLinesFeature.js';
+import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from '../registrations.contribution.js';
+import { applyObservableDecorations } from '../utils.js';
+import { IModelDeltaDecoration } from '../../../../common/model.js';
 
 export class DiffEditorDecorations extends Disposable {
 	constructor(
@@ -28,7 +29,8 @@ export class DiffEditorDecorations extends Disposable {
 	}
 
 	private readonly _decorations = derived(this, (reader) => {
-		const diff = this._diffModel.read(reader)?.diff.read(reader);
+		const diffModel = this._diffModel.read(reader);
+		const diff = diffModel?.diff.read(reader);
 		if (!diff) {
 			return null;
 		}
@@ -56,13 +58,29 @@ export class DiffEditorDecorations extends Disposable {
 						modifiedDecorations.push({ range: m.lineRangeMapping.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
 					}
 				} else {
+					const useInlineDiff = this._options.useTrueInlineDiffRendering.read(reader) && allowsTrueInlineDiffRendering(m.lineRangeMapping);
 					for (const i of m.lineRangeMapping.innerChanges || []) {
 						// Don't show empty markers outside the line range
 						if (m.lineRangeMapping.original.contains(i.originalRange.startLineNumber)) {
 							originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
 						}
 						if (m.lineRangeMapping.modified.contains(i.modifiedRange.startLineNumber)) {
-							modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+							modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations && !useInlineDiff) ? diffAddDecorationEmpty : diffAddDecoration });
+						}
+						if (useInlineDiff) {
+							const deletedText = diffModel!.model.original.getValueInRange(i.originalRange);
+							modifiedDecorations.push({
+								range: i.modifiedRange,
+								options: {
+									description: 'deleted-text',
+									before: {
+										content: deletedText,
+										inlineClassName: 'inline-deleted-text',
+									},
+									zIndex: 100000,
+									showIfCollapsed: true,
+								}
+							});
 						}
 					}
 				}

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { Event, Emitter } from 'vs/base/common/event';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from './outline.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
 
 class OutlineService implements IOutlineService {
 

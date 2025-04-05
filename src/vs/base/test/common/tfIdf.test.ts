@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { TfIdfCalculator, TfIdfDocument, TfIdfScore } from 'vs/base/common/tfIdf';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { CancellationToken } from '../../common/cancellation.js';
+import { TfIdfCalculator, TfIdfDocument, TfIdfScore } from '../../common/tfIdf.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 /**
  * Generates all permutations of an array.

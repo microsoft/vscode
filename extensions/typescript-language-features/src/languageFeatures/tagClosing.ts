@@ -4,20 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../tsServer/protocol/protocol';
-import { API } from '../tsServer/api';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { Condition, conditionalRegistration, requireMinVersion } from './util/dependentRegistration';
-import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../configuration/documentSelector';
 import { LanguageDescription } from '../configuration/languageDescription';
+import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { Disposable } from '../utils/dispose';
+import { Condition, conditionalRegistration } from './util/dependentRegistration';
 
 class TagClosing extends Disposable {
-	public static readonly minVersion = API.v300;
 
 	private _disposed = false;
-	private _timeout: NodeJS.Timer | undefined = undefined;
+	private _timeout: NodeJS.Timeout | undefined = undefined;
 	private _cancel: vscode.CancellationTokenSource | undefined = undefined;
 
 	constructor(
@@ -167,7 +165,6 @@ export function register(
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, TagClosing.minVersion),
 		requireActiveDocumentSetting(selector.syntax, language)
 	], () => new TagClosing(client));
 }

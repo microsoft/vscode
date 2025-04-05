@@ -7,3 +7,4 @@ RunAfter=インストール後に %1 を実行する
 Other=その他:
 SourceFile=%1 ソース ファイル
 OpenWithCodeContextMenu=%1 で開く
+UpdatingVisualStudioCode=Visual Studio Code を更新しています...

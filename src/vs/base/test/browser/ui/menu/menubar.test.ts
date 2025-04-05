@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $ } from 'vs/base/browser/dom';
-import { unthemedMenuStyles } from 'vs/base/browser/ui/menu/menu';
-import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { $ } from '../../../../browser/dom.js';
+import { unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
+import { MenuBar } from '../../../../browser/ui/menu/menubar.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
 	let i;

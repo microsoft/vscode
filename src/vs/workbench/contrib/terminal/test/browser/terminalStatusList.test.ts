@@ -4,34 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { Codicon } from 'vs/base/common/codicons';
-import Severity from 'vs/base/common/severity';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import Severity from '../../../../../base/common/severity.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { spinningLoading } from '../../../../../platform/theme/common/iconRegistry.js';
+import { TerminalStatusList } from '../../browser/terminalStatusList.js';
+import { ITerminalStatus } from '../../common/terminal.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {
 	deepStrictEqual(list.statuses.map(e => [e.id, e.severity]), expected);
 }
 
 suite('Workbench - TerminalStatusList', () => {
-	let store: DisposableStore;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let list: TerminalStatusList;
-	let configService: TestConfigurationService;
 
 	setup(() => {
-		store = new DisposableStore();
-		configService = new TestConfigurationService();
-		list = store.add(new TerminalStatusList(configService));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		list = store.add(instantiationService.createInstance(TerminalStatusList));
 	});
-
-	teardown(() => store.dispose());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('primary', () => {
 		strictEqual(list.primary?.id, undefined);

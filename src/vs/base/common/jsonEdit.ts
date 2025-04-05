@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json';
-import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter';
+import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json.js';
+import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter.js';
 
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
@@ -35,7 +35,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 	if (!parent) {
 		// empty document
 		if (value === undefined) { // delete
-			throw new Error('Can not delete in empty document');
+			return []; // property does not exist, nothing to do
 		}
 		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
 	} else if (parent.type === 'object' && typeof lastSegment === 'string' && Array.isArray(parent.children)) {

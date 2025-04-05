@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionRecommendationNotificationService, IExtensionRecommendations, RecommendationsNotificationResult } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { Event } from '../../../base/common/event.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IExtensionRecommendationNotificationService, IExtensionRecommendations, RecommendationsNotificationResult } from './extensionRecommendations.js';
 
 export class ExtensionRecommendationNotificationServiceChannelClient implements IExtensionRecommendationNotificationService {
 

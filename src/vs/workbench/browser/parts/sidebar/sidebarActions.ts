@@ -3,16 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebarpart';
-import { localize2 } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import './media/sidebarpart.css';
+import { localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { SideBarVisibleContext } from '../../../common/contextkeys.js';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.closeSidebar',
+			title: localize2('closeSidebar', 'Close Primary Side Bar'),
+			category: Categories.View,
+			f1: true,
+			precondition: SideBarVisibleContext
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.SIDEBAR_PART);
+	}
+});
 
 export class FocusSideBarAction extends Action2 {
 
@@ -37,7 +55,6 @@ export class FocusSideBarAction extends Action2 {
 		// Show side bar
 		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
-			return;
 		}
 
 		// Focus into active viewlet

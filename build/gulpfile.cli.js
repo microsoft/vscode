@@ -5,8 +5,6 @@
 
 'use strict';
 
-//@ts-check
-
 const es = require('event-stream');
 const gulp = require('gulp');
 const path = require('path');
@@ -24,7 +22,6 @@ const createReporter = require('./lib/reporter').createReporter;
 const root = 'cli';
 const rootAbs = path.resolve(__dirname, '..', root);
 const src = `${root}/src`;
-const targetCliPath = path.join(root, 'target', 'debug', process.platform === 'win32' ? 'code.exe' : 'code');
 
 const platformOpensslDirName =
 	process.platform === 'win32' ? (

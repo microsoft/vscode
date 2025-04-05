@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Queue } from 'vs/base/common/async';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationCache, ConfigurationKey } from './configuration.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Queue } from '../../../../base/common/async.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 export class ConfigurationCache implements IConfigurationCache {
 

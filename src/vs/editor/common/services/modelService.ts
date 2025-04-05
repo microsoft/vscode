@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
-import { StringSHA1 } from 'vs/base/common/hash';
-import { isEditStackElement } from 'vs/editor/common/model/editStack';
-import { Schemas } from 'vs/base/common/network';
-import { equals } from 'vs/base/common/objects';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
+import { Range } from '../core/range.js';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
+import { TextModel, createTextBuffer } from '../model/textModel.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { IModelLanguageChangedEvent } from '../textModelEvents.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
+import { ILanguageSelection } from '../languages/language.js';
+import { IModelService } from './model.js';
+import { ITextResourcePropertiesService } from './textResourceConfiguration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
+import { isEditStackElement } from '../model/editStack.js';
+import { Schemas } from '../../../base/common/network.js';
+import { equals } from '../../../base/common/objects.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -107,8 +107,7 @@ export class ModelService extends Disposable implements IModelService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly _resourcePropertiesService: ITextResourcePropertiesService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
@@ -314,14 +313,11 @@ export class ModelService extends Disposable implements IModelService {
 	private _createModelData(value: string | ITextBufferFactory, languageIdOrSelection: string | ILanguageSelection, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdOrSelection, resource, isForSimpleWidget);
-		const model: TextModel = new TextModel(
+		const model: TextModel = this._instantiationService.createInstance(TextModel,
 			value,
 			languageIdOrSelection,
 			options,
-			resource,
-			this._undoRedoService,
-			this._languageService,
-			this._languageConfigurationService,
+			resource
 		);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;

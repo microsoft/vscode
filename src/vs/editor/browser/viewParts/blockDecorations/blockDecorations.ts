@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import 'vs/css!./blockDecorations';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { createFastDomNode, FastDomNode } from '../../../../base/browser/fastDomNode.js';
+import './blockDecorations.css';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
 
 export class BlockDecorations extends ViewPart {
 

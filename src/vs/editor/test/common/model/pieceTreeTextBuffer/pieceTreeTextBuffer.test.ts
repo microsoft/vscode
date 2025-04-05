@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, ITextSnapshot, SearchData } from 'vs/editor/common/model';
-import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { splitLines } from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { WordCharacterClassifier } from '../../../../common/core/wordCharacterClassifier.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { DefaultEndOfLine, ITextSnapshot, SearchData } from '../../../../common/model.js';
+import { PieceTreeBase } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeBase.js';
+import { PieceTreeTextBuffer } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
+import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { NodeColor, SENTINEL, TreeNode } from '../../../../common/model/pieceTreeTextBuffer/rbTreeBase.js';
+import { createTextModel } from '../../testTextModel.js';
+import { splitLines } from '../../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -1817,6 +1817,22 @@ suite('buffer api', () => {
 		assert.strictEqual(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
 		assert.strictEqual(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
 	});
+
+	test('getNearestChunk', () => {
+		const pieceTree = createTextBuffer(['012345678']);
+		ds.add(pieceTree);
+		const pt = pieceTree.getPieceTree();
+
+		pt.insert(3, 'ABC');
+		assert.equal(pt.getLineContent(1), '012ABC345678');
+		assert.equal(pt.getNearestChunk(3), 'ABC');
+		assert.equal(pt.getNearestChunk(6), '345678');
+
+		pt.delete(9, 1);
+		assert.equal(pt.getLineContent(1), '012ABC34578');
+		assert.equal(pt.getNearestChunk(6), '345');
+		assert.equal(pt.getNearestChunk(9), '78');
+	});
 });
 
 suite('search offset cache', () => {
@@ -2056,7 +2072,7 @@ suite('chunk based search', () => {
 		ds.add(pieceTree);
 		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.delete(0, 1);
-		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
+		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./', []), 'abc'), true, 1000);
 		assert.strictEqual(ret.length, 0);
 	});
 
@@ -2078,7 +2094,7 @@ suite('chunk based search', () => {
 		pieceTable.delete(16, 1);
 
 		pieceTable.insert(16, ' ');
-		const ret = pieceTable.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
+		const ret = pieceTable.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./', []), '['), true, 1000);
 		assert.strictEqual(ret.length, 3);
 
 		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));

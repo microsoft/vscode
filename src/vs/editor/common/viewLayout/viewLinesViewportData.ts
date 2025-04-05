@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IPartialViewLinesViewportData, IViewModel, IViewWhitespaceViewportData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
+import { Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { IPartialViewLinesViewportData, IViewModel, IViewWhitespaceViewportData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 
 /**
  * Contains all data needed to render at a specific viewport.
@@ -46,6 +46,8 @@ export class ViewportData {
 
 	private readonly _model: IViewModel;
 
+	public readonly lineHeight: number;
+
 	constructor(
 		selections: Selection[],
 		partialData: IPartialViewLinesViewportData,
@@ -57,6 +59,7 @@ export class ViewportData {
 		this.endLineNumber = partialData.endLineNumber | 0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
+		this.lineHeight = partialData.lineHeight | 0;
 		this.whitespaceViewportData = whitespaceViewportData;
 
 		this._model = model;

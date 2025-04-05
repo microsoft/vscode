@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IMarkerDecorationsService } from '../../common/services/markerDecorations.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../editorExtensions.js';
+import { ICodeEditor } from '../editorBrowser.js';
+import { IEditorContribution } from '../../common/editorCommon.js';
 
 export class MarkerDecorationsContribution implements IEditorContribution {
 

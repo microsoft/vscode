@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter } from '../../../../base/common/event.js';
 
 export class DebugCompoundRoot {
 	private stopped = false;

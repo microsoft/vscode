@@ -276,11 +276,11 @@ class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem> {
 					item: HistoryItem;
 				}
 				const entries = await this.getChildren();
-				const picks = entries.map(item => <HistoryPick>{
+				const picks = entries.map((item): HistoryPick => ({
 					label: item.word,
 					description: item.description,
 					item
-				});
+				}));
 				const pick = await vscode.window.showQuickPick(picks, { placeHolder: vscode.l10n.t('Select previous reference search') });
 				if (pick) {
 					this._reRunHistoryItem(pick.item);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriParts, IRawURITransformer, URITransformer, IURITransformer } from 'vs/base/common/uriIpc';
+import { UriParts, IRawURITransformer, URITransformer, IURITransformer } from '../../../base/common/uriIpc.js';
 
 /**
  * ```

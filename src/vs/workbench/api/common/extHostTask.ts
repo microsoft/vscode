@@ -5,29 +5,31 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { asPromise } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { asPromise } from '../../../base/common/async.js';
+import { Event, Emitter } from '../../../base/common/event.js';
 
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from './extHost.protocol.js';
+import * as types from './extHostTypes.js';
+import { IExtHostWorkspaceProvider, IExtHostWorkspace } from './extHostWorkspace.js';
 import type * as vscode from 'vscode';
-import * as tasks from '../common/shared/tasks';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
-import * as Platform from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ErrorNoTelemetry, NotSupportedError } from 'vs/base/common/errors';
+import * as tasks from './shared/tasks.js';
+import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import { IExtHostConfiguration } from './extHostConfiguration.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtHostTerminalService } from './extHostTerminalService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { Schemas } from '../../../base/common/network.js';
+import * as Platform from '../../../base/common/platform.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
+import { USER_TASKS_GROUP_KEY } from '../../contrib/tasks/common/tasks.js';
+import { ErrorNoTelemetry, NotSupportedError } from '../../../base/common/errors.js';
+import { asArray } from '../../../base/common/arrays.js';
+import { ITaskProblemMatcherStartedDto, ITaskProblemMatcherEndedDto } from './shared/tasks.js';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -38,6 +40,8 @@ export interface IExtHostTask extends ExtHostTaskShape {
 	onDidEndTask: Event<vscode.TaskEndEvent>;
 	onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
 	onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
+	onDidStartTaskProblemMatchers: Event<vscode.TaskProblemMatcherStartedEvent>;
+	onDidEndTaskProblemMatchers: Event<vscode.TaskProblemMatcherEndedEvent>;
 
 	registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable;
 	registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
@@ -279,7 +283,7 @@ export namespace TaskDTO {
 			isBackground: value.isBackground,
 			group: TaskGroupDTO.from(value.group as vscode.TaskGroup),
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
-			problemMatchers: value.problemMatchers,
+			problemMatchers: asArray(value.problemMatchers),
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
 			detail: value.detail
@@ -405,6 +409,8 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 	protected readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	protected readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
+	protected readonly _onDidStartTaskProblemMatchers: Emitter<vscode.TaskProblemMatcherStartedEvent> = new Emitter<vscode.TaskProblemMatcherStartedEvent>();
+	protected readonly _onDidEndTaskProblemMatchers: Emitter<vscode.TaskProblemMatcherEndedEvent> = new Emitter<vscode.TaskProblemMatcherEndedEvent>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -537,6 +543,38 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 			execution: execution,
 			exitCode: value.exitCode
 		});
+	}
+
+	public get onDidStartTaskProblemMatchers(): Event<vscode.TaskProblemMatcherStartedEvent> {
+		return this._onDidStartTaskProblemMatchers.event;
+	}
+
+	public async $onDidStartTaskProblemMatchers(value: ITaskProblemMatcherStartedDto): Promise<void> {
+		let execution;
+		try {
+			execution = await this.getTaskExecution(value.execution.id);
+		} catch (error) {
+			// The task execution is not available anymore
+			return;
+		}
+
+		this._onDidStartTaskProblemMatchers.fire({ execution });
+	}
+
+	public get onDidEndTaskProblemMatchers(): Event<vscode.TaskProblemMatcherEndedEvent> {
+		return this._onDidEndTaskProblemMatchers.event;
+	}
+
+	public async $onDidEndTaskProblemMatchers(value: ITaskProblemMatcherEndedDto): Promise<void> {
+		let execution;
+		try {
+			execution = await this.getTaskExecution(value.execution.id);
+		} catch (error) {
+			// The task execution is not available anymore
+			return;
+		}
+
+		this._onDidEndTaskProblemMatchers.fire({ execution, hasErrors: value.hasErrors });
 	}
 
 	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.ITaskDTO[]; extension: IExtensionDescription };

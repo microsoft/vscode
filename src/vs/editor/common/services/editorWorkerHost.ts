@@ -3,7 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IEditorWorkerHost {
+import { IWebWorkerServer, IWebWorkerClient } from '../../../base/common/worker/webWorker.js';
+
+export abstract class EditorWorkerHost {
+	public static CHANNEL_NAME = 'editorWorkerHost';
+	public static getChannel(workerServer: IWebWorkerServer): EditorWorkerHost {
+		return workerServer.getChannel<EditorWorkerHost>(EditorWorkerHost.CHANNEL_NAME);
+	}
+	public static setChannel(workerClient: IWebWorkerClient<any>, obj: EditorWorkerHost): void {
+		workerClient.setChannel<EditorWorkerHost>(EditorWorkerHost.CHANNEL_NAME, obj);
+	}
+
 	// foreign host request
-	fhr(method: string, args: any[]): Promise<any>;
+	abstract $fhr(method: string, args: any[]): Promise<any>;
 }

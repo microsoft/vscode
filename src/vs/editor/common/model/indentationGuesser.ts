@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { ITextBuffer } from 'vs/editor/common/model';
+import { CharCode } from '../../../base/common/charCode.js';
+import { ITextBuffer } from '../model.js';
 
 class SpacesDiffResult {
 	public spacesDiff: number = 0;

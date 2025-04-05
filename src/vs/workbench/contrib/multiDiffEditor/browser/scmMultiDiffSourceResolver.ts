@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, observableFromEvent } from 'vs/base/common/observable';
-import { URI } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
+import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
 export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	private static readonly _scheme = 'scm-multi-diff-source';
@@ -31,7 +31,7 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 			return undefined;
 		}
 
-		let query: any;
+		let query: UriFields;
 		try {
 			query = JSON.parse(uri.query) as UriFields;
 		} catch (e) {
@@ -52,6 +52,7 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	constructor(
 		@ISCMService private readonly _scmService: ISCMService,
+		@IActivityService private readonly _activityService: IActivityService,
 	) {
 	}
 
@@ -62,67 +63,47 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const { repositoryUri, groupId } = ScmMultiDiffSourceResolver.parseUri(uri)!;
 
-		const repository = await promiseFromEventState(
+		const repository = await waitForState(observableFromEvent(this,
 			this._scmService.onDidAddRepository,
-			() => {
-				const repository = [...this._scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryUri.toString());
-				return repository ?? false;
-			}
+			() => [...this._scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryUri.toString()))
 		);
-
-		const group = await promiseFromEventState(
+		const group = await waitForState(observableFromEvent(this,
 			repository.provider.onDidChangeResourceGroups,
-			() => {
-				const group = repository.provider.groups.find(g => g.id === groupId);
-				return group ?? false;
-			}
+			() => repository.provider.groups.find(g => g.id === groupId)
+		));
+
+		const scmActivities = observableFromEvent(
+			this._activityService.onDidChangeActivity,
+			() => [...this._activityService.getViewContainerActivities('workbench.view.scm')],
 		);
+		const scmViewHasNoProgressBadge = scmActivities.map(activities => !activities.some(a => a.badge instanceof ProgressBadge));
+		await waitForState(scmViewHasNoProgressBadge, v => v);
 
-		const resources = observableFromEvent<MultiDiffEditorItem[]>(group.onDidChangeResources, () => group.resources.map(e => {
-			return {
-				original: e.multiDiffEditorOriginalUri,
-				modified: e.multiDiffEditorModifiedUri
-			};
-		}));
-
-		return new ScmResolvedMultiDiffSource(resources, {
-			scmResourceGroup: groupId,
-			scmProvider: repository.provider.contextValue,
-		});
+		return new ScmResolvedMultiDiffSource(group, repository);
 	}
 }
 
 class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
-	get resources(): readonly MultiDiffEditorItem[] { return this._resources.get(); }
-	public readonly onDidChange = Event.fromObservableLight(this._resources);
+	private readonly _resources = observableFromEvent<MultiDiffEditorItem[]>(
+		this._group.onDidChangeResources,
+		() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
+	);
+	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
+
+	public readonly contextKeys: Record<string, ContextKeyValue> = {
+		scmResourceGroup: this._group.id,
+		scmProvider: this._repository.provider.contextValue,
+	};
 
 	constructor(
-		private readonly _resources: IObservable<readonly MultiDiffEditorItem[]>,
-		public readonly contextKeys: Record<string, ContextKeyValue> | undefined,
-	) {
-	}
+		private readonly _group: ISCMResourceGroup,
+		private readonly _repository: ISCMRepository,
+	) { }
 }
 
 interface UriFields {
 	repositoryUri: string;
 	groupId: string;
-}
-
-function promiseFromEventState<T>(event: Event<any>, checkState: () => T | false): Promise<T> {
-	const state = checkState();
-	if (state) {
-		return Promise.resolve(state);
-	}
-
-	return new Promise<T>(resolve => {
-		const listener = event(() => {
-			const state = checkState();
-			if (state) {
-				listener.dispose();
-				resolve(state);
-			}
-		});
-	});
 }
 
 export class ScmMultiDiffSourceResolverContribution extends Disposable {
@@ -139,32 +120,32 @@ export class ScmMultiDiffSourceResolverContribution extends Disposable {
 	}
 }
 
-export class OpenScmGroupAction extends Action2 {
-	constructor() {
-		super({
-			id: 'multiDiffEditor.openScmDiff',
-			title: localize2('viewChanges', 'View Changes'),
-			icon: Codicon.diffMultiple,
-			menu: {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.has('config.multiDiffEditor.experimental.enabled'),
-					ContextKeyExpr.has('multiDiffEditorEnableViewChanges'),
-				),
-				id: MenuId.SCMResourceGroupContext,
-				group: 'inline',
-			},
-			f1: false,
-		});
-	}
+interface OpenScmGroupActionOptions {
+	title: string;
+	repositoryUri: UriComponents;
+	resourceGroupId: string;
+}
 
-	async run(accessor: ServicesAccessor, group: ISCMResourceGroup): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		if (!group.provider.rootUri) {
+export class OpenScmGroupAction extends Action2 {
+	public static async openMultiFileDiffEditor(editorService: IEditorService, label: string, repositoryRootUri: URI | undefined, resourceGroupId: string, options?: IMultiDiffEditorOptions) {
+		if (!repositoryRootUri) {
 			return;
 		}
 
-		const multiDiffSource = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(group.provider.rootUri.toString(), group.id);
-		const label = localize('scmDiffLabel', '{0}: {1}', group.provider.label, group.label);
-		await editorService.openEditor({ label, multiDiffSource });
+		const multiDiffSource = ScmMultiDiffSourceResolver.getMultiDiffSourceUri(repositoryRootUri.toString(), resourceGroupId);
+		return await editorService.openEditor({ label, multiDiffSource, options });
+	}
+
+	constructor() {
+		super({
+			id: '_workbench.openScmMultiDiffEditor',
+			title: localize2('openChanges', 'Open Changes'),
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options: OpenScmGroupActionOptions): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		await OpenScmGroupAction.openMultiFileDiffEditor(editorService, options.title, URI.revive(options.repositoryUri), options.resourceGroupId);
 	}
 }

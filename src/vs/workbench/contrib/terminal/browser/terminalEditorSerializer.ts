@@ -3,27 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance } from './terminal.js';
+import { TerminalEditorInput } from './terminalEditorInput.js';
 
 export class TerminalInputSerializer implements IEditorSerializer {
 	constructor(
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
 
-	public canSerialize(editorInput: TerminalEditorInput): boolean {
-		return !!editorInput.terminalInstance?.persistentProcessId;
+	public canSerialize(editorInput: TerminalEditorInput): editorInput is TerminalEditorInput & { readonly terminalInstance: ITerminalInstance } {
+		return typeof editorInput.terminalInstance?.persistentProcessId === 'number' && editorInput.terminalInstance.shouldPersist;
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string | undefined {
-		if (!editorInput.terminalInstance?.persistentProcessId || !editorInput.terminalInstance.shouldPersist) {
+		if (!this.canSerialize(editorInput)) {
 			return;
 		}
-		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		return term;
+		return JSON.stringify(this._toJson(editorInput.terminalInstance));
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { mainWindow } from 'vs/base/browser/window';
-import * as platform from 'vs/base/common/platform';
+import * as browser from './browser.js';
+import { mainWindow } from './window.js';
+import * as platform from '../common/platform.js';
 
 export const enum KeyboardSupport {
 	Always,

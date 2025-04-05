@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import * as DOM from './dom.js';
+import { IKeyboardEvent } from './keyboardEvent.js';
+import { IMouseEvent } from './mouseEvent.js';
+import { DisposableStore } from '../common/lifecycle.js';
 
 export interface IContentActionHandler {
-	callback: (content: string, event: IMouseEvent | IKeyboardEvent) => void;
+	readonly callback: (content: string, event: IMouseEvent | IKeyboardEvent) => void;
 	readonly disposables: DisposableStore;
 }
 

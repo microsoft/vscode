@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Range } from 'vs/editor/common/core/range';
-import { findFirstIdxMonotonousOrArrLen, findLastIdxMonotonous, findLastMonotonous } from 'vs/base/common/arraysFind';
+import { BugIndicatingError } from '../../../base/common/errors.js';
+import { OffsetRange } from './offsetRange.js';
+import { Range } from './range.js';
+import { findFirstIdxMonotonousOrArrLen, findLastIdxMonotonous, findLastMonotonous } from '../../../base/common/arraysFind.js';
 
 /**
  * A range of lines (1-based).
@@ -50,6 +50,19 @@ export class LineRange {
 			result = result.getUnion(new LineRangeSet(lineRanges[i].slice()));
 		}
 		return result.ranges;
+	}
+
+	public static join(lineRanges: LineRange[]): LineRange {
+		if (lineRanges.length === 0) {
+			throw new BugIndicatingError('lineRanges cannot be empty');
+		}
+		let startLineNumber = lineRanges[0].startLineNumber;
+		let endLineNumberExclusive = lineRanges[0].endLineNumberExclusive;
+		for (let i = 1; i < lineRanges.length; i++) {
+			startLineNumber = Math.min(startLineNumber, lineRanges[i].startLineNumber);
+			endLineNumberExclusive = Math.max(endLineNumberExclusive, lineRanges[i].endLineNumberExclusive);
+		}
+		return new LineRange(startLineNumber, endLineNumberExclusive);
 	}
 
 	public static ofLength(startLineNumber: number, length: number): LineRange {
@@ -162,6 +175,9 @@ export class LineRange {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER);
 	}
 
+	/**
+	 * @deprecated Using this function is discouraged because it might lead to bugs: The end position is not guaranteed to be a valid position!
+	*/
 	public toExclusiveRange(): Range {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
 	}
@@ -197,6 +213,33 @@ export class LineRange {
 	 */
 	public toOffsetRange(): OffsetRange {
 		return new OffsetRange(this.startLineNumber - 1, this.endLineNumberExclusive - 1);
+	}
+
+	public distanceToRange(other: LineRange): number {
+		if (this.endLineNumberExclusive <= other.startLineNumber) {
+			return other.startLineNumber - this.endLineNumberExclusive;
+		}
+		if (other.endLineNumberExclusive <= this.startLineNumber) {
+			return this.startLineNumber - other.endLineNumberExclusive;
+		}
+		return 0;
+	}
+
+	public distanceToLine(lineNumber: number): number {
+		if (this.contains(lineNumber)) {
+			return 0;
+		}
+		if (lineNumber < this.startLineNumber) {
+			return this.startLineNumber - lineNumber;
+		}
+		return lineNumber - this.endLineNumberExclusive;
+	}
+
+	public addMargin(marginTop: number, marginBottom: number): LineRange {
+		return new LineRange(
+			this.startLineNumber - marginTop,
+			this.endLineNumberExclusive + marginBottom
+		);
 	}
 }
 

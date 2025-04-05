@@ -22,8 +22,15 @@ interface ServerReadyAction {
 	killOnServerStop?: boolean;
 }
 
-// Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
-const CSI_SEQUENCE = /(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/g;
+// From src/vs/base/common/strings.ts
+const CSI_SEQUENCE = /(?:\x1b\[|\x9b)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/;
+const OSC_SEQUENCE = /(?:\x1b\]|\x9d).*?(?:\x1b\\|\x07|\x9c)/;
+const ESC_SEQUENCE = /\x1b(?:[ #%\(\)\*\+\-\.\/]?[a-zA-Z0-9\|}~@])/;
+const CONTROL_SEQUENCES = new RegExp('(?:' + [
+	CSI_SEQUENCE.source,
+	OSC_SEQUENCE.source,
+	ESC_SEQUENCE.source,
+].join('|') + ')', 'g');
 
 /**
  * Froms vs/base/common/strings.ts in core
@@ -31,7 +38,7 @@ const CSI_SEQUENCE = /(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/g;
  */
 function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
-		str = str.replace(CSI_SEQUENCE, '');
+		str = str.replace(CONTROL_SEQUENCES, '');
 	}
 
 	return str;

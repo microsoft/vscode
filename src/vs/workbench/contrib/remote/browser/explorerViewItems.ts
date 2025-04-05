@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IViewDescriptor } from 'vs/workbench/common/views';
-import { isStringArray } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
-import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls.js';
+import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from '../../../services/remote/common/remoteExplorerService.js';
+import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { IViewDescriptor } from '../../../common/views.js';
+import { isStringArray } from '../../../../base/common/types.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { VIEWLET_ID } from './remoteExplorer.js';
+import { getVirtualWorkspaceLocation } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 
 interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];

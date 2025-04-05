@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, WebContents, app } from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
+import { BrowserWindow, BrowserWindowConstructorOptions, HandlerDetails, WebContents, app } from 'electron';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { AuxiliaryWindow, IAuxiliaryWindow } from './auxiliaryWindow.js';
+import { IAuxiliaryWindowsMainService } from './auxiliaryWindows.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IWindowState, WindowMode, defaultAuxWindowState } from '../../window/electron-main/window.js';
+import { IDefaultBrowserWindowOptionsOverrides, WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from '../../windows/electron-main/windows.js';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
 
@@ -30,7 +31,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
-	private readonly windows = new Map<number, AuxiliaryWindow>();
+	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -50,16 +51,32 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		// is created.
 
 		app.on('browser-window-created', (_event, browserWindow) => {
-			const auxiliaryWindow = this.getWindowById(browserWindow.id);
+
+			// This is an auxiliary window, try to claim it
+			const auxiliaryWindow = this.getWindowByWebContents(browserWindow.webContents);
 			if (auxiliaryWindow) {
 				this.logService.trace('[aux window] app.on("browser-window-created"): Trying to claim auxiliary window');
 
 				auxiliaryWindow.tryClaimWindow();
 			}
+
+			// This is a main window, listen to child windows getting created to claim it
+			else {
+				const disposables = new DisposableStore();
+				disposables.add(Event.fromNodeEventEmitter(browserWindow.webContents, 'did-create-window', (browserWindow, details) => ({ browserWindow, details }))(({ browserWindow, details }) => {
+					const auxiliaryWindow = this.getWindowByWebContents(browserWindow.webContents);
+					if (auxiliaryWindow) {
+						this.logService.trace('[aux window] window.on("did-create-window"): Trying to claim auxiliary window');
+
+						auxiliaryWindow.tryClaimWindow(details.options);
+					}
+				}));
+				disposables.add(Event.fromNodeEventEmitter(browserWindow, 'closed')(() => disposables.dispose()));
+			}
 		});
 
 		validatedIpcMain.handle('vscode:registerAuxiliaryWindow', async (event, mainWindowId: number) => {
-			const auxiliaryWindow = this.getWindowById(event.sender.id);
+			const auxiliaryWindow = this.getWindowByWebContents(event.sender);
 			if (auxiliaryWindow) {
 				this.logService.trace('[aux window] vscode:registerAuxiliaryWindow: Registering auxiliary window to main window');
 
@@ -70,12 +87,53 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		});
 	}
 
-	createWindow(): BrowserWindowConstructorOptions {
-		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, undefined, {
-			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
-			}
+	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
+		const { state, overrides } = this.computeWindowStateAndOverrides(details);
+		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
+			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
 		});
+	}
+
+	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides } {
+		const windowState: IWindowState = {};
+		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
+
+		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
+		for (const feature of features) {
+			const [key, value] = feature.split('=');
+			switch (key) {
+				case 'width':
+					windowState.width = parseInt(value, 10);
+					break;
+				case 'height':
+					windowState.height = parseInt(value, 10);
+					break;
+				case 'left':
+					windowState.x = parseInt(value, 10);
+					break;
+				case 'top':
+					windowState.y = parseInt(value, 10);
+					break;
+				case 'window-maximized':
+					windowState.mode = WindowMode.Maximized;
+					break;
+				case 'window-fullscreen':
+					windowState.mode = WindowMode.Fullscreen;
+					break;
+				case 'window-disable-fullscreen':
+					overrides.disableFullscreen = true;
+					break;
+				case 'window-native-titlebar':
+					overrides.forceNativeTitlebar = true;
+					break;
+			}
+		}
+
+		const state = WindowStateValidator.validateWindowState(this.logService, windowState) ?? defaultAuxWindowState();
+
+		this.logService.trace('[aux window] using window state', state);
+
+		return { state, overrides };
 	}
 
 	registerWindow(webContents: WebContents): void {
@@ -95,14 +153,16 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());
 	}
 
-	getWindowById(windowId: number): AuxiliaryWindow | undefined {
-		return this.windows.get(windowId);
+	getWindowByWebContents(webContents: WebContents): AuxiliaryWindow | undefined {
+		const window = this.windows.get(webContents.id);
+
+		return window?.matches(webContents) ? window : undefined;
 	}
 
 	getFocusedWindow(): IAuxiliaryWindow | undefined {
 		const window = BrowserWindow.getFocusedWindow();
 		if (window) {
-			return this.getWindowById(window.id);
+			return this.getWindowByWebContents(window.webContents);
 		}
 
 		return undefined;

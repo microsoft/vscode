@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { localize, localize2 } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { SnippetsAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { groupBy, isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
+import { compare } from '../../../../../base/common/strings.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { SnippetsAction } from './abstractSnippetsActions.js';
+import { ISnippetsService } from '../snippets.js';
+import { Snippet } from '../snippetsFile.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 export class ApplyFileSnippetAction extends SnippetsAction {
 

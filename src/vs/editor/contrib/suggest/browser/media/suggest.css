@@ -352,7 +352,7 @@
 	color: var(--vscode-editorSuggestWidget-foreground);
 }
 
-.monaco-editor .suggest-details.focused {
+.monaco-editor .suggest-details:focus {
 	border-color: var(--vscode-focusBorder);
 }
 
@@ -389,7 +389,11 @@
 	opacity: 0.7;
 	white-space: pre;
 	margin: 0 24px 0 0;
-	padding: 4px 0 12px 5px;
+	padding: 4px 0 4px 5px;
+}
+
+.monaco-editor .suggest-details.detail-and-doc > .monaco-scrollable-element > .body > .header > .type {
+	padding-bottom: 12px;
 }
 
 .monaco-editor .suggest-details > .monaco-scrollable-element > .body > .header > .type.auto-wrap {

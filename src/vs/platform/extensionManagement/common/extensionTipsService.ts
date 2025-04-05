@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableTimeout } from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isNonEmptyArray } from '../../../base/common/arrays.js';
+import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from '../../../base/common/product.js';
+import { joinPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from './extensionManagement.js';
+import { IFileService } from '../../files/common/files.js';
+import { IProductService } from '../../product/common/productService.js';
+import { disposableTimeout } from '../../../base/common/async.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Event } from '../../../base/common/event.js';
+import { join } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { env } from '../../../base/common/process.js';
+import { areSameExtensions } from './extensionManagementUtil.js';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from '../../extensionRecommendations/common/extensionRecommendations.js';
+import { ExtensionType } from '../../extensions/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 //#region Base Extension Tips Service
 

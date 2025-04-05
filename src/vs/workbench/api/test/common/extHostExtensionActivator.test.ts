@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { promiseWithResolvers, timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
+import assert from 'assert';
+import { promiseWithResolvers, timeout } from '../../../../base/common/async.js';
+import { Mutable } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from '../../common/extHostExtensionActivator.js';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../../services/extensions/common/extensionDescriptionRegistry.js';
+import { ExtensionActivationReason, MissingExtensionDependency } from '../../../services/extensions/common/extensions.js';
 
 suite('ExtensionsActivator', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const idA = new ExtensionIdentifier(`a`);
 	const idB = new ExtensionIdentifier(`b`);
@@ -82,8 +86,8 @@ suite('ExtensionsActivator', () => {
 	test('Supports having resolved extensions', async () => {
 		const host = new SimpleExtensionsActivatorHost();
 		const bExt = desc(idB);
-		delete (<IRelaxedExtensionDescription>bExt).main;
-		delete (<IRelaxedExtensionDescription>bExt).browser;
+		delete (<Mutable<IExtensionDescription>>bExt).main;
+		delete (<Mutable<IExtensionDescription>>bExt).browser;
 		const activator = createActivator(host, [
 			desc(idA, [idB])
 		], [bExt]);
@@ -100,7 +104,7 @@ suite('ExtensionsActivator', () => {
 			[idB, extActivationB]
 		]);
 		const bExt = desc(idB);
-		(<IRelaxedExtensionDescription>bExt).api = 'none';
+		(<Mutable<IExtensionDescription>>bExt).api = 'none';
 		const activator = createActivator(host, [
 			desc(idA, [idB])
 		], [bExt]);
@@ -271,7 +275,9 @@ suite('ExtensionsActivator', () => {
 			activationEvents,
 			main: 'index.js',
 			targetPlatform: TargetPlatform.UNDEFINED,
-			extensionDependencies: deps.map(d => d.value)
+			extensionDependencies: deps.map(d => d.value),
+			enabledApiProposals: undefined,
+			preRelease: false,
 		};
 	}
 

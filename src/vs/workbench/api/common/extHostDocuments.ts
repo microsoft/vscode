@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/common/extHostDocumentData';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IModelChangedEvent } from '../../../editor/common/model/mirrorTextModel.js';
+import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from './extHost.protocol.js';
+import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import * as TypeConverters from './extHostTypeConverters.js';
 import type * as vscode from 'vscode';
-import { assertIsDefined } from 'vs/base/common/types';
-import { deepFreeze } from 'vs/base/common/objects';
-import { TextDocumentChangeReason } from 'vs/workbench/api/common/extHostTypes';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { deepFreeze } from '../../../base/common/objects.js';
+import { TextDocumentChangeReason } from './extHostTypes.js';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -76,16 +76,16 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return data.document;
 	}
 
-	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
+	public ensureDocumentData(uri: URI, options?: { encoding?: string }): Promise<ExtHostDocumentData> {
 
 		const cached = this._documentsAndEditors.getDocument(uri);
-		if (cached) {
+		if (cached && (!options?.encoding || cached.document.encoding === options.encoding)) {
 			return Promise.resolve(cached);
 		}
 
 		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
-			promise = this._proxy.$tryOpenDocument(uri).then(uriData => {
+			promise = this._proxy.$tryOpenDocument(uri, options).then(uriData => {
 				this._documentLoader.delete(uri.toString());
 				const canonicalUri = URI.revive(uriData);
 				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
@@ -94,12 +94,21 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 				return Promise.reject(err);
 			});
 			this._documentLoader.set(uri.toString(), promise);
+		} else {
+			if (options?.encoding) {
+				promise = promise.then(data => {
+					if (data.document.encoding !== options.encoding) {
+						return this.ensureDocumentData(uri, options);
+					}
+					return data;
+				});
+			}
 		}
 
 		return promise;
 	}
 
-	public createDocumentData(options?: { language?: string; content?: string }): Promise<URI> {
+	public createDocumentData(options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
@@ -133,6 +142,20 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 			throw new Error('unknown document');
 		}
 		data._acceptIsDirty(isDirty);
+		this._onDidChangeDocument.fire({
+			document: data.document,
+			contentChanges: [],
+			reason: undefined
+		});
+	}
+
+	public $acceptEncodingChanged(uriComponents: UriComponents, encoding: string): void {
+		const uri = URI.revive(uriComponents);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
+		data._acceptEncoding(encoding);
 		this._onDidChangeDocument.fire({
 			document: data.document,
 			contentChanges: [],

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Comparator } from './arrays';
+import { Comparator } from './arrays.js';
 
-export function findLast<T>(array: readonly T[], predicate: (item: T) => boolean, fromIdx?: number): T | undefined {
-	const idx = findLastIdx(array, predicate);
+export function findLast<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): T | undefined {
+	const idx = findLastIdx(array, predicate, fromIndex);
 	if (idx === -1) {
 		return undefined;
 	}
 	return array[idx];
 }
 
-export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => boolean, fromIndex = array.length - 1): number {
+export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): number {
 	for (let i = fromIndex; i >= 0; i--) {
 		const element = array[i];
 
@@ -132,7 +132,7 @@ export class MonotonousArray<T> {
 /**
  * Returns the first item that is equal to or greater than every other item.
 */
-export function findFirstMaxBy<T>(array: readonly T[], comparator: Comparator<T>): T | undefined {
+export function findFirstMax<T>(array: readonly T[], comparator: Comparator<T>): T | undefined {
 	if (array.length === 0) {
 		return undefined;
 	}
@@ -150,7 +150,7 @@ export function findFirstMaxBy<T>(array: readonly T[], comparator: Comparator<T>
 /**
  * Returns the last item that is equal to or greater than every other item.
 */
-export function findLastMaxBy<T>(array: readonly T[], comparator: Comparator<T>): T | undefined {
+export function findLastMax<T>(array: readonly T[], comparator: Comparator<T>): T | undefined {
 	if (array.length === 0) {
 		return undefined;
 	}
@@ -168,11 +168,11 @@ export function findLastMaxBy<T>(array: readonly T[], comparator: Comparator<T>)
 /**
  * Returns the first item that is equal to or less than every other item.
 */
-export function findFirstMinBy<T>(array: readonly T[], comparator: Comparator<T>): T | undefined {
-	return findFirstMaxBy(array, (a, b) => -comparator(a, b));
+export function findFirstMin<T>(array: readonly T[], comparator: Comparator<T>): T | undefined {
+	return findFirstMax(array, (a, b) => -comparator(a, b));
 }
 
-export function findMaxIdxBy<T>(array: readonly T[], comparator: Comparator<T>): number {
+export function findMaxIdx<T>(array: readonly T[], comparator: Comparator<T>): number {
 	if (array.length === 0) {
 		return -1;
 	}

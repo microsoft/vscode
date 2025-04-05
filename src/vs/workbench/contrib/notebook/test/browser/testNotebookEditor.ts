@@ -3,65 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { NotImplementedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { CellFindMatchWithIndex, CellFocusMode, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/services/notebookCellStatusBarServiceImpl';
-import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellKind, CellUri, ICellDto2, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestStorageService, TestWorkspaceTrustRequestService } from 'vs/workbench/test/common/workbenchTestServices';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/config/editorOptions';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { NotImplementedError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { LanguageService } from '../../../../../editor/common/services/languageService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ModelService } from '../../../../../editor/common/services/modelService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { EditorModel } from '../../../../common/editor/editorModel.js';
+import { CellFindMatchWithIndex, CellFocusMode, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from '../../browser/notebookBrowser.js';
+import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from '../../browser/notebookViewEvents.js';
+import { NotebookCellStatusBarService } from '../../browser/services/notebookCellStatusBarServiceImpl.js';
+import { ListViewInfoAccessor, NotebookCellList } from '../../browser/view/notebookCellList.js';
+import { BaseCellRenderTemplate } from '../../browser/view/notebookRenderingCommon.js';
+import { NotebookEventDispatcher } from '../../browser/viewModel/eventDispatcher.js';
+import { CellViewModel, NotebookViewModel } from '../../browser/viewModel/notebookViewModelImpl.js';
+import { ViewContext } from '../../browser/viewModel/viewContext.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { INotebookCellStatusBarService } from '../../common/notebookCellStatusBarService.js';
+import { CellKind, CellUri, ICellDto2, INotebookDiffEditorModel, INotebookEditorModel, INotebookFindOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from '../../common/notebookCommon.js';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from '../../common/notebookExecutionStateService.js';
+import { NotebookOptions } from '../../browser/notebookOptions.js';
+import { ICellRange } from '../../common/notebookRange.js';
+import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
+import { IWorkingCopySaveEvent } from '../../../../services/workingCopy/common/workingCopy.js';
+import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestStorageService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
+import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { EditorFontLigatures, EditorFontVariations } from '../../../../../editor/common/config/editorOptions.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { TestCodeEditorService } from '../../../../../editor/test/browser/editorTestServices.js';
+import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory } from '../../browser/viewModel/notebookOutlineDataSourceFactory.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../../browser/viewModel/notebookOutlineEntryFactory.js';
+import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -173,12 +180,13 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	}
 }
 
-export function setupInstantiationService(disposables: DisposableStore) {
+export function setupInstantiationService(disposables: Pick<DisposableStore, 'add'>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	const testThemeService = new TestThemeService();
 	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(IThemeService, testThemeService);
 	instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
@@ -192,14 +200,28 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, disposables.add(new NotebookCellStatusBarService()));
+	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
+	instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { override registerOutlineCreator() { return { dispose() { } }; } });
+	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
+	instantiationService.stub(INotebookOutlineEntryFactory, instantiationService.createInstance(NotebookOutlineEntryFactory));
+
+	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
+		_serviceBrand: undefined;
+		isEnabledForLanguage(languageId: string): boolean {
+			return false;
+		}
+		async detectLanguage(resource: URI, supportedLangs?: string[] | undefined): Promise<string | undefined> {
+			return undefined;
+		}
+	});
 
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: MockNotebookCell[]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
 
 	const viewType = 'notebook';
-	const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map((cell): ICellDto2 => {
+	const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test://test'), cells.map((cell): ICellDto2 => {
 		return {
 			source: cell[0],
 			mime: undefined,
@@ -211,8 +233,9 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }));
 
 	const model = disposables.add(new NotebookEditorTestModel(notebook));
-	const notebookOptions = disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false));
-	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions));
+	const notebookOptions = disposables.add(new NotebookOptions(mainWindow, false, undefined, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService)));
+	const baseCellEditorOptions = new class extends mock<IBaseCellEditorOptions>() { };
+	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => baseCellEditorOptions);
 	const viewModel: NotebookViewModel = disposables.add(instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false }));
 
 	const cellList = disposables.add(createNotebookCellList(instantiationService, disposables, viewContext));
@@ -221,6 +244,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 	let visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
 
+	const id = Date.now().toString();
 	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
 		// eslint-disable-next-line local/code-must-use-super-dispose
 		override dispose() {
@@ -276,6 +300,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override setCellEditorSelection() { }
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
 		override async layoutNotebookCell() { }
+		override async createOutput() { }
 		override async removeInset() { }
 		override async focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
 			cell.focusMode = focusItem === 'editor' ? CellFocusMode.Editor
@@ -291,7 +316,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override get onDidChangeSelection() { return viewModel.onDidChangeSelection as Event<any>; }
 		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
 		override get onDidChangeViewCells() { return viewModel.onDidChangeViewCells; }
-		override async find(query: string, options: INotebookSearchOptions): Promise<CellFindMatchWithIndex[]> {
+		override async find(query: string, options: INotebookFindOptions): Promise<CellFindMatchWithIndex[]> {
 			const findMatches = viewModel.find(query, options).filter(match => match.length > 0);
 			return findMatches;
 		}
@@ -306,7 +331,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 			visibleRanges = _ranges;
 		}
 
-		override getId(): string { return ''; }
+		override getId(): string { return id; }
 		override setScrollTop(scrollTop: number): void {
 			cellList.scrollTop = scrollTop;
 		}
@@ -357,11 +382,17 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 		override get notebook() {
 			return originalNotebook.viewModel.notebookDocument;
 		}
+		override get resource() {
+			return originalNotebook.viewModel.notebookDocument.uri;
+		}
 	};
 
 	const modifiedResource = new class extends mock<IResolvedNotebookEditorModel>() {
 		override get notebook() {
 			return modifiedNotebook.viewModel.notebookDocument;
+		}
+		override get resource() {
+			return modifiedNotebook.viewModel.notebookDocument.uri;
 		}
 	};
 
@@ -378,15 +409,19 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	if (res instanceof Promise) {
 		res.finally(() => {
 			originalNotebook.editor.dispose();
+			originalNotebook.viewModel.notebookDocument.dispose();
 			originalNotebook.viewModel.dispose();
 			modifiedNotebook.editor.dispose();
+			modifiedNotebook.viewModel.notebookDocument.dispose();
 			modifiedNotebook.viewModel.dispose();
 			disposables.dispose();
 		});
 	} else {
 		originalNotebook.editor.dispose();
+		originalNotebook.viewModel.notebookDocument.dispose();
 		originalNotebook.viewModel.dispose();
 		modifiedNotebook.editor.dispose();
+		modifiedNotebook.viewModel.notebookDocument.dispose();
 		modifiedNotebook.viewModel.dispose();
 		disposables.dispose();
 	}
@@ -397,7 +432,22 @@ interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegat
 	visibleRanges: ICellRange[];
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+export type MockNotebookCell = [
+	source: string,
+	lang: string,
+	kind: CellKind,
+	output?: IOutputDto[],
+	metadata?: NotebookCellMetadata,
+];
+
+export type MockDocumentSymbol = {
+	name: string;
+	range: {};
+	kind?: number;
+	children?: MockDocumentSymbol[];
+};
+
+export async function withTestNotebook<R = any>(cells: MockNotebookCell[], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
 	const disposables: DisposableStore = new DisposableStore();
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, disposables, cells);
@@ -427,15 +477,16 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		getTemplateId() { return 'template'; }
 	};
 
+	const baseCellRenderTemplate = new class extends mock<BaseCellRenderTemplate>() { };
 	const renderer: IListRenderer<CellViewModel, BaseCellRenderTemplate> = {
 		templateId: 'template',
-		renderTemplate() { return {} as BaseCellRenderTemplate; },
+		renderTemplate() { return baseCellRenderTemplate; },
 		renderElement() { },
 		disposeTemplate() { }
 	};
 
 	const notebookOptions = !!viewContext ? viewContext.notebookOptions
-		: disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false));
+		: disposables.add(new NotebookOptions(mainWindow, false, undefined, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService)));
 	const cellList: NotebookCellList = disposables.add(instantiationService.createInstance(
 		NotebookCellList,
 		'NotebookCellList',
@@ -480,7 +531,7 @@ class TestCellExecution implements INotebookCellExecution {
 	}
 }
 
-class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+export class TestNotebookExecutionStateService implements INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
@@ -511,6 +562,9 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 	}
 
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined {
 		return;
 	}
 	getExecution(notebook: URI): INotebookExecution | undefined {

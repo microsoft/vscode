@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../extensions/common/extensions.js';
 
 export interface IActivationEventsGenerator<T> {
 	(contributions: T[], result: { push(item: string): void }): void;

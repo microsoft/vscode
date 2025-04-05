@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Schemas } from 'vs/base/common/network';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { isWeb } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
-import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { RemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
+import { localize } from '../../../../nls.js';
+import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService } from './extensionManagement.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { WebExtensionManagementService } from './webExtensionManagementService.js';
+import { IExtension } from '../../../../platform/extensions/common/extensions.js';
+import { RemoteExtensionManagementService } from './remoteExtensionManagementService.js';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 

@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IReference } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/path';
-import { isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
-import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { Event } from '../../../../base/common/event.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import * as paths from '../../../../base/common/path.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IInteractiveDocumentService } from './interactiveDocumentService.js';
+import { IInteractiveHistoryService } from './interactiveHistoryService.js';
+import { IResolvedNotebookEditorModel, NotebookSetting } from '../../notebook/common/notebookCommon.js';
+import { ICompositeNotebookEditorInput, NotebookEditorInput } from '../../notebook/common/notebookEditorInput.js';
+import { INotebookService } from '../../notebook/common/notebookService.js';
 
 export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string, language?: string) {
@@ -44,6 +45,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	private name: string;
+	private readonly isScratchpad: boolean;
 
 	get language() {
 		return this._inputModelRef?.object.textEditorModel.getLanguageId() ?? this._initLanguage;
@@ -93,10 +95,12 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService,
 		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, 'interactive', {});
 		super();
+		this.isScratchpad = configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this.name = title ?? InteractiveEditorInput.windowNames[resource.path] ?? paths.basename(resource.path, paths.extname(resource.path));
@@ -130,10 +134,11 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	override get capabilities(): EditorInputCapabilities {
+		const scratchPad = this.isScratchpad ? EditorInputCapabilities.Scratchpad : 0;
+
 		return EditorInputCapabilities.Untitled
 			| EditorInputCapabilities.Readonly
-			| EditorInputCapabilities.AuxWindowUnsupported
-			| EditorInputCapabilities.Scratchpad;
+			| scratchPad;
 	}
 
 	private async _resolveEditorModel() {
@@ -204,7 +209,11 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 			return undefined; // save cancelled
 		}
 
-		return await this._editorModelReference.saveAs(target);
+		const saved = await this._editorModelReference.saveAs(target);
+		if (saved && 'resource' in saved && saved.resource) {
+			this._notebookService.getNotebookTextModel(saved.resource)?.dispose();
+		}
+		return saved;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -221,8 +230,22 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return this.name;
 	}
 
+	override isDirty(): boolean {
+		if (this.isScratchpad) {
+			return false;
+		}
+
+		return this._editorModelReference?.isDirty() ?? false;
+	}
+
 	override isModified() {
 		return this._editorModelReference?.isModified() ?? false;
+	}
+
+	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		if (this._editorModelReference && this._editorModelReference.isDirty()) {
+			await this._editorModelReference.revert(options);
+		}
 	}
 
 	override dispose() {

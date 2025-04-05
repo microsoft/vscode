@@ -149,7 +149,7 @@ impl LogSink for StdioLogSink {
 	}
 
 	fn write_result(&self, message: &str) {
-		println!("{}", message);
+		println!("{message}");
 	}
 }
 
@@ -214,7 +214,7 @@ impl Logger {
 	}
 
 	pub fn span(&self, name: &str) -> SpanBuilder {
-		self.tracer.span_builder(format!("serverlauncher/{}", name))
+		self.tracer.span_builder(format!("serverlauncher/{name}"))
 	}
 
 	pub fn tracer(&self) -> &Tracer {
@@ -237,8 +237,8 @@ impl Logger {
 	pub fn prefixed(&self, prefix: &str) -> Logger {
 		Logger {
 			prefix: Some(match &self.prefix {
-				Some(p) => format!("{}{} ", p, prefix),
-				None => format!("{} ", prefix),
+				Some(p) => format!("{p}{prefix} "),
+				None => format!("{prefix} "),
 			}),
 			..self.clone()
 		}
@@ -282,7 +282,7 @@ pub struct DownloadLogger<'a> {
 	logger: &'a Logger,
 }
 
-impl<'a> crate::util::io::ReportCopyProgress for DownloadLogger<'a> {
+impl crate::util::io::ReportCopyProgress for DownloadLogger<'_> {
 	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
 		if total_bytes > 0 {
 			self.logger.emit(
@@ -312,22 +312,19 @@ fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String
 
 	if use_colors {
 		if let Some(c) = level.color_code() {
-			return format!(
-				"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\n",
-				timestamp, c, name, prefix, message
-			);
+			return format!("\x1b[2m[{timestamp}]\x1b[0m {c}{name}\x1b[0m {prefix}{message}\n");
 		}
 	}
 
-	format!("[{}] {} {}{}\n", timestamp, name, prefix, message)
+	format!("[{timestamp}] {name} {prefix}{message}\n")
 }
 
 pub fn emit(level: Level, prefix: &str, message: &str) {
 	let line = format(level, prefix, message, *COLORS_ENABLED);
 	if level == Level::Trace && *COLORS_ENABLED {
-		print!("\x1b[2m{}\x1b[0m", line);
+		print!("\x1b[2m{line}\x1b[0m");
 	} else {
-		print!("{}", line);
+		print!("{line}");
 	}
 }
 

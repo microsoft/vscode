@@ -3,79 +3,149 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { isWindows } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
-import { State } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
+import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { renderViewTree } from '../../browser/baseDebugView.js';
+import { DebugExpressionRenderer } from '../../browser/debugExpressionRenderer.js';
+import { isStatusbarInDebugMode } from '../../browser/statusbarColorProvider.js';
+import { State } from '../../common/debug.js';
+import { Expression, Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
+import { MockSession } from '../common/mockDebug.js';
+import { createTestSession } from './callStack.test.js';
+import { createMockDebugModel } from './mockDebugModel.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 const $ = dom.$;
+
 
 suite('Debug - Base Debug View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	let linkDetector: LinkDetector;
+	let renderer: DebugExpressionRenderer;
+	let configurationService: TestConfigurationService;
+
+	function assertVariable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, "add">, displayType: boolean) {
+		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, undefined, {}, 'string');
+		let expression = $('.');
+		let name = $('.');
+		let type = $('.');
+		let value = $('.');
+		const label = new HighlightedLabel(name);
+		const lazyButton = $('.');
+		const store = disposables.add(new DisposableStore());
+		store.add(renderer.renderVariable({ expression, name, type, value, label, lazyButton }, variable, { showChanged: false }));
+
+		assert.strictEqual(label.element.textContent, 'foo');
+		assert.strictEqual(value.textContent, '');
+
+		variable.value = 'hey';
+		expression = $('.');
+		name = $('.');
+		type = $('.');
+		value = $('.');
+		store.add(renderer.renderVariable({ expression, name, type, value, label, lazyButton }, variable, { showChanged: false }));
+		assert.strictEqual(value.textContent, 'hey');
+		assert.strictEqual(label.element.textContent, displayType ? 'foo: ' : 'foo =');
+		assert.strictEqual(type.textContent, displayType ? 'string =' : '');
+
+		variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
+		expression = $('.');
+		name = $('.');
+		type = $('.');
+		value = $('.');
+		store.add(renderer.renderVariable({ expression, name, type, value, label, lazyButton }, variable, { showChanged: false }));
+		assert.ok(value.querySelector('a'));
+		assert.strictEqual(value.querySelector('a')!.textContent, variable.value);
+
+		variable = new Variable(session, 1, scope, 2, 'console', 'console', '5', 0, 0, undefined, { kind: 'virtual' });
+		expression = $('.');
+		name = $('.');
+		type = $('.');
+		value = $('.');
+		store.add(renderer.renderVariable({ expression, name, type, value, label, lazyButton }, variable, { showChanged: false }));
+		assert.strictEqual(name.className, 'virtual');
+		assert.strictEqual(label.element.textContent, 'console =');
+		assert.strictEqual(value.className, 'value number');
+
+		variable = new Variable(session, 1, scope, 2, 'xpto', 'xpto.xpto', undefined, 0, 0, undefined, {}, 'custom-type');
+		store.add(renderer.renderVariable({ expression, name, type, value, label, lazyButton }, variable, { showChanged: false }));
+		assert.strictEqual(label.element.textContent, 'xpto');
+		assert.strictEqual(value.textContent, '');
+		variable.value = '2';
+		expression = $('.');
+		name = $('.');
+		type = $('.');
+		value = $('.');
+		store.add(renderer.renderVariable({ expression, name, type, value, label, lazyButton }, variable, { showChanged: false }));
+		assert.strictEqual(value.textContent, '2');
+		assert.strictEqual(label.element.textContent, displayType ? 'xpto: ' : 'xpto =');
+		assert.strictEqual(type.textContent, displayType ? 'custom-type =' : '');
+
+		label.dispose();
+	}
 
 	/**
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
-		linkDetector = instantiationService.createInstance(LinkDetector);
+		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
+		configurationService = instantiationService.createInstance(TestConfigurationService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IHoverService, NullHoverService);
+		renderer = instantiationService.createInstance(DebugExpressionRenderer);
 	});
 
 	test('render view tree', () => {
 		const container = $('.container');
 		const treeContainer = renderViewTree(container);
 
-		assert.strictEqual(treeContainer.className, 'debug-view-content');
+		assert.strictEqual(treeContainer.className, 'debug-view-content file-icon-themable-tree');
 		assert.strictEqual(container.childElementCount, 1);
 		assert.strictEqual(container.firstChild, treeContainer);
-		assert.strictEqual(treeContainer instanceof HTMLDivElement, true);
+		assert.strictEqual(dom.isHTMLDivElement(treeContainer), true);
 	});
 
 	test('render expression value', () => {
 		let container = $('.container');
-		renderExpressionValue('render \n me', container, { showHover: true });
-		assert.strictEqual(container.className, 'value');
-		assert.strictEqual(container.title, 'render \n me');
+		const store = disposables.add(new DisposableStore());
+		store.add(renderer.renderValue(container, 'render \n me', {}));
+		assert.strictEqual(container.className, 'container value');
 		assert.strictEqual(container.textContent, 'render \n me');
 
 		const expression = new Expression('console');
 		expression.value = 'Object';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true });
-		assert.strictEqual(container.className, 'value unavailable error');
+		store.add(renderer.renderValue(container, expression, { colorize: true }));
+		assert.strictEqual(container.className, 'container value unavailable error');
 
 		expression.available = true;
 		expression.value = '"string value"';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector });
-		assert.strictEqual(container.className, 'value string');
+		store.add(renderer.renderValue(container, expression, { colorize: true }));
+		assert.strictEqual(container.className, 'container value string');
 		assert.strictEqual(container.textContent, '"string value"');
 
 		expression.type = 'boolean';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true });
-		assert.strictEqual(container.className, 'value boolean');
+		store.add(renderer.renderValue(container, expression, { colorize: true }));
+		assert.strictEqual(container.className, 'container value boolean');
 		assert.strictEqual(container.textContent, expression.value);
 
 		expression.value = 'this is a long string';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4, linkDetector });
+		store.add(renderer.renderValue(container, expression, { colorize: true, maxValueLength: 4 }));
 		assert.strictEqual(container.textContent, 'this...');
 
 		expression.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector });
+		store.add(renderer.renderValue(container, expression, { colorize: true }));
 		assert.ok(container.querySelector('a'));
 		assert.strictEqual(container.querySelector('a')!.textContent, expression.value);
 	});
@@ -83,47 +153,34 @@ suite('Debug - Base Debug View', () => {
 	test('render variable', () => {
 		const session = new MockSession();
 		const thread = new Thread(session, 'mockthread', 1);
-		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined!, endColumn: undefined! }, 0, true);
+		const range = {
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: undefined!,
+			endColumn: undefined!
+		};
+		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', range, 0, true);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, undefined, {}, 'string');
-		let expression = $('.');
-		let name = $('.');
-		let value = $('.');
-		const label = new HighlightedLabel(name);
-		const lazyButton = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, []);
+		configurationService.setUserConfiguration('debug.showVariableTypes', false);
+		assertVariable(session, scope, disposables, false);
 
-		assert.strictEqual(label.element.textContent, 'foo');
-		assert.strictEqual(value.textContent, '');
-		assert.strictEqual(value.title, '');
+	});
 
-		variable.value = 'hey';
-		expression = $('.');
-		name = $('.');
-		value = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
-		assert.strictEqual(value.textContent, 'hey');
-		assert.strictEqual(label.element.textContent, 'foo:');
-		assert.strictEqual(label.element.title, 'string');
+	test('render variable with display type setting', () => {
+		const session = new MockSession();
+		const thread = new Thread(session, 'mockthread', 1);
+		const range = {
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: undefined!,
+			endColumn: undefined!
+		};
+		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', range, 0, true);
+		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
-		expression = $('.');
-		name = $('.');
-		value = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
-		assert.ok(value.querySelector('a'));
-		assert.strictEqual(value.querySelector('a')!.textContent, variable.value);
-
-		variable = new Variable(session, 1, scope, 2, 'console', 'console', '5', 0, 0, undefined, { kind: 'virtual' });
-		expression = $('.');
-		name = $('.');
-		value = $('.');
-		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
-		assert.strictEqual(name.className, 'virtual');
-		assert.strictEqual(label.element.textContent, 'console:');
-		assert.strictEqual(label.element.title, 'console');
-		assert.strictEqual(value.className, 'value number');
+		configurationService.setUserConfiguration('debug.showVariableTypes', true);
+		assertVariable(session, scope, disposables, true);
 	});
 
 	test('statusbar in debug mode', () => {

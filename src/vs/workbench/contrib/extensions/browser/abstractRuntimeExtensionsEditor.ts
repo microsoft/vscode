@@ -3,41 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import 'vs/css!./media/runtimeExtensionsEditor';
-import * as nls from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { DefaultIconPath, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { IExtensionHostProfile, IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
+import { $, Dimension, addDisposableListener, append, clearNode } from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import * as nls from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { DefaultIconPath, EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { LocalWebWorkerRunningLocation } from '../../../services/extensions/common/extensionRunningLocation.js';
+import { IExtensionHostProfile, IExtensionService, IExtensionsStatus } from '../../../services/extensions/common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService } from '../common/extensions.js';
+import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
+import { errorIcon, warningIcon } from './extensionsIcons.js';
+import './media/runtimeExtensionsEditor.css';
 
 interface IExtensionProfileInformation {
 	/**
@@ -71,9 +78,10 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	private _updateSoon: RunOnceScheduler;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -83,14 +91,18 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IMenuService private readonly _menuService: IMenuService,
 	) {
-		super(AbstractRuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
+		super(AbstractRuntimeExtensionsEditor.ID, group, telemetryService, themeService, storageService);
 
 		this._list = null;
 		this._elements = null;
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
+		this._register(this._extensionFeaturesManagementService.onDidChangeAccessData(() => this._updateSoon.schedule()));
 		this._updateExtensions();
 	}
 
@@ -235,9 +247,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 				const msgContainer = append(desc, $('div.msg'));
 
-				const actionbar = new ActionBar(desc, { animated: false });
+				const actionbar = new ActionBar(desc);
 				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
-
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
@@ -359,13 +370,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					title = nls.localize('extensionActivating', "Extension is activating...");
 				}
-				data.activationTime.title = title;
+				data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.activationTime, title));
 
 				clearNode(data.msgContainer);
 
 				if (this._getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span', undefined, ...renderLabelWithIcons(` $(alert) Unresponsive`));
-					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
+					const extensionHostFreezTitle = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
+					data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), el, extensionHostFreezTitle));
+
 					data.msgContainer.appendChild(el);
 				}
 
@@ -400,6 +413,27 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					data.msgContainer.appendChild(el);
 				}
 
+				const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
+				for (const feature of features) {
+					const accessData = this._extensionFeaturesManagementService.getAccessData(element.description.identifier, feature.id);
+					if (accessData) {
+						const status = accessData?.current?.status;
+						if (status) {
+							data.msgContainer.appendChild($('span', undefined, `${feature.label}: `));
+							data.msgContainer.appendChild($('span', undefined, ...renderLabelWithIcons(`$(${status.severity === Severity.Error ? errorIcon.id : warningIcon.id}) ${status.message}`)));
+						}
+						if (accessData?.accessTimes.length > 0) {
+							const element = $('span', undefined, `${nls.localize('requests count', "{0} Usage: {1} Requests", feature.label, accessData.accessTimes.length)}${accessData.current ? nls.localize('session requests count', ", {0} Requests (Session)", accessData.current.accessTimes.length) : ''}`);
+							if (accessData.current) {
+								const title = nls.localize('requests count title', "Last request was {0}.", fromNow(accessData.current.lastAccessed, true, true));
+								data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, title));
+							}
+
+							data.msgContainer.appendChild(element);
+						}
+					}
+				}
+
 				if (element.profileInfo) {
 					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
 				} else {
@@ -413,7 +447,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			}
 		};
 
-		this._list = <WorkbenchList<IRuntimeExtension>>this._instantiationService.createInstance(WorkbenchList,
+		this._list = this._instantiationService.createInstance(WorkbenchList<IRuntimeExtension>,
 			'RuntimeExtensions',
 			parent, delegate, [renderer], {
 			multipleSelectionSupport: false,
@@ -463,25 +497,14 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			}
 			actions.push(new Separator());
 
-			const profileAction = this._createProfileAction();
-			if (profileAction) {
-				actions.push(profileAction);
-			}
-			const saveExtensionHostProfileAction = this.saveExtensionHostProfileAction;
-			if (saveExtensionHostProfileAction) {
-				actions.push(saveExtensionHostProfileAction);
-			}
+			const menuActions = this._menuService.getMenuActions(MenuId.ExtensionEditorContextMenu, this.contextKeyService);
+			actions.push(...getContextMenuActions(menuActions,).secondary);
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions
 			});
 		});
-	}
-
-	@memoize
-	private get saveExtensionHostProfileAction(): IAction | null {
-		return this._createSaveExtensionHostProfileAction();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -492,8 +515,6 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	protected abstract _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
 	protected abstract _createSlowExtensionAction(element: IRuntimeExtension): Action | null;
 	protected abstract _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null;
-	protected abstract _createSaveExtensionHostProfileAction(): Action | null;
-	protected abstract _createProfileAction(): Action | null;
 }
 
 export class ShowRuntimeExtensionsAction extends Action2 {

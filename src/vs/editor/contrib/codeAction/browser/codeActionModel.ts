@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
-import { getCodeActions } from './codeAction';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IMarkerService } from '../../../../platform/markers/common/markers.js';
+import { IEditorProgressService, Progress } from '../../../../platform/progress/common/progress.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption, ShowLightbulbIconMode } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Selection } from '../../../common/core/selection.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { CodeActionProvider, CodeActionTriggerType } from '../../../common/languages.js';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types.js';
+import { getCodeActions } from './codeAction.js';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -162,6 +163,8 @@ export class CodeActionModel extends Disposable {
 	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
+	private readonly codeActionsDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	private _disposed = false;
 
 	constructor(
@@ -231,11 +234,12 @@ export class CodeActionModel extends Disposable {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
+							codeActionSet.dispose();
 							return emptyCodeActionSet;
 						}
 
 						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
+						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
@@ -243,9 +247,9 @@ export class CodeActionModel extends Disposable {
 									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 								}
 							}
-							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { this.codeActionsDisposable.value = codeActionSet; } };
 						} else if (!foundQuickfix) {
-							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
+							// If markers exist, and there are no quickfixes found or length is zero, check for quickfixes on that line.
 							if (allMarkers.length > 0) {
 								const currPosition = trigger.selection.getPosition();
 								let trackedPosition = currPosition;
@@ -270,6 +274,10 @@ export class CodeActionModel extends Disposable {
 
 										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
 										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
+										if (token.isCancellationRequested) {
+											actionsAtMarker.dispose();
+											return emptyCodeActionSet;
+										}
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
@@ -310,17 +318,44 @@ export class CodeActionModel extends Disposable {
 								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { this.codeActionsDisposable.value = codeActionSet; } };
 							}
 						}
 					}
-					// temporarilly hiding here as this is enabled/disabled behind a setting.
-					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+
+					// Case for manual triggers - specifically Source Actions and Refactors
+					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
+						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						return codeActions;
+					}
+
+					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+					this.codeActionsDisposable.value = codeActionSet;
+					return codeActionSet;
 				});
+
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
-				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
+				const newState = new CodeActionsState.Triggered(trigger.trigger, startPosition, actions);
+				let isManualToAutoTransition = false;
+				if (this._state.type === CodeActionsState.Type.Triggered) {
+					// Check if the current state is manual and the new state is automatic
+					isManualToAutoTransition = this._state.trigger.type === CodeActionTriggerType.Invoke &&
+						newState.type === CodeActionsState.Type.Triggered &&
+						newState.trigger.type === CodeActionTriggerType.Auto &&
+						this._state.position !== newState.position;
+				}
+
+				// Do not trigger state if current state is manual and incoming state is automatic
+				if (!isManualToAutoTransition) {
+					this.setState(newState);
+				} else {
+					// Reset the new state after getting code actions back.
+					setTimeout(() => {
+						this.setState(newState);
+					}, 500);
+				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
@@ -330,6 +365,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
+		this.codeActionsDisposable.clear();
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

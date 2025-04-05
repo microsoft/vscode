@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as strings from 'vs/base/common/strings';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import * as dom from '../../../../base/browser/dom.js';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import * as strings from '../../../../base/common/strings.js';
+import { applyFontInfo } from '../../config/domFontInfo.js';
+import { TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
@@ -35,6 +35,12 @@ class ViewCursorRenderData {
 	) { }
 }
 
+export enum CursorPlurality {
+	Single,
+	MultiPrimary,
+	MultiSecondary,
+}
+
 export class ViewCursor {
 	private readonly _context: ViewContext;
 	private readonly _domNode: FastDomNode<HTMLElement>;
@@ -47,16 +53,17 @@ export class ViewCursor {
 	private _isVisible: boolean;
 
 	private _position: Position;
+	private _pluralityClass: string;
 
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData | null;
 
-	constructor(context: ViewContext) {
+	constructor(context: ViewContext, plurality: CursorPlurality) {
 		this._context = context;
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
@@ -73,6 +80,8 @@ export class ViewCursor {
 		this._domNode.setDisplay('none');
 
 		this._position = new Position(1, 1);
+		this._pluralityClass = '';
+		this.setPlurality(plurality);
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
@@ -84,6 +93,23 @@ export class ViewCursor {
 
 	public getPosition(): Position {
 		return this._position;
+	}
+
+	public setPlurality(plurality: CursorPlurality) {
+		switch (plurality) {
+			default:
+			case CursorPlurality.Single:
+				this._pluralityClass = '';
+				break;
+
+			case CursorPlurality.MultiPrimary:
+				this._pluralityClass = 'cursor-primary';
+				break;
+
+			case CursorPlurality.MultiSecondary:
+				this._pluralityClass = 'cursor-secondary';
+				break;
+		}
 	}
 
 	public show(): void {
@@ -104,7 +130,7 @@ export class ViewCursor {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
@@ -229,7 +255,7 @@ export class ViewCursor {
 			this._domNode.domNode.textContent = this._lastRenderedContent;
 		}
 
-		this._domNode.setClassName(`cursor ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ${this._renderData.textContentClassName}`);
+		this._domNode.setClassName(`cursor ${this._pluralityClass} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ${this._renderData.textContentClassName}`);
 
 		this._domNode.setDisplay('block');
 		this._domNode.setTop(this._renderData.top);

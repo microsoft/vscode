@@ -3,42 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { InternalEditorAction } from 'vs/editor/common/editorAction';
-import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { URI } from 'vs/base/common/uri';
-import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { mainWindow } from 'vs/base/browser/window';
+import * as aria from '../../../base/browser/ui/aria/aria.js';
+import { Disposable, IDisposable, toDisposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from '../../browser/editorBrowser.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { CodeEditorWidget } from '../../browser/widget/codeEditor/codeEditorWidget.js';
+import { IDiffEditorOptions, IEditorOptions } from '../../common/config/editorOptions.js';
+import { InternalEditorAction } from '../../common/editorAction.js';
+import { IModelChangedEvent } from '../../common/editorCommon.js';
+import { ITextModel } from '../../common/model.js';
+import { StandaloneKeybindingService, updateConfigurationService } from './standaloneServices.js';
+import { IStandaloneThemeService } from '../common/standaloneTheme.js';
+import { IMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, ContextKeyValue, IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { StandaloneCodeEditorNLS } from '../../common/standaloneStrings.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { IEditorProgressService } from '../../../platform/progress/common/progress.js';
+import { StandaloneThemeService } from './standaloneThemeService.js';
+import { IModelService } from '../../common/services/model.js';
+import { ILanguageSelection, ILanguageService } from '../../common/languages/language.js';
+import { URI } from '../../../base/common/uri.js';
+import { StandaloneCodeEditorService } from './standaloneCodeEditorService.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../common/languages/modesRegistry.js';
+import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
+import { IEditorConstructionOptions } from '../../browser/config/editorConfiguration.js';
+import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
+import { DiffEditorWidget } from '../../browser/widget/diffEditor/diffEditorWidget.js';
+import { IAccessibilitySignalService } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { setHoverDelegateFactory } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
+import { setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 
 /**
  * Description of an action contribution
@@ -53,7 +56,7 @@ export interface IActionDescriptor {
 	 */
 	label: string;
 	/**
-	 * Precondition rule.
+	 * Precondition rule. The value should be a [context key expression](https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts).
 	 */
 	precondition?: string;
 	/**
@@ -270,6 +273,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -279,7 +283,6 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 	) {
 		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
-		options.ariaLabel = options.ariaLabel + ';' + (StandaloneCodeEditorNLS.accessibilityHelpMessage);
 		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
@@ -289,6 +292,9 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		}
 
 		createAriaDomNode(options.ariaContainerElement);
+
+		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
+		setBaseLayerHoverDelegate(hoverService);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
@@ -411,6 +417,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -432,7 +439,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, hoverService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
@@ -499,7 +506,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@IClipboardService clipboardService: IClipboardService,
-		@IAudioCueService audioCueService: IAudioCueService,
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -518,7 +525,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 			contextKeyService,
 			instantiationService,
 			codeEditorService,
-			audioCueService,
+			accessibilitySignalService,
 			editorProgressService,
 		);
 

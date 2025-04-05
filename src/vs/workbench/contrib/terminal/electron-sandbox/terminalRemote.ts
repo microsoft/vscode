@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { localize2 } from 'vs/nls';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize2 } from '../../../../nls.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { registerTerminalAction } from '../browser/terminalActions.js';
+import { TerminalCommandId } from '../common/terminal.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
 
 export function registerRemoteContributions() {
 	registerTerminalAction({

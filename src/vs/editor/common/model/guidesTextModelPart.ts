@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arraysFind';
-import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import type { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelPart } from 'vs/editor/common/model/textModelPart';
-import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BracketGuideOptions, HorizontalGuidesState, IActiveIndentGuideInfo, IGuidesTextModelPart, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { findLast } from '../../../base/common/arraysFind.js';
+import * as strings from '../../../base/common/strings.js';
+import { CursorColumns } from '../core/cursorColumns.js';
+import { IPosition, Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import type { TextModel } from './textModel.js';
+import { TextModelPart } from './textModelPart.js';
+import { computeIndentLevel } from './utils.js';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from '../languages/languageConfigurationRegistry.js';
+import { BracketGuideOptions, HorizontalGuidesState, IActiveIndentGuideInfo, IGuidesTextModelPart, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
 
 export class GuidesTextModelPart extends TextModelPart implements IGuidesTextModelPart {
 	constructor(

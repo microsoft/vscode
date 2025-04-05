@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
+import { URI } from '../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { IFileService } from '../../files/common/files.js';
+import { IProductService } from '../../product/common/productService.js';
+import { asTextOrError, IRequestService } from '../../request/common/request.js';
+import { IStorageService } from '../../storage/common/storage.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from './extensionResourceLoader.js';
+import { IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
+import { ILogService } from '../../log/common/log.js';
 
 export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderService {
 
@@ -22,13 +24,15 @@ export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoa
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
 		@IRequestService private readonly _requestService: IRequestService,
+		@ILogService logService: ILogService,
 	) {
-		super(fileService, storageService, productService, environmentService, configurationService);
+		super(fileService, storageService, productService, environmentService, configurationService, extensionGalleryManifestService, logService);
 	}
 
 	async readExtensionResource(uri: URI): Promise<string> {
-		if (this.isExtensionGalleryResource(uri)) {
+		if (await this.isExtensionGalleryResource(uri)) {
 			const headers = await this.getExtensionGalleryRequestHeaders();
 			const requestContext = await this._requestService.request({ url: uri.toString(), headers }, CancellationToken.None);
 			return (await asTextOrError(requestContext)) || '';

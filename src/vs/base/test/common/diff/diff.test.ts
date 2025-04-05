@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDiffChange, LcsDiff, StringDiffSequence } from 'vs/base/common/diff/diff';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { IDiffChange, LcsDiff, StringDiffSequence } from '../../../common/diff/diff.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 
 function createArray<T>(length: number, value: T): T[] {
 	const r: T[] = [];

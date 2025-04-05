@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { IFileMatch, ISearchRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
-import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { CellMatch, FileMatch, FolderMatch, SearchModel, textSearchMatchesToNotebookMatches } from 'vs/workbench/contrib/search/browser/searchModel';
-import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { IModelService } from 'vs/editor/common/services/model';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { FindMatch, IReadonlyTextBuffer } from '../../../../../editor/common/model.js';
+import { IFileMatch, ISearchRange, ITextSearchMatch, QueryType } from '../../../../services/search/common/search.js';
+import { ICellViewModel } from '../../../notebook/browser/notebookBrowser.js';
+import { CellKind } from '../../../notebook/common/notebookCommon.js';
+import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from '../../browser/notebookSearch/searchNotebookHelpers.js';
+import { CellFindMatchModel } from '../../../notebook/browser/contrib/find/findModel.js';
+import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CellMatch, NotebookCompatibleFileMatch, textSearchMatchesToNotebookMatches } from '../../browser/notebookSearch/notebookSearchModel.js';
+import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
+import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
 
 suite('searchNotebookHelpers', () => {
 	let instantiationService: TestInstantiationService;
@@ -149,28 +152,28 @@ suite('searchNotebookHelpers', () => {
 			codeWebviewResults = webviewMatchesToTextSearchMatches(codeCellFindMatch.webviewMatches);
 
 			assert.strictEqual(markdownContentResults.length, 1);
-			assert.strictEqual(markdownContentResults[0].preview.text, '# Hello World Test\n');
-			assertRangesEqual(markdownContentResults[0].preview.matches, [new Range(0, 14, 0, 18)]);
-			assertRangesEqual(markdownContentResults[0].ranges, [new Range(0, 14, 0, 18)]);
+			assert.strictEqual(markdownContentResults[0].previewText, '# Hello World Test\n');
+			assertRangesEqual(markdownContentResults[0].rangeLocations.map(e => e.preview), [new Range(0, 14, 0, 18)]);
+			assertRangesEqual(markdownContentResults[0].rangeLocations.map(e => e.source), [new Range(0, 14, 0, 18)]);
 
 
 			assert.strictEqual(codeContentResults.length, 2);
-			assert.strictEqual(codeContentResults[0].preview.text, 'print("test! testing!!")\n');
-			assert.strictEqual(codeContentResults[1].preview.text, 'print("this is a Test")\n');
-			assertRangesEqual(codeContentResults[0].preview.matches, [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
-			assertRangesEqual(codeContentResults[0].ranges, [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
+			assert.strictEqual(codeContentResults[0].previewText, 'print("test! testing!!")\n');
+			assert.strictEqual(codeContentResults[1].previewText, 'print("this is a Test")\n');
+			assertRangesEqual(codeContentResults[0].rangeLocations.map(e => e.preview), [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
+			assertRangesEqual(codeContentResults[0].rangeLocations.map(e => e.source), [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
 
 			assert.strictEqual(codeWebviewResults.length, 3);
-			assert.strictEqual(codeWebviewResults[0].preview.text, 'test! testing!!');
-			assert.strictEqual(codeWebviewResults[1].preview.text, 'test! testing!!');
-			assert.strictEqual(codeWebviewResults[2].preview.text, 'this is a Test');
+			assert.strictEqual(codeWebviewResults[0].previewText, 'test! testing!!');
+			assert.strictEqual(codeWebviewResults[1].previewText, 'test! testing!!');
+			assert.strictEqual(codeWebviewResults[2].previewText, 'this is a Test');
 
-			assertRangesEqual(codeWebviewResults[0].preview.matches, [new Range(0, 1, 0, 5)]);
-			assertRangesEqual(codeWebviewResults[1].preview.matches, [new Range(0, 7, 0, 11)]);
-			assertRangesEqual(codeWebviewResults[2].preview.matches, [new Range(0, 11, 0, 15)]);
-			assertRangesEqual(codeWebviewResults[0].ranges, [new Range(0, 1, 0, 5)]);
-			assertRangesEqual(codeWebviewResults[1].ranges, [new Range(0, 7, 0, 11)]);
-			assertRangesEqual(codeWebviewResults[2].ranges, [new Range(0, 11, 0, 15)]);
+			assertRangesEqual(codeWebviewResults[0].rangeLocations.map(e => e.preview), [new Range(0, 1, 0, 5)]);
+			assertRangesEqual(codeWebviewResults[1].rangeLocations.map(e => e.preview), [new Range(0, 7, 0, 11)]);
+			assertRangesEqual(codeWebviewResults[2].rangeLocations.map(e => e.preview), [new Range(0, 11, 0, 15)]);
+			assertRangesEqual(codeWebviewResults[0].rangeLocations.map(e => e.source), [new Range(0, 1, 0, 5)]);
+			assertRangesEqual(codeWebviewResults[1].rangeLocations.map(e => e.source), [new Range(0, 7, 0, 11)]);
+			assertRangesEqual(codeWebviewResults[2].rangeLocations.map(e => e.source), [new Range(0, 11, 0, 15)]);
 		});
 
 		test('convert ITextSearchMatch to MatchInNotebook', () => {
@@ -201,22 +204,23 @@ suite('searchNotebookHelpers', () => {
 		});
 
 
-		function aFileMatch(): FileMatch {
+		function aFileMatch(): INotebookFileInstanceMatch {
 			const rawMatch: IFileMatch = {
 				resource: URI.file('somepath' + ++counter),
 				results: []
 			};
 
-			const searchModel = instantiationService.createInstance(SearchModel);
+			const searchModel = instantiationService.createInstance(SearchModelImpl);
 			store.add(searchModel);
-			const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
+			const folderMatch = instantiationService.createInstance(FolderMatchImpl, URI.file('somepath'), '', 0, {
 				type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 					pattern: ''
 				}
-			}, searchModel.searchResult, searchModel.searchResult, null);
-			const fileMatch = instantiationService.createInstance(FileMatch, {
+			}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
+			const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 				pattern: ''
 			}, undefined, undefined, folderMatch, rawMatch, null, '');
+			fileMatch.createMatches();
 			store.add(folderMatch);
 			store.add(fileMatch);
 

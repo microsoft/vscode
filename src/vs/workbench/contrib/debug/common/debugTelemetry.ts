@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDebugModel, IDebugSession, AdapterEndEvent } from 'vs/workbench/contrib/debug/common/debug';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
+import { IDebugModel, IDebugSession, AdapterEndEvent } from './debug.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Debugger } from './debugger.js';
 
 export class DebugTelemetry {
 

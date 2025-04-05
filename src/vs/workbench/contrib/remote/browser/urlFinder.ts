@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
+import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDebugService, IDebugSession, IReplElement } from '../../debug/common/debug.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 
 export class UrlFinder extends Disposable {
-	private static readonly terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
 	/**
 	 * Local server url pattern matching following urls:
 	 * http://localhost:3000/ - commonly used across multiple frameworks
@@ -99,7 +99,7 @@ export class UrlFinder extends Disposable {
 
 	private processData(data: string) {
 		// strip ANSI terminal codes
-		data = data.replace(UrlFinder.terminalCodesRegex, '');
+		data = removeAnsiEscapeCodes(data);
 		const urlMatches = data.match(UrlFinder.localUrlRegex) || [];
 		if (urlMatches && urlMatches.length > 0) {
 			urlMatches.forEach((match) => {

@@ -127,6 +127,7 @@
 				"entity.name.namespace",
 				"entity.name.scope-resolution",
 				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby",
 				"support.class"
 			],
 			"settings": {

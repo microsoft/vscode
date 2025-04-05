@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { OverlayWebview } from './overlayWebview';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { WebviewThemeDataProvider } from './themeing.js';
+import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, WebviewInitInfo } from './webview.js';
+import { WebviewElement } from './webviewElement.js';
+import { OverlayWebview } from './overlayWebview.js';
 
 export class WebviewService extends Disposable implements IWebviewService {
 	declare readonly _serviceBrand: undefined;
@@ -58,9 +58,11 @@ export class WebviewService extends Disposable implements IWebviewService {
 	protected registerNewWebview(webview: IWebview) {
 		this._webviews.add(webview);
 
-		webview.onDidFocus(() => {
+		const store = new DisposableStore();
+
+		store.add(webview.onDidFocus(() => {
 			this._updateActiveWebview(webview);
-		});
+		}));
 
 		const onBlur = () => {
 			if (this._activeWebview === webview) {
@@ -68,10 +70,11 @@ export class WebviewService extends Disposable implements IWebviewService {
 			}
 		};
 
-		webview.onDidBlur(onBlur);
-		webview.onDidDispose(() => {
+		store.add(webview.onDidBlur(onBlur));
+		store.add(webview.onDidDispose(() => {
 			onBlur();
+			store.dispose();
 			this._webviews.delete(webview);
-		});
+		}));
 	}
 }

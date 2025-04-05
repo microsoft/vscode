@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PerformanceMark } from 'vs/base/common/performance';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/window/common/window';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import { memoize } from 'vs/base/common/decorators';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { joinPath } from 'vs/base/common/resources';
+import { PerformanceMark } from '../../../../base/common/performance.js';
+import { IBrowserWorkbenchEnvironmentService } from '../browser/environmentService.js';
+import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from '../../../../platform/window/common/window.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { AbstractNativeEnvironmentService } from '../../../../platform/environment/common/environmentService.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -26,6 +27,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	// --- Window
 	readonly window: {
 		id: number;
+		handle?: VSBuffer;
 		colorScheme: IColorScheme;
 		maximized?: boolean;
 		accessibilitySupport?: boolean;
@@ -39,6 +41,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly os: IOSConfiguration;
 	readonly machineId: string;
 	readonly sqmId: string;
+	readonly devDeviceId: string;
 
 	// --- Paths
 	readonly execPath: string;
@@ -64,6 +67,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get sqmId() { return this.configuration.sqmId; }
 
 	@memoize
+	get devDeviceId() { return this.configuration.devDeviceId; }
+
+	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
@@ -79,6 +85,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get window() {
 		return {
 			id: this.configuration.windowId,
+			handle: this.configuration.handle,
 			colorScheme: this.configuration.colorScheme,
 			maximized: this.configuration.maximized,
 			accessibilitySupport: this.configuration.accessibilitySupport,
@@ -96,11 +103,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.windowLogsPath, 'exthost'); }
-
-	@memoize
-	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
-	}
 
 	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }

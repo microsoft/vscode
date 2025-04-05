@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { diffMaps, diffSets } from 'vs/base/common/collections';
-import { combinedDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
-import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostContext, ExtHostNotebookShape, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { diffMaps, diffSets } from '../../../base/common/collections.js';
+import { combinedDisposable, DisposableStore, DisposableMap } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { MainThreadNotebookDocuments } from './mainThreadNotebookDocuments.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
+import { MainThreadNotebookEditors } from './mainThreadNotebookEditors.js';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from '../../contrib/notebook/browser/notebookBrowser.js';
+import { INotebookEditorService } from '../../contrib/notebook/browser/services/notebookEditorService.js';
+import { NotebookTextModel } from '../../contrib/notebook/common/model/notebookTextModel.js';
+import { INotebookService } from '../../contrib/notebook/common/notebookService.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { ExtHostContext, ExtHostNotebookShape, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 
 interface INotebookAndEditorDelta {
 	removedDocuments: URI[];
@@ -239,7 +239,8 @@ export class MainThreadNotebooksAndEditors {
 			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
+			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group),
+			viewType: add.getViewModel().viewType
 		};
 	}
 }

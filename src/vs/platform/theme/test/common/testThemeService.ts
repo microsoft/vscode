@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IconContribution } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IconContribution } from '../../common/iconRegistry.js';
+import { ColorScheme } from '../../common/theme.js';
+import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeService, ITokenStyle } from '../../common/themeService.js';
 
 export class TestColorTheme implements IColorTheme {
 

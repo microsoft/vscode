@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsCenter';
-import 'vs/css!./media/notificationsActions';
-import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Emitter } from 'vs/base/common/event';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INotificationsCenterController, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, isAncestorOfActiveElement } from 'vs/base/browser/dom';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { localize } from 'vs/nls';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
-import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { mainWindow } from 'vs/base/browser/window';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import './media/notificationsCenter.css';
+import './media/notificationsActions.css';
+import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from '../../../common/theme.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { INotificationsCenterController, NotificationActionRunner } from './notificationsCommands.js';
+import { NotificationsList } from './notificationsList.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { $, Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { localize } from '../../../../nls.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from './notificationsActions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { assertAllDefined, assertIsDefined } from '../../../../base/common/types.js';
+import { NotificationsCenterVisibleContext } from '../../../common/contextkeys.js';
+import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -45,7 +45,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private notificationsList: NotificationsList | undefined;
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
-	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
+	private readonly notificationsCenterVisibleContextKey;
 	private clearAllAction: ClearAllNotificationsAction | undefined;
 	private configureDoNotDisturbAction: ConfigureDoNotDisturbAction | undefined;
 
@@ -55,11 +55,11 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
@@ -149,22 +149,18 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private create(): void {
 
 		// Container
-		this.notificationsCenterContainer = document.createElement('div');
-		this.notificationsCenterContainer.classList.add('notifications-center');
+		this.notificationsCenterContainer = $('.notifications-center');
 
 		// Header
-		this.notificationsCenterHeader = document.createElement('div');
-		this.notificationsCenterHeader.classList.add('notifications-center-header');
+		this.notificationsCenterHeader = $('.notifications-center-header');
 		this.notificationsCenterContainer.appendChild(this.notificationsCenterHeader);
 
 		// Header Title
-		this.notificationsCenterTitle = document.createElement('span');
-		this.notificationsCenterTitle.classList.add('notifications-center-header-title');
+		this.notificationsCenterTitle = $('span.notifications-center-header-title');
 		this.notificationsCenterHeader.appendChild(this.notificationsCenterTitle);
 
 		// Header Toolbar
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notifications-center-header-toolbar');
+		const toolbarContainer = $('.notifications-center-header-toolbar');
 		this.notificationsCenterHeader.appendChild(toolbarContainer);
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
@@ -173,7 +169,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		const notificationsToolBar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
 			actionRunner,
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === ConfigureDoNotDisturbAction.ID) {
 					return this._register(this.instantiationService.createInstance(DropdownMenuActionViewItem, action, {
 						getActions() {
@@ -208,6 +204,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 							return actions;
 						},
 					}, this.contextMenuService, {
+						...options,
 						actionRunner,
 						classNames: action.class,
 						keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
@@ -383,7 +380,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (!notification.hasProgress) {
 				notification.close();
 			}
-			this.audioCueService.playAudioCue(AudioCue.clear);
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		}
 	}
 }

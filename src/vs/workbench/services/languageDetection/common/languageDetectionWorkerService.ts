@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const ILanguageDetectionService = createDecorator<ILanguageDetectionService>('ILanguageDetectionService');
 
@@ -44,11 +44,11 @@ export interface IAutomaticLanguageDetectionLikelyWrongData {
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	owner: 'TylerLeonhardt,JacksonKearl';
+	owner: 'TylerLeonhardt';
 	comment: 'Used to determine how often language detection is likely wrong.';
 	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id we guessed.' };
 	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id the user chose.' };
-	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of lines in the file.' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the file.' };
 	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the user\'s model preference is.' };
 };
 
@@ -61,7 +61,7 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	owner: 'TylerLeonhardt,JacksonKearl';
+	owner: 'TylerLeonhardt';
 	comment: 'Used to determine how definitive language detection is and how long it takes.';
 	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages the model supports.' };
 	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of those languages.' };

@@ -8,9 +8,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { formatCellDuration } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { formatCellDuration } from '../../../browser/contrib/cellStatusBar/executionStatusBarItemController.js';
 
 suite('notebookBrowser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

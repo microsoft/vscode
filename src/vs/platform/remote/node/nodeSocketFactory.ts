@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as net from 'net';
-import { ISocket } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { makeRawSocketHeaders } from 'vs/platform/remote/common/managedSocket';
-import { RemoteConnectionType, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
+import { NodeSocket } from '../../../base/parts/ipc/node/ipc.net.js';
+import { makeRawSocketHeaders } from '../common/managedSocket.js';
+import { RemoteConnectionType, WebSocketRemoteConnection } from '../common/remoteAuthorityResolver.js';
+import { ISocketFactory } from '../common/remoteSocketFactoryService.js';
 
 export const nodeSocketFactory = new class implements ISocketFactory<RemoteConnectionType.WebSocket> {
 

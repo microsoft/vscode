@@ -12,10 +12,13 @@ use crate::{
 	util::errors::{AnyError, CannotForwardControlPort, ServerHasClosed},
 };
 
-use super::{dev_tunnels::ActiveTunnel, protocol::PortPrivacy};
+use super::{
+	dev_tunnels::ActiveTunnel,
+	protocol::{PortPrivacy, PortProtocol},
+};
 
 pub enum PortForwardingRec {
-	Forward(u16, oneshot::Sender<Result<String, AnyError>>),
+	Forward(u16, PortPrivacy, oneshot::Sender<Result<String, AnyError>>),
 	Unforward(u16, oneshot::Sender<Result<(), AnyError>>),
 }
 
@@ -54,8 +57,9 @@ impl PortForwardingProcessor {
 	/// Processes the incoming forwarding request.
 	pub async fn process(&mut self, req: PortForwardingRec, tunnel: &mut ActiveTunnel) {
 		match req {
-			PortForwardingRec::Forward(port, tx) => {
-				tx.send(self.process_forward(port, tunnel).await).ok();
+			PortForwardingRec::Forward(port, privacy, tx) => {
+				tx.send(self.process_forward(port, privacy, tunnel).await)
+					.ok();
 			}
 			PortForwardingRec::Unforward(port, tx) => {
 				tx.send(self.process_unforward(port, tunnel).await).ok();
@@ -80,6 +84,7 @@ impl PortForwardingProcessor {
 	async fn process_forward(
 		&mut self,
 		port: u16,
+		privacy: PortPrivacy,
 		tunnel: &mut ActiveTunnel,
 	) -> Result<String, AnyError> {
 		if port == CONTROL_PORT {
@@ -87,7 +92,9 @@ impl PortForwardingProcessor {
 		}
 
 		if !self.forwarded.contains(&port) {
-			tunnel.add_port_tcp(port, PortPrivacy::Private).await?;
+			tunnel
+				.add_port_tcp(port, privacy, PortProtocol::Auto)
+				.await?;
 			self.forwarded.insert(port);
 		}
 
@@ -101,9 +108,9 @@ pub struct PortForwarding {
 }
 
 impl PortForwarding {
-	pub async fn forward(&self, port: u16) -> Result<String, AnyError> {
+	pub async fn forward(&self, port: u16, privacy: PortPrivacy) -> Result<String, AnyError> {
 		let (tx, rx) = oneshot::channel();
-		let req = PortForwardingRec::Forward(port, tx);
+		let req = PortForwardingRec::Forward(port, privacy, tx);
 
 		if self.tx.send(req).await.is_err() {
 			return Err(ServerHasClosed().into());

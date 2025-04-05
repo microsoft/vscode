@@ -22,74 +22,74 @@ const commit = getVersion(root);
 const plumber = require('gulp-plumber');
 const ext = require('./lib/extensions');
 
-const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
-
 // To save 250ms for each gulp startup, we are caching the result here
 // const compilations = glob.sync('**/tsconfig.json', {
 // 	cwd: extensionsPath,
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
-	'authentication-proxy/tsconfig.json',
-	'configuration-editing/build/tsconfig.json',
-	'configuration-editing/tsconfig.json',
-	'css-language-features/client/tsconfig.json',
-	'css-language-features/server/tsconfig.json',
-	'debug-auto-launch/tsconfig.json',
-	'debug-server-ready/tsconfig.json',
-	'emmet/tsconfig.json',
-	'extension-editing/tsconfig.json',
-	'git/tsconfig.json',
-	'git-base/tsconfig.json',
-	'github-authentication/tsconfig.json',
-	'github/tsconfig.json',
-	'grunt/tsconfig.json',
-	'gulp/tsconfig.json',
-	'html-language-features/client/tsconfig.json',
-	'html-language-features/server/tsconfig.json',
-	'ipynb/tsconfig.json',
-	'jake/tsconfig.json',
-	'json-language-features/client/tsconfig.json',
-	'json-language-features/server/tsconfig.json',
-	'markdown-language-features/preview-src/tsconfig.json',
-	'markdown-language-features/server/tsconfig.json',
-	'markdown-language-features/tsconfig.json',
-	'markdown-math/tsconfig.json',
-	'media-preview/tsconfig.json',
-	'merge-conflict/tsconfig.json',
-	'microsoft-authentication/tsconfig.json',
-	'notebook-renderers/tsconfig.json',
-	'npm/tsconfig.json',
-	'php-language-features/tsconfig.json',
-	'search-result/tsconfig.json',
-	'references-view/tsconfig.json',
-	'simple-browser/tsconfig.json',
-	'tunnel-forwarding/tsconfig.json',
-	'typescript-language-features/test-workspace/tsconfig.json',
-	'typescript-language-features/web/tsconfig.json',
-	'typescript-language-features/tsconfig.json',
-	'vscode-api-tests/tsconfig.json',
-	'vscode-colorize-tests/tsconfig.json',
-	'vscode-test-resolver/tsconfig.json'
+	'extensions/configuration-editing/tsconfig.json',
+	'extensions/css-language-features/client/tsconfig.json',
+	'extensions/css-language-features/server/tsconfig.json',
+	'extensions/debug-auto-launch/tsconfig.json',
+	'extensions/debug-server-ready/tsconfig.json',
+	'extensions/emmet/tsconfig.json',
+	'extensions/extension-editing/tsconfig.json',
+	'extensions/git/tsconfig.json',
+	'extensions/git-base/tsconfig.json',
+	'extensions/github/tsconfig.json',
+	'extensions/github-authentication/tsconfig.json',
+	'extensions/grunt/tsconfig.json',
+	'extensions/gulp/tsconfig.json',
+	'extensions/html-language-features/client/tsconfig.json',
+	'extensions/html-language-features/server/tsconfig.json',
+	'extensions/ipynb/tsconfig.json',
+	'extensions/jake/tsconfig.json',
+	'extensions/json-language-features/client/tsconfig.json',
+	'extensions/json-language-features/server/tsconfig.json',
+	'extensions/markdown-language-features/preview-src/tsconfig.json',
+	'extensions/markdown-language-features/tsconfig.json',
+	'extensions/markdown-math/tsconfig.json',
+	'extensions/media-preview/tsconfig.json',
+	'extensions/merge-conflict/tsconfig.json',
+	'extensions/terminal-suggest/tsconfig.json',
+	'extensions/microsoft-authentication/tsconfig.json',
+	'extensions/notebook-renderers/tsconfig.json',
+	'extensions/npm/tsconfig.json',
+	'extensions/php-language-features/tsconfig.json',
+	'extensions/references-view/tsconfig.json',
+	'extensions/search-result/tsconfig.json',
+	'extensions/simple-browser/tsconfig.json',
+	'extensions/tunnel-forwarding/tsconfig.json',
+	'extensions/typescript-language-features/test-workspace/tsconfig.json',
+	'extensions/typescript-language-features/web/tsconfig.json',
+	'extensions/typescript-language-features/tsconfig.json',
+	'extensions/vscode-api-tests/tsconfig.json',
+	'extensions/vscode-colorize-tests/tsconfig.json',
+	'extensions/vscode-colorize-perf-tests/tsconfig.json',
+	'extensions/vscode-test-resolver/tsconfig.json',
+
+	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
+	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 ];
 
-const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
+const getBaseUrl = out => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
 
 const tasks = compilations.map(function (tsconfigFile) {
-	const absolutePath = path.join(extensionsPath, tsconfigFile);
-	const relativeDirname = path.dirname(tsconfigFile);
+	const absolutePath = path.join(root, tsconfigFile);
+	const relativeDirname = path.dirname(tsconfigFile.replace(/^(.*\/)?extensions\//i, ''));
 
 	const overrideOptions = {};
 	overrideOptions.sourceMap = true;
 
 	const name = relativeDirname.replace(/\//g, '-');
 
-	const root = path.join('extensions', relativeDirname);
-	const srcBase = path.join(root, 'src');
+	const srcRoot = path.dirname(tsconfigFile);
+	const srcBase = path.join(srcRoot, 'src');
 	const src = path.join(srcBase, '**');
-	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
+	const srcOpts = { cwd: root, base: srcBase, dot: true };
 
-	const out = path.join(root, 'out');
+	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
 
 	let headerId, headerOut;
@@ -103,7 +103,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	}
 
 	function createPipeline(build, emitError, transpileOnly) {
-		const nlsDev = require('vscode-nls-dev');
 		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
 
@@ -116,7 +115,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 		const pipeline = function () {
 			const input = es.through();
-			const tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts', '!**/node_modules/**'], { restore: true });
+			const tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts', '!**/node_modules/**'], { restore: true, dot: true });
 			const output = input
 				.pipe(plumber({
 					errorHandler: function (err) {
@@ -128,18 +127,15 @@ const tasks = compilations.map(function (tsconfigFile) {
 				.pipe(tsFilter)
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
-				.pipe(build ? nlsDev.rewriteLocalizeCalls() : es.through())
 				.pipe(build ? util.stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
 					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
 					addComment: !!build,
 					includeContent: !!build,
-					sourceRoot: '../src'
+					// note: trailing slash is important, else the source URLs in V8's file coverage are incorrect
+					sourceRoot: '../src/',
 				}))
 				.pipe(tsFilter.restore)
-				.pipe(build ? nlsDev.bundleMetaDataFiles(headerId, headerOut) : es.through())
-				// Filter out *.nls.json file. We needed them only to bundle meta data file.
-				.pipe(filter(['**', '!**/*.nls.json']))
 				.pipe(reporter.end(emitError));
 
 			return es.duplex(input, output);
@@ -235,27 +231,61 @@ exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 
 //#region Azure Pipelines
 
+/**
+ * Cleans the build directory for extensions
+ */
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
-const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
-	cleanExtensionsBuildTask,
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
-));
+exports.cleanExtensionsBuildTask = cleanExtensionsBuildTask;
 
-gulp.task(compileExtensionsBuildTask);
-gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
+/**
+ * brings in the marketplace extensions for the build
+ */
+const bundleMarketplaceExtensionsBuildTask = task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build')));
+
+/**
+ * Compiles the non-native extensions for the build
+ * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
+ */
+const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
+	bundleMarketplaceExtensionsBuildTask,
+	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream().pipe(gulp.dest('.build')))
+));
+gulp.task(compileNonNativeExtensionsBuildTask);
+exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTask;
+
+/**
+ * Compiles the native extensions for the build
+ * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
+ */
+const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream().pipe(gulp.dest('.build')));
+gulp.task(compileNativeExtensionsBuildTask);
+exports.compileNativeExtensionsBuildTask = compileNativeExtensionsBuildTask;
+
+/**
+ * Compiles the extensions for the build.
+ * This is essentially a helper task that combines {@link cleanExtensionsBuildTask}, {@link compileNonNativeExtensionsBuildTask} and {@link compileNativeExtensionsBuildTask}
+ */
+const compileAllExtensionsBuildTask = task.define('compile-extensions-build', task.series(
+	cleanExtensionsBuildTask,
+	bundleMarketplaceExtensionsBuildTask,
+	task.define('bundle-extensions-build', () => ext.packageAllLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
+));
+gulp.task(compileAllExtensionsBuildTask);
+exports.compileAllExtensionsBuildTask = compileAllExtensionsBuildTask;
+
+// This task is run in the compilation stage of the CI pipeline. We only compile the non-native extensions since those can be fully built regardless of platform.
+// This defers the native extensions to the platform specific stage of the CI pipeline.
+gulp.task(task.define('extensions-ci', task.series(compileNonNativeExtensionsBuildTask, compileExtensionMediaBuildTask)));
 
 const compileExtensionsBuildPullRequestTask = task.define('compile-extensions-build-pr', task.series(
 	cleanExtensionsBuildTask,
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
-	task.define('bundle-extensions-build-pr', () => ext.packageLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
+	bundleMarketplaceExtensionsBuildTask,
+	task.define('bundle-extensions-build-pr', () => ext.packageAllLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
 ));
-
 gulp.task(compileExtensionsBuildPullRequestTask);
+
+// This task is run in the compilation stage of the PR pipeline. We compile all extensions in it to verify compilation.
 gulp.task(task.define('extensions-ci-pr', task.series(compileExtensionsBuildPullRequestTask, compileExtensionMediaBuildTask)));
-
-
-exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
 
 //#endregion
 
@@ -271,6 +301,7 @@ exports.watchWebExtensionsTask = watchWebExtensionsTask;
  * @param {boolean} isWatch
  */
 async function buildWebExtensions(isWatch) {
+	const extensionsPath = path.join(root, 'extensions');
 	const webpackConfigLocations = await nodeUtil.promisify(glob)(
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
 		{ ignore: ['**/node_modules'] }

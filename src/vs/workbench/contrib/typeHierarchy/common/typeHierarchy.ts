@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { SymbolKind, ProviderResult, SymbolTag } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { LanguageFeatureRegistry } from '../../../../editor/common/languageFeatureRegistry.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { IDisposable, RefCountedDisposable } from '../../../../base/common/lifecycle.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { assertType } from '../../../../base/common/types.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 export const enum TypeHierarchyDirection {
 	Subtypes = 'subtypes',
@@ -138,14 +138,18 @@ CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor
 			return [];
 		}
 
-		_models.set(model.id, model);
 		_models.forEach((value, key, map) => {
 			if (map.size > 10) {
 				value.dispose();
 				_models.delete(key);
 			}
 		});
-		return [model.root];
+
+		for (const root of model.roots) {
+			_models.set(root._sessionId, model);
+		}
+
+		return model.roots;
 
 	} finally {
 		textModelReference?.dispose();
@@ -169,7 +173,7 @@ CommandsRegistry.registerCommand('_executeProvideSupertypes', async (_accessor, 
 	// find model
 	const model = _models.get(item._sessionId);
 	if (!model) {
-		return undefined;
+		return [];
 	}
 
 	return model.provideSupertypes(item, CancellationToken.None);
@@ -182,7 +186,7 @@ CommandsRegistry.registerCommand('_executeProvideSubtypes', async (_accessor, ..
 	// find model
 	const model = _models.get(item._sessionId);
 	if (!model) {
-		return undefined;
+		return [];
 	}
 
 	return model.provideSubtypes(item, CancellationToken.None);

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IFilesConfigurationService, AutoSaveMode, AutoSaveDisabledReason } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { SaveReason, IEditorIdentifier, GroupIdentifier, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { URI } from 'vs/base/common/uri';
-import { ResourceMap } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IFilesConfigurationService, AutoSaveMode, AutoSaveDisabledReason } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { SaveReason, IEditorIdentifier, GroupIdentifier, EditorInputCapabilities } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IWorkingCopy, WorkingCopyCapabilities } from '../../../services/workingCopy/common/workingCopy.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMarkerService } from '../../../../platform/markers/common/markers.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
 
@@ -29,7 +29,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	// Auto save: focus change & window change
 	private lastActiveEditor: EditorInput | undefined = undefined;
 	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
-	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
+	private readonly lastActiveEditorControlDisposable = this._register(new DisposableStore());
 
 	// Auto save: waiting on specific condition
 	private readonly waitingOnConditionAutoSaveWorkingCopies = new ResourceMap<{ readonly workingCopy: IWorkingCopy; readonly reason: SaveReason; condition: AutoSaveDisabledReason }>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
@@ -80,11 +80,11 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			if (workingCopyResult?.condition === condition) {
 				if (
 					workingCopyResult.workingCopy.isDirty() &&
-					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource).mode !== AutoSaveMode.OFF
+					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource, workingCopyResult.reason).mode !== AutoSaveMode.OFF
 				) {
 					this.discardAutoSave(workingCopyResult.workingCopy);
 
-					this.logService.info(`[editor auto save] running auto save from condition change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
+					this.logService.trace(`[editor auto save] running auto save from condition change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
 					workingCopyResult.workingCopy.save({ reason: workingCopyResult.reason });
 				}
 			}
@@ -96,11 +96,11 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 					editorResult?.condition === condition &&
 					!editorResult.editor.editor.isDisposed() &&
 					editorResult.editor.editor.isDirty() &&
-					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor).mode !== AutoSaveMode.OFF
+					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor, editorResult.reason).mode !== AutoSaveMode.OFF
 				) {
 					this.waitingOnConditionAutoSaveEditors.delete(resource);
 
-					this.logService.info(`[editor auto save] running auto save from condition change event with reason ${editorResult.reason}`);
+					this.logService.trace(`[editor auto save] running auto save from condition change event with reason ${editorResult.reason}`);
 					this.editorService.save(editorResult.editor, { reason: editorResult.reason });
 				}
 			}
@@ -151,7 +151,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				return; // no auto save for non-dirty, readonly or untitled editors
 			}
 
-			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(editorIdentifier.editor);
+			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(editorIdentifier.editor, reason);
 			if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 				// Determine if we need to save all. In case of a window focus change we also save if
 				// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
@@ -198,7 +198,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				continue; // we never auto save untitled working copies
 			}
 
-			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource);
+			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource, reason);
 			if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 				workingCopy.save({ reason });
 			} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS || autoSaveMode.reason === AutoSaveDisabledReason.DISABLED) {
@@ -257,12 +257,13 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 			// Save if dirty and unless prevented by other conditions such as error markers
 			if (workingCopy.isDirty()) {
-				const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource);
+				const reason = SaveReason.AUTO;
+				const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource, reason);
 				if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 					this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-					workingCopy.save({ reason: SaveReason.AUTO });
+					workingCopy.save({ reason });
 				} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS || autoSaveMode.reason === AutoSaveDisabledReason.DISABLED) {
-					this.waitingOnConditionAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason: SaveReason.AUTO, condition: autoSaveMode.reason });
+					this.waitingOnConditionAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason, condition: autoSaveMode.reason });
 				}
 			}
 		}, autoSaveAfterDelay);

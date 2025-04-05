@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessPropertyMap, IPtyService, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
-import { BasePty } from 'vs/workbench/contrib/terminal/common/basePty';
+import { IProcessPropertyMap, IPtyService, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
+import { BasePty } from '../common/basePty.js';
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process

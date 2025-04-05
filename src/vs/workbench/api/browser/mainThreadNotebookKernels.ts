@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
+import { isNonEmptyArray } from '../../../base/common/arrays.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { INotebookEditor } from '../../contrib/notebook/browser/notebookBrowser.js';
+import { INotebookEditorService } from '../../contrib/notebook/browser/services/notebookEditorService.js';
+import { INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../contrib/notebook/common/notebookExecutionStateService.js';
+import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService, VariablesResult } from '../../contrib/notebook/common/notebookKernelService.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol.js';
+import { INotebookService } from '../../contrib/notebook/common/notebookService.js';
+import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async.js';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
@@ -151,6 +151,16 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
 			}
 		}));
+
+		this._disposables.add(this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
+			for (const [handle, [kernel,]] of this._kernels) {
+				if (e.oldKernel === kernel.id) {
+					this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
+				} else if (e.newKernel === kernel.id) {
+					this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
+				}
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -262,16 +272,10 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 		}(data, this._languageService);
 
-		const listener = this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
-			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
-			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
-			}
-		});
-
-		const registration = this._notebookKernelService.registerKernel(kernel);
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
+		const disposables = this._disposables.add(new DisposableStore());
+		// Ensure _kernels is up to date before we register a kernel.
+		this._kernels.set(handle, [kernel, disposables]);
+		disposables.add(this._notebookKernelService.registerKernel(kernel));
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {

@@ -177,7 +177,7 @@ class TypeItemDataProvider implements vscode.TreeDataProvider<TypeItem> {
 			title: vscode.l10n.t('Open Type'),
 			arguments: [
 				element.item.uri,
-				<vscode.TextDocumentShowOptions>{ selection: element.item.selectionRange.with({ end: element.item.selectionRange.start }) }
+				{ selection: element.item.selectionRange.with({ end: element.item.selectionRange.start }) } satisfies vscode.TextDocumentShowOptions
 			]
 		};
 		item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;

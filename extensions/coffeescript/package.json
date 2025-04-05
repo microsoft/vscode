@@ -49,7 +49,8 @@
     ],
     "configurationDefaults": {
       "[coffeescript]": {
-        "diffEditor.ignoreTrimWhitespace": false
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.defaultColorDecorators": "never"
       }
     }
   },

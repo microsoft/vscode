@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
-import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
+import { TerminalTypeAheadSettingId, type ITerminalTypeAheadConfiguration } from '../common/terminalTypeAheadConfiguration.js';
+import { TypeAheadAddon } from './terminalTypeAheadAddon.js';
 
 class TerminalTypeAheadContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.typeAhead';
@@ -24,9 +23,7 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	private _addon: TypeAheadAddon | undefined;
 
 	constructor(
-		instance: ITerminalInstance,
-		private readonly _processManager: ITerminalProcessManager,
-		widgetManager: TerminalWidgetManager,
+		private readonly _ctx: ITerminalContributionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -37,20 +34,20 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._loadTypeAheadAddon(xterm.raw);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
+			if (e.affectsConfiguration(TerminalTypeAheadSettingId.LocalEchoEnabled)) {
 				this._loadTypeAheadAddon(xterm.raw);
 			}
 		}));
 
 		// Reset the addon when the terminal launches or relaunches
-		this.add(this._processManager.onProcessReady(() => {
+		this.add(this._ctx.processManager.onProcessReady(() => {
 			this._addon?.reset();
 		}));
 	}
 
 	private _loadTypeAheadAddon(xterm: RawXtermTerminal): void {
-		const enabled = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoEnabled;
-		const isRemote = !!this._processManager.remoteAuthority;
+		const enabled = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoEnabled;
+		const isRemote = !!this._ctx.processManager.remoteAuthority;
 		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
 			this._addon?.dispose();
 			this._addon = undefined;
@@ -60,7 +57,7 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 			return;
 		}
 		if (enabled === 'on' || (enabled === 'auto' && isRemote)) {
-			this._addon = this._instantiationService.createInstance(TypeAheadAddon, this._processManager);
+			this._addon = this._instantiationService.createInstance(TypeAheadAddon, this._ctx.processManager);
 			xterm.loadAddon(this._addon);
 		}
 	}

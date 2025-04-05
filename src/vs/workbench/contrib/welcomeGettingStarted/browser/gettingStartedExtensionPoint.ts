@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWalkthrough } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { localize } from '../../../../nls.js';
+import { IWalkthrough } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 
 const titleTranslated = localize('title', "Title");
 

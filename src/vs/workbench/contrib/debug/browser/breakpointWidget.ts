@@ -3,47 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as lifecycle from 'vs/base/common/lifecycle';
-import { URI as uri } from 'vs/base/common/uri';
-import 'vs/css!./media/breakpointWidget';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, ServicesAccessor, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionContext, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { CompletionOptions, provideSuggestionItems } from 'vs/editor/contrib/suggest/browser/suggest';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { defaultButtonStyles, defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, CONTEXT_IN_BREAKPOINT_WIDGET, BreakpointWidgetContext as Context, DEBUG_SCHEME, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as lifecycle from '../../../../base/common/lifecycle.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorCommand, ServicesAccessor, registerEditorCommand } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { CompletionContext, CompletionItemKind, CompletionList } from '../../../../editor/common/languages.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { CompletionOptions, provideSuggestionItems } from '../../../../editor/contrib/suggest/browser/suggest.js';
+import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, CONTEXT_IN_BREAKPOINT_WIDGET, BreakpointWidgetContext as Context, DEBUG_SCHEME, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugService } from '../common/debug.js';
+import './media/breakpointWidget.css';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -85,10 +86,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private selectBreakpointContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;
 	private selectBreakpointBox!: SelectBox;
+	private selectModeBox?: SelectBox;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
+	private modeInput?: DebugProtocol.BreakpointMode;
 	private breakpoint: IBreakpoint | undefined;
 	private context: Context;
 	private heightInPx: number | undefined;
@@ -98,7 +101,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -107,6 +109,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
@@ -202,12 +205,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[
+		const selectBox = new SelectBox([
 			{ text: nls.localize('expression', "Expression") },
 			{ text: nls.localize('hitCount', "Hit Count") },
 			{ text: nls.localize('logMessage', "Log Message") },
 			{ text: nls.localize('triggeredBy', "Wait for Breakpoint") },
-		], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		] satisfies ISelectOptionItem[], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
@@ -216,7 +219,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.updateContextInput();
 		});
 
+		this.createModesInput(container);
+
 		this.inputContainer = $('.inputContainer');
+		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.inputContainer, this.placeholder));
 		this.createBreakpointInput(dom.append(container, this.inputContainer));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
@@ -232,32 +238,57 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		setTimeout(() => this.focusInput(), 150);
 	}
 
-	private createTriggerBreakpointInput(container: HTMLElement) {
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint);
-
-		const index = breakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
-		let select = 0;
-		if (index > -1) {
-			select = index + 1;
+	private createModesInput(container: HTMLElement) {
+		const modes = this.debugService.getModel().getBreakpointModes('source');
+		if (modes.length <= 1) {
+			return;
 		}
 
-		Promise.all(breakpoints.map(async (bp): Promise<ISelectOptionItem> => ({
-			text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
-			description: await this.textModelService.createModelReference(bp.uri).then(ref => {
+		const sb = this.selectModeBox = new SelectBox(
+			[
+				{ text: nls.localize('bpMode', 'Mode'), isDisabled: true },
+				...modes.map(mode => ({ text: mode.label, description: mode.description })),
+			],
+			modes.findIndex(m => m.mode === this.breakpoint?.mode) + 1,
+			this.contextViewService,
+			defaultSelectBoxStyles,
+		);
+		this.toDispose.push(sb);
+		this.toDispose.push(sb.onDidSelect(e => {
+			this.modeInput = modes[e.index - 1];
+		}));
+
+		const modeWrapper = $('.select-mode-container');
+		const selectionWrapper = $('.select-box-container');
+		dom.append(modeWrapper, selectionWrapper);
+		sb.render(selectionWrapper);
+		dom.append(container, modeWrapper);
+	}
+
+	private createTriggerBreakpointInput(container: HTMLElement) {
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
+		const breakpointOptions: ISelectOptionItem[] = [
+			{ text: nls.localize('noTriggerByBreakpoint', 'None'), isDisabled: true },
+			...breakpoints.map(bp => ({
+				text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
+				description: nls.localize('triggerByLoading', 'Loading...')
+			})),
+		];
+
+		const index = breakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
+		for (const [i, bp] of breakpoints.entries()) {
+			this.textModelService.createModelReference(bp.uri).then(ref => {
 				try {
-					return ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
+					breakpointOptions[i + 1].description = ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
 				} finally {
 					ref.dispose();
 				}
-			}, () => undefined),
-		}))).then(breakpoints => {
-			selectBreakpointBox.setOptions([
-				{ text: nls.localize('noTriggerByBreakpoint', 'None') },
-				...breakpoints
-			], select);
-		});
+			}).catch(() => {
+				breakpointOptions[i + 1].description = nls.localize('noBpSource', 'Could not load source.');
+			});
+		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox([{ text: nls.localize('triggerByLoading', 'Loading...'), isDisabled: true }], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
@@ -281,7 +312,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		dom.append(container, this.selectBreakpointContainer);
 
 		const closeButton = new Button(this.selectBreakpointContainer, defaultButtonStyles);
-		closeButton.label = nls.localize('ok', "Ok");
+		closeButton.label = nls.localize('ok', "OK");
 		this.toDispose.push(closeButton.onDidClick(() => this.close(true)));
 		this.toDispose.push(closeButton);
 	}
@@ -313,16 +344,16 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private createBreakpointInput(container: HTMLElement): void {
-		const scopedContextKeyService = this.contextKeyService.createScoped(container);
-		this.toDispose.push(scopedContextKeyService);
-
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
+			[IPrivateBreakpointWidgetService, this]
+		));
+		this.toDispose.push(scopedInstatiationService);
 
 		const options = this.createEditorOptions();
 		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
 		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
-		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
+
+		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(this.input.contextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		if (this.editor.hasModel()) {
 			model.setLanguage(this.editor.getModel().getLanguageId());
@@ -404,10 +435,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (success) {
 			// if there is already a breakpoint on this location - remove it.
 
-			let condition = this.breakpoint && this.breakpoint.condition;
-			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
-			let logMessage = this.breakpoint && this.breakpoint.logMessage;
-			let triggeredBy = this.breakpoint && this.breakpoint.triggeredBy;
+			let condition: string | undefined = undefined;
+			let hitCondition: string | undefined = undefined;
+			let logMessage: string | undefined = undefined;
+			let triggeredBy: string | undefined = undefined;
+			let mode: string | undefined = undefined;
+			let modeLabel: string | undefined = undefined;
 
 			this.rememberInput();
 
@@ -419,6 +452,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			}
 			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
 				logMessage = this.logMessageInput;
+			}
+			if (this.selectModeBox) {
+				mode = this.modeInput?.mode;
+				modeLabel = this.modeInput?.label;
 			}
 			if (this.context === Context.TRIGGER_POINT) {
 				// currently, trigger points don't support additional conditions:
@@ -434,7 +471,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					condition,
 					hitCondition,
 					logMessage,
-					triggeredBy
+					triggeredBy,
+					mode,
+					modeLabel,
 				});
 				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
@@ -447,7 +486,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						condition,
 						hitCondition,
 						logMessage,
-						triggeredBy
+						triggeredBy,
+						mode,
+						modeLabel,
 					}]);
 				}
 			}

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { basename, extname } from 'vs/base/common/path';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Schemas } from 'vs/base/common/network';
+import { localize } from '../../../nls.js';
+import { Event } from '../../../base/common/event.js';
+import { basename, extname } from '../../../base/common/path.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { Schemas } from '../../../base/common/network.js';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -329,16 +329,23 @@ export function isWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
+	private foldersMap: TernarySearchTree<URI, WorkspaceFolder>;
+
 	private _folders!: WorkspaceFolder[];
+	get folders(): WorkspaceFolder[] { return this._folders; }
+	set folders(folders: WorkspaceFolder[]) {
+		this._folders = folders;
+		this.updateFoldersMap();
+	}
 
 	constructor(
 		private _id: string,
 		folders: WorkspaceFolder[],
 		private _transient: boolean,
 		private _configuration: URI | null,
-		private _ignorePathCasing: (key: URI) => boolean,
+		private ignorePathCasing: (key: URI) => boolean,
 	) {
+		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
 	}
 
@@ -346,17 +353,8 @@ export class Workspace implements IWorkspace {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
 		this._transient = workspace.transient;
-		this._ignorePathCasing = workspace._ignorePathCasing;
+		this.ignorePathCasing = workspace.ignorePathCasing;
 		this.folders = workspace.folders;
-	}
-
-	get folders(): WorkspaceFolder[] {
-		return this._folders;
-	}
-
-	set folders(folders: WorkspaceFolder[]) {
-		this._folders = folders;
-		this.updateFoldersMap();
 	}
 
 	get id(): string {
@@ -380,13 +378,13 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource) || null;
+		return this.foldersMap.findSubstr(resource) || null;
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
+		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		for (const folder of this.folders) {
-			this._foldersMap.set(folder.uri, folder);
+			this.foldersMap.set(folder.uri, folder);
 		}
 	}
 

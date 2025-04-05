@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as resources from 'vs/base/common/resources';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISnippetGetOptions, ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
-import { SnippetCompletionProvider } from './snippetCompletionProvider';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { ResourceMap } from 'vs/base/common/map';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isStringArray } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { insertInto } from 'vs/base/common/arrays';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { combinedDisposable, IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import * as resources from '../../../../base/common/resources.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { setSnippetSuggestSupport } from '../../../../editor/contrib/suggest/browser/suggest.js';
+import { localize } from '../../../../nls.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISnippetGetOptions, ISnippetsService } from './snippets.js';
+import { Snippet, SnippetFile, SnippetSource } from './snippetsFile.js';
+import { ExtensionsRegistry, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
+import { languagesExtPoint } from '../../../services/language/common/languageService.js';
+import { SnippetCompletionProvider } from './snippetCompletionProvider.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { isStringArray } from '../../../../base/common/types.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { insertInto } from '../../../../base/common/arrays.js';
 
 namespace snippetExt {
 
@@ -118,7 +118,7 @@ namespace snippetExt {
 	});
 }
 
-function watch(service: IFileService, resource: URI, callback: () => any): IDisposable {
+function watch(service: IFileService, resource: URI, callback: () => unknown): IDisposable {
 	return combinedDisposable(
 		service.watch(resource),
 		service.onDidFilesChange(e => {

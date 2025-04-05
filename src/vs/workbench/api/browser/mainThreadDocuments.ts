@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService, FileOperation } from 'vs/platform/files/common/files';
-import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ResourceMap } from 'vs/base/common/map';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { IReference, dispose, Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ITextModel, shouldSynchronizeModel } from '../../../editor/common/model.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../editor/common/services/resolverService.js';
+import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
+import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
+import { EncodingMode, ITextFileEditorModel, ITextFileService, TextFileResolveReason } from '../../services/textfile/common/textfiles.js';
+import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources.js';
+import { IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 
 export class BoundModelReferenceCollection {
 
@@ -145,6 +146,14 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
 		}));
+		this._store.add(Event.any<ITextFileEditorModel | IUntitledTextEditorModel>(_textFileService.files.onDidChangeEncoding, _textFileService.untitled.onDidChangeEncoding)(m => {
+			if (this._shouldHandleFileEvent(m.resource)) {
+				const encoding = m.getEncoding();
+				if (encoding) {
+					this._proxy.$acceptEncodingChanged(m.resource, encoding);
+				}
+			}
+		}));
 
 		this._store.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
 			const isMove = e.operation === FileOperation.MOVE;
@@ -210,7 +219,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return Boolean(target);
 	}
 
-	async $tryOpenDocument(uriData: UriComponents): Promise<URI> {
+	async $tryOpenDocument(uriData: UriComponents, options?: { encoding?: string }): Promise<URI> {
 		const inputUri = URI.revive(uriData);
 		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
 			throw new ErrorNoTelemetry(`Invalid uri. Scheme and authority or path must be set.`);
@@ -221,11 +230,11 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		let promise: Promise<URI>;
 		switch (canonicalUri.scheme) {
 			case Schemas.untitled:
-				promise = this._handleUntitledScheme(canonicalUri);
+				promise = this._handleUntitledScheme(canonicalUri, options);
 				break;
 			case Schemas.file:
 			default:
-				promise = this._handleAsResourceInput(canonicalUri);
+				promise = this._handleAsResourceInput(canonicalUri, options);
 				break;
 		}
 
@@ -246,31 +255,40 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}
 	}
 
-	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<URI> {
-		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
+	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
+		return this._doCreateUntitled(undefined, options);
 	}
 
-	private async _handleAsResourceInput(uri: URI): Promise<URI> {
+	private async _handleAsResourceInput(uri: URI, options?: { encoding?: string }): Promise<URI> {
+		if (options?.encoding) {
+			const model = await this._textFileService.files.resolve(uri, { encoding: options.encoding, reason: TextFileResolveReason.REFERENCE });
+			if (model.isDirty()) {
+				throw new ErrorNoTelemetry(`Cannot re-open a dirty text document with different encoding. Save it first.`);
+			}
+			await model.setEncoding(options.encoding, EncodingMode.Decode);
+		}
+
 		const ref = await this._textModelResolverService.createModelReference(uri);
 		this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
 		return ref.object.textEditorModel.uri;
 	}
 
-	private async _handleUntitledScheme(uri: URI): Promise<URI> {
+	private async _handleUntitledScheme(uri: URI, options?: { encoding?: string }): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		const exists = await this._fileService.exists(asLocalUri);
 		if (exists) {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));
 		}
-		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
+		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined, options);
 	}
 
-	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
+	private async _doCreateUntitled(associatedResource?: URI, options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
 		const model = this._textFileService.untitled.create({
 			associatedResource,
-			languageId,
-			initialValue
+			languageId: options?.language,
+			initialValue: options?.content,
+			encoding: options?.encoding
 		});
 		const resource = model.resource;
 		const ref = await this._textModelResolverService.createModelReference(resource);

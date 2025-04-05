@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ValidDiffEditorBaseOptions } from 'vs/editor/common/config/editorOptions';
+import { ValidDiffEditorBaseOptions } from './editorOptions.js';
 
 export const diffEditorDefaultOptions = {
 	enableSplitViewResizing: true,
 	splitViewDefaultRatio: 0.5,
 	renderSideBySide: true,
 	renderMarginRevertIcon: true,
+	renderGutterMenu: true,
 	maxComputationTime: 5000,
 	maxFileSize: 50,
 	ignoreTrimWhitespace: true,
@@ -23,6 +24,7 @@ export const diffEditorDefaultOptions = {
 	experimental: {
 		showMoves: false,
 		showEmptyDecorations: true,
+		useTrueInlineView: false,
 	},
 	hideUnchangedRegions: {
 		enabled: false,
@@ -34,4 +36,5 @@ export const diffEditorDefaultOptions = {
 	onlyShowAccessibleDiffViewer: false,
 	renderSideBySideInlineBreakpoint: 900,
 	useInlineViewWhenSpaceIsLimited: true,
+	compactMode: false,
 } satisfies ValidDiffEditorBaseOptions;

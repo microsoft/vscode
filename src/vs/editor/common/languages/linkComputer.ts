@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILink } from 'vs/editor/common/languages';
+import { CharCode } from '../../../base/common/charCode.js';
+import { CharacterClassifier } from '../core/characterClassifier.js';
+import { ILink } from '../languages.js';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;

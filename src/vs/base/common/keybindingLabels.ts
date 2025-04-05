@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Modifiers } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
+import { Modifiers } from './keybindings.js';
+import { OperatingSystem } from './platform.js';
+import * as nls from '../../nls.js';
 
 export interface ModifierLabels {
 	readonly ctrlKey: string;

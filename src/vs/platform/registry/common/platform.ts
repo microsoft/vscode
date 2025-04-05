@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Assert from 'vs/base/common/assert';
-import * as Types from 'vs/base/common/types';
+import * as Assert from '../../../base/common/assert.js';
+import * as Types from '../../../base/common/types.js';
 
 export interface IRegistry {
 

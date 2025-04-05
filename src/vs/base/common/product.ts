@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PlatformName } from 'vs/base/common/platform';
+import { IStringDictionary } from './collections.js';
+import { PlatformName } from './platform.js';
+import { IPolicy } from './policy.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -82,6 +83,7 @@ export interface IProductConfiguration {
 	readonly webEndpointUrlTemplate?: string;
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
+	readonly nlsCoreBaseUrl?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
@@ -94,14 +96,15 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
-		readonly servicePPEUrl?: string;
-		readonly searchUrl?: string;
-		readonly itemUrl: string;
-		readonly publisherUrl: string;
-		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
+		readonly extensionUrlTemplate: string;
+		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
+		readonly accessSKUs?: string[];
 	};
+
+	readonly extensionPublisherOrgs?: readonly string[];
+	readonly trustedExtensionPublishers?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
@@ -113,7 +116,8 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
-	readonly trustedExtensionAuthAccess?: readonly string[];
+	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
+	readonly inheritAuthAccountPreference?: IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
@@ -159,7 +163,6 @@ export interface IProductConfiguration {
 	readonly tunnelApplicationConfig?: ITunnelApplicationConfig;
 
 	readonly npsSurveyUrl?: string;
-	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
 
 	readonly checksums?: { [path: string]: string };
@@ -173,22 +176,47 @@ export interface IProductConfiguration {
 	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[] };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[] };
 
+	readonly extensionsEnabledWithApiProposalVersion?: string[];
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
+	readonly extensionProperties: IStringDictionary<{
+		readonly hasPrereleaseVersion?: boolean;
+		readonly excludeVersionRange?: string;
+	}>;
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
+
+	readonly defaultAccount?: {
+		readonly authenticationProvider: {
+			readonly id: string;
+			readonly enterpriseProviderId: string;
+			readonly enterpriseProviderConfig: string;
+			readonly scopes: string[];
+		};
+		readonly tokenEntitlementUrl: string;
+		readonly chatEntitlementUrl: string;
+	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+	readonly darwinBundleIdentifier?: string;
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
-	readonly gitHubEntitlement?: IGitHubEntitlement;
+
+	readonly defaultChatAgent?: IDefaultChatAgent;
+	readonly chatParticipantRegistry?: string;
+
+	readonly emergencyAlertUrl?: string;
+
+	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
+
+	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 }
 
 export interface ITunnelApplicationConfig {
@@ -204,6 +232,7 @@ export interface IExtensionRecommendations {
 
 export interface ISettingsEditorOpenCondition {
 	readonly prerelease?: boolean | string;
+	readonly descriptionOverride?: string;
 }
 
 export interface IExtensionRecommendationCondition {
@@ -293,12 +322,38 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly startupTrustRequestLearnMore: string;
 }
 
-export interface IGitHubEntitlement {
-	providerId: string;
-	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
-	entitlementUrl: string;
-	extensionId: string;
-	enablementKey: string;
-	confirmationMessage: string;
-	confirmationAction: string;
+export interface IDefaultChatAgent {
+	readonly extensionId: string;
+	readonly chatExtensionId: string;
+
+	readonly documentationUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
+	readonly skusDocumentationUrl: string;
+	readonly publicCodeMatchesUrl: string;
+	readonly manageSettingsUrl: string;
+	readonly managePlanUrl: string;
+	readonly upgradePlanUrl: string;
+
+	readonly providerId: string;
+	readonly providerName: string;
+	readonly enterpriseProviderId: string;
+	readonly enterpriseProviderName: string;
+	readonly providerUriSetting: string;
+	readonly providerScopes: string[][];
+
+	readonly entitlementUrl: string;
+	readonly entitlementSignupLimitedUrl: string;
+
+	readonly chatQuotaExceededContext: string;
+	readonly completionsQuotaExceededContext: string;
+
+	readonly walkthroughCommand: string;
+	readonly completionsMenuCommand: string;
+	readonly completionsRefreshTokenCommand: string;
+	readonly chatRefreshTokenCommand: string;
+
+	readonly completionsAdvancedSetting: string;
+	readonly completionsEnablementSetting: string;
+	readonly nextEditSuggestionsSetting: string;
 }

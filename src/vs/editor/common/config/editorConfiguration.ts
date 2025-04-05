@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from './editorOptions.js';
+import { IDimension } from '../core/dimension.js';
+import { MenuId } from '../../../platform/actions/common/actions.js';
 
 export interface IEditorConfiguration extends IDisposable {
 	/**
 	 * Is this a simple widget (not a real code editor)?
 	 */
 	readonly isSimpleWidget: boolean;
+	/**
+	 * The context menu id for the editor.
+	 */
+	readonly contextMenuId: MenuId;
 	/**
 	 * Computed editor options.
 	 */

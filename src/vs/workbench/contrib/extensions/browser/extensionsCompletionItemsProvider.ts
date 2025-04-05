@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getLocation, parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionList, CompletionItemKind, CompletionItem } from 'vs/editor/common/languages';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { localize } from '../../../../nls.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { getLocation, parse } from '../../../../base/common/json.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { CompletionContext, CompletionList, CompletionItemKind, CompletionItem } from '../../../../editor/common/languages.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 
 
 export class ExtensionsCompletionItemsProvider extends Disposable implements IWorkbenchContribution {

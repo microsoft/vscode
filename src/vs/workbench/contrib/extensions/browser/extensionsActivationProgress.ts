@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { localize } from '../../../../nls.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export class ExtensionActivationProgress implements IWorkbenchContribution {
 

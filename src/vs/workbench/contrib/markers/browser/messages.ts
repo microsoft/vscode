@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
-import { MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Marker } from './markersModel';
+import * as nls from '../../../../nls.js';
+import { basename } from '../../../../base/common/resources.js';
+import { MarkerSeverity, IRelatedInformation } from '../../../../platform/markers/common/markers.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { Marker } from './markersModel.js';
 
 export default class Messages {
 
 	public static MARKERS_PANEL_TOGGLE_LABEL: string = nls.localize('problems.view.toggle.label', "Toggle Problems (Errors, Warnings, Infos)");
-	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.focus.label', "Focus Problems (Errors, Warnings, Infos)");
+	public static MARKERS_PANEL_SHOW_LABEL = nls.localize2('problems.view.focus.label', "Focus Problems (Errors, Warnings, Infos)");
 
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE: string = nls.localize('problems.panel.configuration.title', "Problems View");
 	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls whether Problems view should automatically reveal files when opening them.");

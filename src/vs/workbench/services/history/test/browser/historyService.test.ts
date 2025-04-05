@@ -3,38 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorNavigationStack, HistoryService } from 'vs/workbench/services/history/browser/historyService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IResolvedTextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor, workbenchTeardown, registerTestSideBySideEditor } from '../../../../test/browser/workbenchTestServices.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IEditorGroupsService, GroupDirection } from '../../../editor/common/editorGroupsService.js';
+import { EditorNavigationStack, HistoryService } from '../../browser/historyService.js';
+import { IEditorService, SIDE_GROUP } from '../../../editor/common/editorService.js';
+import { EditorService } from '../../../editor/browser/editorService.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { GoFilter, GoScope, IHistoryService } from '../../common/history.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { IResourceEditorInput, ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IResolvedTextFileEditorModel, ITextFileService } from '../../../textfile/common/textfiles.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from '../../../../../platform/files/common/files.js';
+import { isLinux } from '../../../../../base/common/platform.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 
 suite('HistoryService', function () {
 
 	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
 
-	async function createServices(scope = GoScope.DEFAULT): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService]> {
+	async function createServices(scope = GoScope.DEFAULT, configureSearchExclude = false): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService, TestConfigurationService]> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -49,6 +50,9 @@ suite('HistoryService', function () {
 		} else if (scope === GoScope.EDITOR) {
 			configurationService.setUserConfiguration('workbench.editor.navigationScope', 'editor');
 		}
+		if (configureSearchExclude) {
+			configurationService.setUserConfiguration('search', { exclude: { "**/node_modules/**": true } });
+		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
 		const historyService = disposables.add(instantiationService.createInstance(HistoryService));
@@ -56,13 +60,14 @@ suite('HistoryService', function () {
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		return [part, historyService, editorService, accessor.textFileService, instantiationService];
+		return [part, historyService, editorService, accessor.textFileService, instantiationService, configurationService];
 	}
 
 	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)]));
+		disposables.add(registerTestSideBySideEditor());
 		disposables.add(registerTestFileEditor());
 	});
 
@@ -109,28 +114,28 @@ suite('HistoryService', function () {
 
 		// [index.txt] | [>index.txt<] [other.html]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goBack();
 
 		// [>index.txt<] | [index.txt] [other.html]
 
-		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane1?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goForward();
 
 		// [index.txt] | [>index.txt<] [other.html]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goForward();
 
 		// [index.txt] | [index.txt] [>other.html<]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), otherResource.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -313,7 +318,7 @@ suite('HistoryService', function () {
 		// [one.txt] [>two.html<] | <empty>
 
 		const editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		pane1?.group?.moveEditor(pane1.input!, sideGroup);
+		pane1?.group.moveEditor(pane1.input!, sideGroup);
 		await editorChangePromise;
 
 		// [one.txt] | [>two.html<]
@@ -322,7 +327,7 @@ suite('HistoryService', function () {
 
 		// [>one.txt<] | [two.html]
 
-		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane1?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -341,7 +346,7 @@ suite('HistoryService', function () {
 
 		assert.notStrictEqual(pane1, pane2);
 
-		await pane1?.group?.closeAllEditors();
+		await pane1?.group.closeAllEditors();
 
 		// [>two.html<]
 
@@ -349,7 +354,7 @@ suite('HistoryService', function () {
 
 		// [>two.html<]
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource2.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -427,6 +432,7 @@ suite('HistoryService', function () {
 
 		const resource: URI = toResource.call(this, '/path/index.txt');
 		const otherResource: URI = toResource.call(this, '/path/index.html');
+		const unrelatedResource: URI = toResource.call(this, '/path/unrelated.html');
 		const pane = await editorService.openEditor({ resource, options: { pinned: true } });
 
 		stack.notifyNavigation(pane);
@@ -444,7 +450,14 @@ suite('HistoryService', function () {
 		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
 		stack.notifyNavigation(pane);
 
+		// Remove unrelated resource does not cause any harm (via internal event)
+		await stack.goBack();
+		assert.strictEqual(stack.canGoForward(), true);
+		stack.remove(new FileOperationEvent(unrelatedResource, FileOperation.DELETE));
+		assert.strictEqual(stack.canGoForward(), true);
+
 		// Remove (via internal event)
+		await stack.goForward();
 		assert.strictEqual(stack.canGoBack(), true);
 		stack.remove(new FileOperationEvent(resource, FileOperation.DELETE));
 		assert.strictEqual(stack.canGoBack(), false);
@@ -537,7 +550,7 @@ suite('HistoryService', function () {
 		await historyService.goBack();
 		await historyService.goBack();
 
-		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane2?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
 
 		// [one.txt] [two.html] [>three.html<] | [>one.txt<] [two.html] [three.html]
@@ -548,7 +561,7 @@ suite('HistoryService', function () {
 		await historyService.goBack();
 		await historyService.goBack();
 
-		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.id, pane1?.group.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
 
 		return workbenchTeardown(instantiationService);
@@ -623,7 +636,7 @@ suite('HistoryService', function () {
 		const resource = toResource.call(this, '/path/index.txt');
 		const pane = await editorService.openEditor({ resource });
 
-		await pane?.group?.closeAllEditors();
+		await pane?.group.closeAllEditors();
 
 		const onDidActiveEditorChange = new DeferredPromise<void>();
 		disposables.add(editorService.onDidActiveEditorChange(e => {
@@ -652,12 +665,12 @@ suite('HistoryService', function () {
 			}
 		}
 
-		const [part, historyService, , , instantiationService] = await createServices();
+		const [part, historyService, editorService, , instantiationService] = await createServices(undefined, true);
 
 		let history = historyService.getHistory();
 		assert.strictEqual(history.length, 0);
 
-		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1/node_modules/test.txt'), TEST_EDITOR_INPUT_ID));
 		await part.activeGroup.openEditor(input1, { pinned: true });
 
 		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
@@ -684,6 +697,23 @@ suite('HistoryService', function () {
 		history = historyService.getHistory();
 		assert.strictEqual(history.length, 3);
 		assert.strictEqual(history[0].resource?.toString(), input4.resource.toString());
+
+		input1.dispose(); // disposing the editor will apply `search.exclude` rules
+		history = historyService.getHistory();
+		assert.strictEqual(history.length, 2);
+
+		// side by side
+		const input5 = disposables.add(new TestFileEditorInputWithUntyped(URI.parse('file://bar5'), TEST_EDITOR_INPUT_ID));
+		const input6 = disposables.add(new TestFileEditorInputWithUntyped(URI.file('file://bar1/node_modules/test.txt'), TEST_EDITOR_INPUT_ID));
+		const input7 = new SideBySideEditorInput(undefined, undefined, input6, input5, editorService);
+		await part.activeGroup.openEditor(input7, { pinned: true });
+
+		history = historyService.getHistory();
+		assert.strictEqual(history.length, 3);
+		input7.dispose();
+
+		history = historyService.getHistory();
+		assert.strictEqual(history.length, 3); // only input5 survived, input6 is excluded via search.exclude
 
 		return workbenchTeardown(instantiationService);
 	});
@@ -795,6 +825,49 @@ suite('HistoryService', function () {
 		historyService.openNextRecentlyUsedEditor();
 		await editorChangePromise;
 		assert.strictEqual(part.activeGroup.activeEditor, input4);
+
+		return workbenchTeardown(instantiationService);
+	});
+
+	test('transient editors suspends editor change tracking', async () => {
+		const [part, historyService, editorService, , instantiationService] = await createServices();
+
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID));
+		const input4 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID));
+		const input5 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar5'), TEST_EDITOR_INPUT_ID));
+
+		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
+		await part.activeGroup.openEditor(input1, { pinned: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		await editorChangePromise;
+
+		await part.activeGroup.openEditor(input2, { transient: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		await part.activeGroup.openEditor(input3, { transient: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input3);
+
+		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange)
+			.then(() => Event.toPromise(editorService.onDidActiveEditorChange));
+
+		await part.activeGroup.openEditor(input4, { pinned: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input4);
+		await part.activeGroup.openEditor(input5, { pinned: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input5);
+
+		// stack should be [input1, input4, input5]
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.activeEditor, input4);
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+
+		await historyService.goForward();
+		assert.strictEqual(part.activeGroup.activeEditor, input4);
+		await historyService.goForward();
+		assert.strictEqual(part.activeGroup.activeEditor, input5);
 
 		return workbenchTeardown(instantiationService);
 	});

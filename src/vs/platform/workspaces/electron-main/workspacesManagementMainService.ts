@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow } from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { dirname, join } from 'vs/base/common/path';
-import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
-import { getStoredWorkspaceFolder, IEnterWorkspaceResult, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
+import * as fs from 'fs';
+import electron from 'electron';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { parse } from '../../../base/common/json.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { dirname, join } from '../../../base/common/path.js';
+import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { localize } from '../../../nls.js';
+import { IBackupMainService } from '../../backup/electron-main/backup.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
+import { findWindowOnWorkspaceOrFolder } from '../../windows/electron-main/windowsFinder.js';
+import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from '../../workspace/common/workspace.js';
+import { getStoredWorkspaceFolder, IEnterWorkspaceResult, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, toWorkspaceFolders } from '../common/workspaces.js';
+import { getWorkspaceIdentifier } from '../node/workspaces.js';
 
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
 
@@ -63,7 +64,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	private readonly _onDidEnterWorkspace = this._register(new Emitter<IWorkspaceEnteredEvent>());
 	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent> = this._onDidEnterWorkspace.event;
 
-	private readonly untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
+	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 
 	private untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
 
@@ -75,6 +76,8 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
+
+		this.untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome;
 	}
 
 	async initialize(): Promise<void> {
@@ -102,7 +105,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	}
 
 	resolveLocalWorkspace(uri: URI): Promise<IResolvedWorkspace | undefined> {
-		return this.doResolveLocalWorkspace(uri, path => Promises.readFile(path, 'utf8'));
+		return this.doResolveLocalWorkspace(uri, path => fs.promises.readFile(path, 'utf8'));
 	}
 
 	private doResolveLocalWorkspace(uri: URI, contentsFn: (path: string) => string): IResolvedWorkspace | undefined;
@@ -169,7 +172,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		await Promises.mkdir(dirname(configPath), { recursive: true });
+		await fs.promises.mkdir(dirname(configPath), { recursive: true });
 		await Promises.writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		this.untitledWorkspaces.push({ workspace, remoteAuthority });
@@ -211,9 +214,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		await this.doDeleteUntitledWorkspace(workspace);
 
 		// unset workspace from profiles
-		if (this.userDataProfilesMainService.isEnabled()) {
-			this.userDataProfilesMainService.unsetWorkspace(workspace);
-		}
+		this.userDataProfilesMainService.unsetWorkspace(workspace);
 
 		// Event
 		this._onDidDeleteUntitledWorkspace.fire(workspace);
@@ -280,7 +281,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
 				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-			}, BrowserWindow.getFocusedWindow() ?? undefined);
+			}, electron.BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return false;
 		}

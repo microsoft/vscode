@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mainWindow } from 'vs/base/browser/window';
+import { ShutdownReason, ILifecycleService, StartupKind } from '../common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { AbstractLifecycleService } from '../common/lifecycleService.js';
+import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { IStorageService, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -161,6 +161,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		}
 
 		this.didUnload = true;
+		this._willShutdown = true;
 
 		// Register a late `pageshow` listener specifically on unload
 		this._register(addDisposableListener(mainWindow, EventType.PAGE_SHOW, (e: PageTransitionEvent) => this.onLoadAfterUnload(e)));
@@ -172,6 +173,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			joiners: () => [], 				// Unsupported in web
 			token: CancellationToken.None, 	// Unsupported in web
 			join(promise, joiner) {
+				if (typeof promise === 'function') {
+					promise();
+				}
 				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${joiner.id})`);
 			},
 			force: () => { /* No-Op in web */ },
@@ -199,6 +203,19 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
 		// Refs: https://github.com/microsoft/vscode/issues/136035
 		this.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.reload());
+	}
+
+	protected override doResolveStartupKind(): StartupKind | undefined {
+		let startupKind = super.doResolveStartupKind();
+		if (typeof startupKind !== 'number') {
+			const timing = performance.getEntriesByType('navigation').at(0) as PerformanceNavigationTiming | undefined;
+			if (timing?.type === 'reload') {
+				// MDN: https://developer.mozilla.org/en-US/docs/Web/API/PerformanceNavigationTiming/type#value
+				startupKind = StartupKind.ReloadedWindow;
+			}
+		}
+
+		return startupKind;
 	}
 }
 

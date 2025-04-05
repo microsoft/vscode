@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { SnippetFile, Snippet } from './snippetsFile.js';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 

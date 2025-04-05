@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { ISequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { OffsetRange } from '../../core/offsetRange.js';
+import { ISequence } from './algorithms/diffAlgorithm.js';
 
 export class LineSequence implements ISequence {
 	constructor(

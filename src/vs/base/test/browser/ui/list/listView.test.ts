@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ListView } from 'vs/base/browser/ui/list/listView';
-import { range } from 'vs/base/common/arrays';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { ListView } from '../../../../browser/ui/list/listView.js';
+import { range } from '../../../../common/arrays.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();

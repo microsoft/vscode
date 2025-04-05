@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotSupportedError } from 'vs/base/common/errors';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { BracketAstNode, TextAstNode } from './ast';
-import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
-import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length';
-import { SmallImmutableSet } from './smallImmutableSet';
+import { NotSupportedError } from '../../../../../base/common/errors.js';
+import { StandardTokenType, TokenMetadata } from '../../../encodedTokenAttributes.js';
+import { IViewLineTokens } from '../../../tokens/lineTokens.js';
+import { BracketAstNode, TextAstNode } from './ast.js';
+import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets.js';
+import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length.js';
+import { SmallImmutableSet } from './smallImmutableSet.js';
 
 export interface Tokenizer {
 	readonly offset: Length;

@@ -6,8 +6,8 @@
 import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
-export function setup() {
-	describe('Terminal stickyScroll', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal stickyScroll', () => {
 		// Acquire automation API
 		let app: Application;
 		let terminal: Terminal;

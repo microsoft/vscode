@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistoryCommands';
+import './localHistoryCommands.js';

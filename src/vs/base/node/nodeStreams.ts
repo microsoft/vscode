@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Transform } from 'stream';
-import { binaryIndexOf } from 'vs/base/common/buffer';
+import { binaryIndexOf } from '../common/buffer.js';
 
 /**
  * A Transform stream that splits the input on the "splitter" substring.

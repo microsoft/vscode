@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from 'vs/workbench/common/notifications';
-import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { localize } from 'vs/nls';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from '../../../common/notifications.js';
+import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
+import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from './notificationsCommands.js';
+import { localize } from '../../../../nls.js';
+import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
 
 export class NotificationsStatus extends Disposable {
 
@@ -97,7 +97,7 @@ export class NotificationsStatus extends Disposable {
 				statusProperties,
 				'status.notifications',
 				StatusbarAlignment.RIGHT,
-				-Number.MAX_VALUE /* towards the far end of the right hand side */
+				Number.NEGATIVE_INFINITY /* last entry */
 			);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);
@@ -200,7 +200,7 @@ export class NotificationsStatus extends Disposable {
 				},
 				'status.message',
 				StatusbarAlignment.LEFT,
-				-Number.MAX_VALUE /* far right on left hand side */
+				Number.NEGATIVE_INFINITY /* last entry */
 			);
 			showHandle = null;
 		}, showAfter);

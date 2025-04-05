@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
-import { ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IUserDataProfile, toUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
+import { merge } from '../../common/userDataProfilesManifestMerge.js';
+import { ISyncUserDataProfile } from '../../common/userDataSync.js';
 
 suite('UserDataProfilesManifestMerge', () => {
 
@@ -90,7 +90,7 @@ suite('UserDataProfilesManifestMerge', () => {
 		const remoteProfiles: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
 			{ id: '2', name: '2', collection: '2' },
-			{ id: '3', name: '3', collection: '3', shortName: 'short 3' },
+			{ id: '3', name: '3', collection: '3' },
 			{ id: '4', name: 'changed remote', collection: '4' },
 			{ id: '5', name: '5', collection: '5' },
 			{ id: '7', name: '7', collection: '7' },
@@ -103,7 +103,7 @@ suite('UserDataProfilesManifestMerge', () => {
 
 		assert.deepStrictEqual(actual.local.added, [remoteProfiles[5], remoteProfiles[6]]);
 		assert.deepStrictEqual(actual.local.removed, [localProfiles[4]]);
-		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[2], remoteProfiles[3], remoteProfiles[7]]);
+		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[3], remoteProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.added, [localProfiles[5]]);
 		assert.deepStrictEqual(actual.remote?.updated, [localProfiles[0], localProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.removed, [remoteProfiles[1]]);

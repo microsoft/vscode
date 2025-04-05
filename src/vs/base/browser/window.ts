@@ -20,13 +20,6 @@ export function ensureCodeWindow(targetWindow: Window, fallbackWindowId: number)
 // eslint-disable-next-line no-restricted-globals
 export const mainWindow = window as CodeWindow;
 
-/**
- * @deprecated to support multi-window scenarios, use `DOM.mainWindow`
- * if you target the main global window or use helpers such as `DOM.getWindow()`
- * or `DOM.getActiveWindow()` to obtain the correct window for the context you are in.
- */
-export const $window = mainWindow;
-
 export function isAuxiliaryWindow(obj: Window): obj is CodeWindow {
 	if (obj === mainWindow) {
 		return false;

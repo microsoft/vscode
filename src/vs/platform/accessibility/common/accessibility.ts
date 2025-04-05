@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { RawContextKey } from '../../contextkey/common/contextkey.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
 
@@ -48,3 +48,4 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
 
+export const ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX = 'ACCESSIBLE_VIEW_SHOWN_';

@@ -3,61 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenWindowIdle } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import * as performance from 'vs/base/common/performance';
-import { isCI } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteConnectionType, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
-import { getRemoteName, parseAuthorityWithPort } from 'vs/platform/remote/common/remoteHosts';
-import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
-import { AbstractExtensionService, ExtensionHostCrashTracker, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI, extensionIsEnabled } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionDescriptionRegistrySnapshot } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
-import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
-import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
-import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
-import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../base/common/network.js';
+import * as performance from '../../../../base/common/performance.js';
+import { isCI } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionKind } from '../../../../platform/environment/common/environment.js';
+import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { PersistentConnectionEventType } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteConnectionType, ResolverResult, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
+import { getRemoteName, parseAuthorityWithPort } from '../../../../platform/remote/common/remoteHosts.js';
+import { updateProxyConfigurationsScope } from '../../../../platform/request/common/request.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../extensionManagement/common/extensionManagement.js';
+import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from '../browser/webWorkerExtensionHost.js';
+import { AbstractExtensionService, ExtensionHostCrashTracker, IExtensionHostFactory, LocalExtensions, RemoteExtensions, ResolvedExtensions, ResolverExtensions, checkEnabledAndProposedAPI, extensionIsEnabled, isResolverExtension } from '../common/abstractExtensionService.js';
+import { ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescriptionRegistry.js';
+import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
+import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from '../common/extensionHostKind.js';
+import { IExtensionHostManager } from '../common/extensionHostManagers.js';
+import { ExtensionHostExitCode } from '../common/extensionHostProtocol.js';
+import { IExtensionManifestPropertiesService } from '../common/extensionManifestPropertiesService.js';
+import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
+import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from '../common/extensionRunningLocationTracker.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from '../common/extensions.js';
+import { ExtensionsProposedApi } from '../common/extensionsProposedApi.js';
+import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from '../common/remoteExtensionHost.js';
+import { CachedExtensionScanner } from './cachedExtensionScanner.js';
+import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, NativeLocalProcessExtensionHost } from './localProcessExtensionHost.js';
+import { IHostService } from '../../host/browser/host.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { IRemoteExplorerService } from '../../remote/common/remoteExplorerService.js';
+import { AsyncIterableEmitter, AsyncIterableObject } from '../../../../base/common/async.js';
 
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -103,6 +103,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			logService
 		);
 		super(
+			{ hasLocalProcess: true, allowRemoteExtensionsInLocalWebWorker: false },
 			extensionsProposedApi,
 			extensionHostFactory,
 			new NativeExtensionHostKindPicker(environmentService, configurationService, logService),
@@ -139,14 +140,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._initialize();
 			}, 50 /*max delay*/);
 		});
-	}
-
-	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
-		if (extension.location.scheme === Schemas.vscodeRemote) {
-			return this._remoteExtensionsScannerService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
-		}
-
-		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System);
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
@@ -324,7 +317,11 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		throw new Error(`Cannot get canonical URI because no extension is installed to resolve ${getRemoteAuthorityPrefix(remoteAuthority)}`);
 	}
 
-	protected async _resolveExtensions(): Promise<ResolvedExtensions> {
+	protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
+		return new AsyncIterableObject(emitter => this._doResolveExtensions(emitter));
+	}
+
+	private async _doResolveExtensions(emitter: AsyncIterableEmitter<ResolvedExtensions>): Promise<void> {
 		this._extensionScanner.startScanningExtensions();
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
@@ -366,6 +363,12 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._logService.info(`Finished waiting on IWorkspaceTrustManagementService.workspaceResolved.`);
 			}
 
+			const localExtensions = await this._scanAllLocalExtensions();
+			const resolverExtensions = localExtensions.filter(extension => isResolverExtension(extension));
+			if (resolverExtensions.length) {
+				emitter.emitOne(new ResolverExtensions(resolverExtensions));
+			}
+
 			let resolverResult: ResolverResult;
 			try {
 				resolverResult = await this._resolveAuthorityInitial(remoteAuthority);
@@ -380,7 +383,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
-				return this._startLocalExtensionHost();
+				return this._startLocalExtensionHost(emitter);
 			}
 
 			// set the resolved authority
@@ -407,30 +410,40 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
 				// Proceed with the local extension host
-				return this._startLocalExtensionHost();
+				return this._startLocalExtensionHost(emitter);
 			}
 
-			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
+			const useHostProxyDefault = remoteEnv.useHostProxy;
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('http.useLocalProxyConfiguration')) {
+					updateProxyConfigurationsScope(this._configurationService.getValue('http.useLocalProxyConfiguration'), useHostProxyDefault);
+				}
+			}));
+			updateProxyConfigurationsScope(this._configurationService.getValue('http.useLocalProxyConfiguration'), useHostProxyDefault);
 		} else {
 
 			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => uri);
 
 		}
 
-		return this._startLocalExtensionHost(remoteExtensions);
+		return this._startLocalExtensionHost(emitter, remoteExtensions);
 	}
 
-	private async _startLocalExtensionHost(remoteExtensions: IExtensionDescription[] = []): Promise<ResolvedExtensions> {
+	private async _startLocalExtensionHost(emitter: AsyncIterableEmitter<ResolvedExtensions>, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
 		// Ensure that the workspace trust state has been fully initialized so
 		// that the extension host can start with the correct set of extensions.
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
 
-		return new ResolvedExtensions(await this._scanAllLocalExtensions(), remoteExtensions, /*hasLocalProcess*/true, /*allowRemoteExtensionsInLocalWebWorker*/false);
+		if (remoteExtensions.length) {
+			emitter.emitOne(new RemoteExtensions(remoteExtensions));
+		}
+
+		emitter.emitOne(new LocalExtensions(await this._scanAllLocalExtensions()));
 	}
 
-	protected _onExtensionHostExit(code: number): void {
+	protected async _onExtensionHostExit(code: number): Promise<void> {
 		// Dispose everything associated with the extension host
-		this._doStopExtensionHosts();
+		await this._doStopExtensionHosts();
 
 		// Dispose the management connection to avoid reconnecting after the extension host exits
 		const connection = this._remoteAgentService.getConnection();
@@ -454,16 +467,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		if (!recommendation) {
 			return false;
 		}
-		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
-			/* __GDPR__
-			"remoteExtensionRecommendations:popup" : {
-				"owner": "sandy081",
-				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-			}
-			*/
-			this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction, extensionId: resolverExtensionId });
-		};
 
 		const resolverExtensionId = recommendation.extensionId;
 		const allExtensions = await this._scanAllLocalExtensions();
@@ -475,7 +478,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					[{
 						label: nls.localize('enable', 'Enable and Reload'),
 						run: async () => {
-							sendTelemetry('enable');
 							await this._extensionEnablementService.setEnablement([toExtension(extension)], EnablementState.EnabledGlobally);
 							await this._hostService.reload();
 						}
@@ -493,7 +495,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				[{
 					label: nls.localize('install', 'Install and Reload'),
 					run: async () => {
-						sendTelemetry('install');
 						const [galleryExtension] = await this._extensionGalleryService.getExtensions([{ id: resolverExtensionId }], CancellationToken.None);
 						if (galleryExtension) {
 							await this._extensionManagementService.installFromGallery(galleryExtension);
@@ -507,7 +508,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				{
 					sticky: true,
 					priority: NotificationPriority.URGENT,
-					onCancel: () => sendTelemetry('cancel')
 				}
 			);
 
@@ -734,7 +734,7 @@ class RestartExtensionHostAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionService = accessor.get(IExtensionService);
 
-		const stopped = await extensionService.stopExtensionHosts(nls.localize('restartExtensionHost.reason', "Restarting extension host on explicit request."));
+		const stopped = await extensionService.stopExtensionHosts(nls.localize('restartExtensionHost.reason', "An explicit request"));
 		if (stopped) {
 			extensionService.startExtensionHosts();
 		}

@@ -69,6 +69,10 @@
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
+.monaco-editor .parameter-hints-widget .code {
+	font-family: var(--vscode-parameterHintsWidget-editorFontFamily), var(--vscode-parameterHintsWidget-editorFontFamilyDefault);
+}
+
 .monaco-editor .parameter-hints-widget .docs {
 	padding: 0 10px 0 5px;
 	white-space: pre-wrap;

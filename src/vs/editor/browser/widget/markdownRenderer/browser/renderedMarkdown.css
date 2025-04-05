@@ -15,3 +15,7 @@
 	vertical-align: middle;
 	padding: 1px 3px;
 }
+
+.rendered-markdown li:has(input[type=checkbox]) {
+	list-style-type: none;
+}

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CachedFunction } from 'vs/base/common/cache';
-import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
+import { CachedFunction } from '../../../../base/common/cache.js';
+import { RegExpOptions } from '../../../../base/common/strings.js';
+import { LanguageConfiguration } from '../languageConfiguration.js';
+import { createBracketOrRegExp } from './richEditBrackets.js';
 
 /**
  * Captures all bracket related configurations for a single language.
@@ -90,6 +92,11 @@ export class LanguageBracketsConfiguration {
 
 	public getBracketInfo(bracketText: string): BracketKind | undefined {
 		return this.getOpeningBracketInfo(bracketText) || this.getClosingBracketInfo(bracketText);
+	}
+
+	public getBracketRegExp(options?: RegExpOptions): RegExp {
+		const brackets = Array.from([...this._openingBrackets.keys(), ...this._closingBrackets.keys()]);
+		return createBracketOrRegExp(brackets, options);
 	}
 }
 

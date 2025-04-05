@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IFindInputToggleOpts } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./findInput';
-import * as nls from 'vs/nls';
+import * as dom from '../../dom.js';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { IToggleStyles, Toggle } from '../toggle/toggle.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { IFindInputToggleOpts } from './findInputToggles.js';
+import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
+import { Widget } from '../widget.js';
+import { Codicon } from '../../../common/codicons.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import './findInput.css';
+import * as nls from '../../../../nls.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHistory } from '../../../common/history.js';
 
 
 export interface IReplaceInputOptions {
@@ -28,7 +30,7 @@ export interface IReplaceInputOptions {
 	readonly flexibleMaxHeight?: number;
 
 	readonly appendPreserveCaseLabel?: string;
-	readonly history?: string[];
+	readonly history?: IHistory<string>;
 	readonly showHistoryHint?: () => boolean;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly toggleStyles: IToggleStyles;
@@ -44,9 +46,10 @@ class PreserveCaseToggle extends Toggle {
 			icon: Codicon.preserveCase,
 			title: NLS_PRESERVE_CASE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
-			inputActiveOptionBackground: opts.inputActiveOptionBackground
+			inputActiveOptionBackground: opts.inputActiveOptionBackground,
 		});
 	}
 }
@@ -92,7 +95,7 @@ export class ReplaceInput extends Widget {
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
 		const appendPreserveCaseLabel = options.appendPreserveCaseLabel || '';
-		const history = options.history || [];
+		const history = options.history || new Set([]);
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;

@@ -9,28 +9,28 @@
 
 /* Font Families (with CJK support) */
 
-.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+.monaco-workbench.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.monaco-workbench.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+.monaco-workbench.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+.monaco-workbench.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+.monaco-workbench.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif; }
 
-.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
-.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+.monaco-workbench.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+.monaco-workbench.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+.monaco-workbench.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+.monaco-workbench.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+.monaco-workbench.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
 
 /* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
-.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
-.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+.monaco-workbench.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+.monaco-workbench.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.monaco-workbench.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+.monaco-workbench.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+.monaco-workbench.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
-.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Courier, monospace; }
-.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
-.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
+.monaco-workbench.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Courier, monospace; }
+.monaco-workbench.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
+.monaco-workbench.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
 
 /* Global Styles */
 
@@ -45,10 +45,6 @@ body {
 	-webkit-user-select: none;
 }
 
-body.web {
-	position: fixed; /* prevent bounce effect */
-}
-
 .monaco-workbench {
 	font-size: 13px;
 	line-height: 1.4em;
@@ -60,6 +56,7 @@ body.web {
 
 .monaco-workbench.web {
 	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
+	overscroll-behavior: none; /* Prevent bounce effect */
 }
 
 .monaco-workbench.border:not(.fullscreen) {
@@ -87,6 +84,20 @@ body.web {
 	text-decoration: none;
 }
 
+
+.monaco-workbench p > a {
+	text-decoration: var(--text-link-decoration);
+}
+
+.monaco-workbench.underline-links {
+	--text-link-decoration: underline;
+}
+
+.monaco-workbench.hc-black p > a,
+.monaco-workbench.hc-light p > a {
+	text-decoration: underline !important;
+}
+
 .monaco-workbench a:active {
 	color: inherit;
 	background-color: inherit;
@@ -107,6 +118,16 @@ body.web {
 	color: inherit;
 	font-family: inherit;
 	font-size: 100%;
+}
+
+.monaco-workbench table {
+	/*
+	 * Somehow this is required when tables show in floating windows
+	 * to override the user-agent style which sets a specific color
+	 * and font-size
+	 */
+	color: inherit;
+	font-size: inherit;
 }
 
 .monaco-workbench input::placeholder { color: var(--vscode-input-placeholderForeground); }
@@ -151,10 +172,13 @@ body.web {
 }
 
 .monaco-workbench .predefined-file-icon[class*='codicon-']::before {
-	font-family: 'codicon';
 	width: 16px;
 	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
 	padding-right: 3px;
+}
+
+.predefined-file-icon::before { /* do add additional specificity to this selector, so it can be overridden by product themes */
+	font-family: 'codicon';
 }
 
 .monaco-workbench:not(.file-icons-enabled) .predefined-file-icon[class*='codicon-']::before {
@@ -181,8 +205,8 @@ body.web {
 }
 
 .monaco-workbench .select-container:after {
-	content: "\eab4";
-	font-family: codicon;
+	content: var(--vscode-icon-chevron-down-content);
+	font-family: var(--vscode-icon-chevron-down-font-family);
 	font-size: 16px;
 	width: 16px;
 	height: 16px;

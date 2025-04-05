@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { shuffle } from 'vs/base/common/arrays';
-import { randomPath } from 'vs/base/common/extpath';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ConfigKeysIterator, PathIterator, StringIterator, TernarySearchTree, UriIterator } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { shuffle } from '../../common/arrays.js';
+import { randomPath } from '../../common/extpath.js';
+import { StopWatch } from '../../common/stopwatch.js';
+import { ConfigKeysIterator, PathIterator, StringIterator, TernarySearchTree, UriIterator } from '../../common/ternarySearchTree.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Ternary Search Tree', () => {
 
@@ -239,6 +239,27 @@ suite('Ternary Search Tree', () => {
 			['foob', 4],
 			['foobar', 2],
 		);
+	});
+
+	test('TernarySearchTree - set w/ undefined', function () {
+
+		const trie = TernarySearchTree.forStrings<any>();
+		trie.set('foobar', undefined);
+		trie.set('foobaz', 2);
+
+		assert.strictEqual(trie.get('foobar'), undefined);
+		assert.strictEqual(trie.get('foobaz'), 2);
+		assert.strictEqual(trie.get('NOT HERE'), undefined);
+
+		assert.ok(trie.has('foobaz'));
+		assert.ok(trie.has('foobar'));
+		assert.ok(!trie.has('NOT HERE'));
+
+		assertTstDfs(trie, ['foobar', undefined], ['foobaz', 2]); // should check for undefined value
+
+		const oldValue = trie.set('foobar', 3);
+		assert.strictEqual(oldValue, undefined);
+		assert.strictEqual(trie.get('foobar'), 3);
 	});
 
 	test('TernarySearchTree - findLongestMatch', function () {
@@ -536,14 +557,18 @@ suite('Ternary Search Tree', () => {
 			}
 			const tst = TernarySearchTree.forUris<boolean>();
 
-			for (const item of keys) {
-				tst.set(item, true);
-				assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
-			}
+			try {
+				for (const item of keys) {
+					tst.set(item, true);
+					assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
+				}
 
-			for (const item of keys) {
-				tst.delete(item);
-				assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
+				for (const item of keys) {
+					tst.delete(item);
+					assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
+				}
+			} catch (err) {
+				assert.ok(false, `FAILED with keys: ${keys.map(String).join()}`);
 			}
 		}
 	});

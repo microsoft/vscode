@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel } from 'vs/editor/common/model';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
-import { CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/cursorCommon';
+import { ITextModel } from '../model.js';
+import { ICoordinatesConverter } from '../viewModel.js';
+import { CursorConfiguration, ICursorSimpleModel } from '../cursorCommon.js';
 
 export class CursorContext {
 	_cursorContextBrand: void = undefined;

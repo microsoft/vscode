@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ICellRange } from '../../common/notebookRange.js';
 
 function rangesEqual(a: ICellRange[], b: ICellRange[]) {
 	if (a.length !== b.length) {

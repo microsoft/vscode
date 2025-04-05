@@ -1,0 +1,11 @@
+{
+	"configurations": [
+		{
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--enable-proposed-api=ms-vscode.vscode-selfhost-test-provider"],
+			"name": "Launch Extension",
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"request": "launch",
+			"type": "extensionHost"
+		}
+	]
+}

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fail, strictEqual } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
-import { LogService } from 'vs/platform/log/common/logService';
-import { RequestStore } from 'vs/platform/terminal/common/requestStore';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ConsoleLogger, ILogService } from '../../../log/common/log.js';
+import { LogService } from '../../../log/common/logService.js';
+import { RequestStore } from '../../common/requestStore.js';
 
 suite('RequestStore', () => {
 	let instantiationService: TestInstantiationService;

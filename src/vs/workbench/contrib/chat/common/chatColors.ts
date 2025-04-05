@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, contrastBorder, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { localize } from '../../../../nls.js';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
@@ -13,9 +13,15 @@ export const chatRequestBorder = registerColor(
 	localize('chat.requestBorder', 'The border color of a chat request.')
 );
 
+export const chatRequestBackground = registerColor(
+	'chat.requestBackground',
+	{ dark: transparent(editorBackground, 0.62), light: transparent(editorBackground, 0.62), hcDark: editorWidgetBackground, hcLight: null },
+	localize('chat.requestBackground', 'The background color of a chat request.')
+);
+
 export const chatSlashCommandBackground = registerColor(
 	'chat.slashCommandBackground',
-	{ dark: '#34414B', light: '#D2ECFF', hcDark: Color.white, hcLight: badgeBackground },
+	{ dark: '#34414b8f', light: '#d2ecff99', hcDark: Color.white, hcLight: badgeBackground },
 	localize('chat.slashCommandBackground', 'The background color of a chat slash command.')
 );
 
@@ -33,6 +39,17 @@ export const chatAvatarBackground = registerColor(
 
 export const chatAvatarForeground = registerColor(
 	'chat.avatarForeground',
-	{ dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground, },
+	foreground,
 	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
+);
+
+export const chatEditedFileForeground = registerColor(
+	'chat.editedFileForeground',
+	{
+		light: '#895503',
+		dark: '#E2C08D',
+		hcDark: '#E2C08D',
+		hcLight: '#895503'
+	},
+	localize('chat.editedFileForeground', 'The foreground color of a chat edited file in the edited file list.')
 );

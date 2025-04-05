@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import * as Platform from 'vs/base/common/platform';
-import * as uuid from 'vs/base/common/uuid';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { mixin } from 'vs/base/common/objects';
-import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { Gesture } from 'vs/base/browser/touch';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import * as Platform from '../../../../base/common/platform.js';
+import * as uuid from '../../../../base/common/uuid.js';
+import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { mixin } from '../../../../base/common/objects.js';
+import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from '../../../../platform/telemetry/common/telemetry.js';
+import { Gesture } from '../../../../base/browser/touch.js';
 
 /**
  * General function to help reduce the individuality of user agents

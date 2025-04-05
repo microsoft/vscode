@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
-import * as strings from 'vs/base/common/strings';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorTheme } from 'vs/editor/common/editorTheme';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { VerticalRevealType } from 'vs/editor/common/viewEvents';
+import * as arrays from '../../base/common/arrays.js';
+import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
+import * as strings from '../../base/common/strings.js';
+import { IPosition, Position } from './core/position.js';
+import { Range } from './core/range.js';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from './cursorCommon.js';
+import { CursorChangeReason } from './cursorEvents.js';
+import { INewScrollPosition, ScrollType } from './editorCommon.js';
+import { EditorTheme } from './editorTheme.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
+import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
+import { IViewLineTokens } from './tokens/lineTokens.js';
+import { ViewEventHandler } from './viewEventHandler.js';
+import { VerticalRevealType } from './viewEvents.js';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -40,6 +40,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	visibleLinesStabilized(): void;
 	setHasFocus(hasFocus: boolean): void;
+	setHasWidgetFocus(hasWidgetFocus: boolean): void;
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
@@ -87,6 +88,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
+	revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealTopMostCursor(source: string | null | undefined): void;
 	revealBottomMostCursor(source: string | null | undefined): void;
@@ -96,6 +98,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	//#region viewLayout
 	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
 	//#endregion
+
+	batchEvents(callback: () => void): void;
 }
 
 export interface IViewLayout {
@@ -181,6 +185,11 @@ export interface IPartialViewLinesViewportData {
 	 * The last completely visible line number.
 	 */
 	readonly completelyVisibleEndLineNumber: number;
+
+	/**
+	 * The height of a line.
+	 */
+	readonly lineHeight: number;
 }
 
 export interface IViewWhitespaceViewportData {

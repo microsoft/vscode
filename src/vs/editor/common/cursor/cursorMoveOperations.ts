@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
-import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
-import { PositionAffinity } from 'vs/editor/common/model';
+import * as strings from '../../../base/common/strings.js';
+import { Constants } from '../../../base/common/uint.js';
+import { CursorColumns } from '../core/cursorColumns.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { AtomicTabMoveOperations, Direction } from './cursorAtomicMoveOperations.js';
+import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
+import { PositionAffinity } from '../model.js';
 
 export class CursorPosition {
 	_cursorPositionBrand: void = undefined;

@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
-import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
+import { MultiDiffEditor } from './multiDiffEditor.js';
+import { MultiDiffEditorInput } from './multiDiffEditorInput.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
 
 export class GoToFileAction extends Action2 {
 	constructor() {
@@ -22,9 +25,9 @@ export class GoToFileAction extends Action2 {
 			id: 'multiDiffEditor.goToFile',
 			title: localize2('goToFile', 'Open File'),
 			icon: Codicon.goToFile,
-			precondition: EditorContextKeys.inMultiDiffEditor,
+			precondition: ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
 			menu: {
-				when: EditorContextKeys.inMultiDiffEditor,
+				when: ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 22,
 				group: 'navigation',
@@ -37,21 +40,28 @@ export class GoToFileAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
 		let selections: Selection[] | undefined = undefined;
-		if (activeEditorPane instanceof MultiDiffEditor) {
-			const editor = activeEditorPane.tryGetCodeEditor(uri);
-			if (editor) {
-				selections = editor.editor.getSelections() ?? undefined;
-			}
+		if (!(activeEditorPane instanceof MultiDiffEditor)) {
+			return;
 		}
 
-		const editor = await editorService.openEditor({ resource: uri });
-		if (selections && (editor instanceof TextFileEditor)) {
-			const c = editor.getControl();
-			if (c) {
-				c.setSelections(selections);
-				c.revealLineInCenter(selections[0].selectionStartLineNumber);
-			}
+		const editor = activeEditorPane.tryGetCodeEditor(uri);
+		if (editor) {
+			selections = editor.editor.getSelections() ?? undefined;
 		}
+
+		let targetUri = uri;
+		const item = activeEditorPane.findDocumentDiffItem(uri);
+		if (item && item.goToFileUri) {
+			targetUri = item.goToFileUri;
+		}
+
+		await editorService.openEditor({
+			resource: targetUri,
+			options: {
+				selection: selections?.[0],
+				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+			} satisfies ITextEditorOptions,
+		});
 	}
 }
 
@@ -72,12 +82,17 @@ export class CollapseAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditor;
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
-		if (activeEditor instanceof MultiDiffEditorInput) {
-			const viewModel = await activeEditor.getViewModel();
+		const groupContext = resolvedContext.groupedEditors[0];
+		if (!groupContext) {
+			return;
+		}
+
+		const editor = groupContext.editors[0];
+		if (editor instanceof MultiDiffEditorInput) {
+			const viewModel = await editor.getViewModel();
 			viewModel.collapseAll();
 		}
 	}
@@ -100,12 +115,17 @@ export class ExpandAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditor;
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
-		if (activeEditor instanceof MultiDiffEditorInput) {
-			const viewModel = await activeEditor.getViewModel();
+		const groupContext = resolvedContext.groupedEditors[0];
+		if (!groupContext) {
+			return;
+		}
+
+		const editor = groupContext.editors[0];
+		if (editor instanceof MultiDiffEditorInput) {
+			const viewModel = await editor.getViewModel();
 			viewModel.expandAll();
 		}
 	}

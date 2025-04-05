@@ -3,26 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import * as Objects from 'vs/base/common/objects';
-import { UriComponents, URI } from 'vs/base/common/uri';
+import * as nls from '../../../../nls.js';
+import * as Types from '../../../../base/common/types.js';
+import * as resources from '../../../../base/common/resources.js';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import * as Objects from '../../../../base/common/objects.js';
+import { UriComponents, URI } from '../../../../base/common/uri.js';
 
-import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
+import { ProblemMatcher } from './problemMatcher.js';
+import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { RawContextKey, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 
 
 
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
+/** Whether the active terminal is a task terminal. */
+export const TASK_TERMINAL_ACTIVE = new RawContextKey<boolean>('taskTerminalActive', false, nls.localize('taskTerminalActive', "Whether the active terminal is a task terminal."));
 export const TASKS_CATEGORY = nls.localize2('tasksCategory', "Tasks");
 
 export enum ShellQuoting {
@@ -1100,18 +1102,6 @@ export class TaskSorter {
 	}
 }
 
-export const enum TaskEventKind {
-	DependsOnStarted = 'dependsOnStarted',
-	AcquiredInput = 'acquiredInput',
-	Start = 'start',
-	ProcessStarted = 'processStarted',
-	Active = 'active',
-	Inactive = 'inactive',
-	Changed = 'changed',
-	Terminated = 'terminated',
-	ProcessEnded = 'processEnded',
-	End = 'end'
-}
 
 
 export const enum TaskRunType {
@@ -1121,6 +1111,49 @@ export const enum TaskRunType {
 
 export interface ITaskChangedEvent {
 	kind: TaskEventKind.Changed;
+}
+
+
+
+export enum TaskEventKind {
+	/** Indicates that a task's properties or configuration have changed */
+	Changed = 'changed',
+
+	/** Indicates that a task has begun executing */
+	ProcessStarted = 'processStarted',
+
+	/** Indicates that a task process has completed */
+	ProcessEnded = 'processEnded',
+
+	/** Indicates that a task was terminated, either by user action or by the system */
+	Terminated = 'terminated',
+
+	/** Indicates that a task has started running */
+	Start = 'start',
+
+	/** Indicates that a task has acquired all needed input/variables to execute */
+	AcquiredInput = 'acquiredInput',
+
+	/** Indicates that a dependent task has started */
+	DependsOnStarted = 'dependsOnStarted',
+
+	/** Indicates that a task is actively running/processing */
+	Active = 'active',
+
+	/** Indicates that a task is paused/waiting but not complete */
+	Inactive = 'inactive',
+
+	/** Indicates that a task has completed fully */
+	End = 'end',
+
+	/** Indicates that a task's problem matcher has started */
+	ProblemMatcherStarted = 'problemMatcherStarted',
+
+	/** Indicates that a task's problem matcher has ended */
+	ProblemMatcherEnded = 'problemMatcherEnded',
+
+	/** Indicates that a task's problem matcher has found errors */
+	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 
 interface ITaskCommon {
@@ -1155,8 +1188,13 @@ export interface ITaskStartedEvent extends ITaskCommon {
 	resolvedVariables: Map<string, string>;
 }
 
+export interface ITaskProblemMatcherEndedEvent extends ITaskCommon {
+	kind: TaskEventKind.ProblemMatcherEnded;
+	hasErrors: boolean;
+}
+
 export interface ITaskGeneralEvent extends ITaskCommon {
-	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End;
+	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherEnded | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors;
 	terminalId: number | undefined;
 }
 
@@ -1166,7 +1204,8 @@ export type ITaskEvent =
 	| ITaskProcessEndedEvent
 	| ITaskTerminatedEvent
 	| ITaskStartedEvent
-	| ITaskGeneralEvent;
+	| ITaskGeneralEvent
+	| ITaskProblemMatcherEndedEvent;
 
 export const enum TaskRunSource {
 	System,
@@ -1222,7 +1261,7 @@ export namespace TaskEvent {
 		};
 	}
 
-	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End, task: Task, terminalId?: number): ITaskGeneralEvent {
+	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherEnded | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors, task: Task, terminalId?: number): ITaskGeneralEvent {
 		return {
 			...common(task),
 			kind,

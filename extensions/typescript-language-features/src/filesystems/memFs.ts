@@ -3,19 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { basename, dirname } from 'path';
+import * as vscode from 'vscode';
+import { Logger } from '../logging/logger';
 
 export class MemFs implements vscode.FileSystemProvider {
 
-	private readonly root = new FsEntry(
+	private readonly root = new FsDirectoryEntry(
 		new Map(),
 		0,
 		0,
 	);
 
+	constructor(
+		private readonly id: string,
+		private readonly logger: Logger,
+	) { }
+
 	stat(uri: vscode.Uri): vscode.FileStat {
-		// console.log('stat', uri.toString());
+		this.logger.trace(`MemFs.stat ${this.id}. uri: ${uri}`);
 		const entry = this.getEntry(uri);
 		if (!entry) {
 			throw vscode.FileSystemError.FileNotFound();
@@ -25,29 +31,36 @@ export class MemFs implements vscode.FileSystemProvider {
 	}
 
 	readDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
-		// console.log('readDirectory', uri.toString());
+		this.logger.trace(`MemFs.readDirectory ${this.id}. uri: ${uri}`);
+
+		const entry = this.getEntry(uri);
+		if (!entry) {
+			throw vscode.FileSystemError.FileNotFound();
+		}
+		if (!(entry instanceof FsDirectoryEntry)) {
+			throw vscode.FileSystemError.FileNotADirectory();
+		}
+
+		return Array.from(entry.contents.entries(), ([name, entry]) => [name, entry.type]);
+	}
+
+	readFile(uri: vscode.Uri): Uint8Array {
+		this.logger.trace(`MemFs.readFile ${this.id}. uri: ${uri}`);
 
 		const entry = this.getEntry(uri);
 		if (!entry) {
 			throw vscode.FileSystemError.FileNotFound();
 		}
 
-		return [...entry.contents.entries()].map(([name, entry]) => [name, entry.type]);
-	}
-
-	readFile(uri: vscode.Uri): Uint8Array {
-		// console.log('readFile', uri.toString());
-
-		const entry = this.getEntry(uri);
-		if (!entry) {
-			throw vscode.FileSystemError.FileNotFound();
+		if (!(entry instanceof FsFileEntry)) {
+			throw vscode.FileSystemError.FileIsADirectory(uri);
 		}
 
 		return entry.data;
 	}
 
 	writeFile(uri: vscode.Uri, content: Uint8Array, { create, overwrite }: { create: boolean; overwrite: boolean }): void {
-		// console.log('writeFile', uri.toString());
+		this.logger.trace(`MemFs.writeFile ${this.id}. uri: ${uri}`);
 
 		const dir = this.getParent(uri);
 
@@ -58,12 +71,16 @@ export class MemFs implements vscode.FileSystemProvider {
 		const entry = dirContents.get(basename(uri.path));
 		if (!entry) {
 			if (create) {
-				dirContents.set(fileName, new FsEntry(content, time, time));
+				dirContents.set(fileName, new FsFileEntry(content, time, time));
 				this._emitter.fire([{ type: vscode.FileChangeType.Created, uri }]);
 			} else {
 				throw vscode.FileSystemError.FileNotFound();
 			}
 		} else {
+			if (entry instanceof FsDirectoryEntry) {
+				throw vscode.FileSystemError.FileIsADirectory(uri);
+			}
+
 			if (overwrite) {
 				entry.mtime = time;
 				entry.data = content;
@@ -87,13 +104,14 @@ export class MemFs implements vscode.FileSystemProvider {
 	}
 
 	createDirectory(uri: vscode.Uri): void {
-		// console.log('createDirectory', uri.toString());
+		this.logger.trace(`MemFs.createDirectory ${this.id}. uri: ${uri}`);
+
 		const dir = this.getParent(uri);
 		const now = Date.now() / 1000;
-		dir.contents.set(basename(uri.path), new FsEntry(new Map(), now, now));
+		dir.contents.set(basename(uri.path), new FsDirectoryEntry(new Map(), now, now));
 	}
 
-	private getEntry(uri: vscode.Uri): FsEntry | void {
+	private getEntry(uri: vscode.Uri): FsEntry | undefined {
 		// TODO: have this throw FileNotFound itself?
 		// TODO: support configuring case sensitivity
 		let node: FsEntry = this.root;
@@ -104,13 +122,12 @@ export class MemFs implements vscode.FileSystemProvider {
 				continue;
 			}
 
-			if (node.type !== vscode.FileType.Directory) {
+			if (!(node instanceof FsDirectoryEntry)) {
 				// We're looking at a File or such, so bail.
 				return;
 			}
 
 			const next = node.contents.get(component);
-
 			if (!next) {
 				// not found!
 				return;
@@ -121,10 +138,13 @@ export class MemFs implements vscode.FileSystemProvider {
 		return node;
 	}
 
-	private getParent(uri: vscode.Uri) {
+	private getParent(uri: vscode.Uri): FsDirectoryEntry {
 		const dir = this.getEntry(uri.with({ path: dirname(uri.path) }));
 		if (!dir) {
 			throw vscode.FileSystemError.FileNotFound();
+		}
+		if (!(dir instanceof FsDirectoryEntry)) {
+			throw vscode.FileSystemError.FileNotADirectory();
 		}
 		return dir;
 	}
@@ -153,46 +173,32 @@ export class MemFs implements vscode.FileSystemProvider {
 	}
 }
 
-class FsEntry {
-	get type(): vscode.FileType {
-		if (this._data instanceof Uint8Array) {
-			return vscode.FileType.File;
-		} else {
-			return vscode.FileType.Directory;
-		}
-	}
+class FsFileEntry {
+	readonly type = vscode.FileType.File;
 
 	get size(): number {
-		if (this.type === vscode.FileType.Directory) {
-			return [...this.contents.values()].reduce((acc: number, entry: FsEntry) => acc + entry.size, 0);
-		} else {
-			return this.data.length;
-		}
+		return this.data.length;
 	}
 
 	constructor(
-		private _data: Uint8Array | Map<string, FsEntry>,
-		public ctime: number,
+		public data: Uint8Array,
+		public readonly ctime: number,
 		public mtime: number,
 	) { }
-
-	get data() {
-		if (this.type === vscode.FileType.Directory) {
-			throw vscode.FileSystemError.FileIsADirectory;
-		}
-		return <Uint8Array>this._data;
-	}
-	set data(val: Uint8Array) {
-		if (this.type === vscode.FileType.Directory) {
-			throw vscode.FileSystemError.FileIsADirectory;
-		}
-		this._data = val;
-	}
-
-	get contents() {
-		if (this.type !== vscode.FileType.Directory) {
-			throw vscode.FileSystemError.FileNotADirectory;
-		}
-		return <Map<string, FsEntry>>this._data;
-	}
 }
+
+class FsDirectoryEntry {
+	readonly type = vscode.FileType.Directory;
+
+	get size(): number {
+		return [...this.contents.values()].reduce((acc: number, entry: FsEntry) => acc + entry.size, 0);
+	}
+
+	constructor(
+		public readonly contents: Map<string, FsEntry>,
+		public readonly ctime: number,
+		public readonly mtime: number,
+	) { }
+}
+
+type FsEntry = FsFileEntry | FsDirectoryEntry;

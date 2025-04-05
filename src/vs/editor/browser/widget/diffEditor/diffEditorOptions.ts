@@ -3,20 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, ISettableObservable, derived, observableValue } from 'vs/base/common/observable';
-import { Constants } from 'vs/base/common/uint';
-import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
-import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
+import { IObservable, IObservableWithChange, ISettableObservable, derived, derivedConstOnceDefined, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
+import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from '../../../common/config/editorOptions.js';
+import { LineRangeMapping } from '../../../common/diff/rangeMapping.js';
+import { allowsTrueInlineDiffRendering } from './components/diffEditorViewZones/diffEditorViewZones.js';
+import { DiffEditorViewModel, DiffState } from './diffEditorViewModel.js';
 
 export class DiffEditorOptions {
 	private readonly _options: ISettableObservable<IEditorOptions & Required<IDiffEditorBaseOptions>, { changedOptions: IDiffEditorOptions }>;
 
-	public get editorOptions(): IObservable<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
+	public get editorOptions(): IObservableWithChange<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
 
 	private readonly _diffEditorWidth = observableValue<number>(this, 0);
 
+	private readonly _screenReaderMode = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+
 	constructor(
 		options: Readonly<IDiffEditorOptions>,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue(this, optionsCopy);
@@ -27,17 +34,27 @@ export class DiffEditorOptions {
 	);
 
 	public readonly renderOverviewRuler = derived(this, reader => this._options.read(reader).renderOverviewRuler);
-	public readonly renderSideBySide = derived(this, reader => this._options.read(reader).renderSideBySide
-		&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader))
-	);
+	public readonly renderSideBySide = derived(this, reader => {
+		if (this.compactMode.read(reader)) {
+			if (this.shouldRenderInlineViewInSmartMode.read(reader)) {
+				return false;
+			}
+		}
+
+		return this._options.read(reader).renderSideBySide
+			&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader) && !this._screenReaderMode.read(reader));
+	});
 	public readonly readOnly = derived(this, reader => this._options.read(reader).readOnly);
 
-	public readonly shouldRenderRevertArrows = derived(this, reader => {
+	public readonly shouldRenderOldRevertArrows = derived(this, reader => {
 		if (!this._options.read(reader).renderMarginRevertIcon) { return false; }
 		if (!this.renderSideBySide.read(reader)) { return false; }
 		if (this.readOnly.read(reader)) { return false; }
+		if (this.shouldRenderGutterMenu.read(reader)) { return false; }
 		return true;
 	});
+
+	public readonly shouldRenderGutterMenu = derived(this, reader => this._options.read(reader).renderGutterMenu);
 	public readonly renderIndicators = derived(this, reader => this._options.read(reader).renderIndicators);
 	public readonly enableSplitViewResizing = derived(this, reader => this._options.read(reader).enableSplitViewResizing);
 	public readonly splitViewDefaultRatio = derived(this, reader => this._options.read(reader).splitViewDefaultRatio);
@@ -52,6 +69,14 @@ export class DiffEditorOptions {
 	public readonly diffAlgorithm = derived(this, reader => this._options.read(reader).diffAlgorithm);
 	public readonly showEmptyDecorations = derived(this, reader => this._options.read(reader).experimental.showEmptyDecorations!);
 	public readonly onlyShowAccessibleDiffViewer = derived(this, reader => this._options.read(reader).onlyShowAccessibleDiffViewer);
+	public readonly compactMode = derived(this, reader => this._options.read(reader).compactMode);
+	private readonly trueInlineDiffRenderingEnabled: IObservable<boolean> = derived(this, reader =>
+		this._options.read(reader).experimental.useTrueInlineView!
+	);
+
+	public readonly useTrueInlineDiffRendering: IObservable<boolean> = derived(this, reader =>
+		!this.renderSideBySide.read(reader) && this.trueInlineDiffRenderingEnabled.read(reader)
+	);
 
 	public readonly hideUnchangedRegions = derived(this, reader => this._options.read(reader).hideUnchangedRegions.enabled!);
 	public readonly hideUnchangedRegionsRevealLineCount = derived(this, reader => this._options.read(reader).hideUnchangedRegions.revealLineCount!);
@@ -67,9 +92,37 @@ export class DiffEditorOptions {
 	public setWidth(width: number): void {
 		this._diffEditorWidth.set(width, undefined);
 	}
+
+	private readonly _model = observableValue<DiffEditorViewModel | undefined>(this, undefined);
+
+	public setModel(model: DiffEditorViewModel | undefined) {
+		this._model.set(model, undefined);
+	}
+
+	private readonly shouldRenderInlineViewInSmartMode = this._model
+		.map(this, model => derivedConstOnceDefined(this, reader => {
+			const diffs = model?.diff.read(reader);
+			return diffs ? isSimpleDiff(diffs, this.trueInlineDiffRenderingEnabled.read(reader)) : undefined;
+		}))
+		.flatten()
+		.map(this, v => !!v);
+
+	public readonly inlineViewHideOriginalLineNumbers = this.compactMode;
 }
 
-function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
+function isSimpleDiff(diff: DiffState, supportsTrueDiffRendering: boolean): boolean {
+	return diff.mappings.every(m => isInsertion(m.lineRangeMapping) || isDeletion(m.lineRangeMapping) || (supportsTrueDiffRendering && allowsTrueInlineDiffRendering(m.lineRangeMapping)));
+}
+
+function isInsertion(mapping: LineRangeMapping): boolean {
+	return mapping.original.length === 0;
+}
+
+function isDeletion(mapping: LineRangeMapping): boolean {
+	return mapping.modified.length === 0;
+}
+
+function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: typeof diffEditorDefaultOptions | ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
 	return {
 		enableSplitViewResizing: validateBooleanOption(options.enableSplitViewResizing, defaults.enableSplitViewResizing),
 		splitViewDefaultRatio: clampedFloat(options.splitViewDefaultRatio, 0.5, 0.1, 0.9),
@@ -88,6 +141,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		experimental: {
 			showMoves: validateBooleanOption(options.experimental?.showMoves, defaults.experimental.showMoves!),
 			showEmptyDecorations: validateBooleanOption(options.experimental?.showEmptyDecorations, defaults.experimental.showEmptyDecorations!),
+			useTrueInlineView: validateBooleanOption(options.experimental?.useTrueInlineView, defaults.experimental.useTrueInlineView!),
 		},
 		hideUnchangedRegions: {
 			enabled: validateBooleanOption(options.hideUnchangedRegions?.enabled ?? (options.experimental as any)?.collapseUnchangedRegions, defaults.hideUnchangedRegions.enabled!),
@@ -99,5 +153,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		onlyShowAccessibleDiffViewer: validateBooleanOption(options.onlyShowAccessibleDiffViewer, defaults.onlyShowAccessibleDiffViewer),
 		renderSideBySideInlineBreakpoint: clampedInt(options.renderSideBySideInlineBreakpoint, defaults.renderSideBySideInlineBreakpoint, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 		useInlineViewWhenSpaceIsLimited: validateBooleanOption(options.useInlineViewWhenSpaceIsLimited, defaults.useInlineViewWhenSpaceIsLimited),
+		renderGutterMenu: validateBooleanOption(options.renderGutterMenu, defaults.renderGutterMenu),
+		compactMode: validateBooleanOption(options.compactMode, defaults.compactMode),
 	};
 }

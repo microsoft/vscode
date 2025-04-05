@@ -1308,40 +1308,6 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 	return true;
 }
 
-/**
- * Takes JSON with JavaScript-style comments and remove
- * them. Optionally replaces every none-newline character
- * of comments with a replaceCharacter
- */
-export function stripComments(text: string, replaceCh?: string): string {
-
-	const _scanner = createScanner(text);
-	const parts: string[] = [];
-	let kind: SyntaxKind;
-	let offset = 0;
-	let pos: number;
-
-	do {
-		pos = _scanner.getPosition();
-		kind = _scanner.scan();
-		switch (kind) {
-			case SyntaxKind.LineCommentTrivia:
-			case SyntaxKind.BlockCommentTrivia:
-			case SyntaxKind.EOF:
-				if (offset !== pos) {
-					parts.push(text.substring(offset, pos));
-				}
-				if (replaceCh !== undefined) {
-					parts.push(_scanner.getTokenValue().replace(/[^\r\n]/g, replaceCh));
-				}
-				offset = _scanner.getPosition();
-				break;
-		}
-	} while (kind !== SyntaxKind.EOF);
-
-	return parts.join('');
-}
-
 export function getNodeType(value: any): NodeType {
 	switch (typeof value) {
 		case 'boolean': return 'boolean';

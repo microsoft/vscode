@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import v8 from 'node:v8';
+import fs from 'fs';
+import path from 'path';
 import { argv } from 'process';
 import { Mapping, SourceMapGenerator } from 'source-map';
-import * as ts from 'typescript';
+import ts from 'typescript';
 import { pathToFileURL } from 'url';
-import * as workerpool from 'workerpool';
+import workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
-const buildfile = require('../../../src/buildfile');
+const buildfile = require('../../buildfile');
 
 class ShortIdent {
 
@@ -278,11 +279,9 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 	return false;
 }
 
-
 const skippedExportMangledFiles = [
 	// Build
 	'css.build',
-	'nls.build',
 
 	// Monaco
 	'editorCommon',
@@ -300,17 +299,18 @@ const skippedExportMangledFiles = [
 
 	// entry points
 	...[
-		buildfile.entrypoint('vs/server/node/server.main', []),
-		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
-		buildfile.base,
+		buildfile.workerEditor,
 		buildfile.workerExtensionHost,
 		buildfile.workerNotebook,
 		buildfile.workerLanguageDetection,
 		buildfile.workerLocalFileSearch,
 		buildfile.workerProfileAnalysis,
+		buildfile.workerOutputLinks,
+		buildfile.workerBackgroundTokenization,
 		buildfile.workbenchDesktop,
 		buildfile.workbenchWeb,
-		buildfile.code
+		buildfile.code,
+		buildfile.codeWeb
 	].flat().map(x => x.name),
 ];
 
@@ -338,17 +338,16 @@ class DeclarationData {
 	constructor(
 		readonly fileName: string,
 		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration,
-		private readonly service: ts.LanguageService,
 		fileIdents: ShortIdent,
 	) {
 		// Todo: generate replacement names based on usage count, with more used names getting shorter identifiers
 		this.replacementName = fileIdents.next();
 	}
 
-	get locations(): Iterable<{ fileName: string; offset: number }> {
+	getLocations(service: ts.LanguageService): Iterable<{ fileName: string; offset: number }> {
 		if (ts.isVariableDeclaration(this.node)) {
 			// If the const aliases any types, we need to rename those too
-			const definitionResult = this.service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
+			const definitionResult = service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
 			if (definitionResult?.definitions && definitionResult.definitions.length > 1) {
 				return definitionResult.definitions.map(x => ({ fileName: x.fileName, offset: x.textSpan.start }));
 			}
@@ -408,7 +407,7 @@ export class Mangler {
 	) {
 
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
-			maxWorkers: 1,
+			maxWorkers: 4,
 			minWorkers: 'max'
 		});
 	}
@@ -471,7 +470,7 @@ export class Mangler {
 						return;
 					}
 
-					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, service, fileIdents));
+					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, fileIdents));
 				}
 			}
 
@@ -620,7 +619,7 @@ export class Mangler {
 			}
 
 			const newText = data.replacementName;
-			for (const { fileName, offset } of data.locations) {
+			for (const { fileName, offset } of data.getLocations(service)) {
 				queueRename(fileName, offset, newText);
 			}
 		}
@@ -723,7 +722,8 @@ export class Mangler {
 
 		service.dispose();
 		this.renameWorkerPool.terminate();
-		this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(process.memoryUsage())}`);
+
+		this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(v8.getHeapStatistics())}`);
 		return result;
 	}
 }

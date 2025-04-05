@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractOneDataSystemAppender, IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';
+import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
 
 
 export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {

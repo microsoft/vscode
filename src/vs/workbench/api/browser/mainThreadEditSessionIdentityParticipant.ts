@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { raceCancellationError } from 'vs/base/common/async';
-import { IEditSessionIdentityCreateParticipant, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { ExtHostContext, ExtHostWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { localize } from '../../../nls.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { raceCancellationError } from '../../../base/common/async.js';
+import { IEditSessionIdentityCreateParticipant, IEditSessionIdentityService } from '../../../platform/workspace/common/editSessions.js';
+import { ExtHostContext, ExtHostWorkspaceShape } from '../common/extHost.protocol.js';
+import { WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 
 class ExtHostEditSessionIdentityCreateParticipant implements IEditSessionIdentityCreateParticipant {
 

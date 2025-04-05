@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionTipsService, IExecutableBasedExtensionTip, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ISharedProcessService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IExtensionTipsService, IExecutableBasedExtensionTip, IConfigBasedExtensionTip } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionTipsService } from '../../../../platform/extensionManagement/common/extensionTipsService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 class NativeExtensionTipsService extends ExtensionTipsService implements IExtensionTipsService {
 

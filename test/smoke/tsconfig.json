@@ -10,6 +10,7 @@
 		"noUnusedLocals": true,
 		"outDir": "out",
 		"sourceMap": true,
+		"skipLibCheck": true,
 		"lib": [
 			"esnext", // for #201187
 			"dom"

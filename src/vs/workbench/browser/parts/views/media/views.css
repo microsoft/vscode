@@ -18,7 +18,7 @@
 /* Misc */
 
 .file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight,
-.monaco-tl-contents .monaco-highlighted-label .highlight {
+.pane-body .monaco-tl-contents .monaco-highlighted-label .highlight {
 	color: unset !important;
 	background-color: var(--vscode-list-filterMatchBackground);
 	outline: 1px dotted var(--vscode-list-filterMatchBorder);
@@ -46,10 +46,23 @@
 	padding-left: 24px;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .message a {
+.monaco-workbench .tree-explorer-viewlet-tree-view .message p > a {
 	color: var(--vscode-textLink-foreground);
 }
 
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .rendered-message {
+	width: 100%;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .button-container {
+	width: 100%;
+	max-width: 300px;
+	margin: auto;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .button-container:not(:last-child) {
+	padding-bottom: 8px;
+}
 .monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
 	display: none;
 }
@@ -109,6 +122,12 @@
 	margin-block-end: 0;
 	margin-inline-start: 0px;
 	margin-inline-end: 0px;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > p .codicon[class*='codicon-'] {
+	font-size: 13px;
+	line-height: 1.4em;
+	vertical-align: bottom;
 }
 
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
@@ -268,7 +287,7 @@
 }
 
 .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls > .viewpane-filter-badge {
-	margin: 4px 0px;
+	margin: 4px 2px 4px 0px;
 	padding: 0px 8px;
 	border-radius: 2px;
 }
@@ -276,10 +295,6 @@
 .viewpane-filter > .viewpane-filter-controls > .viewpane-filter-badge.hidden,
 .viewpane-filter.small > .viewpane-filter-controls > .viewpane-filter-badge {
 	display: none;
-}
-
-.viewpane-filter > .viewpane-filter-controls > .monaco-action-bar .action-item .action-label.codicon.filter {
-	padding: 2px;
 }
 
 .panel > .title .monaco-action-bar .action-item.viewpane-filter-container {

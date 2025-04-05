@@ -3,35 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { format } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
+import { ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import type { Terminal } from '@xterm/xterm';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalAccessibilitySettingId } from '../common/terminalAccessibilityConfiguration.js';
+import { TerminalAccessibilityCommandId } from '../common/terminal.accessibility.js';
+import { TerminalLinksCommandId } from '../../links/common/terminal.links.js';
+import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { TerminalHistoryCommandId } from '../../history/common/terminal.history.js';
+import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
+import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestConfiguration.js';
 
 export const enum ClassName {
 	Active = 'active',
 	EditorTextArea = 'textarea'
 }
 
-export class TerminalAccessibilityHelpProvider extends Disposable implements IAccessibleContentProvider {
+export class TerminalAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.TerminalHelp;
 	private readonly _hasShellIntegration: boolean = false;
 	onClose() {
 		const expr = ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.TerminalHelp));
 		if (expr?.evaluate(this._contextKeyService.getContext(null))) {
-			this._commandService.executeCommand(TerminalCommandId.FocusAccessibleBuffer);
+			this._commandService.executeCommand(TerminalAccessibilityCommandId.FocusAccessibleBuffer);
 		} else {
 			this._instance.focus();
 		}
@@ -46,60 +48,47 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
 	}
-
-	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		if (commandId === TerminalCommandId.RunRecentCommand) {
-			const kb = this._keybindingService.lookupKeybindings(commandId);
-			// Run recent command has multiple keybindings. lookupKeybinding just returns the first one regardless of the when context.
-			// Thus, we have to check if accessibility mode is enabled to determine which keybinding to use.
-			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (isScreenReaderOptimized && kb[1]) {
-				format(msg, kb[1].getAriaLabel());
-			} else if (kb[0]) {
-				format(msg, kb[0].getAriaLabel());
-			} else {
-				return format(noKbMsg, commandId);
-			}
-		}
-		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService)?.getAriaLabel();
-		return !kb ? format(noKbMsg, commandId) : format(msg, kb);
-	}
-
 	provideContent(): string {
-		const content = [];
-		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleTerminalView', 'The Focus Accessible Terminal View ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleTerminalViewNoKb', 'The Focus Terminal Accessible View command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
-		content.push(localize('preserveCursor', 'Customize the behavior of the cursor when toggling between the terminal and accessible view with `terminal.integrated.accessibleViewPreserveCursorPosition.`'));
-		if (!this._configurationService.getValue(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
+		const content = [
+			localize('focusAccessibleTerminalView', 'The Focus Accessible Terminal View command<keybinding:{0}> enables screen readers to read terminal contents.', TerminalAccessibilityCommandId.FocusAccessibleBuffer),
+			localize('preserveCursor', 'Customize the behavior of the cursor when toggling between the terminal and accessible view with `terminal.integrated.accessibleViewPreserveCursorPosition.`'),
+			localize('openDetectedLink', 'The Open Detected Link command<keybinding:{0}> enables screen readers to easily open links found in the terminal.', TerminalLinksCommandId.OpenDetectedLink),
+			localize('newWithProfile', 'The Create New Terminal (With Profile) command<keybinding:{0}> allows for easy terminal creation using a specific profile.', TerminalCommandId.NewWithProfile),
+			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun),
+		];
+
+		if (!this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
 			content.push(localize('focusViewOnExecution', 'Enable `terminal.integrated.accessibleViewFocusOnCommandExecution` to automatically focus the terminal accessible view when a command is executed in the terminal.'));
 		}
+
+		if (this._configurationService.getValue(TerminalSuggestSettingId.Enabled)) {
+			content.push(localize('suggestTrigger', 'The terminal request completions command can be invoked manually<keybinding:{0}>, but also appears while typing.', TerminalSuggestCommandId.RequestCompletions));
+			content.push(localize('suggestCommands', 'When the terminal suggest widget is focused, accept the suggestion<keybinding:{0}> and configure suggest settings<keybinding:{1}>.', TerminalSuggestCommandId.AcceptSelectedSuggestion, TerminalSuggestCommandId.ConfigureSettings));
+			content.push(localize('suggestCommandsMore', 'Also, when the suggest widget is focused, toggle between the widget and terminal<keybinding:{0}> and toggle details focus<keybinding:{1}> to learn more about the suggestion.', TerminalSuggestCommandId.ToggleDetails, TerminalSuggestCommandId.ToggleDetailsFocus));
+		}
+
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
 			content.push(localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience"));
 		}
+
 		if (this._hasShellIntegration) {
-			const shellIntegrationCommandList = [];
-			shellIntegrationCommandList.push(localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
-			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.AccessibleBufferGoToNextCommand, localize('goToNextCommand', 'Go to Next Command ({0}) in the accessible view'), localize('goToNextCommandNoKb', 'Go to Next Command in the accessible view is currently not triggerable by a keybinding.')));
-			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.AccessibleBufferGoToPreviousCommand, localize('goToPreviousCommand', 'Go to Previous Command ({0}) in the accessible view'), localize('goToPreviousCommandNoKb', 'Go to Previous Command in the accessible view is currently not triggerable by a keybinding.')));
-			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(AccessibilityCommandId.GoToSymbol, localize('goToSymbol', 'Go to Symbol ({0})'), localize('goToSymbolNoKb', 'Go to symbol is currently not triggerable by a keybinding.')));
-			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, localize('runRecentCommand', 'Run Recent Command ({0})'), localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.')));
-			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.')));
-			content.push(shellIntegrationCommandList.join('\n'));
+			content.push(localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
+			content.push('- ' + localize('goToNextCommand', 'Go to Next Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToNextCommand));
+			content.push('- ' + localize('goToPreviousCommand', 'Go to Previous Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToPreviousCommand));
+			content.push('- ' + localize('goToSymbol', 'Go to Symbol<keybinding:{0}>', AccessibilityCommandId.GoToSymbol));
+			content.push('- ' + localize('runRecentCommand', 'Run Recent Command<keybinding:{0}>', TerminalHistoryCommandId.RunRecentCommand));
+			content.push('- ' + localize('goToRecentDirectory', 'Go to Recent Directory<keybinding:{0}>', TerminalHistoryCommandId.GoToRecentDirectory));
 		} else {
-			content.push(this._descriptionForCommand(TerminalCommandId.RunRecentCommand, localize('goToRecentDirectoryNoShellIntegration', 'The Go to Recent Directory command ({0}) enables screen readers to easily navigate to a directory that has been used in the terminal.'), localize('goToRecentDirectoryNoKbNoShellIntegration', 'The Go to Recent Directory command enables screen readers to easily navigate to a directory that has been used in the terminal and is currently not triggerable by a keybinding.')));
+			content.push(localize('noShellIntegration', 'Shell integration is not enabled. Some accessibility features may not be available.'));
 		}
-		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.')));
-		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.'), localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.')));
-		content.push(localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun));
-		return content.join('\n\n');
+
+		return content.join('\n');
 	}
 }

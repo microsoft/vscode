@@ -3,16 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { autorun } from 'vs/base/common/observable';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { Position } from '../../../../common/core/position.js';
+import { ITextModel } from '../../../../common/model.js';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -58,7 +65,13 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 			text: model.getValue()
 		});
 		const result = new Array<InlineCompletion>();
-		result.push(...this.returnValue);
+		for (const v of this.returnValue) {
+			const x = { ...v };
+			if (!x.range) {
+				x.range = model.getFullModelRange();
+			}
+			result.push(x);
+		}
 
 		if (this.delayMs > 0) {
 			await timeout(this.delayMs);
@@ -82,7 +95,7 @@ export class GhostTextContext extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description update */
-			const ghostText = model.ghostText.read(reader);
+			const ghostText = model.primaryGhostText.read(reader);
 			let view: string | undefined;
 			if (ghostText) {
 				view = ghostText.render(this.editor.getValue(), true);
@@ -130,4 +143,61 @@ export class GhostTextContext extends Disposable {
 	public leftDelete(): void {
 		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
 	}
+}
+
+export interface IWithAsyncTestCodeEditorAndInlineCompletionsModel {
+	editor: ITestCodeEditor;
+	editorViewModel: ViewModel;
+	model: InlineCompletionsModel;
+	context: GhostTextContext;
+	store: DisposableStore;
+}
+
+export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
+	text: string,
+	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider; fakeClock?: boolean },
+	callback: (args: IWithAsyncTestCodeEditorAndInlineCompletionsModel) => Promise<T>): Promise<T> {
+	return await runWithFakedTimers({
+		useFakeTimers: options.fakeClock,
+	}, async () => {
+		const disposableStore = new DisposableStore();
+
+		try {
+			if (options.provider) {
+				const languageFeaturesService = new LanguageFeaturesService();
+				if (!options.serviceCollection) {
+					options.serviceCollection = new ServiceCollection();
+				}
+				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				options.serviceCollection.set(IAccessibilitySignalService, {
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
+				} as any);
+				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
+				disposableStore.add(d);
+			}
+
+			let result: T;
+			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
+				const model = controller.model.get()!;
+				const context = new GhostTextContext(model, editor);
+				try {
+					result = await callback({ editor, editorViewModel, model, context, store: disposableStore });
+				} finally {
+					context.dispose();
+					model.dispose();
+					controller.dispose();
+				}
+			});
+
+			if (options.provider instanceof MockInlineCompletionsProvider) {
+				options.provider.assertNotCalledTwiceWithin50ms();
+			}
+
+			return result!;
+		} finally {
+			disposableStore.dispose();
+		}
+	});
 }

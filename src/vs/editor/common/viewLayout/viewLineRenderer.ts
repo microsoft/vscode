@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { LinePart, LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
+import * as nls from '../../../nls.js';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { IViewLineTokens } from '../tokens/lineTokens.js';
+import { StringBuilder } from '../core/stringBuilder.js';
+import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
+import { InlineDecorationType } from '../viewModel.js';
+import { LinePart, LinePartMetadata } from './linePart.js';
 
 export const enum RenderWhitespace {
 	None = 0,

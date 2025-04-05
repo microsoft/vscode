@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService, TestInMemoryFileSystemProvider, TestBrowserTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/browser/workbenchTestServices';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IFileService, IStat } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { UTF16le, detectEncodingByBOMFromBuffer, UTF8_with_bom, UTF16be, toCanonicalName } from 'vs/workbench/services/textfile/common/encoding';
-import { VSBuffer } from 'vs/base/common/buffer';
-import files from 'vs/workbench/services/textfile/test/common/fixtures/files';
-import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
-import { isWeb } from 'vs/base/common/platform';
-import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { workbenchInstantiationService, TestInMemoryFileSystemProvider, TestBrowserTextFileServiceWithEncodingOverrides } from '../../../../test/browser/workbenchTestServices.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ITextFileService } from '../../common/textfiles.js';
+import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IFileService, IStat } from '../../../../../platform/files/common/files.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { join } from '../../../../../base/common/path.js';
+import { UTF16le, detectEncodingByBOMFromBuffer, UTF8_with_bom, UTF16be, toCanonicalName } from '../../common/encoding.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import files from '../common/fixtures/files.js';
+import createSuite from '../common/textFileService.io.test.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { IWorkingCopyFileService, WorkingCopyFileService } from '../../../workingCopy/common/workingCopyFileService.js';
+import { WorkingCopyService } from '../../../workingCopy/common/workingCopyService.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 // optimization: we don't need to run this suite in native environment,
 // because we have nativeTextFileService.io.test.ts for it,

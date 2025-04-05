@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { MarshalledId } from './marshallingIds';
+import { VSBuffer } from './buffer.js';
+import { URI, UriComponents } from './uri.js';
+import { MarshalledId } from './marshallingIds.js';
 
 export function stringify(obj: any): string {
 	return JSON.stringify(obj, replacer);

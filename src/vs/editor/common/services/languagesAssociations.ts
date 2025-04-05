@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ParsedPattern, parse } from 'vs/base/common/glob';
-import { Mimes } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { basename, posix } from 'vs/base/common/path';
-import { DataUri } from 'vs/base/common/resources';
-import { startsWithUTF8BOM } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ParsedPattern, parse } from '../../../base/common/glob.js';
+import { Mimes } from '../../../base/common/mime.js';
+import { Schemas } from '../../../base/common/network.js';
+import { basename, posix } from '../../../base/common/path.js';
+import { DataUri } from '../../../base/common/resources.js';
+import { startsWithUTF8BOM } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
 
 export interface ILanguageAssociation {
 	readonly id: string;

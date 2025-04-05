@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as errors from 'vs/base/common/errors';
-import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
-import { DeferredPromise } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import * as errors from '../../../../../base/common/errors.js';
+import { QueryType, IFileQuery } from '../../../../services/search/common/search.js';
+import { FileQueryCacheState } from '../../common/cacheState.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('FileQueryCacheState', () => {
 

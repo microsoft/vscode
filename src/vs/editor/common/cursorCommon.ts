@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { normalizeIndentation } from 'vs/editor/common/core/indentation';
+import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from './config/editorOptions.js';
+import { LineTokens } from './tokens/lineTokens.js';
+import { Position } from './core/position.js';
+import { Range } from './core/range.js';
+import { ISelection, Selection } from './core/selection.js';
+import { ICommand } from './editorCommon.js';
+import { IEditorConfiguration } from './config/editorConfiguration.js';
+import { PositionAffinity, TextModelResolvedOptions } from './model.js';
+import { AutoClosingPairs } from './languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from './languages/languageConfigurationRegistry.js';
+import { createScopedLineTokens } from './languages/supports.js';
+import { IElectricAction } from './languages/supports/electricCharacter.js';
+import { CursorColumns } from './core/cursorColumns.js';
+import { normalizeIndentation } from './core/indentation.js';
+import { InputMode } from './inputMode.js';
 
 export interface IColumnSelectData {
 	isReal: boolean;
@@ -76,6 +77,8 @@ export class CursorConfiguration {
 	public readonly surroundingPairs: CharacterMap;
 	public readonly blockCommentStartToken: string | null;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean; comment: (ch: string) => boolean };
+	public readonly wordSegmenterLocales: string[];
+	public readonly overtypeOnPaste: boolean;
 
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
@@ -97,6 +100,8 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.useTabStops)
 			|| e.hasChanged(EditorOption.fontInfo)
 			|| e.hasChanged(EditorOption.readOnly)
+			|| e.hasChanged(EditorOption.wordSegmenterLocales)
+			|| e.hasChanged(EditorOption.overtypeOnPaste)
 		);
 	}
 
@@ -134,6 +139,8 @@ export class CursorConfiguration {
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
+		this.wordSegmenterLocales = options.get(EditorOption.wordSegmenterLocales);
+		this.overtypeOnPaste = options.get(EditorOption.overtypeOnPaste);
 
 		this.surroundingPairs = {};
 		this._electricChars = null;
@@ -168,6 +175,10 @@ export class CursorConfiguration {
 			}
 		}
 		return this._electricChars;
+	}
+
+	public get inputMode(): 'insert' | 'overtype' {
+		return InputMode.getInputMode();
 	}
 
 	/**

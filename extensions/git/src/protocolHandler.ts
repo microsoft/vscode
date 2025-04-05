@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriHandler, Uri, window, Disposable, commands, LogOutputChannel, l10n } from 'vscode';
-import { dispose } from './util';
+import { dispose, isWindows } from './util';
 import * as querystring from 'querystring';
 
-const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
+const schemes = isWindows ?
+	new Set(['git', 'http', 'https', 'ssh']) :
+	new Set(['file', 'git', 'http', 'https', 'ssh']);
+
 const refRegEx = /^$|[~\^:\\\*\s\[\]]|^-|^\.|\/\.|\.\.|\.lock\/|\.lock$|\/$|\.$/;
 
 export class GitProtocolHandler implements UriHandler {
@@ -19,7 +22,7 @@ export class GitProtocolHandler implements UriHandler {
 	}
 
 	handleUri(uri: Uri): void {
-		this.logger.info(`GitProtocolHandler.handleUri(${uri.toString()})`);
+		this.logger.info(`[GitProtocolHandler][handleUri] URI:(${uri.toString()})`);
 
 		switch (uri.path) {
 			case '/clone': this.clone(uri);
@@ -31,17 +34,17 @@ export class GitProtocolHandler implements UriHandler {
 		const ref = data.ref;
 
 		if (!data.url) {
-			this.logger.warn('Failed to open URI:' + uri.toString());
+			this.logger.warn('[GitProtocolHandler][clone] Failed to open URI:' + uri.toString());
 			return;
 		}
 
 		if (Array.isArray(data.url) && data.url.length === 0) {
-			this.logger.warn('Failed to open URI:' + uri.toString());
+			this.logger.warn('[GitProtocolHandler][clone] Failed to open URI:' + uri.toString());
 			return;
 		}
 
 		if (ref !== undefined && typeof ref !== 'string') {
-			this.logger.warn('Failed to open URI due to multiple references:' + uri.toString());
+			this.logger.warn('[GitProtocolHandler][clone] Failed to open URI due to multiple references:' + uri.toString());
 			return;
 		}
 
@@ -66,12 +69,12 @@ export class GitProtocolHandler implements UriHandler {
 			}
 		}
 		catch (ex) {
-			this.logger.warn('Invalid URI:' + uri.toString());
+			this.logger.warn('[GitProtocolHandler][clone] Invalid URI:' + uri.toString());
 			return;
 		}
 
 		if (!(await commands.getCommands(true)).includes('git.clone')) {
-			this.logger.error('Could not complete git clone operation as git installation was not found.');
+			this.logger.error('[GitProtocolHandler][clone] Could not complete git clone operation as git installation was not found.');
 
 			const errorMessage = l10n.t('Could not clone your repository as Git is not installed.');
 			const downloadGit = l10n.t('Download Git');
@@ -83,7 +86,7 @@ export class GitProtocolHandler implements UriHandler {
 			return;
 		} else {
 			const cloneTarget = cloneUri.toString(true);
-			this.logger.info(`Executing git.clone for ${cloneTarget}`);
+			this.logger.info(`[GitProtocolHandler][clone] Executing git.clone for ${cloneTarget}`);
 			commands.executeCommand('git.clone', cloneTarget, undefined, { ref: ref });
 		}
 	}
