@@ -1208,30 +1208,32 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		width = Math.min(width, 850);
 		this.bodyDimension = new dom.Dimension(width, height);
 
-		const inputPartMaxHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
-		this.inputPart.layout(inputPartMaxHeight, width);
-		const inputPartHeight = this.inputPart.inputPartHeight;
+		this.inputPart.layout(this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height, width);
+		const inputHeight = this.inputPart.inputPartHeight;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
-		const listHeight = Math.max(0, height - inputPartHeight);
+		const contentHeight = Math.max(0, height - inputHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
-			this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
 		}
 
-		this.tree.layout(listHeight, width);
-		this.tree.getHTMLElement().style.height = `${listHeight}px`;
+		this.tree.layout(contentHeight, width);
+		this.tree.getHTMLElement().style.height = `${contentHeight}px`;
 
-		// Push the welcome message down so it doesn't change position when followups or working set appear
-		let extraOffset: number = 0;
+		// Push the welcome message down so it doesn't change position
+		// when followups, attachments or working set appear
+		let welcomeOffset = 100;
 		if (this.viewOptions.renderFollowups) {
-			extraOffset = Math.max(100 - this.inputPart.followupsHeight, 0);
-		} else if (this.viewOptions.enableWorkingSet) {
-			extraOffset = Math.max(100 - this.inputPart.editSessionWidgetHeight, 0);
+			welcomeOffset = Math.max(welcomeOffset - this.inputPart.followupsHeight, 0);
 		}
-		this.welcomeMessageContainer.style.height = `${listHeight - extraOffset}px`;
-		this.welcomeMessageContainer.style.paddingBottom = `${extraOffset}px`;
+		if (this.viewOptions.enableWorkingSet) {
+			welcomeOffset = Math.max(welcomeOffset - this.inputPart.editSessionWidgetHeight, 0);
+		}
+		welcomeOffset = Math.max(welcomeOffset - this.inputPart.attachmentsHeight, 0);
+		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
+		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
 		this.renderer.layout(width);
 
 		const lastItem = this.viewModel?.getItems().at(-1);
@@ -1240,7 +1242,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.scrollToEnd();
 		}
 
-		this.listContainer.style.height = `${listHeight}px`;
+		this.listContainer.style.height = `${contentHeight}px`;
 
 		this._onDidChangeHeight.fire(height);
 	}
