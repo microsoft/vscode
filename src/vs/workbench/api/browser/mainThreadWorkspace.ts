@@ -29,9 +29,8 @@ import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../comm
 import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { bufferToStream, readableToBuffer, VSBuffer } from '../../../base/common/buffer.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
-import { consumeStream } from '../../../base/common/stream.js';
+import { IDecodeStreamOptionsDto } from '../../services/textfile/common/encoding.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -306,13 +305,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- encodings
 
-	async $decode(content: VSBuffer, resource: UriComponents | undefined, options?: { encoding: string }): Promise<string> {
-		const stream = await this._textFileService.getDecodedStream(URI.revive(resource) ?? undefined, bufferToStream(content), { acceptTextOnly: true, encoding: options?.encoding });
-		return consumeStream(stream, chunks => chunks.join());
+	$resolveDecoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<IDecodeStreamOptionsDto> {
+		return this._textFileService.resolveDecoding(URI.revive(resource), options);
 	}
 
-	async $encode(content: string, resource: UriComponents | undefined, options?: { encoding: string }): Promise<VSBuffer> {
-		const res = await this._textFileService.getEncodedReadable(URI.revive(resource) ?? undefined, content, { encoding: options?.encoding });
-		return res instanceof VSBuffer ? res : readableToBuffer(res);
+	$resolvePreferredReadEncoding(resource: UriComponents | undefined, detectedEncoding: string | null, options?: { encoding?: string }): Promise<string> {
+		return this._textFileService.resolvePreferredReadEncoding(URI.revive(resource), detectedEncoding, options);
+	}
+
+	$resolveEncoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<{ encoding: string; addBOM: boolean }> {
+		return this._textFileService.resolveEncoding(URI.revive(resource), options);
 	}
 }
