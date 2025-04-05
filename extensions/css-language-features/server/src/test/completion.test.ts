@@ -201,4 +201,20 @@ suite('Completions', () => {
 		}, testUri, folders);
 
 	});
+
+	test('issue#236215', async function () {
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString(true);
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString(true) }];
+
+		// Cursor is inside the comment (between /* and */)
+		await assertCompletions(`/* some |comment */`, { count: 0 }, testUri, folders);
+
+		// Cursor is at the start of an unclosed comment
+		await assertCompletions(`/* | some comment`, { count: 0 }, testUri, folders);
+
+		// Cursor is after the comment
+		await assertCompletions(`/* some comment */\nbody { |`, {
+			items: [{ label: 'color', resultText: `/* some comment */\nbody { color` }]
+		}, testUri, folders);
+		});
 });
