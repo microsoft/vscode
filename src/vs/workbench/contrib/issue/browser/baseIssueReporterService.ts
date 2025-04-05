@@ -1155,44 +1155,53 @@ export class BaseIssueReporterService extends Disposable {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		const isVscode = this.issueReporterModel.getData().fileOnProduct;
-		const isCopilot = gitHubDetails?.owner === 'microsoft' && gitHubDetails?.repositoryName === 'vscode-copilot-release';
-		if (isVscode) {
-			url += `&template=bug_report.md`;
-		}
+		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
-		if (isCopilot) {
-			url += `&template=bug_report_chat.md`;
-		}
+		// const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		// const isCopilot = gitHubDetails?.owner === 'microsoft' && gitHubDetails?.repositoryName === 'vscode-copilot-release';
+		// if (isVscode) {
+		// 	url += `&template=bug_report.md`;
+		// }
+
+		// if (isCopilot) {
+		// 	url += `&template=bug_report_chat.md`;
+		// }
 
 		if (url.length > MAX_URL_LENGTH) {
 			try {
-				url = await this.writeToClipboard(baseUrl, issueBody, isVscode, isCopilot);
+				url = await this.writeToClipboard(baseUrl, issueBody);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
 			}
 		}
 
-		this.window.open(url, '_blank');
+		this.window.open(url + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName), '_blank');
 
 		return true;
 	}
 
-	public async writeToClipboard(baseUrl: string, issueBody: string, isVscode?: boolean, isCopilot?: boolean): Promise<string> {
+	public async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
 		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}
 
-		let url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+	}
+
+	public addTemplateToUrl(owner?: string, repositoryName?: string): string {
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isCopilot = owner === 'microsoft' && repositoryName === 'vscode-copilot-release';
 		if (isVscode) {
-			url += `&template=bug_report.md`;
-		} else if (isCopilot) {
-			url += `&template=bug_report_chat.md`;
+			return `&template=bug_report.md`;
 		}
 
-		return url;
+		if (isCopilot) {
+			return `&template=bug_report_chat.md`;
+		}
+
+		return '';
 	}
 
 	public getIssueUrl(): string {

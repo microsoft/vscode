@@ -253,7 +253,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			return false;
 		}
 
-		await this.nativeHostService.openExternal(url);
+		await this.nativeHostService.openExternal(url + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName));
 		return true;
 	}
 
@@ -265,14 +265,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		await this.nativeHostService.writeClipboardText(issueBody);
 
-		let url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
-		if (isVscode) {
-			url += `&template=bug_report.md`;
-		} else if (isCopilot) {
-			url += `&template=bug_report_chat.md`;
-		}
-
-		return url;
+		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))})`;
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {
