@@ -68,7 +68,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
 				get encoding() { return that._encoding; },
-				save() { return that._save(); },
+				save(options?: vscode.SaveOptions) { return that._save(options); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
 				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return that._lines.length; },
@@ -101,11 +101,15 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._encoding = encoding;
 	}
 
-	private _save(): Promise<boolean> {
+	private _save(options?: vscode.SaveOptions): Promise<boolean> {
 		if (this._isDisposed) {
 			return Promise.reject(new Error('Document has been closed'));
 		}
-		return this._proxy.$trySaveDocument(this._uri);
+		const { skipSaveParticipants } = options ?? {};
+		// I know I need to somehow use `isProposedApiEnabled` to check if the
+		// `saveOptions` API proposal is enabled, but I don't know how to get a
+		// reference to any specific extension from here.
+		return this._proxy.$trySaveDocument(this._uri, { skipSaveParticipants });
 	}
 
 	private _getTextInRange(_range: vscode.Range): string {
