@@ -68,6 +68,17 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 		});
 	}
 
+	public override getPolicySource(name: PolicyName): { short: string; long: string } | undefined {
+		if (!this.policies.has(name)) {
+			return;
+		}
+		// TODO: this is a hack for now
+		return {
+			short: 'Native (IPC)',
+			long: 'Native (IPC) but longer',
+		};
+	}
+
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('updatePolicyDefinitions', policyDefinitions);
 		for (const name in result) {

@@ -41,6 +41,17 @@ export class FilePolicyService extends AbstractPolicyService implements IPolicyS
 		this._register(onDidChangePolicyFile(() => this.throttledDelayer.trigger(() => this.refresh())));
 	}
 
+	public override getPolicySource(name: PolicyName): { short: string; long: string } | undefined {
+		if (!this.policies.has(name)) {
+			return;
+		}
+		// TODO: this is a hack for now
+		return {
+			short: 'File',
+			long: 'File but longer',
+		};
+	}
+
 	protected async _updatePolicyDefinitions(): Promise<void> {
 		await this.refresh();
 	}

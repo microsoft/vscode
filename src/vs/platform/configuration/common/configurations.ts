@@ -165,7 +165,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		this.logService.trace('PolicyConfiguration#update', keys);
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
-		const changed: [string, any][] = [];
+		const changed: [string, any, { short: string; long: string } | undefined][] = [];
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
@@ -173,6 +173,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			const policyName = proprety?.policy?.name;
 			if (policyName) {
 				let policyValue = this.policyService.getPolicyValue(policyName);
+				const source = this.policyService.getPolicySource(policyName);
 				if (isString(policyValue) && proprety.type !== 'string') {
 					try {
 						policyValue = this.parse(policyValue);
@@ -182,35 +183,27 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 					}
 				}
 				if (wasEmpty ? policyValue !== undefined : !equals(this._configurationModel.getValue(key), policyValue)) {
-					changed.push([key, policyValue]);
+					changed.push([key, policyValue, source]);
 				}
 			} else {
 				if (this._configurationModel.getValue(key) !== undefined) {
-					changed.push([key, undefined]);
+					changed.push([key, undefined, undefined]);
 				}
 			}
 		}
-
-		const dummyMetadata = {
-			scopeOverrideCustomText: {
-				short: 'Ice Cream LLC',
-				long: 'Their ice cream may be delicious, but their policies are not. Please contact your admin for more information.'
-			}
-		};
 
 		if (changed.length) {
 			this.logService.trace('PolicyConfiguration#changed', changed);
 			const old = this._configurationModel;
 			this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 			for (const key of old.keys) {
-				this._configurationModel.setValue(key, old.getValue(key), dummyMetadata);
+				this._configurationModel.setValue(key, old.getValue(key), old.metadata[key]);
 			}
-			for (const [key, policyValue] of changed) {
+			for (const [key, policyValue, source] of changed) {
 				if (policyValue === undefined) {
 					this._configurationModel.removeValue(key);
 				} else {
-
-					this._configurationModel.setValue(key, policyValue, dummyMetadata);
+					this._configurationModel.setValue(key, policyValue, source ? { scopeOverrideCustomText: source } : undefined);
 				}
 			}
 			if (trigger) {
