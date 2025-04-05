@@ -948,7 +948,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	async decode(content: Uint8Array, uri: UriComponents | undefined, opts?: { encoding: string }): Promise<string> {
 		const options = await this._proxy.$resolveDecoding(uri, opts);
 
-		const stream = (await toDecodeStream(bufferToStream(VSBuffer.wrap(content)), options)).stream;
+		const that = this;
+		const stream = (await toDecodeStream(bufferToStream(VSBuffer.wrap(content)), {
+			...options,
+			overwriteEncoding(detectedEncoding) {
+				return that._proxy.$overwriteEncoding(uri, detectedEncoding, opts);
+			},
+		})).stream;
+
 		return consumeStream(stream, chunks => chunks.join());
 	}
 

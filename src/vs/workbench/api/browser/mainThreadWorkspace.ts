@@ -30,7 +30,7 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
-import { IDecodeStreamOptions } from '../../services/textfile/common/encoding.js';
+import { IDecodeStreamOptionsDto } from '../../services/textfile/common/encoding.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -305,11 +305,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- encodings
 
-	$resolveDecoding(resource: UriComponents | undefined): Promise<IDecodeStreamOptions> {
-		return this._textFileService.resolveDecoding(URI.revive(resource) ?? undefined);
+	$resolveDecoding(resource: UriComponents | undefined): Promise<IDecodeStreamOptionsDto> {
+		return this._textFileService.resolveDecoding(URI.revive(resource));
+	}
+
+	$overwriteEncoding(resource: UriComponents | undefined, detectedEncoding: string | null, options?: { encoding?: string }): Promise<string> {
+		return this._textFileService.overwriteEncoding(URI.revive(resource), detectedEncoding, options);
 	}
 
 	$resolveEncoding(resource: UriComponents | undefined): Promise<{ encoding: string; addBOM: boolean }> {
-		return this._textFileService.resolveEncoding(URI.revive(resource) ?? undefined);
+		return this._textFileService.resolveEncoding(URI.revive(resource));
 	}
 }

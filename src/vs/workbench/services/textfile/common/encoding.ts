@@ -29,12 +29,14 @@ const NO_ENCODING_GUESS_MIN_BYTES = 512; 			// when not auto guessing the encodi
 const AUTO_ENCODING_GUESS_MIN_BYTES = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
 const AUTO_ENCODING_GUESS_MAX_BYTES = 512 * 128; 	// set an upper limit for the number of bytes we pass on to jschardet
 
-export interface IDecodeStreamOptions {
+export interface IDecodeStreamOptionsDto {
 	acceptTextOnly: boolean;
 	guessEncoding: boolean;
 	candidateGuessEncodings: string[];
 	minBytesRequiredForDetection?: number;
+}
 
+export interface IDecodeStreamOptions extends IDecodeStreamOptionsDto {
 	overwriteEncoding(detectedEncoding: string | null): Promise<string>;
 }
 

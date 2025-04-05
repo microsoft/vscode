@@ -19,7 +19,7 @@ import { IUntitledTextEditorModelManager } from '../../untitled/common/untitledT
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { IFileOperationUndoRedoInfo } from '../../workingCopy/common/workingCopyFileService.js';
-import { IDecodeStreamOptions } from './encoding.js';
+import { IDecodeStreamOptionsDto } from './encoding.js';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -109,13 +109,15 @@ export interface ITextFileService extends IDisposable {
 	 * Get the properties for decoding the provided `resource` based on configuration.
 	 * @param resource
 	 */
-	resolveDecoding(resource: URI | undefined): Promise<IDecodeStreamOptions>;
+	resolveDecoding(resource: URI | undefined): Promise<IDecodeStreamOptionsDto>;
 
 	/**
 	 * Get the properties for decoding the provided `resource` based on configuration.
 	 * @param resource
 	 */
 	resolveEncoding(resource: URI | undefined): Promise<{ encoding: string; addBOM: boolean }>;
+
+	overwriteEncoding(resource: URI | undefined, detectedEncoding: string | null, options?: IReadTextFileEncodingOptions): Promise<string>;
 
 	/**
 	 * Returns the readable that uses the appropriate encoding. This method should
