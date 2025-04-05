@@ -952,7 +952,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		const stream = (await toDecodeStream(bufferToStream(VSBuffer.wrap(content)), {
 			...options,
 			acceptTextOnly: true,
-			overwriteEncoding(detectedEncoding) {
+			async overwriteEncoding(detectedEncoding) {
+				if (detectedEncoding === null) {
+					return options.preferredEncoding.encoding;
+				}
+
 				return that._proxy.$overwriteEncoding(uri, detectedEncoding, opts);
 			},
 		})).stream;

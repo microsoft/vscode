@@ -8,6 +8,7 @@ import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { IResourceEncoding } from './textfiles.js';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -29,14 +30,18 @@ const NO_ENCODING_GUESS_MIN_BYTES = 512; 			// when not auto guessing the encodi
 const AUTO_ENCODING_GUESS_MIN_BYTES = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
 const AUTO_ENCODING_GUESS_MAX_BYTES = 512 * 128; 	// set an upper limit for the number of bytes we pass on to jschardet
 
-export interface IDecodeStreamOptionsDto {
+export interface IBaseDecodeStreamOptions {
 	acceptTextOnly: boolean;
 	guessEncoding: boolean;
 	candidateGuessEncodings: string[];
 	minBytesRequiredForDetection?: number;
 }
 
-export interface IDecodeStreamOptions extends IDecodeStreamOptionsDto {
+export interface IDecodeStreamOptionsDto extends IBaseDecodeStreamOptions {
+	preferredEncoding: IResourceEncoding;
+}
+
+export interface IDecodeStreamOptions extends IBaseDecodeStreamOptions {
 	overwriteEncoding(detectedEncoding: string | null): Promise<string>;
 }
 
