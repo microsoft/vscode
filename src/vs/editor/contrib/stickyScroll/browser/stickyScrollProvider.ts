@@ -162,7 +162,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			}
 		}
 		const lowerBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
-		const upperBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
+		const upperBound = this.updateIndex(binarySearch(childrenStartLines, range.endLineNumber, (a: number, b: number) => { return a - b; }));
 
 		for (let i = lowerBound; i <= upperBound; i++) {
 			const child = outlineModel.children[i];
@@ -175,7 +175,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				const childEndLine = childRange.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
-					const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+					const lineHeight = this._editor.getLineHeightForLineNumber(childStartLine);
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, top, lineHeight));
 					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, top + lineHeight, childStartLine);
 				}
