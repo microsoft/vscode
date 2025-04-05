@@ -117,7 +117,7 @@ export interface ITextFileService extends IDisposable {
 	 */
 	resolveEncoding(resource: URI | undefined, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }>;
 
-	overwriteEncoding(resource: URI | undefined, detectedEncoding: string | null, options?: IReadTextFileEncodingOptions): Promise<string>;
+	resolvePreferredReadEncoding(resource: URI | undefined, detectedEncoding: string | null, options?: IReadTextFileEncodingOptions): Promise<string>;
 
 	/**
 	 * Returns the readable that uses the appropriate encoding. This method should

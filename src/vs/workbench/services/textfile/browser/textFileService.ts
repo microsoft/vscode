@@ -291,7 +291,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		} satisfies IDecodeStreamOptionsDto;
 	}
 
-	async overwriteEncoding(resource: URI | undefined, detectedEncoding: string | null, options?: IReadTextFileEncodingOptions): Promise<string> {
+	async resolvePreferredReadEncoding(resource: URI | undefined, detectedEncoding: string | null, options?: IReadTextFileEncodingOptions): Promise<string> {
 		const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
 
 		return encoding;
