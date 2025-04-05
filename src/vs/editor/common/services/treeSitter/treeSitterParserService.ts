@@ -5,7 +5,7 @@
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITextModelTreeSitter, TreeUpdateEvent, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, ModelTreeUpdateEvent } from '../treeSitterParserService.js';
+import { EDITOR_PREFER_TREESITTER, ITreeSitterParserService, ITextModelTreeSitter, TreeUpdateEvent, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, ModelTreeUpdateEvent } from '../treeSitterParserService.js';
 import { IModelService } from '../model.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../model.js';
@@ -44,7 +44,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		this._treeSitterLanguages = this._register(new TreeSitterLanguages(this._treeSitterImporter, fileService, this._environmentService, this._registeredLanguages));
 		this.onDidAddLanguage = this._treeSitterLanguages.onDidAddLanguage;
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {
+			if (e.affectsConfiguration(EDITOR_PREFER_TREESITTER)) {
 				this._supportedLanguagesChanged();
 			}
 		}));
@@ -146,7 +146,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	}
 
 	private _getSetting(languageId: string): boolean {
-		const setting = this._configurationService.getValue<boolean>(`${EDITOR_EXPERIMENTAL_PREFER_TREESITTER}.${languageId}`);
+		const setting = this._configurationService.getValue<boolean>(`${EDITOR_PREFER_TREESITTER}.${languageId}`);
 		if (!setting && TREESITTER_ALLOWED_SUPPORT.includes(languageId)) {
 			return this._configurationService.getValue<boolean>(EDITOR_TREESITTER_TELEMETRY);
 		}
