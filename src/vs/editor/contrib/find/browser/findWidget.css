@@ -68,6 +68,11 @@
 	display: flex;
 }
 
+.monaco-editor .find-widget .find-label,
+.monaco-editor .find-widget .replace-label {
+	margin: 3px 5px 0 5px;
+}
+
 .monaco-editor .find-widget > .find-part .monaco-inputbox,
 .monaco-editor .find-widget > .replace-part .monaco-inputbox {
 	min-height: 25px;
