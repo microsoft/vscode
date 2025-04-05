@@ -121,10 +121,14 @@ function isPicksWithActive<T>(obj: unknown): obj is PicksWithActive<T> {
 	return Array.isArray(candidate.items);
 }
 
+function isPromise<T>(obj: unknown): obj is Promise<T> {
+	return Object.prototype.toString.call(obj) === '[object Promise]';
+}
+
 function isFastAndSlowPicks<T>(obj: unknown): obj is FastAndSlowPicks<T> {
 	const candidate = obj as FastAndSlowPicks<T>;
 
-	return !!candidate.picks && candidate.additionalPicks instanceof Promise;
+	return !!candidate.picks && isPromise(candidate.additionalPicks);
 }
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
@@ -296,7 +300,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			}
 
 			// Fast Picks
-			else if (!(providedPicks instanceof Promise)) {
+			else if (!(isPromise(providedPicks))) {
 				applyPicks(providedPicks);
 			}
 
