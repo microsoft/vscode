@@ -18,18 +18,28 @@ function sign(type, glob) {
 }
 async function main() {
     (0, zx_1.usePwsh)();
-    await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
-    // Codesign executables and shared libraries
-    printBanner('Codesign executables and shared libraries');
-    await sign('sign-windows', '*.dll,*.exe,*.node').pipe(process.stdout);
-    // Codesign Powershell scripts
-    printBanner('Codesign Powershell scripts');
-    await sign('sign-windows-appx', '*.ps1').pipe(process.stdout);
-    // Codesign context menu appx package
+    const codesignTasks = [
+        {
+            banner: 'Codesign executables and shared libraries',
+            processPromise: sign('sign-windows', '*.dll,*.exe,*.node')
+        },
+        {
+            banner: 'Codesign Powershell scripts',
+            processPromise: sign('sign-windows-appx', '*.ps1')
+        }
+    ];
     if (process.env['VSCODE_QUALITY'] === 'insider') {
-        printBanner('Codesign context menu appx package');
-        await sign('sign-windows-appx', '*.appx').pipe(process.stdout);
+        codesignTasks.push({
+            banner: 'Codesign context menu appx package',
+            processPromise: sign('sign-windows-appx', '*.appx')
+        });
     }
+    // Wait for processes to finish and stream their output
+    for (const { banner, processPromise } of codesignTasks) {
+        printBanner(banner);
+        await processPromise.pipe(process.stdout);
+    }
+    await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
     // Package client
     if (process.env['BUILT_CLIENT']) {
         // Product version
