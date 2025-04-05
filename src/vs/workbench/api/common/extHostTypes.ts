@@ -2258,7 +2258,6 @@ export enum TaskEventKind {
 	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 
-
 export enum TaskPanelKind {
 	Shared = 1,
 
