@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -75,18 +75,25 @@ export class ListMcpServerCommand extends Action2 {
 		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
 		store.add(pick);
+
 		store.add(autorun(reader => {
 			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
-			pick.items = Object.values(servers).flatMap(servers => {
-				return [
+			const firstRun = pick.items.length === 0;
+			pick.items = [
+				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
+				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
 					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
 					...servers.map(server => ({
 						id: server.definition.id,
 						label: server.definition.label,
 						description: McpConnectionState.toString(server.connectionState.read(reader)),
 					})),
-				];
-			});
+				]),
+			];
+
+			if (firstRun && pick.items.length > 3) {
+				pick.activeItems = pick.items.slice(2, 3) as ItemType[]; // select the first server by default
+			}
 		}));
 
 
@@ -102,7 +109,11 @@ export class ListMcpServerCommand extends Action2 {
 
 		store.dispose();
 
-		if (picked) {
+		if (!picked) {
+			// no-op
+		} else if (picked.id === '$add') {
+			commandService.executeCommand(AddConfigurationAction.ID);
+		} else {
 			commandService.executeCommand(McpServerOptionsCommand.id, picked.id);
 		}
 	}

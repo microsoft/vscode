@@ -16,6 +16,7 @@ import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportSSE, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
+import { LogLevel } from '../../../platform/log/common/log.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -224,7 +225,7 @@ class McpSSEHandle extends Disposable {
 			});
 
 			if (res.status >= 300) {
-				this._proxy.$onDidPublishLog(this._id, `${res.status} status sending message to ${this._postEndpoint}: ${await this._getErrText(res)}`);
+				this._proxy.$onDidPublishLog(this._id, LogLevel.Warning, `${res.status} status sending message to ${this._postEndpoint}: ${await this._getErrText(res)}`);
 			}
 		} catch (err) {
 			// ignored

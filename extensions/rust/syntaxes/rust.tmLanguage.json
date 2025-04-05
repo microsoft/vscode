@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/e90d3dbdb61b96e4afdce6f7a3572426b1a86d9d",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/268fd42cfd4aa96a6ed9024a2850d17d6cd2dc7b",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -52,7 +52,7 @@
 		{
 			"comment": "macro type metavariables",
 			"name": "meta.macro.metavariable.type.rust",
-			"match": "(\\$)((crate)|([A-Z][A-Za-z0-9_]*))((:)(block|expr|ident|item|lifetime|literal|meta|path?|stmt|tt|ty|vis))?",
+			"match": "(\\$)((crate)|([A-Z]\\w*))(\\s*(:)\\s*(block|expr(?:_2021)?|ident|item|lifetime|literal|meta|pat(?:_param)?|path|stmt|tt|ty|vis)\\b)?",
 			"captures": {
 				"1": {
 					"name": "keyword.operator.macro.dollar.rust"
@@ -79,7 +79,7 @@
 		{
 			"comment": "macro metavariables",
 			"name": "meta.macro.metavariable.rust",
-			"match": "(\\$)([a-z][A-Za-z0-9_]*)((:)(block|expr|ident|item|lifetime|literal|meta|path?|stmt|tt|ty|vis))?",
+			"match": "(\\$)([a-z]\\w*)(\\s*(:)\\s*(block|expr(?:_2021)?|ident|item|lifetime|literal|meta|pat(?:_param)?|path|stmt|tt|ty|vis)\\b)?",
 			"captures": {
 				"1": {
 					"name": "keyword.operator.macro.dollar.rust"

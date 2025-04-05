@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
+import { autorun, debouncedObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
@@ -74,11 +73,11 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	enableAccessibleDiffView(): void {
 		this.integration.enableAccessibleDiffView();
 	}
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		this.integration.acceptNearestChange(change);
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		return this.integration.acceptNearestChange(change);
 	}
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		this.integration.rejectNearestChange(change);
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		return this.integration.rejectNearestChange(change);
 	}
 	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		return this.integration.toggleDiff(change);
@@ -506,10 +505,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					}
 
 					const isFirstChangeInCell = currentChange.index === 0;
-					const index = isFirstChangeInCell ? 0 : currentChange.index - 1;
 					const change = isFirstChangeInCell ? changes[changes.indexOf(currentChange.change) - 1] : currentChange.change;
 
 					if (change) {
+						const index = isFirstChangeInCell ? lastChangeIndex(change) : currentChange.index - 1;
 						return this._revealChange(change, index);
 					}
 				}
@@ -545,16 +544,16 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			integration?.enableAccessibleDiffView();
 		}
 	}
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.accept();
+	async acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.accept();
 		this.next(true);
 	}
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.reject();
+	async rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.reject();
 		this.next(true);
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
-		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 		const diffInput = {
 			original: { resource: this._entry.originalURI, options: { selection: undefined } },
 			modified: { resource: this._entry.modifiedURI, options: { selection: undefined } },
@@ -625,12 +624,12 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 	enableAccessibleDiffView(): void {
 		//
 	}
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.accept();
+	async acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.accept();
 		this.next(true);
 	}
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.reject();
+	async rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.reject();
 		this.next(true);
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {

@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogger, ILoggerService, NullLogger } from '../../../../../platform/log/common/log.js';
+import { ILogger, ILoggerService, LogLevel, NullLogger } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -25,6 +25,8 @@ import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 	private _canStartValue = true;
+
+	priority = 0;
 
 	constructor() {
 		super();
@@ -247,6 +249,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		transport.simulateInitialized();
 		assert.ok(await waitForHandler(connection));
+
+		connection.dispose();
 	});
 
 	test('should clean up when disposed', async () => {
@@ -283,6 +287,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			{
+				getLevel: () => LogLevel.Debug,
 				info: (message: string) => {
 					loggedMessages.push(message);
 				},

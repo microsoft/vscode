@@ -151,7 +151,6 @@ export class ChatViewWelcomePart extends Disposable {
 			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
 				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
-				dom.append(container, $('.chat-welcome-view-indicator', undefined, localize('experimental', "EXPERIMENTAL")));
 			}
 
 			// Message

@@ -235,6 +235,7 @@ export interface IChatToolInvocation {
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
 	readonly toolId: string;
+	readonly toolCallId: string;
 
 	isCompletePromise: Promise<void>;
 	isComplete: boolean;
@@ -253,6 +254,7 @@ export interface IChatToolInvocationSerialized {
 	resultDetails: IToolResult['toolResultDetails'];
 	isConfirmed: boolean | undefined;
 	isComplete: boolean;
+	toolCallId: string;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -489,7 +491,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	isPersistedSessionEmpty(sessionId: string): boolean;
@@ -519,8 +521,7 @@ export interface IChatService {
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
-	readonly unifiedViewEnabled: boolean;
-	isEditingLocation(location: ChatAgentLocation): boolean;
+	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

@@ -91,6 +91,7 @@ export class TreeSitterCodeEditors extends Disposable {
 			if (!this._languageEditors.has(editor)) {
 				const langaugeEditorDisposables = new DisposableStore();
 				langaugeEditorDisposables.add(editor.onDidScrollChange(() => this._onViewportChange(editor), this));
+				this._languageEditors.set(editor, langaugeEditorDisposables);
 				this._onViewportChange(editor);
 			}
 		}

@@ -23,10 +23,12 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
+import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
@@ -37,6 +39,28 @@ const enum AddConfigurationType {
 	PipPackage,
 	DockerImage,
 }
+
+type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.DockerImage;
+
+const assistedTypes = {
+	[AddConfigurationType.NpmPackage]: {
+		title: localize('mcp.npm.title', "Enter NPM Package Name"),
+		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"), pickLabel: localize('mcp.serverType.npm', "NPM Package"),
+		pickDescription: localize('mcp.serverType.npm.description', "Install from an NPM package name")
+	},
+	[AddConfigurationType.PipPackage]: {
+		title: localize('mcp.pip.title', "Enter Pip Package Name"),
+		placeholder: localize('mcp.pip.placeholder', "Package name (e.g., package-name)"),
+		pickLabel: localize('mcp.serverType.pip', "Pip Package"),
+		pickDescription: localize('mcp.serverType.pip.description', "Install from a Pip package name")
+	},
+	[AddConfigurationType.DockerImage]: {
+		title: localize('mcp.docker.title', "Enter Docker Image Name"),
+		placeholder: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)"),
+		pickLabel: localize('mcp.serverType.docker', "Docker Image"),
+		pickDescription: localize('mcp.serverType.docker.description', "Install from a Docker image")
+	},
+};
 
 const enum AddConfigurationCopilotCommand {
 	/** Returns whether MCP enhanced setup is enabled. */
@@ -87,6 +111,7 @@ export class McpAddConfigurationCommand {
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -106,9 +131,11 @@ export class McpAddConfigurationCommand {
 			items.unshift({ type: 'separator', label: localize('mcp.serverType.manual', "Manual Install") });
 			items.push(
 				{ type: 'separator', label: localize('mcp.serverType.copilot', "Model-Assisted") },
-				{ kind: AddConfigurationType.NpmPackage, label: localize('mcp.serverType.npm', "NPM Package"), description: localize('mcp.serverType.npm.description', "Install from an NPM package name") },
-				{ kind: AddConfigurationType.PipPackage, label: localize('mcp.serverType.pip', "PIP Package"), description: localize('mcp.serverType.pip.description', "Install from a PIP package name") },
-				{ kind: AddConfigurationType.DockerImage, label: localize('mcp.serverType.docker', "Docker Image"), description: localize('mcp.serverType.docker.description', "Install from a Docker image") }
+				...Object.entries(assistedTypes).map(([type, { pickLabel, pickDescription }]) => ({
+					kind: Number(type) as AddConfigurationType,
+					label: pickLabel,
+					description: pickDescription,
+				}))
 			);
 		}
 
@@ -201,19 +228,11 @@ export class McpAddConfigurationCommand {
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AddConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
+	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
-			title: type === AddConfigurationType.NpmPackage
-				? localize('mcp.npm.title', "Enter NPM Package Name")
-				: type === AddConfigurationType.PipPackage
-					? localize('mcp.pip.title', "Enter Pip Package Name")
-					: localize('mcp.docker.title', "Enter Docker Image Name"),
-			placeHolder: type === AddConfigurationType.NpmPackage
-				? localize('mcp.npm.placeholder', "Package name (e.g., @org/package)")
-				: type === AddConfigurationType.PipPackage
-					? localize('mcp.pip.placeholder', "Package name (e.g., package-name)")
-					: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)")
+			title: assistedTypes[type].title,
+			placeHolder: assistedTypes[type].placeholder,
 		});
 
 		if (!packageName) {
@@ -306,9 +325,11 @@ export class McpAddConfigurationCommand {
 		const store = new DisposableStore();
 		store.add(autorun(reader => {
 			const colls = this._mcpRegistry.collections.read(reader);
+			const servers = this._mcpService.servers.read(reader);
 			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
 				server => server.label === name ? { server, collection } : undefined));
-			if (match) {
+			const server = match && servers.find(s => s.definition.id === match.server.id);
+			if (match && server) {
 				if (match.collection.presentation?.origin) {
 					this._openerService.openEditor({
 						resource: match.collection.presentation.origin,
@@ -321,6 +342,12 @@ export class McpAddConfigurationCommand {
 					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
 				}
 
+				server.start(true).then(state => {
+					if (state.state === McpConnectionState.Kind.Error) {
+						server.showOutput();
+					}
+				});
+
 				store.dispose();
 			}
 		}));
@@ -328,9 +355,12 @@ export class McpAddConfigurationCommand {
 		store.add(disposableTimeout(() => store.dispose(), 5000));
 	}
 
-	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget) {
+	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget, inputs?: ConfiguredInput[]) {
 		const settings: IMcpConfiguration = { ...getConfigValueInTarget(this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection), target) };
 		settings.servers = { ...settings.servers, [name]: config };
+		if (inputs) {
+			settings.inputs = [...(settings.inputs || []), ...inputs];
+		}
 		return this._configurationService.updateValue(mcpConfigurationSection, settings, target);
 	}
 
@@ -351,20 +381,10 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.SSE:
 				serverConfig = await this.getSSEConfig();
 				break;
-			case AddConfigurationType.NpmPackage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.NpmPackage);
-				serverConfig = r?.config;
-				suggestedName = r?.name;
-				break;
-			}
-			case AddConfigurationType.PipPackage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.PipPackage);
-				serverConfig = r?.config;
-				suggestedName = r?.name;
-				break;
-			}
+			case AddConfigurationType.NpmPackage:
+			case AddConfigurationType.PipPackage:
 			case AddConfigurationType.DockerImage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.DockerImage);
+				const r = await this.getAssistedConfig(serverType);
 				serverConfig = r?.config;
 				suggestedName = r?.name;
 				break;
@@ -447,8 +467,8 @@ export class McpAddConfigurationCommand {
 				await this._editorService.save(getEditors());
 				try {
 					const contents = await this._fileService.readFile(resource);
-					const config: McpConfigurationServer = parseJsonc(contents.value.toString());
-					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL);
+					const { inputs, ...config }: McpConfigurationServer & { inputs?: ConfiguredInput[] } = parseJsonc(contents.value.toString());
+					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL, inputs);
 					this._editorService.closeEditors(getEditors());
 					this.showOnceDiscovered(name);
 				} catch (e) {

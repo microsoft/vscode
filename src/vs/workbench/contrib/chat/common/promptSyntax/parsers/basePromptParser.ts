@@ -9,7 +9,6 @@ import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
-import { IRange } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { IPromptReference, IResolveError, ITopError } from './types.js';
@@ -18,6 +17,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
 import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
@@ -542,10 +542,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
  * a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
 export class PromptReference extends ObservableDisposable implements IPromptReference {
-	public readonly range = this.token.range;
-	public readonly path: string = this.token.path;
-	public readonly text: string = this.token.text;
-
 	/**
 	 * Instance of underlying prompt parser object.
 	 */
@@ -638,6 +634,18 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		this.parser.onUpdate(callback);
 
 		return this;
+	}
+
+	public get range(): Range {
+		return this.token.range;
+	}
+
+	public get path(): string {
+		return this.token.path;
+	}
+
+	public get text(): string {
+		return this.token.text;
 	}
 
 	public get resolveFailed(): boolean | undefined {

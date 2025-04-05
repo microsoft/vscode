@@ -275,8 +275,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	//#region --- Sentiment
 
-	private readonly _onDidChangeSentiment = this._register(new Emitter<void>());
-	readonly onDidChangeSentiment = this._onDidChangeSentiment.event;
+	readonly onDidChangeSentiment: Event<void>;
 
 	get sentiment(): ChatSentiment {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true) {
@@ -512,9 +511,8 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat entitlement]: unexpected status code ${response.res.statusCode}`);
 			return (
-				response.res.statusCode === 401 ||
-				response.res.statusCode === 403 ||
-				response.res.statusCode === 404
+				response.res.statusCode === 401 || 	// oauth token being unavailable (expired/revoked)
+				response.res.statusCode === 404		// missing scopes/permissions, service pretends the endpoint doesn't exist
 			) ? { entitlement: ChatEntitlement.Unknown /* treat as signed out */ } : { entitlement: ChatEntitlement.Unresolved };
 		}
 

@@ -4,25 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { createToolInputUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
+import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
@@ -51,7 +55,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	private subPart!: ChatToolInvocationSubPart;
 
 	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		listPool: CollapsibleListPool,
@@ -88,7 +92,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized';
+		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;
 	}
 
 	addDisposable(disposable: IDisposable): void {
@@ -134,6 +138,8 @@ class ChatToolInvocationSubPart extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IMarkerService private readonly markerService: IMarkerService,
 	) {
 		super();
 
@@ -186,7 +192,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				data: ConfirmationOutcome.Allow,
 				tooltip: continueTooltip,
 				moreActions: !allowAutoConfirm ? undefined : [
-					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
+					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
 					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
 					{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
 				],
@@ -231,6 +237,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 					hideToolbar: true,
 					reserveWidth: 19,
+					maxHeightInLines: 13,
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'on',
@@ -240,10 +247,41 @@ class ChatToolInvocationSubPart extends Disposable {
 
 				const langId = this.languageService.getLanguageIdByLanguageName('json');
 				const model = this._register(this.modelService.createModel(
-					JSON.stringify(inputData.rawInput, undefined, 2),
+					JSON.stringify(inputData.rawInput ?? {}, undefined, 2),
 					this.languageService.createById(langId),
 					createToolInputUri(toolInvocation.toolId)
 				));
+
+
+				const markerOwner = generateUuid();
+				const schemaUri = createToolSchemaUri(toolInvocation.toolId);
+				const validator = new RunOnceScheduler(async () => {
+
+					const newMarker: IMarkerData[] = [];
+
+					const result = await this.commandService.executeCommand('json.validate', schemaUri, model.getValue());
+					for (const item of result) {
+						if (item.range && item.message) {
+							newMarker.push({
+								severity: item.severity === 'Error' ? MarkerSeverity.Error : MarkerSeverity.Warning,
+								message: item.message,
+								startLineNumber: item.range[0].line + 1,
+								startColumn: item.range[0].character + 1,
+								endLineNumber: item.range[1].line + 1,
+								endColumn: item.range[1].character + 1,
+								code: item.code ? String(item.code) : undefined
+							});
+						}
+					}
+
+					this.markerService.changeOne(markerOwner, model.uri, newMarker);
+				}, 500);
+
+				validator.schedule();
+				this._register(model.onDidChangeContent(() => validator.schedule()));
+				this._register(toDisposable(() => this.markerService.remove(markerOwner, [model.uri])));
+				this._register(validator);
+
 				const editor = this._register(this.editorPool.get());
 				editor.object.render({
 					codeBlockIndex: this.codeBlockStartIndex,
@@ -291,6 +329,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			));
 		}
 
+		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
+		hasToolConfirmation.set(true);
+
 		this._register(confirmWidget.onDidClick(button => {
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
@@ -314,7 +355,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(toDisposable(() => hasToolConfirmation.reset()));
 		toolInvocation.confirmed.p.then(() => {
+			hasToolConfirmation.reset();
 			this._onNeedsRerender.fire();
 		});
 		return confirmWidget.domNode;
@@ -475,6 +518,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			{
 				hideToolbar: true,
 				reserveWidth: 19,
+				maxHeightInLines: 13,
 				verticalPadding: 5,
 				editorOptions: {
 					wordWrap: 'on'

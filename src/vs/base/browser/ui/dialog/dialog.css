@@ -8,9 +8,9 @@
 	position: fixed;
 	height: 100%;
 	width: 100%;
-	left:0;
-	top:0;
-	z-index: 2600;
+	left: 0;
+	top: 0;
+	z-index: 2575; /* Above Context Views, Below Workbench Hover */
 	display: flex;
 	justify-content: center;
 	align-items: center;

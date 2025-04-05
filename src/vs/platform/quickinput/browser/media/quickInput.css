@@ -249,6 +249,13 @@
 .quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-checkbox {
 	display: inline;
 }
+.quick-input-widget.show-checkboxes .quick-input-list-entry.not-pickable {
+	margin-left: -10px;
+
+	.quick-input-list-checkbox {
+		display: none;
+	}
+}
 
 .quick-input-list .quick-input-list-rows > .quick-input-list-row {
 	display: flex;

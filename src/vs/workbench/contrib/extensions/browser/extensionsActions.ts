@@ -999,17 +999,19 @@ export class UpdateAction extends ExtensionAction {
 			}
 		}
 
-		alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
-		return this.install(this.extension);
-	}
-
-	private async install(extension: IExtension): Promise<void> {
-		const options = extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined;
+		const installOptions: InstallOptions = {};
+		if (this.extension.local?.source === 'vsix' && this.extension.local.pinned) {
+			installOptions.pinned = false;
+		}
+		if (this.extension.local?.preRelease) {
+			installOptions.installPreReleaseVersion = true;
+		}
 		try {
-			await this.extensionsWorkbenchService.install(extension, options);
-			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
+			alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
+			await this.extensionsWorkbenchService.install(this.extension, installOptions);
+			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", this.extension.displayName, this.extension.latestVersion));
 		} catch (err) {
-			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, options, extension.latestVersion, InstallOperation.Update, err).run();
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, installOptions, this.extension.latestVersion, InstallOperation.Update, err).run();
 		}
 	}
 }

@@ -5,6 +5,7 @@
 
 import { coalesce, groupBy } from '../../../../../base/common/arrays.js';
 import { assertNever } from '../../../../../base/common/assert.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -29,7 +30,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
-import { IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -252,9 +252,9 @@ export class SelectAndInsertFileAction extends Action2 {
 			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
 		};
 
-		let options: IQuickAccessOptions | undefined;
 		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('', options);
+		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
+		const picks = await quickInputService.quickAccess.pick('');
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertFileAction: no file selected');
 			doCleanup();
@@ -576,6 +576,7 @@ export class SelectAndInsertSymAction extends Action2 {
 		};
 
 		// TODO: have dedicated UX for this instead of using the quick access picker
+		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
 		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'] });
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertSymAction: no symbol selected');

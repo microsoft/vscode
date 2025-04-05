@@ -45,7 +45,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 
-	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData) {
+	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.invocationMessage = invocationMessage;
@@ -94,6 +94,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			isComplete: this._isComplete,
 			resultDetails: this._resultDetails,
 			toolSpecificData: this.toolSpecificData,
+			toolCallId: this.toolCallId,
 		};
 	}
 }

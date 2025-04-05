@@ -10,11 +10,11 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { FilePromptContentProvider } from './filePromptContentsProvider.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
+import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.
@@ -23,7 +23,9 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	/**
 	 * URI component of the prompt associated with this contents provider.
 	 */
-	public readonly uri = this.model.uri;
+	public get uri(): URI {
+		return this.model.uri;
+	}
 
 	constructor(
 		private readonly model: ITextModel,
