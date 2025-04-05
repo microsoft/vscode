@@ -32,7 +32,10 @@ Ensure you have the following tools installed:
 - 📦 [Yarn 1](https://classic.yarnpkg.com/en/), version `>=1.10.1 and <2`
 - 🐍 [Python](https://www.python.org/downloads/), version `=3.11.X` (required for node-gyp)
 - ⚙️ A C/C++ compiler toolchain for your platform:
-  - **Windows**: Install the Windows Build Tools and follow the detailed setup steps.
+  - **Windows**: Install the Windows Build Tools (through Visual Studio Installer) with the following components
+    - Desktop development with C++ (Workload)
+    - C++ MFC for v143 build tools with Spectre Mitigations (Individual Component)
+    - MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Individual Component)
   - **macOS**: Install Xcode and Command Line Tools with `xcode-select --install`.
   - **Linux**: Install the necessary development tools as described in the instructions.
 
