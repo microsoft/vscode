@@ -227,7 +227,7 @@ steps:
           exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Codesign
+        displayName: ✍️ Codesign
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-win32-test.yml@self
@@ -248,72 +248,7 @@ steps:
           $ErrorActionPreference = "Stop"
           exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
         condition: succeededOrFailed()
-        displayName: "Post-job: Codesign"
-
-    #   - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
-    #     env:
-    #       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    #     displayName: Codesign executables and shared libraries
-
-    #   - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.ps1'
-    #     env:
-    #       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    #     displayName: Codesign Powershell scripts
-
-    # - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-    #   - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.appx'
-    #     env:
-    #       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    #     displayName: Codesign context menu appx package
-
-    # - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    #   - powershell: |
-    #       . build/azure-pipelines/win32/exec.ps1
-    #       $ErrorActionPreference = "Stop"
-    #       $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
-    #       $Version = $PackageJson.version
-    #       echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
-    #     condition: succeededOrFailed()
-    #     displayName: Get product version
-
-    #   - powershell: |
-    #       . build/azure-pipelines/win32/exec.ps1
-    #       $ErrorActionPreference = "Stop"
-    #       $ArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip"
-    #       New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-    #       exec { 7z.exe a -tzip $ArchivePath ..\VSCode-win32-$(VSCODE_ARCH)\* "-xr!CodeSignSummary*.md" }
-    #       echo "##vso[task.setvariable variable=CLIENT_PATH]$ArchivePath"
-
-    #       echo "Listing archive contents"
-    #       7z.exe l $ArchivePath
-    #     condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
-    #     displayName: Package client
-
-    #   - powershell: |
-    #       . build/azure-pipelines/win32/exec.ps1
-    #       $ErrorActionPreference = "Stop"
-    #       $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
-    #       New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-    #       exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) }
-    #       echo "##vso[task.setvariable variable=SERVER_PATH]$ArchivePath"
-
-    #       echo "Listing archive contents"
-    #       7z.exe l $ArchivePath
-    #     condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER'], 'true'))
-    #     displayName: Package server
-
-    #   - powershell: |
-    #       . build/azure-pipelines/win32/exec.ps1
-    #       $ErrorActionPreference = "Stop"
-    #       $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
-    #       New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-    #       exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web }
-    #       echo "##vso[task.setvariable variable=WEB_PATH]$ArchivePath"
-
-    #       echo "Listing archive contents"
-    #       7z.exe l $ArchivePath
-    #     condition: and(succeededOrFailed(), eq(variables['BUILT_WEB'], 'true'))
-    #     displayName: Package server (web)
+        displayName: "✍️ Post-job: Codesign"
 
       - powershell: |
           $ErrorActionPreference = "Stop"
