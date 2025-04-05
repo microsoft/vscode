@@ -116,7 +116,7 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const model = chatService.startSession(ChatAgentLocation.EditingSession, CancellationToken.None);
+		const model = chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		const session = await editingService.createEditingSession(model, true);
 
 		assert.strictEqual(session.chatSessionId, model.sessionId);
@@ -137,7 +137,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const model = chatService.startSession(ChatAgentLocation.EditingSession, CancellationToken.None);
+		const model = chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		const session = await model.editingSessionObs?.promise;
 		if (!session) {
 			assert.fail('session not created');

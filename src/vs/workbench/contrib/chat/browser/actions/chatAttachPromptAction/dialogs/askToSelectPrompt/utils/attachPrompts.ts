@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISelectPromptOptions } from '../askToSelectPrompt.js';
-import { IChatWidget, showChatView, showEditsView } from '../../../../../chat.js';
-import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
 import { assertDefined, WithUriValue } from '../../../../../../../../../base/common/types.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION } from '../../../../chatClearActions.js';
 import { IKeyMods, IQuickPickItem } from '../../../../../../../../../platform/quickinput/common/quickInput.js';
+import { IChatWidget, showChatView } from '../../../../../chat.js';
+import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
+import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
+import { ISelectPromptOptions } from '../askToSelectPrompt.js';
 
 /**
  * Attaches provided prompts to a chat input.
@@ -43,18 +43,18 @@ const getChatWidgetObject = async (
 	keyMods: IKeyMods,
 ): Promise<IChatWidget> => {
 	const { widget } = options;
-	const { alt, ctrlCmd } = keyMods;
+	const { ctrlCmd } = keyMods;
 
 	// if `ctrl/cmd` key was pressed, create a new chat session
 	if (ctrlCmd) {
-		return await openNewChat(options, alt);
+		return await openNewChat(options);
 	}
 
 	// if no widget reference is present, the command was triggered from outside of
 	// an active chat input, so we reveal a chat widget window based on the `alt`
 	// key modifier state when a prompt was selected from the picker UI dialog
 	if (!widget) {
-		return await showExistingChat(options, alt);
+		return await showExistingChat(options);
 	}
 
 	return widget;
@@ -66,33 +66,13 @@ const getChatWidgetObject = async (
  */
 const openNewChat = async (
 	options: ISelectPromptOptions,
-	edits: boolean,
 ): Promise<IChatWidget> => {
-	const { commandService, chatService, viewsService } = options;
+	const { commandService, viewsService } = options;
 
 	// the `unified chat view` mode does not have a separate `edits` view
 	// therefore we always open a new default chat session in this mode
-	if (chatService.unifiedViewEnabled === true) {
-		await commandService.executeCommand(ACTION_ID_NEW_CHAT);
-		const widget = await showChatView(viewsService);
-
-		assertDefined(
-			widget,
-			'Chat widget must be defined.',
-		);
-
-		return widget;
-	}
-
-	// in non-unified chat view mode, we can open either an `edits` view
-	// or an `ask` chat view based on the `edits` flag
-	(edits === true)
-		? await commandService.executeCommand(ACTION_ID_NEW_EDIT_SESSION)
-		: await commandService.executeCommand(ACTION_ID_NEW_CHAT);
-
-	const widget = (edits === true)
-		? await showEditsView(viewsService)
-		: await showChatView(viewsService);
+	await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+	const widget = await showChatView(viewsService);
 
 	assertDefined(
 		widget,
@@ -108,14 +88,10 @@ const openNewChat = async (
  */
 const showExistingChat = async (
 	options: ISelectPromptOptions,
-	edits: boolean,
 ): Promise<IChatWidget> => {
-	const { chatService, viewsService } = options;
+	const { viewsService } = options;
 
-	// there is no "edits" view when in the unified view mode
-	const widget = (edits && (chatService.unifiedViewEnabled === false))
-		? await showEditsView(viewsService)
-		: await showChatView(viewsService);
+	const widget = await showChatView(viewsService);
 
 	assertDefined(
 		widget,

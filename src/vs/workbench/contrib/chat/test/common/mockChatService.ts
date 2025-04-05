@@ -91,7 +91,6 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	unifiedViewEnabled = false;
 	isEditingLocation(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}

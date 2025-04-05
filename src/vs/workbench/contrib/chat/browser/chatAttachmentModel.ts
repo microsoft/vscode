@@ -114,7 +114,7 @@ export class ChatAttachmentModel extends Disposable {
 			name: fileName,
 			fullName: uri.path,
 			value: resizedImage,
-			isImage: true,
+			kind: 'image',
 			isFile: false,
 			references: [{ reference: uri, kind: 'reference' }]
 		};

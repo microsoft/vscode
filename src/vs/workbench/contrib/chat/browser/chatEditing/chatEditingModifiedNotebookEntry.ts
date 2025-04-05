@@ -483,6 +483,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// create a snapshot of the current state of the model, before the next set of edits
 		let initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
 		let last = '';
+		let redoState = ModifiedFileEntryState.Rejected;
 
 		return {
 			type: UndoRedoElementType.Resource,
@@ -492,11 +493,30 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			confirmBeforeUndo: false,
 			undo: async () => {
 				last = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
-				restoreSnapshot(this.modifiedModel, initial);
+				this._isEditFromUs = true;
+				try {
+					restoreSnapshot(this.modifiedModel, initial);
+					restoreSnapshot(this.originalModel, initial);
+				} finally {
+					this._isEditFromUs = false;
+				}
+				redoState = this._stateObs.get() === ModifiedFileEntryState.Accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
+				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
+				this.updateCellDiffInfo([], undefined);
+				this.initializeModelsFromDiff();
 			},
 			redo: async () => {
 				initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
-				restoreSnapshot(this.modifiedModel, last);
+				this._isEditFromUs = true;
+				try {
+					restoreSnapshot(this.modifiedModel, last);
+					restoreSnapshot(this.originalModel, last);
+				} finally {
+					this._isEditFromUs = false;
+				}
+				this._stateObs.set(redoState, undefined);
+				this.updateCellDiffInfo([], undefined);
+				this.initializeModelsFromDiff();
 			}
 		};
 	}
