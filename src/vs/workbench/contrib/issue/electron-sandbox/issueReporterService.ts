@@ -228,15 +228,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		const isVscode = this.issueReporterModel.getData().fileOnProduct;
-		const isCopilot = gitHubDetails?.owner === 'microsoft' && gitHubDetails?.repositoryName === 'vscode-copilot-release';
-		if (isVscode) {
-			url += `&template=bug_report.md`;
-		}
-
-		if (isCopilot) {
-			url += `&template=bug_report_chat.md`;
-		}
+		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
 		if (this.data.githubAccessToken && gitHubDetails) {
 			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
@@ -246,7 +238,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		try {
 			if (url.length > MAX_URL_LENGTH || issueBody.length > MAX_GITHUB_API_LENGTH) {
-				url = await this.writeToClipboard(baseUrl, issueBody, isVscode, isCopilot);
+				url = await this.writeToClipboard(baseUrl, issueBody);
 			}
 		} catch (_) {
 			console.error('Writing to clipboard failed');

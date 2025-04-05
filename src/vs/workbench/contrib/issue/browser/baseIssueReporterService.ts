@@ -1157,16 +1157,6 @@ export class BaseIssueReporterService extends Disposable {
 
 		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
-		// const isVscode = this.issueReporterModel.getData().fileOnProduct;
-		// const isCopilot = gitHubDetails?.owner === 'microsoft' && gitHubDetails?.repositoryName === 'vscode-copilot-release';
-		// if (isVscode) {
-		// 	url += `&template=bug_report.md`;
-		// }
-
-		// if (isCopilot) {
-		// 	url += `&template=bug_report_chat.md`;
-		// }
-
 		if (url.length > MAX_URL_LENGTH) {
 			try {
 				url = await this.writeToClipboard(baseUrl, issueBody);
