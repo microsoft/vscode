@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { getCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction, registerEditorAction } from '../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -319,6 +320,11 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 
 }
 
+
+interface FormatDocumentMultipleArgs {
+	formatter: string;
+}
+
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
 	constructor() {
@@ -334,18 +340,36 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: FormatDocumentMultipleArgs): Promise<void> {
 		if (!editor.hasModel()) {
 			return;
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const model = editor.getModel();
-		const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
-		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (typeof pick === 'number') {
-			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, FormattingMode.Explicit, CancellationToken.None);
+		const providers = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
+
+		let provider;
+		if (args?.formatter !== undefined) {
+			const matchedProviders = providers.filter(provider => provider.extensionId?.value === args.formatter);
+
+			if (matchedProviders.length === 0) {
+				vscode.window.showErrorMessage(`No formatter exists with extension ID ${args.formatter}`);
+				return;
+			} else if (matchedProviders.length > 1) {
+				vscode.window.showErrorMessage(`Multiple formatters exists with extension ID ${args.formatter}`);
+				return;
+			}
+			provider = matchedProviders[0];
+		} else {
+			const pick = await instaService.invokeFunction(showFormatterPick, model, providers);
+			if (typeof pick !== 'number') {
+				return;
+			}
+			provider = providers[pick];
 		}
+
+		await instaService.invokeFunction(formatDocumentWithProvider, provider, editor, FormattingMode.Explicit, CancellationToken.None);
 	}
 });
 
