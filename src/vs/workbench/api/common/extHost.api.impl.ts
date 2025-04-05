@@ -1597,6 +1597,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			CustomExecution: extHostTypes.CustomExecution,
+			DataBreakpoint: extHostTypes.DataBreakpoint,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
 			DebugAdapterNamedPipeServer: extHostTypes.DebugAdapterNamedPipeServer,
@@ -1834,6 +1835,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 			McpSSEServerDefinition: extHostTypes.McpSSEServerDefinition,
 			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
+			ResolvedDataBreakpointOrigin: extHostTypes.ResolvedDataBreakpointOrigin,
+			AddressDataBreakpointOrigin: extHostTypes.AddressDataBreakpointOrigin,
+			ExpressionDataBreakpointOrigin: extHostTypes.ExpressionDataBreakpointOrigin,
+			VariableScopedDataBreakpointOrigin: extHostTypes.VariableScopedDataBreakpointOrigin,
+			FrameScopedDataBreakpointOrigin: extHostTypes.FrameScopedDataBreakpointOrigin,
 		};
 	};
 }
