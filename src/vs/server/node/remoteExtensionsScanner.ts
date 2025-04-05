@@ -60,12 +60,22 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 		const extensionsToInstall = environmentService.args['install-extension'];
 		if (extensionsToInstall) {
-			_logService.trace('Installing extensions passed via args...');
 			const installOptions: InstallOptions = {
 				isMachineScoped: !!environmentService.args['do-not-sync'],
 				installPreReleaseVersion: !!environmentService.args['pre-release'],
 				isApplicationScoped: true // extensions installed during server startup are available to all profiles
 			};
+
+			if (!!environmentService.args['download-extensions-locally']) {
+				_logService.trace('Installing extensions later...');
+				this._whenExtensionsReady = this._whenBuiltinExtensionsReady
+					.then(async () => {
+						return { failed: extensionsToInstall.map(id => ({ id, installOptions })) };
+					});
+				return;
+			}
+
+			_logService.trace('Installing extensions passed via args...');
 			this._whenExtensionsReady = this._whenBuiltinExtensionsReady
 				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], installOptions, !!environmentService.args['force']))
 				.then(async () => {

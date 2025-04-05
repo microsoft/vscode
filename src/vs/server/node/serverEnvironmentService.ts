@@ -64,7 +64,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'uninstall-extension': OPTIONS['uninstall-extension'],
 	'list-extensions': OPTIONS['list-extensions'],
 	'locate-extension': OPTIONS['locate-extension'],
-
+	'download-extensions-locally': OPTIONS['download-extensions-locally'],
 	'show-versions': OPTIONS['show-versions'],
 	'category': OPTIONS['category'],
 	'force': OPTIONS['force'],
@@ -189,6 +189,7 @@ export interface ServerParsedArgs {
 	'update-extensions'?: boolean;
 	'uninstall-extension'?: string[];
 	'list-extensions'?: boolean;
+	'download-extensions-locally'?: boolean;
 	'locate-extension'?: string[];
 	'show-versions'?: boolean;
 	'category'?: string;
