@@ -135,6 +135,8 @@ suite('NotebookEditorWidgetService', () => {
 		assert.strictEqual(widget.value, undefined, 'widgets in group should get disposed');
 		assert.strictEqual(widgetDiffType.value, undefined, 'widgets in group should get disposed');
 		assert.notStrictEqual(widgetDiffGroup.value, undefined, 'other group should not be disposed');
+
+		notebookEditorService.dispose();
 	});
 
 	test('Widget should move between groups when editor is moved', async function () {

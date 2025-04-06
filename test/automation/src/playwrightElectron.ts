@@ -27,7 +27,7 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 }
 
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
-	const { logger, tracing } = options;
+	const { logger, tracing, snapshots } = options;
 
 	const electron = await measureAndLog(() => playwright._electron.launch({
 		executablePath: configuration.electronPath,
@@ -45,7 +45,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 
 	if (tracing) {
 		try {
-			await measureAndLog(() => context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
+			await measureAndLog(() => context.tracing.start({ screenshots: true, snapshots }), 'context.tracing.start()', logger);
 		} catch (error) {
 			logger.log(`Playwright (Electron): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}

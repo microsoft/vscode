@@ -58,7 +58,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 	}
 
 	private async doFetchAlerts(url: string): Promise<void> {
-		const requestResult = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
+		const requestResult = await this.requestService.request({ type: 'GET', url, disableCache: true }, CancellationToken.None);
 
 		if (requestResult.res.statusCode !== 200) {
 			throw new Error(`Failed to fetch emergency alerts: HTTP ${requestResult.res.statusCode}`);

@@ -57,9 +57,15 @@ registerAction2(class ToggleCommandCenter extends ToggleTitleBarConfigAction {
 	}
 });
 
+registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('workbench.navigationControl.enabled', localize('toggle.navigation', 'Navigation Controls'), localize('toggle.navigationDescription', "Toggle visibility of the Navigation Controls in title bar"), 2, false, ContextKeyExpr.has('config.window.commandCenter'));
+	}
+});
+
 registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 2, true);
+		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 4, true);
 	}
 });
 
@@ -98,7 +104,6 @@ registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.WINDOWED);
 	}
 });
-
 
 class ToggleCustomTitleBar extends Action2 {
 
@@ -171,7 +176,6 @@ registerAction2(class ShowCustomTitleBar extends Action2 {
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
 	}
 });
-
 
 registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {

@@ -13,7 +13,7 @@ import { ILanguageIdCodec } from '../languages.js';
 import { IAttachedView } from '../model.js';
 import { TextModel } from './textModel.js';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
-import { BackgroundTokenizationState, ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
+import { BackgroundTokenizationState } from '../tokenizationTextModelPart.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 
 /**
@@ -88,14 +88,14 @@ export class AttachedViewHandler extends Disposable {
 }
 
 export abstract class AbstractTokens extends Disposable {
-	protected _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	protected abstract _backgroundTokenizationState: BackgroundTokenizationState;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
 	}
 
-	protected readonly _onDidChangeBackgroundTokenizationState = this._register(new Emitter<void>());
+	protected abstract readonly _onDidChangeBackgroundTokenizationState: Emitter<void>;
 	/** @internal, should not be exposed by the text model! */
-	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+	public abstract readonly onDidChangeBackgroundTokenizationState: Event<void>;
 
 	protected readonly _onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 	/** @internal, should not be exposed by the text model! */
@@ -131,7 +131,7 @@ export abstract class AbstractTokens extends Disposable {
 
 	public abstract getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
-	public abstract tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult;
+	public abstract tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null;
 
 	public abstract get hasTokens(): boolean;
 }

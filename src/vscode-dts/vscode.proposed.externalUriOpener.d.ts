@@ -96,7 +96,7 @@ declare module 'vscode' {
 	/**
 	 * Additional information about the uri being opened.
 	 */
-	interface OpenExternalUriContext {
+	export interface OpenExternalUriContext {
 		/**
 		 * The uri that triggered the open.
 		 *
@@ -109,7 +109,7 @@ declare module 'vscode' {
 	/**
 	 * Additional metadata about a registered `ExternalUriOpener`.
 	 */
-	interface ExternalUriOpenerMetadata {
+	export interface ExternalUriOpenerMetadata {
 
 		/**
 		 * List of uri schemes the opener is triggered for.
@@ -142,7 +142,7 @@ declare module 'vscode' {
 		export function registerExternalUriOpener(id: string, opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
 	}
 
-	interface OpenExternalOptions {
+	export interface OpenExternalOptions {
 		/**
 		 * Allows using openers contributed by extensions through  `registerExternalUriOpener`
 		 * when opening the resource.

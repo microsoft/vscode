@@ -34,7 +34,8 @@ import type * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
-import { ExcludeSettingOptions, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -468,7 +469,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 
 		// todo: consider exclude baseURI if available
-		return this._findFilesImpl(include, undefined, {
+		return this._findFilesImpl({ type: 'include', value: include }, {
 			exclude: [excludeString],
 			maxResults,
 			useExcludeSettings: useFileExcludes ? ExcludeSettingOptions.FilesExclude : ExcludeSettingOptions.None,
@@ -478,54 +479,33 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}, token);
 	}
 
-	findFiles2(filePattern: vscode.GlobPattern | undefined,
+
+	findFiles2(filePatterns: readonly vscode.GlobPattern[],
 		options: vscode.FindFiles2Options = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
-
-
-		const useDefaultExcludes = options.useDefaultExcludes ?? true;
-		const useDefaultSearchExcludes = options.useDefaultSearchExcludes ?? true;
-		const excludeSetting = useDefaultExcludes ?
-			(useDefaultSearchExcludes ? ExcludeSettingOptions.SearchAndFilesExclude : ExcludeSettingOptions.FilesExclude) :
-			ExcludeSettingOptions.None;
-		const newOptions: vscode.FindFiles2OptionsNew = {
-			exclude: options.exclude ? [options.exclude] : undefined,
-			useIgnoreFiles: {
-				local: options.useIgnoreFiles,
-				global: options.useGlobalIgnoreFiles,
-				parent: options.useParentIgnoreFiles
-			},
-			useExcludeSettings: excludeSetting,
-			followSymlinks: options.followSymlinks,
-			maxResults: options.maxResults,
-		};
-		return this._findFilesImpl(undefined, filePattern !== undefined ? [filePattern] : [], newOptions, token);
-	}
-
-	findFiles2New(filePatterns: vscode.GlobPattern[],
-		options: vscode.FindFiles2OptionsNew = {},
-		extensionId: ExtensionIdentifier,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2New: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2New`);
-		return this._findFilesImpl(undefined, filePatterns, options, token);
+		return this._findFilesImpl({ type: 'filePatterns', value: filePatterns }, options, token);
 	}
 
 	private async _findFilesImpl(
 		// the old `findFiles` used `include` to query, but the new `findFiles2` uses `filePattern` to query.
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
-		include: vscode.GlobPattern | undefined,
-		filePatterns: vscode.GlobPattern[] | undefined,
-		options: vscode.FindFiles2OptionsNew,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		if (token && token.isCancellationRequested) {
+		query: { readonly type: 'include'; readonly value: vscode.GlobPattern | undefined } | { readonly type: 'filePatterns'; readonly value: readonly vscode.GlobPattern[] },
+		options: vscode.FindFiles2Options,
+		token: vscode.CancellationToken
+	): Promise<vscode.Uri[]> {
+		if (token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
 
+		const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
+		if (!Array.isArray(filePatternsToUse)) {
+			console.error('Invalid file pattern provided', filePatternsToUse);
+			throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
+		}
 
-		const filePatternsToUse = include !== undefined ? [include] : filePatterns;
-		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse?.map(filePattern => {
+		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
 
 			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
 
@@ -539,21 +519,22 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				maxResults: options.maxResults,
 				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
 				_reason: 'startFileSearch',
-				shouldGlobSearch: include ? undefined : true,
+				shouldGlobSearch: query.type === 'include' ? undefined : true,
 			};
 
 			const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
 			const folderToUse = parseInclude?.folder;
-			if (include) {
+			if (query.type === 'include') {
 				fileQueries.includePattern = parseInclude?.pattern;
 			} else {
 				fileQueries.filePattern = parseInclude?.pattern;
 			}
+
 			return {
 				folder: folderToUse,
 				options: fileQueries
 			};
-		}) ?? [];
+		});
 
 		return this._findFilesBase(queryOptions, token);
 	}
@@ -571,8 +552,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return result.flat();
 	}
 
-	findTextInFilesNew(query: vscode.TextSearchQueryNew, options: vscode.FindTextInFilesOptionsNew | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
-		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
+	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
+		this._logService.trace(`extHostWorkspace#findTextInFiles2: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles2`);
 
 
 		const getOptions = (include: vscode.GlobPattern | undefined): QueryOptions<ITextQueryBuilderOptions> => {
@@ -623,12 +604,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			(result, uri) => progressEmitter.fire({ result, uri }),
 			token
 		);
-		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
+		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult2>(async emitter => {
 			disposables.add(progressEmitter.event(e => {
 				const result = e.result;
 				const uri = e.uri;
 				if (resultIsMatch(result)) {
-					emitter.emitOne(new TextSearchMatchNew(
+					emitter.emitOne(new TextSearchMatch2(
 						uri,
 						result.rangeLocations.map((range) => ({
 							previewRange: new Range(range.preview.startLineNumber, range.preview.startColumn, range.preview.endLineNumber, range.preview.endColumn),
@@ -638,7 +619,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 					));
 				} else {
-					emitter.emitOne(new TextSearchContextNew(
+					emitter.emitOne(new TextSearchContext2(
 						uri,
 						result.text,
 						result.lineNumber
@@ -957,6 +938,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	// called by main thread
 	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
 		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
+	}
+
+	// --- encodings ---
+
+	decode(content: Uint8Array, uri: UriComponents | undefined, options?: { encoding: string }): Promise<string> {
+		return this._proxy.$decode(VSBuffer.wrap(content), uri, options);
+	}
+
+	async encode(content: string, uri: UriComponents | undefined, options?: { encoding: string }): Promise<Uint8Array> {
+		const buff = await this._proxy.$encode(content, uri, options);
+		return buff.buffer;
 	}
 }
 

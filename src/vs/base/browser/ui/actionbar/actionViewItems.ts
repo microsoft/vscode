@@ -270,6 +270,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
+	keybindingNotRenderedWithLabel?: boolean;
 	toggleStyles?: IToggleStyles;
 }
 
@@ -300,7 +301,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.label = label;
 		this.element.appendChild(label);
 
-		if (this.options.label && this.options.keybinding) {
+		if (this.options.label && this.options.keybinding && !this.options.keybindingNotRenderedWithLabel) {
 			const kbLabel = document.createElement('span');
 			kbLabel.classList.add('keybinding');
 			kbLabel.textContent = this.options.keybinding;
@@ -365,9 +366,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.action.tooltip) {
 			title = this.action.tooltip;
 
-		} else if (!this.options.label && this.action.label && this.options.icon) {
+		} else if (this.action.label) {
 			title = this.action.label;
-
 			if (this.options.keybinding) {
 				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
 			}

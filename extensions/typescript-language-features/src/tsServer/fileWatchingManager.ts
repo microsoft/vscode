@@ -12,7 +12,7 @@ import { ResourceMap } from '../utils/resourceMap';
 
 interface DirWatcherEntry {
 	readonly uri: vscode.Uri;
-	readonly listeners: IDisposable[];
+	readonly disposables: readonly IDisposable[];
 }
 
 
@@ -49,6 +49,11 @@ export class FileWatcherManager implements IDisposable {
 	create(id: number, uri: vscode.Uri, watchParentDirs: boolean, isRecursive: boolean, listeners: { create?: (uri: vscode.Uri) => void; change?: (uri: vscode.Uri) => void; delete?: (uri: vscode.Uri) => void }): void {
 		this.logger.trace(`Creating file watcher for ${uri.toString()}`);
 
+		// Non-writable file systems do not support file watching
+		if (!vscode.workspace.fs.isWritableFileSystem(uri.scheme)) {
+			return;
+		}
+
 		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, isRecursive ? '**' : '*'), !listeners.create, !listeners.change, !listeners.delete);
 		const parentDirWatchers: DirWatcherEntry[] = [];
 		this._fileWatchers.set(id, { uri, watcher, dirWatchers: parentDirWatchers });
@@ -60,7 +65,7 @@ export class FileWatcherManager implements IDisposable {
 		if (watchParentDirs && uri.scheme !== Schemes.untitled) {
 			// We need to watch the parent directories too for when these are deleted / created
 			for (let dirUri = Utils.dirname(uri); dirUri.path.length > 1; dirUri = Utils.dirname(dirUri)) {
-				const dirWatcher: DirWatcherEntry = { uri: dirUri, listeners: [] };
+				const disposables: IDisposable[] = [];
 
 				let parentDirWatcher = this._dirWatchers.get(dirUri);
 				if (!parentDirWatcher) {
@@ -73,7 +78,7 @@ export class FileWatcherManager implements IDisposable {
 				parentDirWatcher.refCount++;
 
 				if (listeners.create) {
-					dirWatcher.listeners.push(parentDirWatcher.watcher.onDidCreate(async () => {
+					disposables.push(parentDirWatcher.watcher.onDidCreate(async () => {
 						// Just because the parent dir was created doesn't mean our file was created
 						try {
 							const stat = await vscode.workspace.fs.stat(uri);
@@ -89,10 +94,10 @@ export class FileWatcherManager implements IDisposable {
 				if (listeners.delete) {
 					// When the parent dir is deleted, consider our file deleted too
 					// TODO: this fires if the file previously did not exist and then the parent is deleted
-					dirWatcher.listeners.push(parentDirWatcher.watcher.onDidDelete(listeners.delete));
+					disposables.push(parentDirWatcher.watcher.onDidDelete(listeners.delete));
 				}
 
-				parentDirWatchers.push(dirWatcher);
+				parentDirWatchers.push({ uri: dirUri, disposables });
 			}
 		}
 	}
@@ -104,7 +109,7 @@ export class FileWatcherManager implements IDisposable {
 			this.logger.trace(`Deleting file watcher for ${entry.uri}`);
 
 			for (const dirWatcher of entry.dirWatchers) {
-				disposeAll(dirWatcher.listeners);
+				disposeAll(dirWatcher.disposables);
 
 				const dirWatcherEntry = this._dirWatchers.get(dirWatcher.uri);
 				if (dirWatcherEntry) {

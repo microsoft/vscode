@@ -12,7 +12,7 @@ import { LineRangeEdit } from './editing.js';
 import { LineRange } from './lineRange.js';
 import { ReentrancyBarrier } from '../../../../../base/common/controlFlow.js';
 import { IMergeDiffComputer } from './diffComputer.js';
-import { autorun, IObservable, IReader, ITransaction, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, IObservableWithChange, IReader, ITransaction, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 
 export class TextModelDiffs extends Disposable {
@@ -61,14 +61,14 @@ export class TextModelDiffs extends Disposable {
 		}));
 	}
 
-	public get state(): IObservable<TextModelDiffState, TextModelDiffChangeReason> {
+	public get state(): IObservableWithChange<TextModelDiffState, TextModelDiffChangeReason> {
 		return this._state;
 	}
 
 	/**
 	 * Diffs from base to input.
 	*/
-	public get diffs(): IObservable<DetailedLineRangeMapping[], TextModelDiffChangeReason> {
+	public get diffs(): IObservableWithChange<DetailedLineRangeMapping[], TextModelDiffChangeReason> {
 		return this._diffs;
 	}
 

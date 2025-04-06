@@ -18,6 +18,7 @@ import { IFileStatWithMetadata, IWriteFileOptions } from '../../../../platform/f
 import { ITextQuery } from '../../../services/search/common/search.js';
 import { NotebookPriorityInfo } from '../../search/common/search.js';
 import { INotebookFileMatchNoModel } from '../../search/common/searchNotebookHelpers.js';
+import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -80,6 +81,8 @@ export interface INotebookService {
 	saveMimeDisplayOrder(target: ConfigurationTarget): void;
 
 	createNotebookTextModel(viewType: string, uri: URI, stream?: VSBufferReadableStream): Promise<NotebookTextModel>;
+	createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream>;
+	restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];
@@ -88,6 +91,7 @@ export interface INotebookService {
 	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];
+	hasSupportedNotebooks(resource: URI): boolean;
 	getNotebookProviderResourceRoots(): URI[];
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;

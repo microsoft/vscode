@@ -7,6 +7,9 @@
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	padding: 8px 12px 12px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
 }
 
 .chat-confirmation-widget:not(:last-child) {
@@ -21,6 +24,15 @@
 	margin: 0 0 4px 0;
 }
 
+.chat-confirmation-widget .chat-confirmation-buttons-container,
+.chat-confirmation-widget .chat-confirmation-widget-message {
+	flex-basis: 100%;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-message.hidden {
+	display: none;
+}
+
 .chat-confirmation-widget .chat-confirmation-widget-message .rendered-markdown p {
 	margin-top: 0;
 }
@@ -33,6 +45,7 @@
 	display: flex;
 	gap: 8px;
 	margin-top: 13px;
+	flex-wrap: wrap;
 }
 
 .chat-confirmation-widget.hideButtons .chat-confirmation-buttons-container {

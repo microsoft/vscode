@@ -105,4 +105,13 @@ suite('StackTraceHelper', () => {
 		formattedLines.slice(1).forEach(line => assert.ok(!/<a href=.*>/.test(line), 'line should not contain a link: ' + line));
 	});
 
+	test('background (40-49) ANSI colors are removed', () => {
+		const stack =
+			'open\u001b[39;49m\u001b[43m(\u001b[49m\u001b[33;43m\'\u001b[39;49m\u001b[33;43minput.txt\u001b[39;49m\u001b[33;43m\'\u001b[39;49m\u001b[43m)\u001b[49m;';
+
+		const formattedLines = formatStackTrace(stack).formattedStack.split('\n');
+		assert.ok(!/4\d/.test(formattedLines[0]), 'should not contain background colors ' + formattedLines[0]);
+		formattedLines.slice(1).forEach(line => assert.ok(!/<a href=.*>/.test(line), 'line should not contain a link: ' + line));
+	});
+
 });

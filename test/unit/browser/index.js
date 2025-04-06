@@ -76,7 +76,7 @@ Options:
 --grep, -g, -f <pattern> only run tests matching <pattern>
 --debug, --debug-browser do not run browsers headless
 --sequential         only run suites for a single browser at a time
---browser <browser>  browsers in which tests should run
+--browser <browser>  browsers in which tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
 --reporter <reporter> the mocha reporter
 --reporter-options <reporter-options> the mocha reporter options
 --tfs <tfs>          tfs
@@ -239,9 +239,9 @@ async function createServer() {
 	});
 }
 
-async function runTestsInBrowser(testModules, browserType) {
+async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	const server = await createServer();
-	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug) });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = new URL(server.url + '/test/unit/browser/renderer.html');
@@ -281,7 +281,7 @@ async function runTestsInBrowser(testModules, browserType) {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()));
 
 	// collection failures for console printing
 	const failingModuleIds = [];
@@ -382,7 +382,7 @@ class EchoRunner extends events.EventEmitter {
 testModules.then(async modules => {
 
 	// run tests in selected browsers
-	const browserTypes = Array.isArray(args.browser)
+	const browsers = Array.isArray(args.browser)
 		? args.browser : [args.browser];
 
 	let messages = [];
@@ -390,12 +390,14 @@ testModules.then(async modules => {
 
 	try {
 		if (args.sequential) {
-			for (const browserType of browserTypes) {
-				messages.push(await runTestsInBrowser(modules, browserType));
+			for (const browser of browsers) {
+				const [browserType, browserChannel] = browser.split('-');
+				messages.push(await runTestsInBrowser(modules, browserType, browserChannel));
 			}
 		} else {
-			messages = await Promise.all(browserTypes.map(async browserType => {
-				return await runTestsInBrowser(modules, browserType);
+			messages = await Promise.all(browsers.map(async browser => {
+				const [browserType, browserChannel] = browser.split('-');
+				return await runTestsInBrowser(modules, browserType, browserChannel);
 			}));
 		}
 	} catch (err) {

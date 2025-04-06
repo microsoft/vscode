@@ -754,6 +754,29 @@ suite('TextModelSearch', () => {
 		assert(isMultilineRegexSource('foo\r\n'));
 	});
 
+	test('isMultilineRegexSource correctly identifies multiline patterns', () => {
+		const singleLinePatterns = [
+			'MARK:\\s*(?<label>.*)$',
+			'^// Header$',
+			'\\s*[-=]+\\s*',
+		];
+
+		const multiLinePatterns = [
+			'^\/\/ =+\\n^\/\/ (?<label>[^\\n]+?)\\n^\/\/ =+$',
+			'header\\r\\nfooter',
+			'start\\r|\\nend',
+			'top\nmiddle\r\nbottom'
+		];
+
+		for (const pattern of singleLinePatterns) {
+			assert.strictEqual(isMultilineRegexSource(pattern), false, `Pattern should not be multiline: ${pattern}`);
+		}
+
+		for (const pattern of multiLinePatterns) {
+			assert.strictEqual(isMultilineRegexSource(pattern), true, `Pattern should be multiline: ${pattern}`);
+		}
+	});
+
 	test('issue #74715. \\d* finds empty string and stops searching.', () => {
 		const model = createTextModel('10.243.30.10');
 

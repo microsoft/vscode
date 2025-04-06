@@ -33,7 +33,7 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { compareAnything } from '../../../base/common/comparers.js';
-import { ltrim } from '../../../base/common/strings.js';
+import { escape, ltrim } from '../../../base/common/strings.js';
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { ThrottledDelayer } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -418,6 +418,9 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		element.element = data.entry ?? undefined;
 		const mainItem: IQuickPickItem = element.item;
 
+		element.element.classList.toggle('indented', Boolean(mainItem.indented));
+		element.element.classList.toggle('not-pickable', element.item.pickable === false);
+
 		data.checkbox.checked = element.checked;
 		data.toDisposeElement.add(element.onChecked(checked => data.checkbox.checked = checked));
 		data.checkbox.disabled = element.checkboxDisabled;
@@ -443,7 +446,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		if (!element.saneTooltip && element.saneDescription) {
 			descriptionTitle = {
 				markdown: {
-					value: element.saneDescription,
+					value: escape(element.saneDescription),
 					supportThemeIcons: true
 				},
 				markdownNotSupportedFallback: element.saneDescription
@@ -472,7 +475,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			if (!element.saneTooltip) {
 				title = {
 					markdown: {
-						value: element.saneDetail,
+						value: escape(element.saneDetail),
 						supportThemeIcons: true
 					},
 					markdownNotSupportedFallback: element.saneDetail
@@ -567,7 +570,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		element.element.classList.toggle('focus-inside', !!element.focusInsideSeparator);
 		const mainItem: IQuickPickSeparator = element.separator;
 
-		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+		const { labelHighlights, descriptionHighlights } = element;
 
 		// Icon
 		data.icon.style.backgroundImage = '';
@@ -581,7 +584,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		if (!element.saneTooltip && element.saneDescription) {
 			descriptionTitle = {
 				markdown: {
-					value: element.saneDescription,
+					value: escape(element.saneDescription),
 					supportThemeIcons: true
 				},
 				markdownNotSupportedFallback: element.saneDescription
@@ -596,29 +599,6 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		};
 		data.entry.classList.add('quick-input-list-separator-as-item');
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
-
-		// Detail
-		if (element.saneDetail) {
-			let title: IManagedHoverTooltipMarkdownString | undefined;
-			// If we have a tooltip, we want that to be shown and not any other hover
-			if (!element.saneTooltip) {
-				title = {
-					markdown: {
-						value: element.saneDetail,
-						supportThemeIcons: true
-					},
-					markdownNotSupportedFallback: element.saneDetail
-				};
-			}
-			data.detail.element.style.display = '';
-			data.detail.setLabel(element.saneDetail, undefined, {
-				matches: detailHighlights,
-				title,
-				labelEscapeNewLines: true
-			});
-		} else {
-			data.detail.element.style.display = 'none';
-		}
 
 		// Separator
 		data.separator.style.display = 'none';
@@ -952,7 +932,7 @@ export class QuickInputTree extends Disposable {
 	}
 
 	private _registerHoverListeners() {
-		const delayer = this._register(new ThrottledDelayer(this.hoverDelegate.delay));
+		const delayer = this._register(new ThrottledDelayer(typeof this.hoverDelegate.delay === 'function' ? this.hoverDelegate.delay() : this.hoverDelegate.delay));
 		this._register(this._tree.onMouseOver(async e => {
 			// If we hover over an anchor element, we don't want to show the hover because
 			// the anchor may have a tooltip that we want to show instead.
@@ -1071,7 +1051,7 @@ export class QuickInputTree extends Disposable {
 	setAllVisibleChecked(checked: boolean) {
 		this._elementCheckedEventBufferer.bufferEvents(() => {
 			this._itemElements.forEach(element => {
-				if (!element.hidden && !element.checkboxDisabled) {
+				if (!element.hidden && !element.checkboxDisabled && element.item.pickable !== false) {
 					// Would fire an event if we didn't beffer the events
 					element.checked = checked;
 				}
@@ -1229,7 +1209,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[this._itemElements.length - 1]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;
@@ -1250,7 +1230,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[0]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;
@@ -1543,7 +1523,7 @@ export class QuickInputTree extends Disposable {
 	private _allVisibleChecked(elements: QuickPickItemElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
-			if (!element.hidden) {
+			if (!element.hidden && element.item.pickable !== false) {
 				if (!element.checked) {
 					return false;
 				} else {

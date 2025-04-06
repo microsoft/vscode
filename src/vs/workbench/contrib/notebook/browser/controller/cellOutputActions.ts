@@ -12,7 +12,7 @@ import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from './coreA
 import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_HAS_OUTPUTS } from '../../common/notebookContextKeys.js';
 import * as icons from '../notebookIcons.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { copyCellOutput } from '../contrib/clipboard/cellOutputClipboard.js';
+import { copyCellOutput } from '../viewModel/cellOutputTextHelper.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ICellOutputViewModel, ICellViewModel, INotebookEditor, getNotebookEditorFromEditorPane } from '../notebookBrowser.js';
 import { CellKind, CellUri } from '../../common/notebookCommon.js';
@@ -121,7 +121,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 });
 
-function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
+export function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
 	const notebookViewModel = notebookEditor.getViewModel();
 	if (notebookViewModel) {
 		const codeCells = notebookViewModel.viewCells.filter(cell => cell.cellKind === CellKind.Code) as CodeCellViewModel[];
@@ -176,7 +176,7 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 		if (outputViewModel?.model.outputId && notebookEditor.textModel?.uri) {
 			// reserve notebook document reference since the active notebook editor might not be pinned so it can be replaced by the output editor
 			const ref = await notebookModelService.resolve(notebookEditor.textModel.uri);
-			await openerService.open(CellUri.generateCellOutputUri(notebookEditor.textModel.uri, outputViewModel.model.outputId));
+			await openerService.open(CellUri.generateCellOutputUriWithId(notebookEditor.textModel.uri, outputViewModel.model.outputId));
 			ref.dispose();
 		}
 	}

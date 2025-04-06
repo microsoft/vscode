@@ -1433,116 +1433,124 @@
 			"fontCharacter": "\\E09B",
 			"fontColor": "#f55385"
 		},
-		"_vue_light": {
+		"_vite_light": {
 			"fontCharacter": "\\E09C",
+			"fontColor": "#b7b73b"
+		},
+		"_vite": {
+			"fontCharacter": "\\E09C",
+			"fontColor": "#cbcb41"
+		},
+		"_vue_light": {
+			"fontCharacter": "\\E09D",
 			"fontColor": "#7fae42"
 		},
 		"_vue": {
-			"fontCharacter": "\\E09C",
+			"fontCharacter": "\\E09D",
 			"fontColor": "#8dc149"
 		},
 		"_wasm_light": {
-			"fontCharacter": "\\E09D",
+			"fontCharacter": "\\E09E",
 			"fontColor": "#9068b0"
 		},
 		"_wasm": {
-			"fontCharacter": "\\E09D",
+			"fontCharacter": "\\E09E",
 			"fontColor": "#a074c4"
 		},
 		"_wat_light": {
-			"fontCharacter": "\\E09E",
+			"fontCharacter": "\\E09F",
 			"fontColor": "#9068b0"
 		},
 		"_wat": {
-			"fontCharacter": "\\E09E",
+			"fontCharacter": "\\E09F",
 			"fontColor": "#a074c4"
 		},
 		"_webpack_light": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#498ba7"
 		},
 		"_webpack": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#519aba"
 		},
 		"_wgt_light": {
-			"fontCharacter": "\\E0A0",
+			"fontCharacter": "\\E0A1",
 			"fontColor": "#498ba7"
 		},
 		"_wgt": {
-			"fontCharacter": "\\E0A0",
+			"fontCharacter": "\\E0A1",
 			"fontColor": "#519aba"
 		},
 		"_windows_light": {
-			"fontCharacter": "\\E0A1",
+			"fontCharacter": "\\E0A2",
 			"fontColor": "#498ba7"
 		},
 		"_windows": {
-			"fontCharacter": "\\E0A1",
+			"fontCharacter": "\\E0A2",
 			"fontColor": "#519aba"
 		},
 		"_word_light": {
-			"fontCharacter": "\\E0A2",
+			"fontCharacter": "\\E0A3",
 			"fontColor": "#498ba7"
 		},
 		"_word": {
-			"fontCharacter": "\\E0A2",
+			"fontCharacter": "\\E0A3",
 			"fontColor": "#519aba"
 		},
 		"_xls_light": {
-			"fontCharacter": "\\E0A3",
+			"fontCharacter": "\\E0A4",
 			"fontColor": "#7fae42"
 		},
 		"_xls": {
-			"fontCharacter": "\\E0A3",
+			"fontCharacter": "\\E0A4",
 			"fontColor": "#8dc149"
 		},
 		"_xml_light": {
-			"fontCharacter": "\\E0A4",
+			"fontCharacter": "\\E0A5",
 			"fontColor": "#cc6d2e"
 		},
 		"_xml": {
-			"fontCharacter": "\\E0A4",
+			"fontCharacter": "\\E0A5",
 			"fontColor": "#e37933"
 		},
 		"_yarn_light": {
-			"fontCharacter": "\\E0A5",
+			"fontCharacter": "\\E0A6",
 			"fontColor": "#498ba7"
 		},
 		"_yarn": {
-			"fontCharacter": "\\E0A5",
+			"fontCharacter": "\\E0A6",
 			"fontColor": "#519aba"
 		},
 		"_yml_light": {
-			"fontCharacter": "\\E0A6",
+			"fontCharacter": "\\E0A7",
 			"fontColor": "#9068b0"
 		},
 		"_yml": {
-			"fontCharacter": "\\E0A6",
+			"fontCharacter": "\\E0A7",
 			"fontColor": "#a074c4"
 		},
 		"_zig_light": {
-			"fontCharacter": "\\E0A7",
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#cc6d2e"
 		},
 		"_zig": {
-			"fontCharacter": "\\E0A7",
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#e37933"
 		},
 		"_zip_light": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#b8383d"
 		},
 		"_zip": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#cc3e44"
 		},
 		"_zip_1_light": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#627379"
 		},
 		"_zip_1": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#6d8086"
 		}
 	},
@@ -1809,6 +1817,12 @@
 		"mvnw": "_maven",
 		"pom.xml": "_maven",
 		"tsconfig.json": "_tsconfig",
+		"vite.config.js": "_vite",
+		"vite.config.ts": "_vite",
+		"vite.config.mjs": "_vite",
+		"vite.config.mts": "_vite",
+		"vite.config.cjs": "_vite",
+		"vite.config.cts": "_vite",
 		"swagger.json": "_json_1",
 		"swagger.yml": "_json_1",
 		"swagger.yaml": "_json_1",
@@ -2308,6 +2322,12 @@
 			"mvnw": "_maven_light",
 			"pom.xml": "_maven_light",
 			"tsconfig.json": "_tsconfig_light",
+			"vite.config.js": "_vite_light",
+			"vite.config.ts": "_vite_light",
+			"vite.config.mjs": "_vite_light",
+			"vite.config.mts": "_vite_light",
+			"vite.config.cjs": "_vite_light",
+			"vite.config.cts": "_vite_light",
 			"swagger.json": "_json_1_light",
 			"swagger.yml": "_json_1_light",
 			"swagger.yaml": "_json_1_light",
@@ -2382,5 +2402,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/88bcd4a8fca14aa33dd9d50781ad8af3b03c6b90"
+	"version": "https://github.com/jesseweed/seti-ui/commit/1cac4f30f93cc898103c62dde41823a09b0d7b74"
 }

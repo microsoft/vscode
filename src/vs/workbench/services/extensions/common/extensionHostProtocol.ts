@@ -53,6 +53,7 @@ export interface IExtensionHostInitData {
 	consoleForward: { includeStack: boolean; logNative: boolean };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
+	handle?: string;
 }
 
 export interface IEnvironment {
@@ -61,7 +62,6 @@ export interface IEnvironment {
 	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
-	extensionTelemetryLogResource: URI;
 	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];

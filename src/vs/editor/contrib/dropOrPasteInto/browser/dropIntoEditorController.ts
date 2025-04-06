@@ -3,11 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from '../../../../base/common/async.js';
-import { VSDataTransfer, matchesMimeType } from '../../../../base/common/dataTransfer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { toExternalVSDataTransfer } from '../../../browser/dnd.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -21,15 +29,11 @@ import { DraggedTreeItemsIdentifier } from '../../../common/services/treeViewsDn
 import { ITreeViewsDnDService } from '../../../common/services/treeViewsDndService.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { InlineProgressManager } from '../../inlineProgress/browser/inlineProgress.js';
-import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { PreferredDropConfiguration } from './dropIntoEditorContribution.js';
 import { sortEditsByYieldTo } from './edit.js';
 import { PostEditWidgetManager } from './postEditWidget.js';
 
-export const defaultProviderConfig = 'editor.experimental.dropIntoEditor.defaultProvider';
+export const dropAsPreferenceConfig = 'editor.dropIntoEditor.preferences';
 
 export const changeDropTypeCommandId = 'editor.changeDropType';
 
@@ -43,7 +47,18 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		return editor.getContribution<DropIntoEditorController>(DropIntoEditorController.ID);
 	}
 
-	private _currentOperation?: CancelablePromise<void>;
+	public static setConfigureDefaultAction(action: IAction) {
+		this._configureDefaultAction = action;
+	}
+
+	private static _configureDefaultAction?: IAction;
+
+	/**
+	 * Global tracking the current drop operation.
+	 *
+	 * TODO: figure out how to make this work with multiple windows
+	 */
+	private static _currentDropOperation?: CancelablePromise<void>;
 
 	private readonly _dropProgressManager: InlineProgressManager;
 	private readonly _postDropWidgetManager: PostEditWidgetManager<DocumentDropEdit>;
@@ -60,7 +75,9 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		super();
 
 		this._dropProgressManager = this._register(instantiationService.createInstance(InlineProgressManager, 'dropIntoEditor', editor));
-		this._postDropWidgetManager = this._register(instantiationService.createInstance(PostEditWidgetManager, 'dropIntoEditor', editor, dropWidgetVisibleCtx, { id: changeDropTypeCommandId, label: localize('postDropWidgetTitle', "Show drop options...") }));
+		this._postDropWidgetManager = this._register(instantiationService.createInstance(PostEditWidgetManager, 'dropIntoEditor', editor, dropWidgetVisibleCtx,
+			{ id: changeDropTypeCommandId, label: localize('postDropWidgetTitle', "Show drop options...") },
+			() => DropIntoEditorController._configureDefaultAction ? [DropIntoEditorController._configureDefaultAction] : []));
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 	}
@@ -78,7 +95,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return;
 		}
 
-		this._currentOperation?.cancel();
+		DropIntoEditorController._currentDropOperation?.cancel();
 
 		editor.focus();
 		editor.setPosition(position);
@@ -108,7 +125,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 						return provider.dropMimeTypes.some(mime => ourDataTransfer.matches(mime));
 					});
 
-				const editSession = disposables.add(await this.getDropEdits(providers, model, position, ourDataTransfer, tokenSource));
+				const editSession = disposables.add(await this.getDropEdits(providers, model, position, ourDataTransfer, tokenSource.token));
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
@@ -121,31 +138,34 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				}
 			} finally {
 				disposables.dispose();
-				if (this._currentOperation === p) {
-					this._currentOperation = undefined;
+				if (DropIntoEditorController._currentDropOperation === p) {
+					DropIntoEditorController._currentDropOperation = undefined;
 				}
 			}
 		});
 
 		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p, { cancel: () => p.cancel() });
-		this._currentOperation = p;
+		DropIntoEditorController._currentDropOperation = p;
 	}
 
-	private async getDropEdits(providers: readonly DocumentDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, tokenSource: EditorStateCancellationTokenSource) {
+	private async getDropEdits(providers: readonly DocumentDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken) {
 		const disposables = new DisposableStore();
 
 		const results = await raceCancellation(Promise.all(providers.map(async provider => {
 			try {
-				const edits = await provider.provideDocumentDropEdits(model, position, dataTransfer, tokenSource.token);
+				const edits = await provider.provideDocumentDropEdits(model, position, dataTransfer, token);
 				if (edits) {
 					disposables.add(edits);
 				}
 				return edits?.edits.map(edit => ({ ...edit, providerId: provider.id }));
 			} catch (err) {
+				if (!isCancellationError(err)) {
+					console.error(err);
+				}
 				console.error(err);
 			}
 			return undefined;
-		})), tokenSource.token);
+		})), token);
 
 		const edits = coalesce(results ?? []).flat();
 		return {
@@ -154,13 +174,11 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		};
 	}
 
-	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentDropEdit & { readonly providerId?: string }>) {
-		const preferredProviders = this._configService.getValue<Record<string, string>>(defaultProviderConfig, { resource: model.uri });
-		for (const [configMime, desiredKindStr] of Object.entries(preferredProviders)) {
-			const desiredKind = new HierarchicalKind(desiredKindStr);
-			const editIndex = edits.findIndex(edit =>
-				desiredKind.value === edit.providerId
-				&& edit.handledMimeType && matchesMimeType(configMime, [edit.handledMimeType]));
+	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentDropEdit>): number {
+		const preferredProviders = this._configService.getValue<PreferredDropConfiguration[]>(dropAsPreferenceConfig, { resource: model.uri });
+		for (const config of Array.isArray(preferredProviders) ? preferredProviders : []) {
+			const desiredKind = new HierarchicalKind(config);
+			const editIndex = edits.findIndex(edit => edit.kind && desiredKind.contains(edit.kind));
 			if (editIndex >= 0) {
 				return editIndex;
 			}

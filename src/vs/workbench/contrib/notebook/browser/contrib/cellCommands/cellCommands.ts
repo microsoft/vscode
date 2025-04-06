@@ -205,6 +205,8 @@ registerAction2(class extends NotebookCellAction {
 					],
 					{ quotableLabel: 'Split Notebook Cell' }
 				);
+
+				context.notebookEditor.cellAt(index + 1)?.updateEditState(cell.getEditState(), 'splitCell');
 			}
 		}
 	}

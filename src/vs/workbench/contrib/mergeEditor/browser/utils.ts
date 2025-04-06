@@ -5,7 +5,7 @@
 
 import { ArrayQueue, CompareResult } from '../../../../base/common/arrays.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, autorunOpts } from '../../../../base/common/observable.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
@@ -85,19 +85,6 @@ export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined 
 	return arr[index];
 }
 
-export function thenIfNotDisposed<T>(promise: Promise<T>, then: () => void): IDisposable {
-	let disposed = false;
-	promise.then(() => {
-		if (disposed) {
-			return;
-		}
-		then();
-	});
-	return toDisposable(() => {
-		disposed = true;
-	});
-}
-
 export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
 	return Object.assign(obj, fields);
 }
@@ -154,4 +141,3 @@ export class PersistentStore<T> {
 		);
 	}
 }
-

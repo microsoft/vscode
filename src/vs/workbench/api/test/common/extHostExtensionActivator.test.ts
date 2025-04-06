@@ -277,6 +277,7 @@ suite('ExtensionsActivator', () => {
 			targetPlatform: TargetPlatform.UNDEFINED,
 			extensionDependencies: deps.map(d => d.value),
 			enabledApiProposals: undefined,
+			preRelease: false,
 		};
 	}
 

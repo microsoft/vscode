@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from '../../../base/common/async.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { IObservable, observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from '../../../base/common/lifecycle.js';
@@ -34,10 +34,10 @@ import { ColorIdentifier } from '../../../platform/theme/common/colorUtils.js';
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
 		return undefined;
-	} else if (URI.isUri(iconDto)) {
-		return URI.revive(iconDto);
 	} else if (ThemeIcon.isThemeIcon(iconDto)) {
 		return iconDto;
+	} else if (isUriComponents(iconDto)) {
+		return URI.revive(iconDto);
 	} else {
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
@@ -45,15 +45,13 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 }
 
 function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
+	const authorIcon = getIconFromIconDto(historyItemDto.authorIcon);
+
 	const references = historyItemDto.references?.map(r => ({
 		...r, icon: getIconFromIconDto(r.icon)
 	}));
 
-	const newLineIndex = historyItemDto.message.indexOf('\n');
-	const subject = newLineIndex === -1 ?
-		historyItemDto.message : `${historyItemDto.message.substring(0, newLineIndex)}\u2026`;
-
-	return { ...historyItemDto, subject, references };
+	return { ...historyItemDto, authorIcon, references };
 }
 
 function toISCMHistoryItemRef(historyItemRefDto?: SCMHistoryItemRefDto, color?: ColorIdentifier): ISCMHistoryItemRef | undefined {
@@ -103,6 +101,8 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	readonly onDidChangeResources = this._onDidChangeResources.event;
 
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
+
+	get contextValue(): string | undefined { return this.features.contextValue; }
 
 	constructor(
 		private readonly sourceControlHandle: number,
@@ -214,8 +214,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return changes?.map(change => ({
 			uri: URI.revive(change.uri),
 			originalUri: change.originalUri && URI.revive(change.originalUri),
-			modifiedUri: change.modifiedUri && URI.revive(change.modifiedUri),
-			renameUri: change.renameUri && URI.revive(change.renameUri)
+			modifiedUri: change.modifiedUri && URI.revive(change.modifiedUri)
 		}));
 	}
 
@@ -289,6 +288,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	private _quickDiff: IDisposable | undefined;
 	public readonly isSCM: boolean = true;
+	public readonly visible: boolean = true;
 
 	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
 	get historyProvider() { return this._historyProvider; }
@@ -322,7 +322,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.actionButton !== 'undefined') {
-			this._actionButton.set(features.actionButton, undefined);
+			this._actionButton.set(features.actionButton ?? undefined, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {
@@ -338,6 +338,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label: features.quickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
 				isSCM: this.isSCM,
+				visible: this.visible,
 				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
 			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {

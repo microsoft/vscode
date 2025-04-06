@@ -26,8 +26,8 @@ const gunzip = require('gulp-gunzip');
 const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
-const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
+const { compileBuildWithManglingTask } = require('./gulpfile.compile');
+const { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
@@ -63,6 +63,9 @@ const serverResourceIncludes = [
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
 
+	// External Terminal
+	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
@@ -72,7 +75,7 @@ const serverResourceIncludes = [
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
 
 ];
 
@@ -399,13 +402,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		}
 
-		if (platform === 'linux' && process.env['VSCODE_NODE_GLIBC'] === '-glibc-2.17') {
-			result = es.merge(result,
-				gulp.src(`resources/server/bin/helpers/check-requirements-linux-legacy.sh`, { base: '.' })
-					.pipe(rename(`bin/helpers/check-requirements.sh`))
-					.pipe(util.setExecutableBit())
-			);
-		} else if (platform === 'linux' || platform === 'alpine') {
+		if (platform === 'linux' || platform === 'alpine') {
 			result = es.merge(result,
 				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
 					.pipe(rename(`bin/helpers/check-requirements.sh`))
@@ -468,6 +465,7 @@ function tweakProductForServerWeb(product) {
 			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`),
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
@@ -475,8 +473,9 @@ function tweakProductForServerWeb(product) {
 			gulp.task(serverTaskCI);
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				compileBuildTask,
-				compileExtensionsBuildTask,
+				compileBuildWithManglingTask,
+				cleanExtensionsBuildTask,
+				compileNonNativeExtensionsBuildTask,
 				compileExtensionMediaBuildTask,
 				minified ? minifyTask : bundleTask,
 				serverTaskCI

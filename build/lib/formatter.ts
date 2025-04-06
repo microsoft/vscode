@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as fs from 'fs';
-import * as path from 'path';
-import * as ts from 'typescript';
+import fs from 'fs';
+import path from 'path';
+import ts from 'typescript';
 
 
 class LanguageServiceHost implements ts.LanguageServiceHost {

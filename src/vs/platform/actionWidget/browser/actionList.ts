@@ -18,6 +18,7 @@ import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -37,6 +38,7 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
+	readonly hideIcon?: boolean;
 }
 
 interface IActionMenuTemplateData {
@@ -118,6 +120,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			return;
 		}
 
+		dom.setVisibility(!element.hideIcon, data.icon);
+
 		data.text.textContent = stripNewlines(element.label);
 
 		data.keybinding.set(element.keybinding);
@@ -139,8 +143,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 	}
 
-	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		_templateData.keybinding.dispose();
+	disposeTemplate(templateData: IActionMenuTemplateData): void {
+		templateData.keybinding.dispose();
 	}
 }
 
@@ -179,10 +183,10 @@ export class ActionList<T> extends Disposable {
 		items: readonly IActionListItem<T>[],
 		private readonly _delegate: IActionListDelegate<T>,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
-
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IActionListItem<T>> = {
@@ -267,7 +271,7 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
+		const height = Math.min(heightWithHeaders, this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage);
 		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;

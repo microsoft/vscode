@@ -3,24 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Action, Separator } from '../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLElement, isHTMLInputElement, isHTMLTextAreaElement } from '../../../base/browser/dom.js';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../base/browser/dom.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
-import { isNative } from '../../../base/common/platform.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Event as BaseEvent } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
 
+export function createTextInputActions(clipboardService: IClipboardService): IAction[] {
+	return [
+
+		toAction({ id: 'undo', label: localize('undo', "Undo"), run: () => getActiveDocument().execCommand('undo') }),
+		toAction({ id: 'redo', label: localize('redo', "Redo"), run: () => getActiveDocument().execCommand('redo') }),
+		new Separator(),
+		toAction({ id: 'editor.action.clipboardCutAction', label: localize('cut', "Cut"), run: () => getActiveDocument().execCommand('cut') }),
+		toAction({ id: 'editor.action.clipboardCopyAction', label: localize('copy', "Copy"), run: () => getActiveDocument().execCommand('copy') }),
+		toAction({
+			id: 'editor.action.clipboardPasteAction',
+			label: localize('paste', "Paste"),
+			run: async (element: unknown) => {
+				const clipboardText = await clipboardService.readText();
+				if (isHTMLTextAreaElement(element) || isHTMLInputElement(element)) {
+					const selectionStart = element.selectionStart || 0;
+					const selectionEnd = element.selectionEnd || 0;
+
+					element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
+					element.selectionStart = selectionStart + clipboardText.length;
+					element.selectionEnd = element.selectionStart;
+					element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+				}
+			}
+		}),
+		new Separator(),
+		toAction({ id: 'editor.action.selectAll', label: localize('selectAll', "Select All"), run: () => getActiveDocument().execCommand('selectAll') })
+	];
+}
+
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.textInputActionsProvider';
 
-	private readonly textInputActions = new Lazy<IAction[]>(() => this.createActions());
+	private readonly textInputActions = new Lazy<IAction[]>(() => createTextInputActions(this.clipboardService));
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -30,48 +58,6 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		super();
 
 		this.registerListeners();
-	}
-
-	private createActions(): IAction[] {
-		return [
-
-			// Undo/Redo
-			new Action('undo', localize('undo', "Undo"), undefined, true, async () => getActiveDocument().execCommand('undo')),
-			new Action('redo', localize('redo', "Redo"), undefined, true, async () => getActiveDocument().execCommand('redo')),
-			new Separator(),
-
-			// Cut / Copy / Paste
-			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveDocument().execCommand('cut')),
-			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveDocument().execCommand('copy')),
-			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
-
-				// Native: paste is supported
-				if (isNative) {
-					getActiveDocument().execCommand('paste');
-				}
-
-				// Web: paste is not supported due to security reasons
-				else {
-					const clipboardText = await this.clipboardService.readText();
-					if (
-						isHTMLTextAreaElement(element) ||
-						isHTMLInputElement(element)
-					) {
-						const selectionStart = element.selectionStart || 0;
-						const selectionEnd = element.selectionEnd || 0;
-
-						element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
-						element.selectionStart = selectionStart + clipboardText.length;
-						element.selectionEnd = element.selectionStart;
-						element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-					}
-				}
-			}),
-			new Separator(),
-
-			// Select All
-			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => getActiveDocument().execCommand('selectAll'))
-		];
 	}
 
 	private registerListeners(): void {
@@ -88,7 +74,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		}
 
 		const target = e.target;
-		if (!(isHTMLElement(target)) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
+		if (!isHTMLTextAreaElement(target) && !isHTMLInputElement(target)) {
 			return; // only for inputs or textareas
 		}
 

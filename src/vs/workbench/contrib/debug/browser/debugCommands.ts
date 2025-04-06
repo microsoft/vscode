@@ -36,7 +36,7 @@ import { showLoadedScriptMenu } from '../common/loadedScriptsPicker.js';
 import { showDebugSessionMenu } from './debugSessionPicker.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { CONTEXT_IN_CHAT_SESSION } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
@@ -66,6 +66,7 @@ export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
 export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
+export const COPY_WATCH_EXPRESSION_COMMAND_ID = 'debug.copyWatchExpression';
 export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 export const NEXT_DEBUG_CONSOLE_ID = 'workbench.action.debug.nextConsole';
@@ -680,14 +681,6 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
-	id: FOCUS_REPL_ID,
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		await viewsService.openView(REPL_VIEW_ID, true);
-	}
-});
-
-CommandsRegistry.registerCommand({
 	id: 'debug.startFromConfig',
 	handler: async (accessor, config: IConfig) => {
 		const debugService = accessor.get(IDebugService);
@@ -1014,7 +1007,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		CONTEXT_IN_DEBUG_MODE,
 		PanelFocusContext.toNegated(),
 		EditorContextKeys.editorTextFocus,
-		CONTEXT_IN_CHAT_SESSION.toNegated()),
+		ChatContextKeys.inChatSession.toNegated()),
 	group: 'debug',
 	order: 1
 });

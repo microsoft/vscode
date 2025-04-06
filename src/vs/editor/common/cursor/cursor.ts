@@ -1020,8 +1020,9 @@ export class CommandExecutor {
 class CompositionLineState {
 	constructor(
 		public readonly text: string,
-		public readonly startSelection: number,
-		public readonly endSelection: number
+		public readonly lineNumber: number,
+		public readonly startSelectionOffset: number,
+		public readonly endSelectionOffset: number
 	) { }
 }
 
@@ -1035,8 +1036,10 @@ class CompositionState {
 			if (selection.startLineNumber !== selection.endLineNumber) {
 				return null;
 			}
+			const lineNumber = selection.startLineNumber;
 			result.push(new CompositionLineState(
-				textModel.getLineContent(selection.startLineNumber),
+				textModel.getLineContent(lineNumber),
+				lineNumber,
 				selection.startColumn - 1,
 				selection.endColumn - 1
 			));
@@ -1072,24 +1075,28 @@ class CompositionState {
 
 	private static _deduceOutcome(original: CompositionLineState, current: CompositionLineState): CompositionOutcome {
 		const commonPrefix = Math.min(
-			original.startSelection,
-			current.startSelection,
+			original.startSelectionOffset,
+			current.startSelectionOffset,
 			strings.commonPrefixLength(original.text, current.text)
 		);
 		const commonSuffix = Math.min(
-			original.text.length - original.endSelection,
-			current.text.length - current.endSelection,
+			original.text.length - original.endSelectionOffset,
+			current.text.length - current.endSelectionOffset,
 			strings.commonSuffixLength(original.text, current.text)
 		);
 		const deletedText = original.text.substring(commonPrefix, original.text.length - commonSuffix);
-		const insertedText = current.text.substring(commonPrefix, current.text.length - commonSuffix);
+		const insertedTextStartOffset = commonPrefix;
+		const insertedTextEndOffset = current.text.length - commonSuffix;
+		const insertedText = current.text.substring(insertedTextStartOffset, insertedTextEndOffset);
+		const insertedTextRange = new Range(current.lineNumber, insertedTextStartOffset + 1, current.lineNumber, insertedTextEndOffset + 1);
 		return new CompositionOutcome(
 			deletedText,
-			original.startSelection - commonPrefix,
-			original.endSelection - commonPrefix,
+			original.startSelectionOffset - commonPrefix,
+			original.endSelectionOffset - commonPrefix,
 			insertedText,
-			current.startSelection - commonPrefix,
-			current.endSelection - commonPrefix
+			current.startSelectionOffset - commonPrefix,
+			current.endSelectionOffset - commonPrefix,
+			insertedTextRange
 		);
 	}
 }

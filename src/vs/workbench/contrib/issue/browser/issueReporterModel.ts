@@ -5,11 +5,10 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { isRemoteDiagnosticError, SystemInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
-import { OldIssueType } from '../../../../platform/issue/common/issue.js';
 import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 
 export interface IssueReporterData {
-	issueType: IssueType | OldIssueType;
+	issueType: IssueType;
 	issueDescription?: string;
 	issueTitle?: string;
 	extensionData?: string;

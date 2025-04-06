@@ -24,7 +24,10 @@ const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 export default tseslint.config(
 	// Global ignores
 	{
-		ignores,
+		ignores: [
+			...ignores,
+			'!**/.eslint-plugin-local/**/*'
+		],
 	},
 	// All files (JS and TS)
 	{
@@ -85,6 +88,7 @@ export default tseslint.config(
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
+			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
 				{
@@ -219,22 +223,17 @@ export default tseslint.config(
 				{
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
-						'src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts',
 						'src/vs/platform/configuration/test/common/configuration.test.ts',
 						'src/vs/platform/opener/test/common/opener.test.ts',
 						'src/vs/platform/registry/test/common/platform.test.ts',
 						'src/vs/platform/workspace/test/common/workspace.test.ts',
 						'src/vs/platform/workspaces/test/electron-main/workspaces.test.ts',
-						'src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts',
-						'src/vs/workbench/api/test/node/extHostTunnelService.test.ts',
 						'src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts',
-						'src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts',
 						'src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts',
 						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts',
 						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts',
 						'src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts',
-						'src/vs/workbench/contrib/tasks/test/common/taskConfiguration.test.ts',
 						'src/vs/workbench/services/commands/test/common/commandService.test.ts',
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
 						'src/vs/workbench/test/browser/quickAccess.test.ts'
@@ -256,13 +255,20 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				{
+					'selector': `TSArrayType > TSUnionType`,
+					'message': 'Use Array<...> for arrays of union types.'
+				},
+			],
 			'local/vscode-dts-create-func': 'warn',
 			'local/vscode-dts-literal-or-types': 'warn',
 			'local/vscode-dts-string-type-literals': 'warn',
 			'local/vscode-dts-interface-naming': 'warn',
 			'local/vscode-dts-cancellation': 'warn',
+			'local/vscode-dts-use-export': 'warn',
 			'local/vscode-dts-use-thenable': 'warn',
-			'local/vscode-dts-region-comments': 'warn',
 			'local/vscode-dts-vscode-in-comments': 'warn',
 			'local/vscode-dts-provider-naming': [
 				'warn',
@@ -818,6 +824,7 @@ export default tseslint.config(
 						'string_decoder',
 						'tas-client-umd',
 						'tls',
+						'undici-types',
 						'url',
 						'util',
 						'v8-inspect-profiler',
@@ -826,6 +833,7 @@ export default tseslint.config(
 						'worker_threads',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
+						'@xterm/addon-ligatures',
 						'@xterm/addon-search',
 						'@xterm/addon-serialize',
 						'@xterm/addon-unicode11',
@@ -952,7 +960,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/editor/editor.worker.ts',
+					'target': 'src/vs/editor/editor.worker.start.ts',
 					'layer': 'worker',
 					'restrictions': [
 						'vs/base/~',
@@ -993,6 +1001,7 @@ export default tseslint.config(
 				{
 					'target': 'src/vs/workbench/api/~',
 					'restrictions': [
+						'@c4312/eventsource-umd',
 						'vscode',
 						'vs/base/~',
 						'vs/base/parts/*/~',

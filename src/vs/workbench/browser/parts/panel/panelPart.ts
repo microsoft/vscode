@@ -15,8 +15,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { TogglePanelAction } from './panelActions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../common/theme.js';
-import { contrastBorder, badgeBackground, badgeForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_TITLE_BADGE_BACKGROUND, PANEL_TITLE_BADGE_FOREGROUND } from '../../../common/theme.js';
+import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,7 +27,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -91,6 +91,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			'panel',
 			'panel',
 			undefined,
+			PANEL_TITLE_BORDER,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -143,6 +144,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,
+			compact: true, // Only applies to icons, not labels
 			overflowActionSize: 44,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
@@ -150,20 +152,26 @@ export class PanelPart extends AbstractPaneCompositePart {
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-				badgeBackground: theme.getColor(badgeBackground),
-				badgeForeground: theme.getColor(badgeForeground),
+				badgeBackground: theme.getColor(PANEL_TITLE_BADGE_BACKGROUND),
+				badgeForeground: theme.getColor(PANEL_TITLE_BADGE_FOREGROUND),
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			})
 		};
 	}
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
+		if (this.getCompositeBarPosition() === CompositeBarPosition.TITLE) {
+			const viewsSubmenuAction = this.getViewsSubmenuAction();
+			if (viewsSubmenuAction) {
+				actions.push(new Separator());
+				actions.push(viewsSubmenuAction);
+			}
+		}
+
 		const panelPositionMenu = this.menuService.getMenuActions(MenuId.PanelPositionMenu, this.contextKeyService, { shouldForwardArgs: true });
 		const panelAlignMenu = this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true });
-		const positionActions: IAction[] = [];
-		const alignActions: IAction[] = [];
-		createAndFillInContextMenuActions(panelPositionMenu, { primary: [], secondary: positionActions });
-		createAndFillInContextMenuActions(panelAlignMenu, { primary: [], secondary: alignActions });
+		const positionActions = getContextMenuActions(panelPositionMenu).secondary;
+		const alignActions = getContextMenuActions(panelAlignMenu).secondary;
 
 		const panelShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.panel.showLabels');
 		const toggleShowLabelsAction = toAction({
