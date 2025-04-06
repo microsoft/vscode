@@ -952,7 +952,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			...options,
 			acceptTextOnly: true,
 			overwriteEncoding: detectedEncoding => {
-				if (detectedEncoding === null) {
+				if (detectedEncoding === null || detectedEncoding === options.preferredEncoding) {
+					// Prevent another roundtrip to the main thread
+					// if the detected encoding is null or the same
+					// as the preferred encoding
 					return Promise.resolve(options.preferredEncoding);
 				}
 
