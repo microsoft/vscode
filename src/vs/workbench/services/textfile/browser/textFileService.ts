@@ -280,7 +280,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	async resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }> {
 		return {
-			preferredEncoding: (await this.encoding.getPreferredReadEncoding(resource, options, undefined)).encoding,
+			preferredEncoding: await this.resolvePreferredReadEncoding(resource, null, options),
 			guessEncoding:
 				options?.autoGuessEncoding ||
 				this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
