@@ -109,7 +109,7 @@ export interface IExtensionSetting extends ISetting {
 
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
-	exactMatch?: boolean;
+	exactMatch: boolean;
 	metadata?: IFilterMetadata;
 }
 
@@ -137,14 +137,25 @@ export enum SettingMatchType {
 	None = 0,
 	LanguageTagSettingMatch = 1 << 0,
 	RemoteMatch = 1 << 1,
-	DescriptionOrValueMatch = 1 << 2,
-	KeyMatch = 1 << 3
+	NonContiguousQueryInSettingId = 1 << 2,
+	DescriptionOrValueMatch = 1 << 3,
+	NonContiguousWordsInSettingsLabel = 1 << 4,
+	ContiguousWordsInSettingsLabel = 1 << 5,
+	ContiguousQueryInSettingId = 1 << 6,
+	AllWordsInSettingsLabel = 1 << 7,
+	ExactMatch = 1 << 8,
 }
+export const SettingKeyMatchTypes = (SettingMatchType.AllWordsInSettingsLabel
+	| SettingMatchType.ContiguousWordsInSettingsLabel
+	| SettingMatchType.NonContiguousWordsInSettingsLabel
+	| SettingMatchType.NonContiguousQueryInSettingId
+	| SettingMatchType.ContiguousQueryInSettingId);
 
 export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[] | null;
 	matchType: SettingMatchType;
+	keyMatchScore: number;
 	score: number;
 }
 
@@ -184,13 +195,12 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; score: number } | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; keyMatchScore: number; score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
-	findValueMatches(filter: string, setting: ISetting): IRange[];
 	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined;
 }
 

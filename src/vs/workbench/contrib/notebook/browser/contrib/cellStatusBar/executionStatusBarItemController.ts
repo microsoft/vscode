@@ -288,7 +288,7 @@ class TimerCellStatusBarItem extends Disposable {
 				this._deferredUpdate = disposableTimeout(() => {
 					this._deferredUpdate = undefined;
 					this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
-				}, UPDATE_TIMER_GRACE_PERIOD);
+				}, UPDATE_TIMER_GRACE_PERIOD, this._store);
 			}
 		} else {
 			this._deferredUpdate?.dispose();

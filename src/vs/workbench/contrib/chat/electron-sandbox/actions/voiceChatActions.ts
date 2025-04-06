@@ -19,7 +19,7 @@ import { Action2, IAction2Options, MenuId } from '../../../../../platform/action
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -36,7 +36,7 @@ import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigu
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
@@ -54,6 +54,12 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { SearchContext } from '../../../search/common/constants.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../../base/common/severity.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 
 //#region Speech to Text
 
@@ -121,10 +127,10 @@ class VoiceChatSessionControllerFactory {
 				if (activeCodeEditor) {
 					const inlineChat = InlineChatController.get(activeCodeEditor);
 					if (inlineChat) {
-						if (!inlineChat.joinCurrentRun()) {
+						if (!inlineChat.isActive) {
 							inlineChat.run();
 						}
-						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.chatWidget);
+						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.widget.chatWidget);
 					}
 				}
 				break;
@@ -457,7 +463,8 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 					ChatContextKeys.requestInProgress.negate(), 	// disable when a chat request is in progress
 					FocusInChatInput?.negate(),					// when already in chat input, disable this action and prefer to start voice chat directly
 					EditorContextKeys.focus.negate(), 			// do not steal the inline-chat keybinding
-					NOTEBOOK_EDITOR_FOCUSED.negate()			// do not steal the notebook keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate(),			// do not steal the notebook keybinding
+					SearchContext.SearchViewFocusedKey.negate()	// do not steal the search keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			}
@@ -533,17 +540,28 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 	}
 }
 
+const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
+	return [
+		{
+			id: MenuId.ChatInput,
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
+			group: 'navigation',
+			order: 3
+		},
+		{
+			id: MenuId.ChatExecute,
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
+			group: 'navigation',
+			order: 2
+		}
+	];
+};
+
 export class StartVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.startVoiceChat';
 
 	constructor() {
-		const menuCondition = ContextKeyExpr.and(
-			HasSpeechProvider,
-			ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
-			AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
-		);
-
 		super({
 			id: StartVoiceChatAction.ID,
 			title: localize2('workbench.action.chat.startVoiceChat.label', "Start Voice Chat"),
@@ -565,20 +583,11 @@ export class StartVoiceChatAction extends Action2 {
 				AnyChatRequestInProgress?.negate(),		// disable when any chat request is in progress
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), menuCondition),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate(), menuCondition),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
+				HasSpeechProvider,
+				ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
+				AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
+			))
 		});
 	}
 
@@ -613,20 +622,7 @@ export class StopListeningAction extends Action2 {
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), AnyScopedVoiceChatInProgress),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), AnyScopedVoiceChatInProgress),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(AnyScopedVoiceChatInProgress)
 		});
 	}
 
@@ -740,7 +736,7 @@ class ChatSynthesizerSessions {
 		const activeSession = this.activeSession = new CancellationTokenSource();
 
 		const disposables = new DisposableStore();
-		activeSession.token.onCancellationRequested(() => disposables.dispose());
+		disposables.add(activeSession.token.onCancellationRequested(() => disposables.dispose()));
 
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
 
@@ -960,20 +956,7 @@ export class StopReadAloud extends Action2 {
 				primary: KeyCode.Escape,
 				when: ScopedChatSynthesisInProgress
 			},
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ScopedChatSynthesisInProgress),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ScopedChatSynthesisInProgress),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(ScopedChatSynthesisInProgress)
 		});
 	}
 
@@ -1283,14 +1266,31 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const dialogService = accessor.get(IDialogService);
 		try {
 			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
+			await this.installExtension(extensionsWorkbenchService, dialogService);
+		} finally {
+			InstallingSpeechProvider.bindTo(contextKeyService).reset();
+		}
+	}
+
+	private async installExtension(extensionsWorkbenchService: IExtensionsWorkbenchService, dialogService: IDialogService): Promise<void> {
+		try {
 			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
 				justification: this.getJustification(),
 				enable: true
 			}, ProgressLocation.Notification);
-		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).reset();
+		} catch (error) {
+			const { confirmed } = await dialogService.confirm({
+				type: Severity.Error,
+				message: localize('unknownSetupError', "An error occurred while setting up voice chat. Would you like to try again?"),
+				detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
+				primaryButton: localize('retry', "Retry")
+			});
+			if (confirmed) {
+				return this.installExtension(extensionsWorkbenchService, dialogService);
+			}
 		}
 	}
 
@@ -1307,20 +1307,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate()),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(HasSpeechProvider.negate())
 		});
 	}
 

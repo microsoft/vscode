@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { EventType as TouchEventType, Gesture } from '../../../../base/browser/touch.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -104,9 +104,9 @@ class ViewPaneDropOverlay extends Themable {
 	}
 
 	private create(): void {
+
 		// Container
-		this.container = document.createElement('div');
-		this.container.id = ViewPaneDropOverlay.OVERLAY_ID;
+		this.container = $('div', { id: ViewPaneDropOverlay.OVERLAY_ID });
 		this.container.style.top = '0px';
 
 		// Parent
@@ -118,8 +118,7 @@ class ViewPaneDropOverlay extends Themable {
 		}));
 
 		// Overlay
-		this.overlay = document.createElement('div');
-		this.overlay.classList.add('pane-overlay-indicator');
+		this.overlay = $('.pane-overlay-indicator');
 		this.container.appendChild(this.overlay);
 
 		// Overlay Event Handling
@@ -603,7 +602,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		if (this.isViewMergedWithContainer()) {
-			return this.paneItems[0].pane.getActionViewItem(action, options);
+			return this.paneItems[0].pane.createActionViewItem(action, options);
 		}
 		return createActionViewItem(this.instantiationService, action, options);
 	}
@@ -801,17 +800,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.logService.error(`Fail to render view ${viewDescriptor.id}`, error);
 				continue;
 			}
-			const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
-				e.stopPropagation();
-				e.preventDefault();
-				this.onContextMenu(new StandardMouseEvent(getWindow(pane.draggableElement), e), pane);
-			});
+			if (pane.draggableElement) {
+				const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
+					e.stopPropagation();
+					e.preventDefault();
+					this.onContextMenu(new StandardMouseEvent(getWindow(pane.draggableElement), e), pane);
+				});
 
-			const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
-				this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
-			});
+				const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
+					this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
+				});
 
-			panesToAdd.push({ pane, size: size || pane.minimumSize, index, disposable: combinedDisposable(contextMenuDisposable, collapseDisposable) });
+				panesToAdd.push({ pane, size: size || pane.minimumSize, index, disposable: combinedDisposable(contextMenuDisposable, collapseDisposable) });
+			}
 		}
 
 		this.addPanes(panesToAdd);
@@ -890,7 +891,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		let overlay: ViewPaneDropOverlay | undefined;
 
-		store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+		if (pane.draggableElement) {
+			store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+		}
 
 		store.add(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
 			onDragEnter: (e) => {

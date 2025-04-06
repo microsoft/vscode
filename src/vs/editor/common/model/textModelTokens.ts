@@ -167,29 +167,11 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 	}
 
 	private guessStartState(lineNumber: number): IState {
-		let nonWhitespaceColumn = this._textModel.getLineFirstNonWhitespaceColumn(lineNumber);
-		const likelyRelevantLines: string[] = [];
-		let initialState: IState | null = null;
-		for (let i = lineNumber - 1; nonWhitespaceColumn > 1 && i >= 1; i--) {
-			const newNonWhitespaceIndex = this._textModel.getLineFirstNonWhitespaceColumn(i);
-			// Ignore lines full of whitespace
-			if (newNonWhitespaceIndex === 0) {
-				continue;
-			}
-			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-				likelyRelevantLines.push(this._textModel.getLineContent(i));
-				nonWhitespaceColumn = newNonWhitespaceIndex;
-				initialState = this.getStartState(i);
-				if (initialState) {
-					break;
-				}
-			}
-		}
+		let { likelyRelevantLines, initialState } = findLikelyRelevantLines(this._textModel, lineNumber, this);
 
 		if (!initialState) {
 			initialState = this.tokenizationSupport.getInitialState();
 		}
-		likelyRelevantLines.reverse();
 
 		const languageId = this._textModel.getLanguageId();
 		let state = initialState;
@@ -199,6 +181,30 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 		}
 		return state;
 	}
+}
+
+export function findLikelyRelevantLines(model: ITextModel, lineNumber: number, store?: TokenizerWithStateStore): { likelyRelevantLines: string[]; initialState?: IState } {
+	let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
+	const likelyRelevantLines: string[] = [];
+	let initialState: IState | null | undefined = null;
+	for (let i = lineNumber - 1; nonWhitespaceColumn > 1 && i >= 1; i--) {
+		const newNonWhitespaceIndex = model.getLineFirstNonWhitespaceColumn(i);
+		// Ignore lines full of whitespace
+		if (newNonWhitespaceIndex === 0) {
+			continue;
+		}
+		if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+			likelyRelevantLines.push(model.getLineContent(i));
+			nonWhitespaceColumn = newNonWhitespaceIndex;
+			initialState = store?.getStartState(i);
+			if (initialState) {
+				break;
+			}
+		}
+	}
+
+	likelyRelevantLines.reverse();
+	return { likelyRelevantLines, initialState: initialState ?? undefined };
 }
 
 /**

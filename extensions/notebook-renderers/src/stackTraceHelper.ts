@@ -11,6 +11,7 @@ export function formatStackTrace(stack: string): { formattedStack: string; error
 	// Remove background colors. The ones from IPython don't work well with
 	// themes 40-49 sets background color
 	cleaned = stack.replace(/\u001b\[4\dm/g, '');
+	cleaned = cleaned.replace(/(?<=\u001b\[[\d;]*?);4\d(?=m)/g, '');
 
 	// Also remove specific foreground colors (38 is the ascii code for picking one) (they don't translate either)
 	// Turn them into default foreground

@@ -247,17 +247,31 @@ export class UriIterator implements IKeyIterator<URI> {
 		throw new Error();
 	}
 }
+
+abstract class Undef {
+
+	static readonly Val: unique symbol = Symbol('undefined_placeholder');
+
+	static wrap<V>(value: V | undefined): V | typeof Undef.Val {
+		return value === undefined ? Undef.Val : value;
+	}
+
+	static unwrap<V>(value: V | typeof Undef.Val): V | undefined {
+		return value === Undef.Val ? undefined : value as V;
+	}
+}
+
 class TernarySearchTreeNode<K, V> {
 	height: number = 1;
 	segment!: string;
-	value: V | undefined;
+	value: V | typeof Undef.Val | undefined;
 	key: K | undefined;
 	left: TernarySearchTreeNode<K, V> | undefined;
 	mid: TernarySearchTreeNode<K, V> | undefined;
 	right: TernarySearchTreeNode<K, V> | undefined;
 
 	isEmpty(): boolean {
-		return !this.left && !this.mid && !this.right && !this.value;
+		return !this.left && !this.mid && !this.right && this.value === undefined;
 	}
 
 	rotateLeft() {
@@ -401,8 +415,8 @@ export class TernarySearchTree<K, V> {
 		}
 
 		// set value
-		const oldElement = node.value;
-		node.value = element;
+		const oldElement = Undef.unwrap(node.value);
+		node.value = Undef.wrap(element);
 		node.key = key;
 
 		// balance
@@ -462,7 +476,7 @@ export class TernarySearchTree<K, V> {
 	}
 
 	get(key: K): V | undefined {
-		return this._getNode(key)?.value;
+		return Undef.unwrap(this._getNode(key)?.value);
 	}
 
 	private _getNode(key: K) {
@@ -644,13 +658,13 @@ export class TernarySearchTree<K, V> {
 			} else if (iter.hasNext()) {
 				// mid
 				iter.next();
-				candidate = node.value || candidate;
+				candidate = Undef.unwrap(node.value) || candidate;
 				node = node.mid;
 			} else {
 				break;
 			}
 		}
-		return node && node.value || candidate;
+		return node && Undef.unwrap(node.value) || candidate;
 	}
 
 	findSuperstr(key: K): IterableIterator<[K, V]> | undefined {
@@ -678,7 +692,7 @@ export class TernarySearchTree<K, V> {
 				// collect
 				if (!node.mid) {
 					if (allowValue) {
-						return node.value;
+						return Undef.unwrap(node.value);
 					} else {
 						return undefined;
 					}
@@ -718,8 +732,8 @@ export class TernarySearchTree<K, V> {
 		if (node.left) {
 			this._dfsEntries(node.left, bucket);
 		}
-		if (node.value) {
-			bucket.push([node.key!, node.value]);
+		if (node.value !== undefined) {
+			bucket.push([node.key!, Undef.unwrap(node.value)!]);
 		}
 		if (node.mid) {
 			this._dfsEntries(node.mid, bucket);

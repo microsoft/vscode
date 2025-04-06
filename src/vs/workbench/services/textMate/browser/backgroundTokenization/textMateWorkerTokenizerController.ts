@@ -6,7 +6,7 @@
 import { importAMDNodeModule } from '../../../../../amdX.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, keepObserved } from '../../../../../base/common/observable.js';
-import { Proxied } from '../../../../../base/common/worker/simpleWorker.js';
+import { Proxied } from '../../../../../base/common/worker/webWorker.js';
 import { countEOL } from '../../../../../editor/common/core/eolCounter.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -104,7 +104,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: ArrayBuffer, stateDeltas: StateDeltas[]): Promise<void> {
+	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, stateDeltas: StateDeltas[]): Promise<void> {
 		if (this.controllerId !== controllerId) {
 			// This event is for an outdated controller (the worker didn't receive the delete/create messages yet), ignore the event.
 			return;

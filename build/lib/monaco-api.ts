@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import fs from 'fs';
 import type * as ts from 'typescript';
-import * as path from 'path';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+import path from 'path';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
 
 const dtsv = '3';
 

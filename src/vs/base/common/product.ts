@@ -5,6 +5,7 @@
 
 import { IStringDictionary } from './collections.js';
 import { PlatformName } from './platform.js';
+import { IPolicy } from './policy.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -95,17 +96,15 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
-		readonly servicePPEUrl?: string;
-		readonly searchUrl?: string;
-		readonly itemUrl: string;
-		readonly publisherUrl: string;
-		readonly resourceUrlTemplate: string;
-		readonly extensionUrlTemplate: string;
 		readonly controlUrl: string;
+		readonly extensionUrlTemplate: string;
+		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
+		readonly accessSKUs?: string[];
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
+	readonly trustedExtensionPublishers?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
@@ -181,14 +180,30 @@ export interface IProductConfiguration {
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
+	readonly extensionProperties: IStringDictionary<{
+		readonly hasPrereleaseVersion?: boolean;
+		readonly excludeVersionRange?: string;
+	}>;
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
+
+	readonly defaultAccount?: {
+		readonly authenticationProvider: {
+			readonly id: string;
+			readonly enterpriseProviderId: string;
+			readonly enterpriseProviderConfig: string;
+			readonly scopes: string[];
+		};
+		readonly tokenEntitlementUrl: string;
+		readonly chatEntitlementUrl: string;
+	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+	readonly darwinBundleIdentifier?: string;
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
@@ -198,6 +213,10 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
+
+	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
+
+	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 }
 
 export interface ITunnelApplicationConfig {
@@ -306,6 +325,7 @@ export interface IAiGeneratedWorkspaceTrust {
 export interface IDefaultChatAgent {
 	readonly extensionId: string;
 	readonly chatExtensionId: string;
+
 	readonly documentationUrl: string;
 	readonly termsStatementUrl: string;
 	readonly privacyStatementUrl: string;
@@ -314,9 +334,26 @@ export interface IDefaultChatAgent {
 	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
 	readonly upgradePlanUrl: string;
+
 	readonly providerId: string;
 	readonly providerName: string;
+	readonly enterpriseProviderId: string;
+	readonly enterpriseProviderName: string;
+	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
+
 	readonly entitlementUrl: string;
 	readonly entitlementSignupLimitedUrl: string;
+
+	readonly chatQuotaExceededContext: string;
+	readonly completionsQuotaExceededContext: string;
+
+	readonly walkthroughCommand: string;
+	readonly completionsMenuCommand: string;
+	readonly completionsRefreshTokenCommand: string;
+	readonly chatRefreshTokenCommand: string;
+
+	readonly completionsAdvancedSetting: string;
+	readonly completionsEnablementSetting: string;
+	readonly nextEditSuggestionsSetting: string;
 }

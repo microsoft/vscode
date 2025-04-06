@@ -404,9 +404,9 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 	const content = createOutputContent(outputInfo.id, text, outputOptions);
 	content.classList.add('output-plaintext');
-	outputElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+	content.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 	disposableStore.push(ctx.onDidChangeSettings(e => {
-		outputElement.classList.toggle('word-wrap', e.outputWordWrap);
+		content.classList.toggle('word-wrap', e.outputWordWrap);
 	}));
 
 	content.classList.toggle('scrollable', outputScrolling);
