@@ -621,22 +621,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const numItems = this.viewModel?.getItems().length ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
-		const welcomeContent = defaultAgent?.metadata.welcomeMessageContent ?? this.persistedWelcomeMessage;
-		if (welcomeContent && !numItems && this.welcomeMessageContainer.children.length === 0) {
-			dom.clearNode(this.welcomeMessageContainer);
-			const tips = this.viewOptions.supportsAdditionalParticipants
-				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
-				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
-			this.welcomePart.value = this.instantiationService.createInstance(
-				ChatViewWelcomePart,
-				{ ...welcomeContent, tips, },
-				{
-					location: this.location,
-					isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatMode.Agent
-				}
-			);
-			dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
+		if (!numItems) {
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
+			const welcomeContent = defaultAgent?.metadata.welcomeMessageContent ?? this.persistedWelcomeMessage;
+			if (welcomeContent) {
+				dom.clearNode(this.welcomeMessageContainer);
+				const tips = this.viewOptions.supportsAdditionalParticipants
+					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
+					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
+				this.welcomePart.value = this.instantiationService.createInstance(
+					ChatViewWelcomePart,
+					{ ...welcomeContent, tips, },
+					{
+						location: this.location,
+						isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatMode.Agent
+					}
+				);
+				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
+			}
 		}
 
 		if (this.viewModel) {

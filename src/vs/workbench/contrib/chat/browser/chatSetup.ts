@@ -102,7 +102,7 @@ const ToolsAgentWhen = ContextKeyExpr.and(
 
 class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, isToolsAgent: boolean, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgentImplementation } {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgentImplementation } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -112,27 +112,30 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 			switch (location) {
 				case ChatAgentLocation.Panel:
-					id = 'setup.chat';
-					welcomeMessageContent = {
-						title: description,
-						message: new MarkdownString(baseMessage),
-						icon: Codicon.copilotLarge
-					};
-					break;
-				case ChatAgentLocation.EditingSession:
-					id = isToolsAgent ? 'setup.agent' : 'setup.edits';
-					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode") : localize('editsDescription', "Edit files in your workspace");
-					welcomeMessageContent = isToolsAgent ?
-						{
-							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent') + `\n\n${baseMessage}`),
+					if (mode === ChatMode.Ask) {
+						id = 'setup.chat';
+						welcomeMessageContent = {
+							title: description,
+							message: new MarkdownString(baseMessage),
 							icon: Codicon.copilotLarge
-						} :
-						{
+						};
+					} else if (mode === ChatMode.Edit) {
+						id = 'setup.edits';
+						description = localize('editsDescription', "Edit files in your workspace");
+						welcomeMessageContent = {
 							title: localize('editsTitle', "Edit with Copilot"),
 							message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
 							icon: Codicon.copilotLarge
 						};
+					} else {
+						id = 'setup.agent';
+						description = localize('agentDescription', "Edit files in your workspace in agent mode");
+						welcomeMessageContent = {
+							title: localize('editsTitle', "Edit with Copilot"),
+							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent') + `\n\n${baseMessage}`),
+							icon: Codicon.copilotLarge
+						};
+					}
 					break;
 				case ChatAgentLocation.Terminal:
 					id = 'setup.terminal';
@@ -152,8 +155,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
 				isCore: true,
-				isToolsAgent,
-				when: isToolsAgent ? ToolsAgentWhen?.serialize() : undefined,
+				modes: mode ? [mode] : [ChatMode.Ask],
+				when: mode === ChatMode.Agent ? ToolsAgentWhen?.serialize() : undefined,
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
@@ -579,14 +582,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const updateRegistration = () => {
 			const disabled = context.state.hidden || !this.configurationService.getValue('chat.setupFromDialog');
 			if (!disabled && !registration.value) {
-				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller);
+				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Ask, context, controller);
 				registration.value = combinedDisposable(
 					panelDisposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Edit, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Agent, context, controller).disposable,
 					panelAgent.onUnresolvableError(() => {
 						// An unresolvable error from our agent registrations means that
 						// Copilot is unhealthy for some reason. We clear our panel
