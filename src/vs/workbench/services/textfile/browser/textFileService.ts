@@ -312,11 +312,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			candidateGuessEncodings:
 				options?.candidateGuessEncodings ||
 				this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
-			overwriteEncoding: async detectedEncoding => {
-				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
-
-				return encoding;
-			}
+			overwriteEncoding: async detectedEncoding => this.validateDetectedEncoding(resource, detectedEncoding ?? undefined, options)
 		});
 	}
 
@@ -337,7 +333,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		};
 	}
 
-	async validateDetectedEncoding(resource: URI | undefined, detectedEncoding: string, options?: IReadTextFileEncodingOptions): Promise<string> {
+	async validateDetectedEncoding(resource: URI | undefined, detectedEncoding: string | undefined, options?: IReadTextFileEncodingOptions): Promise<string> {
 		const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding);
 
 		return encoding;
