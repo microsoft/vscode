@@ -19,7 +19,6 @@ import { IUntitledTextEditorModelManager } from '../../untitled/common/untitledT
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { IFileOperationUndoRedoInfo } from '../../workingCopy/common/workingCopyFileService.js';
-import { IDecodeStreamOptionsDto } from './encoding.js';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -109,7 +108,7 @@ export interface ITextFileService extends IDisposable {
 	 * Get the properties for decoding the provided `resource` based on configuration.
 	 * @param resource
 	 */
-	resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamOptionsDto>;
+	resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }>;
 
 	/**
 	 * Get the properties for decoding the provided `resource` based on configuration.

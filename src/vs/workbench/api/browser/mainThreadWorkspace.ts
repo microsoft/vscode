@@ -30,7 +30,6 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
-import { IDecodeStreamOptionsDto } from '../../services/textfile/common/encoding.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -305,7 +304,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- encodings
 
-	$resolveDecoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<IDecodeStreamOptionsDto> {
+	$resolveDecoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }> {
 		return this._textFileService.resolveDecoding(URI.revive(resource), options);
 	}
 
