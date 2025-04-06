@@ -453,7 +453,7 @@ export class AttachContextAction extends Action2 {
 
 	constructor(desc: Readonly<IAction2Options> = {
 		id: AttachContextAction.ID,
-		title: localize2('workbench.action.chat.attachContext.label.2', "Add Context"),
+		title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
 		icon: Codicon.attach,
 		category: CHAT_CATEGORY,
 		keybinding: {
