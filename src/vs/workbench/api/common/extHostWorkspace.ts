@@ -954,7 +954,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			acceptTextOnly: true,
 			async overwriteEncoding(detectedEncoding) {
 				if (detectedEncoding === null) {
-					return options.preferredEncoding.encoding;
+					return options.preferredEncoding;
 				}
 
 				return that._proxy.$resolvePreferredReadEncoding(uri, detectedEncoding, opts);
