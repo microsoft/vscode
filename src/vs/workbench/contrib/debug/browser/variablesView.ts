@@ -42,19 +42,18 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IDebugViewWithVariables, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID, WATCH_VIEW_ID } from '../common/debug.js';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DebugVisualizationType, IDebugService, IDebugViewWithVariables, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID, WATCH_VIEW_ID } from '../common/debug.js';
 import { getContextForVariable } from '../common/debugContext.js';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from '../common/debugModel.js';
 import { DebugVisualizer, IDebugVisualizerService } from '../common/debugVisualizers.js';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, expressionAndScopeLabelProvider, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
-import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from './debugCommands.js';
+import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL, setDataBreakpointInfoResponse } from './debugCommands.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 
 const $ = dom.$;
 let forgetScopes = true;
 
 let variableInternalContext: Variable | undefined;
-let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
 
 interface IVariablesContext {
 	sessionId: string | undefined;
@@ -279,9 +278,10 @@ async function getContextForVariableMenuWithDataAccess(parentContext: IContextKe
 	}
 
 	const contextKeys: [string, unknown][] = [];
-	dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
+	const dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
 	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
 	const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
+	setDataBreakpointInfoResponse(dataBreakpointInfoResponse);
 
 	if (!dataBreakpointAccessTypes) {
 		contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.key, !!dataBreakpointId]);
@@ -785,39 +785,6 @@ async function tryInstallHexEditor(extensionsWorkbenchService: IExtensionsWorkbe
 		return false;
 	}
 }
-
-export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
-CommandsRegistry.registerCommand({
-	id: BREAK_WHEN_VALUE_CHANGES_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'write' });
-		}
-	}
-});
-
-export const BREAK_WHEN_VALUE_IS_ACCESSED_ID = 'debug.breakWhenValueIsAccessed';
-CommandsRegistry.registerCommand({
-	id: BREAK_WHEN_VALUE_IS_ACCESSED_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'readWrite' });
-		}
-	}
-});
-
-export const BREAK_WHEN_VALUE_IS_READ_ID = 'debug.breakWhenValueIsRead';
-CommandsRegistry.registerCommand({
-	id: BREAK_WHEN_VALUE_IS_READ_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'read' });
-		}
-	}
-});
 
 CommandsRegistry.registerCommand({
 	metadata: {
