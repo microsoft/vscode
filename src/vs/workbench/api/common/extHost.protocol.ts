@@ -1480,7 +1480,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$registerCanonicalUriProvider(handle: number, scheme: string): void;
 	$unregisterCanonicalUriProvider(handle: number): void;
 	$resolveDecoding(resource: UriComponents | undefined, options?: { encoding?: string }): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }>;
-	$resolvePreferredReadEncoding(resource: UriComponents | undefined, detectedEncoding: string | null, options?: { encoding?: string }): Promise<string>;
+	$validateDetectedEncoding(resource: UriComponents | undefined, detectedEncoding: string, options?: { encoding?: string }): Promise<string>;
 	$resolveEncoding(resource: UriComponents | undefined, options?: { encoding?: string }): Promise<{ encoding: string; addBOM: boolean }>;
 }
 

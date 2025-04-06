@@ -957,7 +957,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					return options.preferredEncoding;
 				}
 
-				return that._proxy.$resolvePreferredReadEncoding(uri, detectedEncoding, opts);
+				return that._proxy.$validateDetectedEncoding(uri, detectedEncoding, opts);
 			},
 		})).stream;
 

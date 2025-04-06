@@ -106,17 +106,18 @@ export interface ITextFileService extends IDisposable {
 
 	/**
 	 * Get the properties for decoding the provided `resource` based on configuration.
-	 * @param resource
 	 */
 	resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }>;
 
 	/**
 	 * Get the properties for decoding the provided `resource` based on configuration.
-	 * @param resource
 	 */
 	resolveEncoding(resource: URI | undefined, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }>;
 
-	resolvePreferredReadEncoding(resource: URI | undefined, detectedEncoding: string | null, options?: IReadTextFileEncodingOptions): Promise<string>;
+	/**
+	 * Given a detected encoding, validate it against the configured encoding options.
+	 */
+	validateDetectedEncoding(resource: URI | undefined, detectedEncoding: string, options?: IReadTextFileEncodingOptions): Promise<string>;
 
 	/**
 	 * Returns the readable that uses the appropriate encoding. This method should

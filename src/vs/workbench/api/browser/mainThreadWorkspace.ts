@@ -308,8 +308,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._textFileService.resolveDecoding(URI.revive(resource), options);
 	}
 
-	$resolvePreferredReadEncoding(resource: UriComponents | undefined, detectedEncoding: string | null, options?: { encoding?: string }): Promise<string> {
-		return this._textFileService.resolvePreferredReadEncoding(URI.revive(resource), detectedEncoding, options);
+	$validateDetectedEncoding(resource: UriComponents | undefined, detectedEncoding: string, options?: { encoding?: string }): Promise<string> {
+		return this._textFileService.validateDetectedEncoding(URI.revive(resource), detectedEncoding, options);
 	}
 
 	$resolveEncoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<{ encoding: string; addBOM: boolean }> {
