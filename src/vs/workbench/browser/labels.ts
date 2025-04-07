@@ -492,14 +492,19 @@ class ResourceLabelWidget extends IconLabel {
 		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCellOutput) {
 			const notebookDocument = this.notebookDocumentService.getNotebook(resource);
 			const outputUriData = extractCellOutputDetails(resource);
-			if (!outputUriData?.notebook || !outputUriData.cellFragment) {
+
+			let cellIndex: number | undefined;
+			if (!outputUriData?.notebook) {
 				return;
 			}
-			const cellUri = outputUriData.notebook.with({
-				scheme: Schemas.vscodeNotebookCell,
-				fragment: outputUriData.cellFragment
-			});
-			const cellIndex = notebookDocument?.getCellIndex(cellUri);
+			if (outputUriData.cellHandle) {
+				// if we have a cell handle, we can use that to get the cell index
+				const cellUri = outputUriData.notebook.with({
+					scheme: Schemas.vscodeNotebookCell,
+					fragment: outputUriData.cellFragment
+				});
+				cellIndex = notebookDocument?.getCellIndex(cellUri);
+			}
 			const outputIndex = outputUriData.outputIndex;
 
 			if (cellIndex !== undefined && outputIndex !== undefined && typeof label.name === 'string') {
@@ -517,7 +522,10 @@ class ResourceLabelWidget extends IconLabel {
 					label.name,
 					`${cellIndex + 1}`
 				);
+			} else if (typeof label.name === 'string') {
+				label.name = localize('notebookCellOutputLabelJustFile', "{0}", label.name);
 			}
+
 		}
 
 		const hasResourceChanged = this.hasResourceChanged(label);

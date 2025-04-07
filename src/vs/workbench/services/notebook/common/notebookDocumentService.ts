@@ -77,11 +77,27 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 		return;
 	}
 	const outputId = params.get('outputId') ?? undefined;
-	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
+	const notebookScheme = params.get('notebookScheme') ?? undefined;
 	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
 
+	if (openIn === 'editor') {
+		const notebookUri = uri.with({
+			scheme: notebookScheme || Schemas.file,
+			fragment: null,
+			query: null,
+		});
+		return {
+			notebook: notebookUri,
+			openIn: openIn,
+			outputId: outputId,
+			outputIndex: outputIndex,
+		};
+	}
+	// If openIn is not editor, it needs to be opened in the notebook editor
+	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
+
 	if (parsedCell?.notebook === undefined || parsedCell?.handle === undefined) {
-		throw new Error('Invalid cell URI');
+		throw new Error('Invalid notebook output cell URI');
 	}
 
 	return {
