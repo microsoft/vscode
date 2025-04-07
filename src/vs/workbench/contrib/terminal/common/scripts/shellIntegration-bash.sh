@@ -292,7 +292,7 @@ __vsc_update_env() {
 						__updateEnvCacheAA "$key" "$value"
 					fi
 				done
-				# Track missing env vars not needed for now, as we are only tracking hard-coded env vars.
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 
 		else
@@ -316,7 +316,7 @@ __vsc_update_env() {
 						__updateEnvCache "$key" "$value"
 					fi
 				done
-				# Track missing env vars not needed for now, as we are only tracking hard-coded env vars.
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce

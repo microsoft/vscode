@@ -174,7 +174,6 @@ __update_env_cache() {
 }
 
 __vsc_update_env() {
-
 	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
 		if [ $__vsc_use_aa -eq 1 ]; then
@@ -194,7 +193,7 @@ __vsc_update_env() {
 						__update_env_cache_aa "$var" "$value"
 					fi
 				done
-				# Track missing env vars not needed for now, as we are only tracking hard-coded env vars.
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		else
 			# Two arrays approach
@@ -216,7 +215,7 @@ __vsc_update_env() {
 						__update_env_cache "$var" "$value"
 					fi
 				done
-				# Track missing env vars not needed for now, as we are only tracking hard-coded env vars.
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		fi
 
