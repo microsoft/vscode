@@ -9,36 +9,38 @@ const arch = process.env['VSCODE_ARCH'];
 const esrpCliDLLPath = process.env['EsrpCliDllPath'];
 const codeSigningFolderPath = process.env['CodeSigningFolderPath'];
 function printBanner(title) {
-    console.log('#'.repeat(65));
-    console.log(`# ${title.padEnd(61)} #`);
-    console.log('#'.repeat(65));
+    console.log('\n\n');
+    console.log('#'.repeat(75));
+    console.log(`# ${title.padEnd(71)} (${new Date().toISOString()}) #`);
+    console.log('#'.repeat(75));
+    console.log('\n\n');
 }
 function sign(type, glob) {
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
 }
 async function main() {
     (0, zx_1.usePwsh)();
-    const codesignTasks = [
-        {
-            banner: 'Codesign executables and shared libraries',
-            processPromise: sign('sign-windows', '*.dll,*.exe,*.node')
-        },
-        {
-            banner: 'Codesign Powershell scripts',
-            processPromise: sign('sign-windows-appx', '*.ps1')
-        }
-    ];
-    if (process.env['VSCODE_QUALITY'] === 'insider') {
-        codesignTasks.push({
-            banner: 'Codesign context menu appx package',
-            processPromise: sign('sign-windows-appx', '*.appx')
-        });
+    // Start the code sign processes in parallel
+    // 1. Codesign executables and shared libraries
+    // 2. Codesign Powershell scripts
+    // 3. Codesign context menu appx package (insiders only)
+    const codesignTask1 = sign('sign-windows', '*.dll,*.exe,*.node');
+    const codesignTask2 = sign('sign-windows-appx', '*.ps1');
+    const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
+        ? sign('sign-windows-appx', '*.appx')
+        : undefined;
+    // Codesign executables and shared libraries
+    printBanner('Codesign executables and shared libraries');
+    await codesignTask1.pipe(process.stdout);
+    // Codesign Powershell scripts
+    printBanner('Codesign Powershell scripts');
+    await codesignTask2.pipe(process.stdout);
+    if (codesignTask3) {
+        // Codesign context menu appx package
+        printBanner('Codesign context menu appx package');
+        await codesignTask3.pipe(process.stdout);
     }
-    // Wait for processes to finish and stream their output
-    for (const { banner, processPromise } of codesignTasks) {
-        printBanner(banner);
-        await processPromise.pipe(process.stdout);
-    }
+    // Create build artifact directory
     await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
     // Package client
     if (process.env['BUILT_CLIENT']) {

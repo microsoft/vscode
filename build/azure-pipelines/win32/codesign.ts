@@ -25,6 +25,9 @@ async function main() {
 	usePwsh();
 
 	// Start the code sign processes in parallel
+	// 1. Codesign executables and shared libraries
+	// 2. Codesign Powershell scripts
+	// 3. Codesign context menu appx package (insiders only)
 	const codesignTask1 = sign('sign-windows', '*.dll,*.exe,*.node');
 	const codesignTask2 = sign('sign-windows-appx', '*.ps1');
 	const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
@@ -45,6 +48,7 @@ async function main() {
 		await codesignTask3.pipe(process.stdout);
 	}
 
+	// Create build artifact directory
 	await $`New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
 
 	// Package client
