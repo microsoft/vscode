@@ -20,8 +20,10 @@ import {
 	Colon,
 	Slash,
 	Space,
+	Quote,
 	FormFeed,
 	DollarSign,
+	DoubleQuote,
 	VerticalTab,
 	LeftBracket,
 	RightBracket,
@@ -76,13 +78,13 @@ suite('SimpleDecoder', () => {
 		await test.run(
 			[
 				' hello world!',
-				'how are\t you?\v',
+				'how are\t "you?"\v',
 				'',
 				'   (test)  [!@#$:%^🦄&*_+=-]\f  ',
 				'\t<hi 👋>\t🤗❤ \t',
 				' hey\v-\tthere\r',
 				' @workspace@legomushroom',
-				'my ${text} /run',
+				'\'my\' ${text} /run',
 			],
 			[
 				// first line
@@ -98,9 +100,11 @@ suite('SimpleDecoder', () => {
 				new Word(new Range(2, 5, 2, 8), 'are'),
 				new Tab(new Range(2, 8, 2, 9)),
 				new Space(new Range(2, 9, 2, 10)),
-				new Word(new Range(2, 10, 2, 14), 'you?'),
-				new VerticalTab(new Range(2, 14, 2, 15)),
-				new NewLine(new Range(2, 15, 2, 16)),
+				new DoubleQuote(new Range(2, 10, 2, 11)),
+				new Word(new Range(2, 11, 2, 11 + 4), 'you?'),
+				new DoubleQuote(new Range(2, 15, 2, 16)),
+				new VerticalTab(new Range(2, 16, 2, 17)),
+				new NewLine(new Range(2, 17, 2, 18)),
 				// third line
 				new NewLine(new Range(3, 1, 3, 2)),
 				// fourth line
@@ -154,15 +158,17 @@ suite('SimpleDecoder', () => {
 				new Word(new Range(7, 13, 7, 25), 'legomushroom'),
 				new NewLine(new Range(7, 25, 7, 26)),
 				// eighth line
-				new Word(new Range(8, 1, 8, 3), 'my'),
-				new Space(new Range(8, 3, 8, 4)),
-				new DollarSign(new Range(8, 4, 8, 5)),
-				new LeftCurlyBrace(new Range(8, 5, 8, 6)),
-				new Word(new Range(8, 6, 8, 6 + 4), 'text'),
-				new RightCurlyBrace(new Range(8, 10, 8, 11)),
-				new Space(new Range(8, 11, 8, 12)),
-				new Slash(new Range(8, 12, 8, 13)),
-				new Word(new Range(8, 13, 8, 13 + 3), 'run'),
+				new Quote(new Range(8, 1, 8, 2)),
+				new Word(new Range(8, 2, 8, 2 + 2), 'my'),
+				new Quote(new Range(8, 4, 8, 5)),
+				new Space(new Range(8, 5, 8, 6)),
+				new DollarSign(new Range(8, 6, 8, 7)),
+				new LeftCurlyBrace(new Range(8, 7, 8, 8)),
+				new Word(new Range(8, 8, 8, 8 + 4), 'text'),
+				new RightCurlyBrace(new Range(8, 12, 8, 13)),
+				new Space(new Range(8, 13, 8, 14)),
+				new Slash(new Range(8, 14, 8, 15)),
+				new Word(new Range(8, 15, 8, 15 + 3), 'run'),
 			],
 		);
 	});
