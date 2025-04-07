@@ -72,7 +72,6 @@ export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	setRequestPaused?(requestId: string, isPaused: boolean): void;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
-	provideWelcomeMessage?(token: CancellationToken): ProviderResult<IChatWelcomeMessageContent | undefined>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
@@ -597,14 +596,6 @@ export class MergedChatAgent implements IChatAgent {
 		}
 
 		return [];
-	}
-
-	provideWelcomeMessage(token: CancellationToken): ProviderResult<IChatWelcomeMessageContent | undefined> {
-		if (this.impl.provideWelcomeMessage) {
-			return this.impl.provideWelcomeMessage(token);
-		}
-
-		return undefined;
 	}
 
 	provideSampleQuestions(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
