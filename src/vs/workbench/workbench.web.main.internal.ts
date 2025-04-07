@@ -139,9 +139,6 @@ import './contrib/debug/browser/extensionHostDebugService.js';
 // Welcome Banner
 import './contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
 
-// Welcome Dialog
-import './contrib/welcomeDialog/browser/welcomeDialog.contribution.js';
-
 // Webview
 import './contrib/webview/browser/webview.web.contribution.js';
 

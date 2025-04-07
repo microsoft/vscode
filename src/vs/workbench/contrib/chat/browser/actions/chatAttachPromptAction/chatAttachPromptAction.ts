@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CHAT_CATEGORY } from '../chatActions.js';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../../nls.js';
-import { IChatService } from '../../../common/chatService.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { Action2 } from '../../../../../../platform/actions/common/actions.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { CHAT_CATEGORY } from '../chatActions.js';
 import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
@@ -50,7 +49,6 @@ export class AttachPromptAction extends Action2 {
 		options: IChatAttachPromptActionOptions,
 	): Promise<void> {
 		const fileService = accessor.get(IFileService);
-		const chatService = accessor.get(IChatService);
 		const labelService = accessor.get(ILabelService);
 		const viewsService = accessor.get(IViewsService);
 		const openerService = accessor.get(IOpenerService);
@@ -65,7 +63,6 @@ export class AttachPromptAction extends Action2 {
 		await askToSelectPrompt({
 			...options,
 			promptFiles,
-			chatService,
 			fileService,
 			viewsService,
 			labelService,

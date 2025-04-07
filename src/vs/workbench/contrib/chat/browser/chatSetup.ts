@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSetup.css';
 import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
+import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
@@ -31,8 +31,11 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
@@ -55,21 +58,18 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
+import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { IChatRequestModel } from '../common/chatModel.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
-import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
-import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
-import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
-import { IChatRequestModel } from '../common/chatModel.js';
+import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
+import { ChatViewId, ensureSideBarChatViewSize, IChatWidgetService, showCopilotView } from './chat.js';
+import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import './media/chatSetup.css';
+import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -102,37 +102,23 @@ const ToolsAgentWhen = ContextKeyExpr.and(
 
 class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, isToolsAgent: boolean, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgentImplementation } {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgentImplementation } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
 			let id: string;
 			let description = localize('chatDescription', "Ask Copilot");
-			let welcomeMessageContent: IChatWelcomeMessageContent | undefined;
-			const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 			switch (location) {
 				case ChatAgentLocation.Panel:
-					id = 'setup.chat';
-					welcomeMessageContent = {
-						title: description,
-						message: new MarkdownString(baseMessage),
-						icon: Codicon.copilotLarge
-					};
-					break;
-				case ChatAgentLocation.EditingSession:
-					id = isToolsAgent ? 'setup.agent' : 'setup.edits';
-					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode") : localize('editsDescription', "Edit files in your workspace");
-					welcomeMessageContent = isToolsAgent ?
-						{
-							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent') + `\n\n${baseMessage}`),
-							icon: Codicon.copilotLarge
-						} :
-						{
-							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
-							icon: Codicon.copilotLarge
-						};
+					if (mode === ChatMode.Ask) {
+						id = 'setup.chat';
+					} else if (mode === ChatMode.Edit) {
+						id = 'setup.edits';
+						description = localize('editsDescription', "Edit files in your workspace");
+					} else {
+						id = 'setup.agent';
+						description = localize('agentDescription', "Edit files in your workspace in agent mode");
+					}
 					break;
 				case ChatAgentLocation.Terminal:
 					id = 'setup.terminal';
@@ -152,13 +138,12 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
 				isCore: true,
-				isToolsAgent,
-				when: isToolsAgent ? ToolsAgentWhen?.serialize() : undefined,
+				modes: mode ? [mode] : [ChatMode.Ask],
+				when: mode === ChatMode.Agent ? ToolsAgentWhen?.serialize() : undefined,
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
 				metadata: {
-					welcomeMessageContent,
 					helpTextPrefix: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE
 				},
 				description,
@@ -579,14 +564,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const updateRegistration = () => {
 			const disabled = context.state.hidden || !this.configurationService.getValue('chat.setupFromDialog');
 			if (!disabled && !registration.value) {
-				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller);
+				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Ask, context, controller);
 				registration.value = combinedDisposable(
 					panelDisposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Edit, context, controller).disposable,
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Agent, context, controller).disposable,
 					panelAgent.onUnresolvableError(() => {
 						// An unresolvable error from our agent registrations means that
 						// Copilot is unhealthy for some reason. We clear our panel
@@ -895,7 +880,7 @@ class ChatSetupController extends Disposable {
 	async setup(options?: { forceSignIn?: boolean; setupFromDialog?: boolean }): Promise<boolean> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
-		const badge = this.activityService.showViewContainerActivity(preferCopilotEditsView(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
+		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
 		});
 
@@ -1056,7 +1041,7 @@ class ChatSetupController extends Disposable {
 				isMachineScoped: false,		// do not ask to sync
 				installEverywhere: true,	// install in local and remote
 				installPreReleaseVersion: this.productService.quality !== 'stable'
-			}, preferCopilotEditsView(this.viewsService) ? EditsViewId : ChatViewId);
+			}, ChatViewId);
 		} catch (e) {
 			this.logService.error(`[chat setup] install: error ${error}`);
 			error = e;

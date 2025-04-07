@@ -190,7 +190,6 @@ async function getImageAttachContext(data: Uint8Array, mimeType: string, token: 
 		value: data,
 		id: imageHash,
 		name: displayName,
-		isImage: true,
 		icon: Codicon.fileMedia,
 		mimeType,
 		isPasted: true,
