@@ -259,6 +259,17 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
+	test('inlines an array (#245718)', async () => {
+		const configurationService: IConfigurationService = new TestConfigurationService({
+			editor: {
+				fontFamily: ['foo', 'bar']
+			},
+		});
+
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
+		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo,bar xyz');
+	});
+
 	test('substitute configuration variable with undefined workspace folder', async () => {
 		const configurationService: IConfigurationService = new TestConfigurationService({
 			editor: {
