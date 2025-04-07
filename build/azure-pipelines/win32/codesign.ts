@@ -10,9 +10,11 @@ const esrpCliDLLPath = process.env['EsrpCliDllPath'];
 const codeSigningFolderPath = process.env['CodeSigningFolderPath'];
 
 function printBanner(title: string) {
+	console.log('\n\n');
 	console.log('#'.repeat(75));
 	console.log(`# ${title.padEnd(71)} (${new Date().toISOString()}) #`);
 	console.log('#'.repeat(75));
+	console.log('\n\n');
 }
 
 function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): ProcessPromise {
