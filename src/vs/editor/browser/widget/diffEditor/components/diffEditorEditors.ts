@@ -19,6 +19,7 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly original = this._register(this._createLeftHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.originalEditor || {}));
@@ -51,6 +52,7 @@ export class DiffEditorEditors extends Disposable {
 		private readonly _options: DiffEditorOptions,
 		private _argCodeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		private readonly _createInnerEditor: (instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>, editorWidgetOptions: ICodeEditorWidgetOptions) => CodeEditorWidget,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -59,12 +61,14 @@ export class DiffEditorEditors extends Disposable {
 		this._argCodeEditorWidgetOptions = null as any;
 
 		this._register(autorunHandleChanges({
-			createEmptyChangeSummary: (): IDiffEditorConstructionOptions => ({}),
-			handleChange: (ctx, changeSummary) => {
-				if (ctx.didChange(_options.editorOptions)) {
-					Object.assign(changeSummary, ctx.change.changedOptions);
+			changeTracker: {
+				createChangeSummary: (): IDiffEditorConstructionOptions => ({}),
+				handleChange: (ctx, changeSummary) => {
+					if (ctx.didChange(_options.editorOptions)) {
+						Object.assign(changeSummary, ctx.change.changedOptions);
+					}
+					return true;
 				}
-				return true;
 			}
 		}, (reader, changeSummary) => {
 			/** @description update editor options */
@@ -80,14 +84,22 @@ export class DiffEditorEditors extends Disposable {
 	private _createLeftHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
 		const leftHandSideOptions = this._adjustOptionsForLeftHandSide(undefined, options);
 		const editor = this._constructInnerEditor(this._instantiationService, this.originalEditorElement, leftHandSideOptions, codeEditorWidgetOptions);
-		editor.setContextValue('isInDiffLeftEditor', true);
+
+		const isInDiffLeftEditorKey = this._contextKeyService.createKey<boolean>('isInDiffLeftEditor', editor.hasWidgetFocus());
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffLeftEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffLeftEditorKey.set(false)));
+
 		return editor;
 	}
 
 	private _createRightHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
 		const rightHandSideOptions = this._adjustOptionsForRightHandSide(undefined, options);
 		const editor = this._constructInnerEditor(this._instantiationService, this.modifiedEditorElement, rightHandSideOptions, codeEditorWidgetOptions);
-		editor.setContextValue('isInDiffRightEditor', true);
+
+		const isInDiffRightEditorKey = this._contextKeyService.createKey<boolean>('isInDiffRightEditor', editor.hasWidgetFocus());
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffRightEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffRightEditorKey.set(false)));
+
 		return editor;
 	}
 

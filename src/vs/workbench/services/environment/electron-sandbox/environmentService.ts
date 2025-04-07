@@ -14,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { joinPath } from '../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -26,7 +27,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	// --- Window
 	readonly window: {
 		id: number;
-		handle?: string;
+		handle?: VSBuffer;
 		colorScheme: IColorScheme;
 		maximized?: boolean;
 		accessibilitySupport?: boolean;
@@ -102,11 +103,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.windowLogsPath, 'exthost'); }
-
-	@memoize
-	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
-	}
 
 	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }

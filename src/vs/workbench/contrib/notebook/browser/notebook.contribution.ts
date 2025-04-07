@@ -99,6 +99,8 @@ import './contrib/execute/executionEditorProgress.js';
 import './contrib/kernelDetection/notebookKernelDetection.js';
 import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
+import './contrib/multicursor/notebookSelectionHighlight.js';
+import './contrib/notebookVariables/notebookInlineVariables.js';
 
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
@@ -130,11 +132,6 @@ import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInpu
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
 import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetadataTextModel.js';
-import { NotebookChatEditorControllerContrib } from './chatEdit/notebookChatEditController.js';
-import { registerNotebookContribution } from './notebookEditorExtensions.js';
-import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './chatEdit/notebookOriginalModelRefFactory.js';
-import { INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory } from './chatEdit/notebookSynchronizer.js';
-import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './chatEdit/notebookOriginalCellModelFactory.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -451,7 +448,7 @@ class CellInfoContentProvider {
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
 				const cellIndex = ref.object.notebook.cells.indexOf(cell);
-				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,
@@ -459,9 +456,9 @@ class CellInfoContentProvider {
 				);
 				this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
 					if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellMetadata || event.kind === NotebookCellsChangeType.ChangeCellLanguage) && event.index === cellIndex)) {
-						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 						if (result.getValue() !== value) {
-							result.setValue(getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language));
+							result.setValue(value);
 						}
 					}
 				})));
@@ -881,11 +878,6 @@ registerSingleton(INotebookLoggingService, NotebookLoggingService, Instantiation
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
 
-registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
-registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
-registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
-registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);
-
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
 	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
@@ -962,6 +954,16 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
 				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
 			default: 'visible',
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.cellExecutionTimeVerbosity]: {
+			description: nls.localize('notebook.cellExecutionTimeVerbosity.description', "Controls the verbosity of the cell execution time in the cell status bar."),
+			type: 'string',
+			enum: ['default', 'verbose'],
+			enumDescriptions: [
+				nls.localize('notebook.cellExecutionTimeVerbosity.default.description', "The cell execution duration is visible, with advanced information in the hover tooltip."),
+				nls.localize('notebook.cellExecutionTimeVerbosity.verbose.description', "The cell last execution timestamp and duration are visible, with advanced information in the hover tooltip.")],
+			default: 'default',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.textDiffEditorPreview]: {
@@ -1228,6 +1230,17 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.notebookInlineValues]: {
+			markdownDescription: nls.localize('notebook.inlineValues.description', "Control whether to show inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command."),
+			type: 'string',
+			enum: ['on', 'auto', 'off'],
+			enumDescriptions: [
+				nls.localize('notebook.inlineValues.on', "Always show inline values, with a regex fallback if no inline value provider is registered. Note: There may be a performance impact in larger cells if the fallback is used."),
+				nls.localize('notebook.inlineValues.auto', "Show inline values only when an inline value provider is registered."),
+				nls.localize('notebook.inlineValues.off', "Never show inline values."),
+			],
+			default: 'off'
+		},
 		[NotebookSetting.cellFailureDiagnostics]: {
 			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
 			type: 'boolean',
@@ -1243,5 +1256,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.markupFontFamily]: {
+			markdownDescription: nls.localize('notebook.markup.fontFamily', "Controls the font family of rendered markup in notebooks. When left blank, this will fall back to the default workbench font family."),
+			type: 'string',
+			default: '',
+			tags: ['notebookLayout']
+		}
 	}
 });

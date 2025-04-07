@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { Part } from '../../../browser/part.js';
 import { IDimension } from '../../../../base/browser/dom.js';
-import { Direction } from '../../../../base/browser/ui/grid/grid.js';
+import { Direction, IViewSize } from '../../../../base/browser/ui/grid/grid.js';
 import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
@@ -129,6 +129,12 @@ export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedO
 export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART;
 export type SINGLE_WINDOW_PARTS = Exclude<Parts, MULTI_WINDOW_PARTS>;
 
+export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
+	return part === Parts.EDITOR_PART ||
+		part === Parts.STATUSBAR_PART ||
+		part === Parts.TITLEBAR_PART;
+}
+
 export interface IWorkbenchLayoutService extends ILayoutService {
 
 	readonly _serviceBrand: undefined;
@@ -217,9 +223,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Set part hidden or not in the target window.
 	 */
-	setPartHidden(hidden: boolean, part: Exclude<SINGLE_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
-	setPartHidden(hidden: boolean, part: Exclude<MULTI_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>, targetWindow: Window): void;
-	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>, targetWindow: Window): void;
+	setPartHidden(hidden: boolean, part: Parts): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -291,6 +295,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Sets the main editor part in and out of centered layout.
 	 */
 	centerMainEditorLayout(active: boolean): void;
+
+	/**
+	 * Get the provided parts size in the main window.
+	 */
+	getSize(part: Parts): IViewSize;
+
+	/**
+	 * Set the provided parts size in the main window.
+	 */
+	setSize(part: Parts, size: IViewSize): void;
 
 	/**
 	 * Resize the provided part in the main window.

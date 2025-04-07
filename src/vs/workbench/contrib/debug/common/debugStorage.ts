@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -12,6 +12,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDebugModel, IEvaluate, IExpression } from './debug.js';
 import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, Expression, FunctionBreakpoint } from './debugModel.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { mapValues } from '../../../../base/common/objects.js';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -21,12 +22,17 @@ const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
+export interface IChosenEnvironment {
+	type: string;
+	dynamicLabel?: string;
+}
+
 export class DebugStorage extends Disposable {
-	public readonly breakpoints = observableValue(this, this.loadBreakpoints());
-	public readonly functionBreakpoints = observableValue(this, this.loadFunctionBreakpoints());
-	public readonly exceptionBreakpoints = observableValue(this, this.loadExceptionBreakpoints());
-	public readonly dataBreakpoints = observableValue(this, this.loadDataBreakpoints());
-	public readonly watchExpressions = observableValue(this, this.loadWatchExpressions());
+	public readonly breakpoints: ISettableObservable<Breakpoint[]>;
+	public readonly functionBreakpoints: ISettableObservable<FunctionBreakpoint[]>;
+	public readonly exceptionBreakpoints: ISettableObservable<ExceptionBreakpoint[]>;
+	public readonly dataBreakpoints: ISettableObservable<DataBreakpoint[]>;
+	public readonly watchExpressions: ISettableObservable<Expression[]>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -35,6 +41,11 @@ export class DebugStorage extends Disposable {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this.breakpoints = observableValue(this, this.loadBreakpoints());
+		this.functionBreakpoints = observableValue(this, this.loadFunctionBreakpoints());
+		this.exceptionBreakpoints = observableValue(this, this.loadExceptionBreakpoints());
+		this.dataBreakpoints = observableValue(this, this.loadDataBreakpoints());
+		this.watchExpressions = observableValue(this, this.loadWatchExpressions());
 
 		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this._store)(e => {
 			if (e.external) {
@@ -118,11 +129,13 @@ export class DebugStorage extends Disposable {
 		return result || [];
 	}
 
-	loadChosenEnvironments(): { [key: string]: string } {
-		return JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+	loadChosenEnvironments(): Record<string, IChosenEnvironment> {
+		const obj = JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+		// back compat from when this was a string map:
+		return mapValues(obj, (value): IChosenEnvironment => typeof value === 'string' ? { type: value } : value);
 	}
 
-	storeChosenEnvironments(environments: { [key: string]: string }): void {
+	storeChosenEnvironments(environments: Record<string, IChosenEnvironment>): void {
 		this.storageService.store(DEBUG_CHOSEN_ENVIRONMENTS_KEY, JSON.stringify(environments), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 

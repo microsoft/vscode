@@ -5,6 +5,7 @@
 
 import { IRange } from '../core/range.js';
 import { FoldingRules } from '../languages/languageConfiguration.js';
+import { isMultilineRegexSource } from '../model/textModelSearch.js';
 
 export interface ISectionHeaderFinderTarget {
 	getLineCount(): number;
@@ -15,6 +16,7 @@ export interface FindSectionHeaderOptions {
 	foldingRules?: FoldingRules;
 	findRegionSectionHeaders: boolean;
 	findMarkSectionHeaders: boolean;
+	markSectionHeaderRegex: string;
 }
 
 export interface SectionHeader {
@@ -36,8 +38,10 @@ export interface SectionHeader {
 	shouldBeInComments: boolean;
 }
 
-const markRegex = new RegExp('\\bMARK:\\s*(.*)$', 'd');
 const trimDashesRegex = /^-+|-+$/g;
+
+const CHUNK_SIZE = 100;
+const MAX_SECTION_LINES = 5;
 
 /**
  * Find section headers in the model.
@@ -53,7 +57,7 @@ export function findSectionHeaders(model: ISectionHeaderFinderTarget, options: F
 		headers = headers.concat(regionHeaders);
 	}
 	if (options.findMarkSectionHeaders) {
-		const markHeaders = collectMarkHeaders(model);
+		const markHeaders = collectMarkHeaders(model, options);
 		headers = headers.concat(markHeaders);
 	}
 	return headers;
@@ -82,34 +86,80 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 	return regionHeaders;
 }
 
-function collectMarkHeaders(model: ISectionHeaderFinderTarget): SectionHeader[] {
+export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {
 	const markHeaders: SectionHeader[] = [];
 	const endLineNumber = model.getLineCount();
-	for (let lineNumber = 1; lineNumber <= endLineNumber; lineNumber++) {
-		const lineContent = model.getLineContent(lineNumber);
-		addMarkHeaderIfFound(lineContent, lineNumber, markHeaders);
-	}
-	return markHeaders;
-}
 
-function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHeaders: SectionHeader[]) {
-	markRegex.lastIndex = 0;
-	const match = markRegex.exec(lineContent);
-	if (match) {
-		const column = match.indices![1][0] + 1;
-		const endColumn = match.indices![1][1] + 1;
-		const range = { startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: endColumn };
-		if (range.endColumn > range.startColumn) {
+	// Create regex with flags for:
+	// - 'd' for indices to get proper match positions
+	// - 'm' for multi-line mode so ^ and $ match line starts/ends
+	// - 's' for dot-all mode so . matches newlines
+	const multiline = isMultilineRegexSource(options.markSectionHeaderRegex);
+	const regex = new RegExp(options.markSectionHeaderRegex, `gdm${multiline ? 's' : ''}`);
+
+	// Process text in overlapping chunks for better performance
+	for (let startLine = 1; startLine <= endLineNumber; startLine += CHUNK_SIZE - MAX_SECTION_LINES) {
+		const endLine = Math.min(startLine + CHUNK_SIZE - 1, endLineNumber);
+		const lines: string[] = [];
+
+		// Collect lines for the current chunk
+		for (let i = startLine; i <= endLine; i++) {
+			lines.push(model.getLineContent(i));
+		}
+
+		const text = lines.join('\n');
+		regex.lastIndex = 0;
+
+		let match: RegExpExecArray | null;
+		while ((match = regex.exec(text)) !== null) {
+			// Calculate which line this match starts on by counting newlines before it
+			const precedingText = text.substring(0, match.index);
+			const lineOffset = (precedingText.match(/\n/g) || []).length;
+			const lineNumber = startLine + lineOffset;
+
+			// Calculate match height to check overlap properly
+			const matchLines = match[0].split('\n');
+			const matchHeight = matchLines.length;
+			const matchEndLine = lineNumber + matchHeight - 1;
+
+			// Calculate start column - need to find the start of the line containing the match
+			const lineStartIndex = precedingText.lastIndexOf('\n') + 1;
+			const startColumn = match.index - lineStartIndex + 1;
+
+			// Calculate end column - need to handle multi-line matches
+			const lastMatchLine = matchLines[matchLines.length - 1];
+			const endColumn = matchHeight === 1 ? startColumn + match[0].length : lastMatchLine.length + 1;
+
+			const range = {
+				startLineNumber: lineNumber,
+				startColumn,
+				endLineNumber: matchEndLine,
+				endColumn
+			};
+
+			const text2 = (match.groups ?? {})['label'] ?? '';
+			const hasSeparatorLine = ((match.groups ?? {})['separator'] ?? '') !== '';
+
 			const sectionHeader = {
 				range,
-				...getHeaderText(match[1]),
+				text: text2,
+				hasSeparatorLine,
 				shouldBeInComments: true
 			};
+
 			if (sectionHeader.text || sectionHeader.hasSeparatorLine) {
-				sectionHeaders.push(sectionHeader);
+				// only push if the previous one doesn't have this same linbe
+				if (markHeaders.length === 0 || markHeaders[markHeaders.length - 1].range.endLineNumber < sectionHeader.range.startLineNumber) {
+					markHeaders.push(sectionHeader);
+				}
 			}
+
+			// Move lastIndex past the current match to avoid infinite loop
+			regex.lastIndex = match.index + match[0].length;
 		}
 	}
+
+	return markHeaders;
 }
 
 function getHeaderText(text: string): { text: string; hasSeparatorLine: boolean } {

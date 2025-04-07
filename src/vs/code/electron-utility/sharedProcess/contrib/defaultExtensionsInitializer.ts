@@ -50,7 +50,7 @@ export class DefaultExtensionsInitializer extends Disposable {
 			return;
 		}
 
-		const vsixs = stat.children.filter(child => child.name.endsWith('.vsix'));
+		const vsixs = stat.children.filter(child => child.name.toLowerCase().endsWith('.vsix'));
 		if (vsixs.length === 0) {
 			this.logService.debug('There are no default extensions to initialize', extensionsLocation.toString());
 			return;
@@ -71,8 +71,8 @@ export class DefaultExtensionsInitializer extends Disposable {
 
 	private getDefaultExtensionVSIXsLocation(): URI {
 		// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
-		// extensionsPath = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\extras\extensions
-		return URI.file(join(dirname(dirname(this.environmentService.appRoot)), 'extras', 'extensions'));
+		// extensionsPath = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bootstrap\extensions
+		return URI.file(join(dirname(dirname(this.environmentService.appRoot)), 'bootstrap', 'extensions'));
 	}
 
 }

@@ -63,6 +63,8 @@ export interface ISCMHistoryItem {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
+	readonly authorEmail?: string;
+	readonly authorIcon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
 	readonly references?: ISCMHistoryItemRef[];
@@ -96,5 +98,4 @@ export interface ISCMHistoryItemChange {
 	readonly uri: URI;
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
-	readonly renameUri?: URI;
 }

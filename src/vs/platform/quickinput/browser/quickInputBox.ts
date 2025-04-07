@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { FindInput } from '../../../base/browser/ui/findinput/findInput.js';
 import { IInputBoxStyles, IRange, MessageType } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
@@ -29,19 +27,18 @@ export class QuickInputBox extends Disposable {
 		this.container = dom.append(this.parent, $('.quick-input-box'));
 		this.findInput = this._register(new FindInput(this.container, undefined, { label: '', inputBoxStyles, toggleStyles }));
 		const input = this.findInput.inputBox.inputElement;
-		input.role = 'combobox';
+		input.role = 'textbox';
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
-		input.ariaExpanded = 'true';
 	}
 
-	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
-		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.KEY_DOWN, handler);
-	};
+	get onKeyDown() {
+		return this.findInput.onKeyDown;
+	}
 
-	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
-		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.MOUSE_DOWN, handler);
-	};
+	get onMouseDown() {
+		return this.findInput.onMouseDown;
+	}
 
 	onDidChange = (handler: (event: string) => void): IDisposable => {
 		return this.findInput.onDidChange(handler);

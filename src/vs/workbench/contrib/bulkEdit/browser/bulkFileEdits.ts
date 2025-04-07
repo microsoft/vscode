@@ -255,15 +255,19 @@ class DeleteOperation implements IFileOperation {
 
 			// read file contents for undo operation. when a file is too large it won't be restored
 			let fileContent: IFileContent | undefined;
-			if (!edit.undoesCreate && !edit.options.folder && !(typeof edit.options.maxSize === 'number' && fileStat.size > edit.options.maxSize)) {
-				try {
-					fileContent = await this._fileService.readFile(edit.oldUri);
-				} catch (err) {
-					this._logService.error(err);
+			let fileContentExceedsMaxSize = false;
+			if (!edit.undoesCreate && !edit.options.folder) {
+				fileContentExceedsMaxSize = typeof edit.options.maxSize === 'number' && fileStat.size > edit.options.maxSize;
+				if (!fileContentExceedsMaxSize) {
+					try {
+						fileContent = await this._fileService.readFile(edit.oldUri);
+					} catch (err) {
+						this._logService.error(err);
+					}
 				}
 			}
-			if (fileContent !== undefined) {
-				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent.value));
+			if (!fileContentExceedsMaxSize) {
+				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent?.value));
 			}
 		}
 

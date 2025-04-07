@@ -5,29 +5,30 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from '../../../../../base/browser/dom.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
-import './media/terminalChatWidget.css';
 import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
-import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
-import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
-import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
-import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
-import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
-import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/chat.js';
-import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
-import { IChatService, IChatProgress } from '../../../chat/common/chatService.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
-import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
+import { IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../../chat/common/chatModel.js';
+import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
+import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
+import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
+import './media/terminalChatWidget.css';
+import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -95,16 +96,20 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
 		super();
 
-		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(_contextKeyService);
-		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(_contextKeyService);
+		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(contextKeyService);
+		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(contextKeyService);
+		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(contextKeyService);
+		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(contextKeyService);
+		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
@@ -124,6 +129,8 @@ export class TerminalChatWidget extends Disposable {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 					options: {
 						buttonConfigProvider: action => ({
+							showLabel: action.id !== TerminalChatCommandId.RerunRequest,
+							showIcon: action.id === TerminalChatCommandId.RerunRequest,
 							isSecondary: action.id !== TerminalChatCommandId.RunCommand && action.id !== TerminalChatCommandId.RunFirstCommand
 						})
 					}
@@ -179,10 +186,6 @@ export class TerminalChatWidget extends Disposable {
 		}));
 
 		this.hide();
-
-		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
-		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
-		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 	}
 
 	private _dimension?: Dimension;
@@ -224,7 +227,8 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	private _resetPlaceholder() {
-		this.inlineChatWidget.placeholder = this._model.value?.welcomeMessage?.title ?? localize('askAI', 'Ask AI');
+		const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Terminal);
+		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAI', 'Ask AI');
 	}
 
 	async reveal(viewState?: IChatViewState): Promise<void> {
@@ -327,6 +331,12 @@ export class TerminalChatWidget extends Disposable {
 				const model = this._model.value;
 				if (model) {
 					this._inlineChatWidget.setChatModel(model, this._loadViewState());
+					model.waitForInitialization().then(() => {
+						if (token.isCancellationRequested) {
+							return;
+						}
+						this._resetPlaceholder();
+					});
 				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');
@@ -375,7 +385,6 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts = new CancellationTokenSource();
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
-		let responseContent = '';
 		const response = await this._inlineChatWidget.chatWidget.acceptInput(lastInput, { isVoiceInput: options?.isVoiceInput });
 		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
@@ -383,7 +392,6 @@ export class TerminalChatWidget extends Disposable {
 			this._requestActiveContextKey.set(true);
 			if (response) {
 				store.add(response.onDidChange(async () => {
-					responseContent += response.response.value;
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
 						responsePromise.complete(undefined);
@@ -440,6 +448,22 @@ export class TerminalChatWidget extends Disposable {
 						edits: group,
 						uri: item.uri
 					});
+				}
+			} else if (item.kind === 'notebookEditGroup') {
+				for (const group of item.edits) {
+					if (isCellTextEditOperation(group)) {
+						message.push({
+							kind: 'textEdit',
+							edits: [group.edit],
+							uri: group.uri
+						});
+					} else {
+						message.push({
+							kind: 'notebookEdit',
+							edits: [group],
+							uri: item.uri
+						});
+					}
 				}
 			} else {
 				message.push(item);

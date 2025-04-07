@@ -113,10 +113,20 @@ export type SchemaToType<T> = T extends { type: 'string' }
 	? boolean
 	: T extends { type: 'null' }
 	? null
+	// Object
 	: T extends { type: 'object'; properties: infer P }
 	? { [K in keyof P]: SchemaToType<P[K]> }
+	// Array
 	: T extends { type: 'array'; items: infer I }
 	? Array<SchemaToType<I>>
+	// OneOf
+	: T extends { oneOf: infer I }
+	? MapSchemaToType<I>
+	// Fallthrough
+	: never;
+
+type MapSchemaToType<T> = T extends [infer First, ...infer Rest]
+	? SchemaToType<First> | MapSchemaToType<Rest>
 	: never;
 
 interface Equals { schemas: IJSONSchema[]; id?: string }

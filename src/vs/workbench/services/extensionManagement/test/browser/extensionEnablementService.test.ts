@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation, IAllowedExtensionsService, AllowedExtensionsConfigKey, IExtensionsControlManifest } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
 import { ExtensionEnablementService } from '../../browser/extensionEnablementService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -40,6 +40,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { AllowedExtensionsService } from '../../../../../platform/extensionManagement/common/allowedExtensionsService.js';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -71,6 +72,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidUninstallExtension: disposables.add(new Emitter<DidUninstallExtensionEvent>()).event,
 					onDidChangeProfile: disposables.add(new Emitter<DidChangeProfileEvent>()).event,
 					onDidUpdateExtensionMetadata: disposables.add(new Emitter<DidUpdateExtensionMetadata>()).event,
+					onProfileAwareDidInstallExtensions: Event.None,
 				},
 			}, null, null));
 		const extensionManagementService = disposables.add(instantiationService.createInstance(ExtensionManagementService));
@@ -90,10 +92,12 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
 			instantiationService.get(IHostService),
 			new class extends mock<IExtensionBisectService>() { override isDisabledByBisect() { return false; } },
+			instantiationService.stub(IAllowedExtensionsService, disposables.add(new AllowedExtensionsService(instantiationService.get(IProductService), instantiationService.get(IConfigurationService)))),
 			workspaceTrustManagementService,
 			new class extends mock<IWorkspaceTrustRequestService>() { override requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> { return Promise.resolve(true); } },
 			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
-			instantiationService
+			instantiationService,
+			new NullLogService()
 		);
 		this._register(disposables);
 	}
@@ -122,19 +126,22 @@ suite('ExtensionEnablementService Test', () => {
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
-	let testObject: IWorkbenchExtensionEnablementService;
+	let testObject: TestExtensionEnablementService;
 
 	const didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 	const didChangeProfileExtensionsEvent = new Emitter<DidChangeProfileEvent>();
 	const installed: ILocalExtension[] = [];
+	const malicious: IExtensionIdentifier[] = [];
 
 	setup(() => {
 		installed.splice(0, installed.length);
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProductService, TestProductService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const testConfigurationService = new TestConfigurationService();
+		testConfigurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': true, 'unallowed': false });
+		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
 			id: 'local',
@@ -143,7 +150,15 @@ suite('ExtensionEnablementService Test', () => {
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
 				onDidChangeProfile: didChangeProfileExtensionsEvent.event,
-				getInstalled: () => Promise.resolve(installed)
+				onProfileAwareDidInstallExtensions: Event.None,
+				getInstalled: () => Promise.resolve(installed),
+				async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
+					return {
+						malicious,
+						deprecated: {},
+						search: []
+					};
+				}
 			},
 		}, null, null));
 		instantiationService.stub(ILogService, NullLogService);
@@ -1152,6 +1167,33 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.DisabledGlobally);
 		assert.strictEqual(target.args[0][0].length, 1);
 		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
+	});
+
+	test('test extension is disabled by allowed list', async () => {
+		const target = aLocalExtension2('unallowed.extension');
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByAllowlist);
+	});
+
+	test('test extension is disabled by malicious', async () => {
+		malicious.push({ id: 'malicious.extensionA' });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		const target = aLocalExtension2('malicious.extensionA');
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByMalicious);
+	});
+
+	test('test installed malicious extension triggers change event', async () => {
+		testObject.dispose();
+		malicious.push({ id: 'malicious.extensionB' });
+		const local = aLocalExtension2('malicious.extensionB');
+		installed.push(local);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		assert.strictEqual(testObject.getEnablementState(local), EnablementState.EnabledGlobally);
+		const promise = Event.toPromise(testObject.onEnablementChanged);
+
+		const result = await promise;
+		assert.deepStrictEqual(result[0], local);
+		assert.strictEqual(testObject.getEnablementState(local), EnablementState.DisabledByMalicious);
 	});
 
 });

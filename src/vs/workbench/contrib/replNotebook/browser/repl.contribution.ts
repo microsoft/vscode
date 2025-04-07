@@ -338,20 +338,28 @@ registerAction2(class extends Action2 {
 			title: localize2('repl.execute', 'Execute REPL input'),
 			category: 'REPL',
 			keybinding: [{
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
+				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
+					NOTEBOOK_CELL_LIST_FOCUSED.negate()
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true),
+					NOTEBOOK_CELL_LIST_FOCUSED.negate()
 				),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false),
+					NOTEBOOK_CELL_LIST_FOCUSED.negate()
 				),
 				primary: KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
@@ -426,7 +434,7 @@ async function executeReplInput(
 			// Just accept any existing inline chat hunk
 			const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
 			if (ctrl) {
-				ctrl.acceptHunk();
+				ctrl.acceptSession();
 			}
 
 			historyService.replaceLast(notebookDocument.uri, value);

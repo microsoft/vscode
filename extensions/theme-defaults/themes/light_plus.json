@@ -64,7 +64,8 @@
 				"support.constant.math",
 				"support.constant.dom",
 				"support.constant.json",
-				"entity.other.inherited-class"
+				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby"
 			],
 			"settings": {
 				"foreground": "#267f99"

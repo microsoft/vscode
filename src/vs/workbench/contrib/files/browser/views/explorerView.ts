@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive } from '../../common/files.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceWritableContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive } from '../../common/files.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -201,7 +201,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService themeService: IWorkbenchThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -211,7 +211,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.delegate = options.delegate;
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
@@ -435,7 +435,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(explorerLabels);
 
-		this.findProvider = this.instantiationService.createInstance(ExplorerFindProvider, () => this.tree);
+		this.findProvider = this.instantiationService.createInstance(ExplorerFindProvider, this.filter, () => this.tree);
 
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
 		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, this.findProvider.highlightTree, updateWidth);
@@ -447,7 +447,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
-		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource, this.filter, this.findProvider), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
@@ -964,7 +964,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	hasPhantomElements(): boolean {
-		return this.findProvider.isShowingFilterResults();
+		return !!this.findProvider?.isShowingFilterResults();
 	}
 
 	override dispose(): void {
@@ -988,7 +988,7 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 
 const CanCreateContext = ContextKeyExpr.or(
 	// Folder: can create unless readonly
-	ContextKeyExpr.and(ExplorerFolderContext, ExplorerResourceNotReadonlyContext),
+	ContextKeyExpr.and(ExplorerFolderContext, ExplorerResourceWritableContext),
 	// File: can create unless parent is readonly
 	ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceParentReadOnlyContext.toNegated())
 );

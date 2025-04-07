@@ -6,7 +6,7 @@ import { localize } from '../../../../nls.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ContentHoverController } from './contentHoverController.js';
 import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -27,7 +27,7 @@ namespace HoverAccessibilityHelpNLS {
 	export const decreaseVerbosity = localize('decreaseVerbosity', '- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command.', `<keybinding:${DECREASE_HOVER_VERBOSITY_ACTION_ID}>`);
 }
 
-export class HoverAccessibleView implements IAccessibleViewImplentation {
+export class HoverAccessibleView implements IAccessibleViewImplementation {
 
 	public readonly type = AccessibleViewType.View;
 	public readonly priority = 95;
@@ -49,7 +49,7 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 	}
 }
 
-export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
+export class HoverAccessibilityHelp implements IAccessibleViewImplementation {
 
 	public readonly priority = 100;
 	public readonly name = 'hover';
@@ -228,7 +228,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	}
 }
 
-export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
+export class ExtHoverAccessibleView implements IAccessibleViewImplementation {
 	public readonly type = AccessibleViewType.View;
 	public readonly priority = 90;
 	public readonly name = 'extension-hover';

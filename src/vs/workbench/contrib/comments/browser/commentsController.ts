@@ -47,6 +47,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { threadHasMeaningfulComments } from './commentsModel.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export const ID = 'editor.contrib.review';
 
@@ -485,7 +486,8 @@ export class CommentController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -740,7 +742,7 @@ export class CommentController implements IEditorContribution {
 
 	public collapseAll(): void {
 		for (const widget of this._commentWidgets) {
-			widget.collapse();
+			widget.collapse(true);
 		}
 	}
 
@@ -1082,7 +1084,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
+		this.mouseDownInfo = this._activeEditorHasCommentingRange.get() ? parseMouseDownInfoFromEvent(e) : null;
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
@@ -1134,7 +1136,7 @@ export class CommentController implements IEditorContribution {
 			const existingCommentsAtLine = this.getCommentsAtLine(commentRange);
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
-				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand(true));
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse(true) : widget => widget.expand(true));
 				this.processNextThreadToAdd();
 				return;
 			} else {
@@ -1168,7 +1170,11 @@ export class CommentController implements IEditorContribution {
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
 			if (!newCommentInfos.length) {
-				throw new Error(`There are no commenting ranges at the current position (${range ? 'with range' : 'without range'}).`);
+				if (range) {
+					this.notificationService.error(nls.localize('comments.addCommand.error', "The cursor must be within a commenting range to add a comment."));
+				} else {
+					this.notificationService.error(nls.localize('comments.addFileCommentCommand.error', "File comments are not allowed on this file."));
+				}
 			}
 			return Promise.resolve();
 		}

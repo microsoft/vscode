@@ -20,7 +20,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { truncateMiddle } from '../../../../base/common/strings.js';
+import { count, truncateMiddle } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -360,7 +360,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	/**
 	 * Results invalidated by editor changes.
 	 */
-	private static invalidatedTests = new WeakSet<TestResultItem | ITestMessage>();
+	public static invalidatedTests = new WeakSet<TestResultItem | ITestMessage>();
 
 	/**
 	 * Gets the decorations associated with the given code editor.
@@ -372,8 +372,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	public get currentUri() { return this._currentUri; }
 
 	private _currentUri?: URI;
-	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
-	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
+	private readonly expectedWidget = this._register(new MutableDisposable<ExpectedLensContentWidget>());
+	private readonly actualWidget = this._register(new MutableDisposable<ActualLensContentWidget>());
 
 	private readonly errorContentWidgets = this._register(new DisposableMap<ITestMessage, TestErrorContentWidget>());
 	private readonly loggedMessageDecorations = new Map<ITestMessage, {
@@ -455,20 +455,18 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 
 			let changed = false;
-			for (const decos of [this.errorContentWidgets, this.loggedMessageDecorations]) {
-				for (const [message, deco] of decos) {
-					// invalidate decorations if either the line they're on was changed,
-					// or if the range of the test was changed. The range of the test is
-					// not always present, so check bo.
-					const invalidate = evts.some(e => e.changes.some(c =>
-						c.range.startLineNumber <= deco.line && c.range.endLineNumber >= deco.line
-						|| (deco.resultItem?.item.range && deco.resultItem.item.range.startLineNumber <= c.range.startLineNumber && deco.resultItem.item.range.endLineNumber >= c.range.endLineNumber)
-					));
+			for (const [message, deco] of this.loggedMessageDecorations) {
+				// invalidate decorations if either the line they're on was changed,
+				// or if the range of the test was changed. The range of the test is
+				// not always present, so check bo.
+				const invalidate = evts.some(e => e.changes.some(c =>
+					c.range.startLineNumber <= deco.line && c.range.endLineNumber >= deco.line
+					|| (deco.resultItem?.item.range && deco.resultItem.item.range.startLineNumber <= c.range.startLineNumber && deco.resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				));
 
-					if (invalidate) {
-						changed = true;
-						TestingDecorations.invalidatedTests.add(deco.resultItem || message);
-					}
+				if (invalidate) {
+					changed = true;
+					TestingDecorations.invalidatedTests.add(deco.resultItem || message);
 				}
 			}
 
@@ -1028,7 +1026,7 @@ abstract class RunTestDecoration {
 	 * Gets context menu actions relevant for a singel test.
 	 */
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
-		const testActions: IAction[] = [];
+		const testActions: Action[] = [];
 		const capabilities = this.testProfileService.capabilitiesForTest(test.item);
 
 		[
@@ -1069,7 +1067,7 @@ abstract class RunTestDecoration {
 			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
-		return { object: Separator.join(testActions, contributed), dispose() { } };
+		return { object: Separator.join(testActions, contributed), dispose() { testActions.forEach(a => a.dispose()); } };
 	}
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
@@ -1112,8 +1110,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 	}
 
 	public override getContextMenuActions() {
-		const allActions: IAction[] = [];
-
+		const disposable = new DisposableStore();
+		const allActions: Action[] = [];
 		[
 			{ bitset: TestRunProfileBitset.Run, label: localize('run all test', 'Run All Tests') },
 			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
@@ -1124,6 +1122,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
 			}
 		});
+
+		disposable.add(toDisposable(() => allActions.forEach(a => a.dispose())));
 
 		const testItems = this.tests.map((testItem): IMultiRunTest => ({
 			currentLabel: testItem.test.item.label,
@@ -1159,7 +1159,6 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			return (ai.sortText || ai.label).localeCompare(bi.sortText || bi.label);
 		});
 
-		const disposable = new DisposableStore();
 		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
@@ -1332,6 +1331,8 @@ class TestMessageDecoration implements ITestDecoration {
 	}
 }
 
+const ERROR_CONTENT_WIDGET_HEIGHT = 20;
+
 class TestErrorContentWidget extends Disposable implements IContentWidget {
 	private readonly id = generateUuid();
 
@@ -1352,7 +1353,7 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly position: Position,
+		private position: Position,
 		public readonly message: ITestErrorMessage,
 		public readonly resultItem: TestResultItem,
 		uri: URI,
@@ -1360,9 +1361,21 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 
+		const setMarginTop = () => {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
+		};
+
+		setMarginTop();
+		this._register(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.lineHeight)) {
+				setMarginTop();
+			}
+		}));
+
 		let text: string;
 		if (message.expected !== undefined && message.actual !== undefined) {
-			text = `${truncateMiddle(message.actual, 15)} != ${truncateMiddle(message.expected, 15)}`;
+			text = `${truncateMiddle(message.actual.replace(/\s+/g, ' '), 30)} != ${truncateMiddle(message.expected.replace(/\s+/g, ' '), 30)}`;
 		} else {
 			const msg = renderStringAsPlaintext(message.message);
 			const lf = msg.indexOf('\n');
@@ -1396,6 +1409,27 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		svg.append(leftArrow);
 
 		this.node.arrow.appendChild(svg);
+
+		this._register(editor.onDidChangeModelContent(e => {
+			for (const c of e.changes) {
+				if (c.range.startLineNumber > this.line) {
+					continue;
+				}
+				if (
+					c.range.startLineNumber <= this.line && c.range.endLineNumber >= this.line
+					|| (resultItem.item.range && resultItem.item.range.startLineNumber <= c.range.startLineNumber && resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				) {
+					TestingDecorations.invalidatedTests.add(this.resultItem);
+					this.dispose(); // todo
+				}
+
+				const adjust = count(c.text, '\n') - (c.range.endLineNumber - c.range.startLineNumber);
+				if (adjust !== 0) {
+					this.position = this.position.delta(adjust);
+					this.editor.layoutContentWidget(this);
+				}
+			}
+		}));
 
 		editor.addContentWidget(this);
 		this._register(toDisposable(() => editor.removeContentWidget(this)));

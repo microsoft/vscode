@@ -40,6 +40,8 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 enum HostShutdownReason {
 
@@ -238,7 +240,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		const payload = this.preservePayload(false /* not an empty window */, options);
 		const fileOpenables: IFileToOpen[] = [];
+
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+		const foldersToRemove: URI[] = [];
 
 		for (const openable of toOpen) {
 			openable.label = openable.label || this.getRecentLabel(openable);
@@ -246,7 +250,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// Folder
 			if (isFolderToOpen(openable)) {
 				if (options?.addMode) {
-					foldersToAdd.push(({ uri: openable.folderUri }));
+					foldersToAdd.push({ uri: openable.folderUri });
+				} else if (options?.removeMode) {
+					foldersToRemove.push(openable.folderUri);
 				} else {
 					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 				}
@@ -263,11 +269,17 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		// Handle Folders to Add
-		if (foldersToAdd.length > 0) {
-			this.withServices(accessor => {
+		// Handle Folders to add or remove
+		if (foldersToAdd.length > 0 || foldersToRemove.length > 0) {
+			this.withServices(async accessor => {
 				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
-				workspaceEditingService.addFolders(foldersToAdd);
+				if (foldersToAdd.length > 0) {
+					await workspaceEditingService.addFolders(foldersToAdd);
+				}
+
+				if (foldersToRemove.length > 0) {
+					await workspaceEditingService.removeFolders(foldersToRemove);
+				}
 			});
 		}
 
@@ -428,7 +440,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		return this.labelService.getUriLabel(openable.fileUri, { appendWorkspaceSuffix: true });
 	}
 
 	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
@@ -576,7 +588,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#region Screenshots
 
-	async getScreenshot(): Promise<ArrayBufferLike | undefined> {
+	async getScreenshot(): Promise<VSBuffer | undefined> {
 		// Gets a screenshot from the browser. This gets the screenshot via the browser's display
 		// media API which will typically offer a picker of all available screens and windows for
 		// the user to select. Using the video stream provided by the display media API, this will
@@ -622,8 +634,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 				throw new Error('Failed to create blob from canvas');
 			}
 
-			// Convert the Blob to an ArrayBuffer
-			return blob.arrayBuffer();
+			const buf = await blob.bytes();
+			return VSBuffer.wrap(buf);
 
 		} catch (error) {
 			console.error('Error taking screenshot:', error);
@@ -640,6 +652,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#endregion
 
+	//#region Native Handle
+
+	async getNativeWindowHandle(_windowId: number) {
+		return undefined;
+	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

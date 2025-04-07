@@ -5,11 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface ChatResponseFragment {
-		index: number;
-		part: string;
-	}
-
 	export interface ChatResponseFragment2 {
 		index: number;
 		part: LanguageModelTextPart | LanguageModelToolCallPart;
@@ -19,17 +14,14 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
-	 */
+	*/
 	export interface LanguageModelChatProvider {
 
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
-		provideLanguageModelResponse(messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
-		/** @deprecated */
-		provideLanguageModelResponse2?(messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
-
-		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
+		provideTokenCount(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
 
 	export type ChatResponseProvider = LanguageModelChatProvider;
@@ -68,19 +60,16 @@ declare module 'vscode' {
 		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
 		readonly isDefault?: boolean;
 		readonly isUserSelectable?: boolean;
+		readonly capabilities?: {
+			readonly vision?: boolean;
+			readonly toolCalling?: boolean;
+			readonly agentMode?: boolean;
+		};
 	}
 
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
 		extensions?: string[];
-	}
-
-	export namespace chat {
-
-		/**
-		 * @deprecated use `lm.registerChatResponseProvider` instead
-		*/
-		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 
 	export namespace lm {

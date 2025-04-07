@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/e8b053f9834cb44db0f49ac4a4567177bd943dbf",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/e1ac5c446c2531343393adbe8fff9d45d8a7c412",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -66,6 +66,16 @@
 		}
 	],
 	"repository": {
+		"dartdoc-codeblock-triple": {
+			"begin": "^\\s*///\\s*(?!\\s*```)",
+			"end": "\n",
+			"contentName": "variable.other.source.dart"
+		},
+		"dartdoc-codeblock-block": {
+			"begin": "^\\s*\\*\\s*(?!(\\s*```|/))",
+			"end": "\n",
+			"contentName": "variable.other.source.dart"
+		},
 		"dartdoc": {
 			"patterns": [
 				{
@@ -77,30 +87,31 @@
 					}
 				},
 				{
-					"match": "^ {4,}(?![ \\*]).*",
-					"captures": {
-						"0": {
-							"name": "variable.name.source.dart"
+					"begin": "^\\s*///\\s*(```)",
+					"end": "^\\s*///\\s*(```)|^(?!\\s*///)",
+					"patterns": [
+						{
+							"include": "#dartdoc-codeblock-triple"
 						}
-					}
+					]
 				},
 				{
-					"contentName": "variable.other.source.dart",
-					"begin": "```.*?$",
-					"end": "```"
-				},
-				{
-					"match": "(`[^`]+?`)",
-					"captures": {
-						"0": {
-							"name": "variable.other.source.dart"
+					"begin": "^\\s*\\*\\s*(```)",
+					"end": "^\\s*\\*\\s*(```)|^(?=\\s*\\*/)",
+					"patterns": [
+						{
+							"include": "#dartdoc-codeblock-block"
 						}
-					}
+					]
 				},
 				{
-					"match": "(\\* ((    ).*))$",
+					"match": "`[^`\n]+`",
+					"name": "variable.other.source.dart"
+				},
+				{
+					"match": "(?:\\*|\\/\\/)\\s{4,}(.*?)(?=($|\\*\\/))",
 					"captures": {
-						"2": {
+						"1": {
 							"name": "variable.other.source.dart"
 						}
 					}
@@ -154,7 +165,7 @@
 				{
 					"name": "comment.block.documentation.dart",
 					"begin": "///",
-					"while": "^\\s*///",
+					"end": "^(?!\\s*///)",
 					"patterns": [
 						{
 							"include": "#dartdoc"

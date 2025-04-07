@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         text: "@ChatProviderWithUsedContext test request",
         parts: [
@@ -31,6 +32,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -55,6 +57,8 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
       followups: undefined,
       isCanceled: false,
@@ -71,6 +75,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -78,7 +83,8 @@
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
     }
   ]
 }

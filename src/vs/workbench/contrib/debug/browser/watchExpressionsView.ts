@@ -13,25 +13,29 @@ import { ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeMo
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { getContextMenuActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
+import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_EXPRESSION_SELECTED, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IDebugViewWithVariables, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
 import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
-import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, expressionAndScopeLabelProvider, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { COPY_WATCH_EXPRESSION_COMMAND_ID } from './debugCommands.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 import { watchExpressionsAdd, watchExpressionsRemoveAll } from './debugIcons.js';
 import { VariablesRenderer, VisualizedVariableRenderer } from './variablesView.js';
@@ -40,7 +44,7 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
 let useCachedEvaluation = false;
 
-export class WatchExpressionsView extends ViewPane {
+export class WatchExpressionsView extends ViewPane implements IDebugViewWithVariables {
 
 	private watchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh = false;
@@ -50,6 +54,10 @@ export class WatchExpressionsView extends ViewPane {
 	private variableReadonly: IContextKey<boolean>;
 	private menu: IMenu;
 	private expressionRenderer: DebugExpressionRenderer;
+
+	public get treeSelection() {
+		return this.tree.getSelection();
+	}
 
 	constructor(
 		options: IViewletViewOptions,
@@ -62,11 +70,10 @@ export class WatchExpressionsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
 		this._register(this.menu);
@@ -89,7 +96,7 @@ export class WatchExpressionsView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, this.expressionRenderer);
-		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
 			[
 				expressionsRenderer,
 				this.instantiationService.createInstance(VariablesRenderer, this.expressionRenderer),
@@ -105,7 +112,7 @@ export class WatchExpressionsView extends ViewPane {
 						return undefined;
 					}
 
-					return e.name;
+					return expressionAndScopeLabelProvider.getKeyboardNavigationLabel(e);
 				}
 			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
@@ -566,5 +573,41 @@ registerAction2(class RemoveAllWatchExpressionsAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const debugService = accessor.get(IDebugService);
 		debugService.removeWatchExpressions();
+	}
+});
+
+registerAction2(class CopyExpression extends ViewAction<WatchExpressionsView> {
+	constructor() {
+		super({
+			id: COPY_WATCH_EXPRESSION_COMMAND_ID,
+			title: localize('copyWatchExpression', "Copy Expression"),
+			f1: false,
+			viewId: WATCH_VIEW_ID,
+			precondition: CONTEXT_WATCH_EXPRESSIONS_EXIST,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(
+					FocusedViewContext.isEqualTo(WATCH_VIEW_ID),
+					CONTEXT_EXPRESSION_SELECTED.negate(),
+				),
+			},
+			menu: {
+				id: MenuId.DebugWatchContext,
+				order: 20,
+				group: '3_modification',
+				when: CONTEXT_WATCH_ITEM_TYPE.isEqualTo('expression')
+			}
+		});
+	}
+
+	runInView(accessor: ServicesAccessor, view: WatchExpressionsView, value?: IExpression): void {
+		const clipboardService = accessor.get(IClipboardService);
+		if (!value) {
+			value = view.treeSelection.at(-1);
+		}
+		if (value) {
+			clipboardService.writeText(value.name);
+		}
 	}
 });

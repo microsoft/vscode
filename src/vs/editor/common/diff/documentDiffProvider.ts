@@ -45,6 +45,8 @@ export interface IDocumentDiffProviderOptions {
 	 * If set, the diff computation should compute moves in addition to insertions and deletions.
 	 */
 	computeMoves: boolean;
+
+	extendToSubwords?: boolean;
 }
 
 /**

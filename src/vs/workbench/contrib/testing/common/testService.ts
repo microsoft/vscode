@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
@@ -172,21 +173,40 @@ const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCol
  * in strictly descending order.
  */
 export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
-	for (const test of testService.collection.all) {
-		if (!test.item.uri) {
-			continue;
-		}
+	const queue = new LinkedList<Iterable<string>>();
 
-		if (ident.extUri.isEqual(uri, test.item.uri)) {
-			yield test;
-		}
+	const existing = [...testService.collection.getNodeByUrl(uri)];
+	queue.push(existing.length ? existing.map(e => e.item.extId) : testService.collection.rootIds);
 
-		if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
-			if (test.expand === TestItemExpandState.Expandable) {
-				await testService.collection.expand(test.item.extId, 1);
+	let n = 0;
+	while (queue.size > 0) {
+		for (const id of queue.pop()!) {
+			n++;
+			const test = testService.collection.getNodeById(id);
+			if (!test) {
+				continue; // possible because we expand async and things could delete
 			}
-			if (waitForIdle) {
-				await waitForTestToBeIdle(testService, test);
+
+			if (!test.item.uri) {
+				queue.push(test.children);
+				continue;
+			}
+
+			if (ident.extUri.isEqual(uri, test.item.uri)) {
+				yield test;
+			}
+
+			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+				if (test.expand === TestItemExpandState.Expandable) {
+					await testService.collection.expand(test.item.extId, 1);
+				}
+				if (waitForIdle) {
+					await waitForTestToBeIdle(testService, test);
+				}
+
+				if (test.children.size) {
+					queue.push(test.children);
+				}
 			}
 		}
 	}

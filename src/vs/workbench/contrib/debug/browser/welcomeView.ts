@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE } from '../common/debug.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ViewPane } from '../../../browser/parts/views/viewPane.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentGroups } from '../../../common/views.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { WorkbenchStateContext } from '../../../common/contextkeys.js';
-import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from '../../../browser/actions/workspaceActions.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from './debugCommands.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { OpenFileAction, OpenFileFolderAction, OpenFolderAction } from '../../../browser/actions/workspaceActions.js';
+import { ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { Extensions, IViewDescriptorService, IViewsRegistry, ViewContentGroups } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IDebugService } from '../common/debug.js';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from './debugCommands.js';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -53,10 +52,9 @@ export class WelcomeView extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageSevice: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
 		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
@@ -142,13 +140,6 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: `[${localize('detectThenRunAndDebug', "Show all automatic debug configurations")}](command:${SELECT_AND_START_ID}).`,
-	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	group: ViewContentGroups.Debug,
-	order: 10
-});
-
-viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize(
 		{
 			key: 'customizeRunAndDebug',
@@ -157,7 +148,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 				'{Locked="](command:{0})"}'
 			]
 		},
-		"To customize Run and Debug [create a launch.json file](command:{0}).", DEBUG_CONFIGURE_COMMAND_ID),
+		"To customize Run and Debug [create a launch.json file](command:{0}).", `${DEBUG_CONFIGURE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([{ addNew: true }]))}`),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
 	group: ViewContentGroups.Debug
 });

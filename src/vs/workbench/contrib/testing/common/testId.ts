@@ -78,6 +78,13 @@ export class TestId {
 	}
 
 	/**
+	 * Splits a test ID into its parts.
+	 */
+	public static split(idString: string) {
+		return idString.split(TestIdPathParts.Delimiter);
+	}
+
+	/**
 	 * Gets the string ID resulting from adding b to the base ID.
 	 */
 	public static joinToString(base: string | TestId, b: string) {
