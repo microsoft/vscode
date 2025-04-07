@@ -29,8 +29,8 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _whenBuiltinExtensionsReady = Promise.resolve<InstallExtensionSummary>({ failed: [] });
-	private readonly _whenExtensionsReady = Promise.resolve<InstallExtensionSummary>({ failed: [] });
+	private readonly _whenBuiltinExtensionsReady = Promise.resolve<InstallExtensionSummary>({ installLocally: [] });
+	private readonly _whenExtensionsReady = Promise.resolve<InstallExtensionSummary>({ installLocally: [] });
 
 	constructor(
 		private readonly _extensionManagementCLI: ExtensionManagementCLI,
@@ -51,10 +51,10 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				.then(() => {
 					performance.mark('code/server/didInstallBuiltinExtensions');
 					_logService.trace('Finished installing builtin extensions');
-					return { failed: [] };
+					return { installLocally: [] };
 				}, error => {
 					_logService.error(error);
-					return { failed: [] };
+					return { installLocally: [] };
 				});
 		}
 
@@ -70,7 +70,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				_logService.trace('Installing extensions later...');
 				this._whenExtensionsReady = this._whenBuiltinExtensionsReady
 					.then(async () => {
-						return { failed: extensionsToInstall.map(id => ({ id, installOptions })) };
+						return { installLocally: extensionsToInstall.map(id => ({ id, installOptions })) };
 					});
 				return;
 			}
@@ -80,11 +80,11 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], installOptions, !!environmentService.args['force']))
 				.then(async () => {
 					_logService.trace('Finished installing extensions');
-					return { failed: [] };
+					return { installLocally: [] };
 				}, async error => {
 					_logService.error(error);
 
-					const failed: {
+					const installLocally: {
 						id: string;
 						installOptions: InstallOptions;
 					}[] = [];
@@ -93,18 +93,18 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 					for (const id of this._asExtensionIdOrVSIX(extensionsToInstall)) {
 						if (typeof id === 'string') {
 							if (!alreadyInstalled.some(e => areSameExtensions(e.identifier, { id }))) {
-								failed.push({ id, installOptions });
+								installLocally.push({ id, installOptions });
 							}
 						}
 					}
 
-					if (!failed.length) {
+					if (!installLocally.length) {
 						_logService.trace(`No extensions to report as failed`);
-						return { failed: [] };
+						return { installLocally: [] };
 					}
 
-					_logService.info(`Relaying the following extensions to install later: ${failed.map(f => f.id).join(', ')}`);
-					return { failed };
+					_logService.info(`Relaying the following extensions to install later: ${installLocally.map(f => f.id).join(', ')}`);
+					return { installLocally };
 				});
 		}
 	}

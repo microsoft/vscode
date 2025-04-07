@@ -200,7 +200,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'remote.downloadExtensionsLocally': {
 				type: 'boolean',
-				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
+				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and then installed on remote."),
 				default: false
 			},
 		}

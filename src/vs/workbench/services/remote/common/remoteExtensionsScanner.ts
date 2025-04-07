@@ -36,7 +36,7 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 	whenExtensionsReady(): Promise<InstallExtensionSummary> {
 		return this.withChannel(
 			channel => channel.call<InstallExtensionSummary>('whenExtensionsReady'),
-			{ failed: [] }
+			{ installLocally: [] }
 		);
 	}
 
