@@ -3351,6 +3351,10 @@ declare namespace monaco.editor {
 		 */
 		scrollBeyondLastLine?: boolean;
 		/**
+		 * Scroll editor on middle click
+		 */
+		scrollOnMiddleClick?: boolean;
+		/**
 		 * Enable that scrolling can go beyond the last column by a number of columns.
 		 * Defaults to 5.
 		 */
@@ -5058,7 +5062,8 @@ declare namespace monaco.editor {
 		defaultColorDecorators = 153,
 		colorDecoratorsActivatedOn = 154,
 		inlineCompletionsAccessibilityVerbose = 155,
-		effectiveExperimentalEditContextEnabled = 156
+		effectiveExperimentalEditContextEnabled = 156,
+		scrollOnMiddleClick = 157
 	}
 
 	export const EditorOptions: {
@@ -5175,6 +5180,7 @@ declare namespace monaco.editor {
 		scrollbar: IEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions>;
 		scrollBeyondLastColumn: IEditorOption<EditorOption.scrollBeyondLastColumn, number>;
 		scrollBeyondLastLine: IEditorOption<EditorOption.scrollBeyondLastLine, boolean>;
+		scrollOnMiddleClick: IEditorOption<EditorOption.scrollOnMiddleClick, boolean>;
 		scrollPredominantAxis: IEditorOption<EditorOption.scrollPredominantAxis, boolean>;
 		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;

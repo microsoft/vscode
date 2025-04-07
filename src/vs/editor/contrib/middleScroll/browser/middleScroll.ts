@@ -9,6 +9,7 @@ import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 
 import './middleScroll.css';
 
@@ -140,6 +141,10 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	}
 
 	windowMouseDown(e: IMouseEvent) {
+		if (!this._editor.getOptions().get(EditorOption.scrollOnMiddleClick)) {
+			return;
+		}
+
 		if (this.scrolling) {
 			if (e.middleButton) {
 				e.stopPropagation();
