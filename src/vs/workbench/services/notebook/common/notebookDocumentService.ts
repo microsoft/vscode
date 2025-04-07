@@ -78,34 +78,23 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 	}
 	const outputId = params.get('outputId') ?? undefined;
 	const notebookScheme = params.get('notebookScheme') ?? undefined;
-	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
-
-	if (openIn === 'editor') {
-		const notebookUri = uri.with({
-			scheme: notebookScheme || Schemas.file,
-			fragment: null,
-			query: null,
-		});
-		return {
-			notebook: notebookUri,
-			openIn: openIn,
-			outputId: outputId,
-			outputIndex: outputIndex,
-		};
-	}
-	// If openIn is not editor, it needs to be opened in the notebook editor
 	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
-
-	if (parsedCell?.notebook === undefined || parsedCell?.handle === undefined) {
-		throw new Error('Invalid notebook output cell URI');
+	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
+	const notebookUri = parsedCell ? parsedCell.notebook : uri.with({
+		scheme: notebookScheme || Schemas.file,
+		fragment: null,
+		query: null,
+	});
+	if (notebookUri === undefined) {
+		throw new Error('Invalid cell URI');
 	}
 
 	return {
-		notebook: parsedCell.notebook,
+		notebook: notebookUri,
 		openIn: openIn,
 		outputId: outputId,
 		outputIndex: outputIndex,
-		cellHandle: parsedCell.handle,
+		cellHandle: parsedCell?.handle,
 		cellFragment: uri.fragment,
 	};
 }

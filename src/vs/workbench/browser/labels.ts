@@ -492,40 +492,34 @@ class ResourceLabelWidget extends IconLabel {
 		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCellOutput) {
 			const notebookDocument = this.notebookDocumentService.getNotebook(resource);
 			const outputUriData = extractCellOutputDetails(resource);
-
-			let cellIndex: number | undefined;
-			if (!outputUriData?.notebook) {
-				return;
-			}
-			if (outputUriData.cellHandle) {
-				// if we have a cell handle, we can use that to get the cell index
+			if (outputUriData?.cellFragment) {
+				if (!outputUriData.notebook) {
+					return;
+				}
 				const cellUri = outputUriData.notebook.with({
 					scheme: Schemas.vscodeNotebookCell,
 					fragment: outputUriData.cellFragment
 				});
-				cellIndex = notebookDocument?.getCellIndex(cellUri);
-			}
-			const outputIndex = outputUriData.outputIndex;
+				const cellIndex = notebookDocument?.getCellIndex(cellUri);
+				const outputIndex = outputUriData.outputIndex;
 
-			if (cellIndex !== undefined && outputIndex !== undefined && typeof label.name === 'string') {
-				label.name = localize(
-					'notebookCellOutputLabel',
-					"{0} • Cell {1} • Output {2}",
-					label.name,
-					`${cellIndex + 1}`,
-					`${outputIndex + 1}`
-				);
-			} else if (cellIndex !== undefined && typeof label.name === 'string') {
-				label.name = localize(
-					'notebookCellOutputLabelSimple',
-					"{0} • Cell {1} • Output",
-					label.name,
-					`${cellIndex + 1}`
-				);
-			} else if (typeof label.name === 'string') {
-				label.name = localize('notebookCellOutputLabelJustFile', "{0}", label.name);
+				if (cellIndex !== undefined && outputIndex !== undefined && typeof label.name === 'string') {
+					label.name = localize(
+						'notebookCellOutputLabel',
+						"{0} • Cell {1} • Output {2}",
+						label.name,
+						`${cellIndex + 1}`,
+						`${outputIndex + 1}`
+					);
+				} else if (cellIndex !== undefined && typeof label.name === 'string') {
+					label.name = localize(
+						'notebookCellOutputLabelSimple',
+						"{0} • Cell {1} • Output",
+						label.name,
+						`${cellIndex + 1}`
+					);
+				}
 			}
-
 		}
 
 		const hasResourceChanged = this.hasResourceChanged(label);
