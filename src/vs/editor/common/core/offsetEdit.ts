@@ -11,6 +11,17 @@ import { OffsetRange } from './offsetRange.js';
  * Use `TextEdit` to describe edits for a 1-based line/column text.
 */
 export class OffsetEdit {
+	public static join(edits: readonly OffsetEdit[]): OffsetEdit {
+		if (edits.length === 0) {
+			return OffsetEdit.empty;
+		}
+		let result = edits[0];
+		for (let i = 1; i < edits.length; i++) {
+			result = result.compose(edits[i]);
+		}
+		return result;
+	}
+
 	public static readonly empty = new OffsetEdit([]);
 
 	public static fromJson(data: IOffsetEdit): OffsetEdit {
