@@ -27,9 +27,6 @@ function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): Process
 async function main() {
 	usePwsh();
 
-	const version = await $`node -p "require('../../package.json').version"`;
-	console.log(`Version: ${version}`);
-
 	const codesignTasks: CodeSignTask[] = [
 		{
 			banner: 'Codesign executables and shared libraries',
