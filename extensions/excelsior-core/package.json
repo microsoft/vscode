@@ -1,0 +1,49 @@
+{
+  "name": "excelsior-core",
+  "displayName": "Excelsior AI Core",
+  "description": "Core functionality for the Excelsior AI IDE.",
+  "version": "0.0.1",
+  "publisher": "excelsior-ai",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "excelsior-core.helloWorld",
+        "title": "Hello World (Excelsior Core)"
+      }
+    ],
+    "configuration": {
+      "title": "Excelsior AI",
+      "properties": {
+        "excelsiorAi.core.enableExperimentalFeatures": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enables experimental features within the Excelsior AI core."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^7.11.0",
+    "@typescript-eslint/parser": "^7.11.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5"
+  }
+}

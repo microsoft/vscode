@@ -1,0 +1,15 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "commonjs",
+		"outDir": "out",
+		"rootDir": "src",
+		"tsBuildInfoFile": "../.buildinfo/excelsior-core.tsbuildinfo"
+	},
+	"include": [
+		"src"
+	],
+	"exclude": [
+		"node_modules"
+	]
+}
