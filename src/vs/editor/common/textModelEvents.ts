@@ -304,6 +304,10 @@ export class ModelFontChanged {
 	 */
 	public readonly ownerId: number;
 	/**
+	 * The version ID of the model.
+	 */
+	public readonly versionId: number;
+	/**
 	 * The decoration ID that has changed.
 	 */
 	public readonly decorationId: string;
@@ -316,8 +320,9 @@ export class ModelFontChanged {
 	 */
 	public readonly fontDecoration: FontDecoration | null;
 
-	constructor(ownerId: number, decorationId: string, lineNumber: number, fontDecoration: FontDecoration | null) {
+	constructor(ownerId: number, versionId: number, decorationId: string, lineNumber: number, fontDecoration: FontDecoration | null) {
 		this.ownerId = ownerId;
+		this.versionId = versionId;
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
 		this.fontDecoration = fontDecoration;
