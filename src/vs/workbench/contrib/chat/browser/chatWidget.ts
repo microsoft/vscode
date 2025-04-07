@@ -12,15 +12,25 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorunWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { CancellationTokenSource } from '../../../../base/common/observableInternal/commonFacade/cancellation.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../editor/common/languages.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { provideInlineCompletions } from '../../../../editor/contrib/inlineCompletions/browser/model/provideInlineCompletions.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -98,6 +108,11 @@ export function isQuickChat(widget: IChatWidget): boolean {
 
 const PersistWelcomeMessageContentKey = 'chat.welcomeMessageContent';
 
+interface PromptCompletionState {
+	collection: IEditorDecorationsCollection;
+	insertText: string | undefined;
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
@@ -160,6 +175,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private canRequestBePaused: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 
+	private promptCompletionState: PromptCompletionState | undefined;
+	private promptCompletionTimeout: NodeJS.Timeout | undefined;
+	private ignorePromptCompletions: boolean = false;
 
 	private _visible = false;
 	public get visible() {
@@ -245,6 +263,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -850,6 +870,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			() => this.collectInputState()
 		));
 		this.inputPart.render(container, '', this);
+		this.promptCompletionState = {
+			collection: this.inputEditor.createDecorationsCollection(),
+			insertText: undefined
+		};
 
 		this._register(this.inputPart.onDidLoadInputState(state => {
 			this.contribs.forEach(c => {
@@ -860,6 +884,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 			this.refreshParsedInput();
 		}));
+		this._register(this.inputPart.onDidBlur(() => this.clearPromptCompletions()));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {
@@ -918,6 +943,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
+			this.updateInlineCompletions();
+		}));
+		this._register(this.inputEditor.onDidChangeCursorPosition(() => {
+			this.updateInlineCompletions();
+		}));
+		this._register(this.inputEditor.onKeyDown((e) => {
+			if (e.keyCode === KeyCode.Tab) {
+				const accepted = this.acceptPromptCompletion();
+				if (accepted) {
+					e.stopPropagation();
+					e.preventDefault();
+				}
+			}
+			if (e.keyCode === KeyCode.Escape) {
+				this.clearPromptCompletions();
+			}
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.parsedChatRequest = undefined;
@@ -1368,6 +1409,98 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private updateChatInputContext() {
 		const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
 		this.agentInInput.set(!!currentAgent);
+	}
+
+	private async updateInlineCompletions(): Promise<void> {
+		if (this.ignorePromptCompletions) {
+			return;
+		}
+		this.clearPromptCompletions();
+		if (this.promptCompletionTimeout) {
+			clearTimeout(this.promptCompletionTimeout);
+		}
+		this.promptCompletionTimeout = setTimeout(async () => {
+			if (!this.promptCompletionState) {
+				return;
+			}
+			const source = new CancellationTokenSource();
+			const requests = this.viewModel?.model.getRequests() ?? [];
+			const resolvedRequests = requests.map(r => r.message.text);
+			const context: InlineCompletionContext = {
+				triggerKind: InlineCompletionTriggerKind.Automatic,
+				includeInlineEdits: true,
+				includeInlineCompletions: true,
+				selectedSuggestionInfo: undefined,
+				requests: resolvedRequests
+			};
+			const model = this.inputEditor.getModel();
+			const position = this.inputEditor.getPosition();
+			if (!model || !position) {
+				return;
+			}
+			const updatedCompletions = await provideInlineCompletions(
+				this.languageFeaturesService.inlineCompletionsProvider,
+				position,
+				model,
+				context,
+				source.token,
+				this.languageConfigurationService
+			);
+			const completion = updatedCompletions.completions[0];
+			if (!completion) {
+				return;
+			}
+			this.setPromptCompletionState({ position, insertText: completion.insertText });
+		}, 500);
+	}
+
+	private setPromptCompletionState(opts: { position: Position; insertText: string } | null): void {
+		if (!this.promptCompletionState) {
+			return;
+		}
+		if (opts !== null) {
+			const position = opts.position;
+			const insertText = opts.insertText;
+			const decorations: readonly IModelDeltaDecoration[] = [{
+				range: Range.fromPositions(position),
+				options: {
+					description: 'Prompt Completions',
+					after: {
+						content: insertText,
+						inlineClassName: 'chat-inline-completion'
+					},
+					showIfCollapsed: true,
+				}
+			}];
+			this.promptCompletionState.insertText = insertText;
+			this.promptCompletionState.collection.set(decorations);
+		} else {
+			this.promptCompletionState.insertText = undefined;
+			this.promptCompletionState.collection.set([]);
+		}
+	}
+
+	private clearPromptCompletions(): void {
+		this.setPromptCompletionState(null);
+	}
+
+	private acceptPromptCompletion(): boolean {
+		if (!this.promptCompletionState) {
+			return false;
+		}
+		const model = this.inputEditor.getModel();
+		if (!model) {
+			return false;
+		}
+		const newValue = model.getValue() + this.promptCompletionState.insertText;
+		this.ignorePromptCompletions = true;
+		this.inputEditor.setValue(newValue);
+		const lineCount = model.getLineCount();
+		const lineMaxColumn = model.getLineMaxColumn(lineCount);
+		this.inputEditor.setPosition({ lineNumber: lineCount, column: lineMaxColumn });
+		this.ignorePromptCompletions = false;
+		this.clearPromptCompletions();
+		return true;
 	}
 }
 
