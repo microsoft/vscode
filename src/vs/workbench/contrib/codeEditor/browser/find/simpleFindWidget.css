@@ -108,6 +108,6 @@ div.simple-find-part-wrapper div.button:hover:not(.disabled) {
 }
 
 .monaco-workbench .simple-find-part .monaco-sash.vertical:before{
-	width: 2px;
+	width: 3px;
 	left: calc(50% - (var(--vscode-sash-hover-size) / 4));
 }
