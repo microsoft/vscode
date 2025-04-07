@@ -272,7 +272,6 @@ steps:
 
           echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
-        condition: succeededOrFailed()
         displayName: Move setup packages
 
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
