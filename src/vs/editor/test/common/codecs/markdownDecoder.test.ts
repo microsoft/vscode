@@ -252,7 +252,7 @@ suite('MarkdownDecoder', () => {
 								// `1st` input line
 								new LeftBracket(new Range(1, 1, 1, 2)),
 								new Word(new Range(1, 2, 1, 2 + 3), 'haa'),
-								new stopCharacter(new Range(1, 5, 1, 6)), // <- stop character
+								new NewLine(new Range(1, 5, 1, 6)), // a single CR token is treated as a `new line`
 								new Word(new Range(2, 1, 2, 1 + 3), 'loů'),
 								new RightBracket(new Range(2, 4, 2, 5)),
 								new LeftParenthesis(new Range(2, 5, 2, 6)),
@@ -267,7 +267,7 @@ suite('MarkdownDecoder', () => {
 								new RightBracket(new Range(3, 10, 3, 11)),
 								new LeftParenthesis(new Range(3, 11, 3, 12)),
 								new Word(new Range(3, 12, 3, 12 + 8), '/etc/pat'),
-								new stopCharacter(new Range(3, 20, 3, 21)), // <- stop character
+								new NewLine(new Range(3, 20, 3, 21)), // a single CR token is treated as a `new line`
 								new Word(new Range(4, 1, 4, 1 + 12), 'h/to/file.md'),
 								new RightParenthesis(new Range(4, 13, 4, 14)),
 								new NewLine(new Range(4, 14, 4, 15)),
@@ -275,7 +275,7 @@ suite('MarkdownDecoder', () => {
 								new LeftBracket(new Range(5, 1, 5, 2)),
 								new Word(new Range(5, 2, 5, 2 + 4), 'text'),
 								new RightBracket(new Range(5, 6, 5, 7)),
-								new stopCharacter(new Range(5, 7, 5, 8)), // <- stop character
+								new NewLine(new Range(5, 7, 5, 8)), // a single CR token is treated as a `new line`
 								new LeftParenthesis(new Range(6, 1, 6, 2)),
 								new Word(new Range(6, 2, 6, 2 + 5), '/etc/'),
 								new Space(new Range(6, 7, 6, 8)),
@@ -546,7 +546,7 @@ suite('MarkdownDecoder', () => {
 								new ExclamationMark(new Range(1, 1, 1, 2)),
 								new LeftBracket(new Range(1, 2, 1, 3)),
 								new Word(new Range(1, 3, 1, 3 + 3), 'haa'),
-								new stopCharacter(new Range(1, 6, 1, 7)), // <- stop character
+								new NewLine(new Range(1, 6, 1, 7)),  // a single CR token is treated as a `new line`
 								new Word(new Range(2, 1, 2, 1 + 3), 'loů'),
 								new RightBracket(new Range(2, 4, 2, 5)),
 								new LeftParenthesis(new Range(2, 5, 2, 6)),
@@ -562,7 +562,7 @@ suite('MarkdownDecoder', () => {
 								new RightBracket(new Range(3, 11, 3, 12)),
 								new LeftParenthesis(new Range(3, 12, 3, 13)),
 								new Word(new Range(3, 13, 3, 13 + 8), '/etc/pat'),
-								new stopCharacter(new Range(3, 21, 3, 22)), // <- stop character
+								new NewLine(new Range(3, 21, 3, 22)),  // a single CR token is treated as a `new line`
 								new Word(new Range(4, 1, 4, 1 + 14), 'h/to/file.webp'),
 								new RightParenthesis(new Range(4, 15, 4, 16)),
 								new NewLine(new Range(4, 16, 4, 17)),
@@ -571,7 +571,7 @@ suite('MarkdownDecoder', () => {
 								new LeftBracket(new Range(5, 2, 5, 3)),
 								new Word(new Range(5, 3, 5, 3 + 4), 'text'),
 								new RightBracket(new Range(5, 7, 5, 8)),
-								new stopCharacter(new Range(5, 8, 5, 9)), // <- stop character
+								new NewLine(new Range(5, 8, 5, 9)),  // a single CR token is treated as a `new line`
 								new LeftParenthesis(new Range(6, 1, 6, 2)),
 								new Word(new Range(6, 2, 6, 2 + 5), '/etc/'),
 								new Space(new Range(6, 7, 6, 8)),
