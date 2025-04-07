@@ -419,6 +419,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
 			this.editingPreview = change;
 			cell.updateEditState(CellEditState.Editing, 'chatEditNavigation');
+		} else {
+			this.editingPreview = undefined;
 		}
 
 		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: targetLines.startLineNumber });
