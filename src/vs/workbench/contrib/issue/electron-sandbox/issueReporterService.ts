@@ -249,7 +249,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		return true;
 	}
 
-	public override async writeToClipboard(baseUrl: string, issueBody: string, isVscode?: boolean, isCopilot?: boolean): Promise<string> {
+	public override async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
 		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
@@ -257,7 +257,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		await this.nativeHostService.writeClipboardText(issueBody);
 
-		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))})`;
+		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {

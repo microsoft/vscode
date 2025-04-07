@@ -1159,14 +1159,14 @@ export class BaseIssueReporterService extends Disposable {
 
 		if (url.length > MAX_URL_LENGTH) {
 			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = await this.writeToClipboard(baseUrl, issueBody) + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
 			}
 		}
 
-		this.window.open(url + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName), '_blank');
+		this.window.open(url, '_blank');
 
 		return true;
 	}
