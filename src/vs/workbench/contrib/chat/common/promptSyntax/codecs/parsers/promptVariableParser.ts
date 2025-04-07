@@ -7,6 +7,7 @@ import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { PromptVariable, PromptVariableWithData } from '../tokens/promptVariable.js';
+import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
 import { Hash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
 import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/space.js';
@@ -24,7 +25,7 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../.
 /**
  * List of characters that terminate the prompt variable sequence.
  */
-export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed]
+export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed, Hash, At]
 	.map((token) => { return token.symbol; });
 
 /**
@@ -35,7 +36,7 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, Colon, Exclamat
 
 /**
  * The parser responsible for parsing a `prompt variable name`.
- * E.g., `#selection` or `#workspace` variable. If the `:` character follows
+ * E.g., `#selection` or `#codebase` variable. If the `:` character follows
  * the variable name, the parser transitions to {@link PartialPromptVariableWithData}
  * that is also able to parse the `data` part of the variable. E.g., the `#file` part
  * of the `#file:/path/to/something.md` sequence.

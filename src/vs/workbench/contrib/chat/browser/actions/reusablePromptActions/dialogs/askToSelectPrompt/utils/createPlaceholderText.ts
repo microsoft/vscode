@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SUPER_KEY_NAME } from '../constants.js';
 import { localize } from '../../../../../../../../../nls.js';
 import { ISelectPromptOptions } from '../askToSelectPrompt.js';
-import { SUPER_KEY_NAME } from '../constants.js';
 
 /**
  * Creates a placeholder text to show in the prompt selection dialog.
@@ -20,8 +20,8 @@ export const createPlaceholderText = (
 		'Select a prompt to use',
 	);
 
-	// if no widget reference is provided, add the note about `options`
-	// and `cmd` modifiers users can leverage to alter the command behavior
+	// if no widget reference is provided, add the note about the `ctrl`/`cmd`
+	// modifier that can be leveraged by users to alter the command behavior
 	if (widget === undefined) {
 		const superModifierNote = localize(
 			'commands.prompts.use.select-dialog.super-modifier-note',

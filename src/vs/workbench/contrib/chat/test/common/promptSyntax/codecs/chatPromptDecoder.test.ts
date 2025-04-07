@@ -8,9 +8,11 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
 import { FileReference } from '../../../../common/promptSyntax/codecs/tokens/fileReference.js';
+import { PromptAtMention } from '../../../../common/promptSyntax/codecs/tokens/promptAtMention.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
+import { PromptVariable, PromptVariableWithData } from '../../../../common/promptSyntax/codecs/tokens/promptVariable.js';
 
 /**
  * A reusable test utility that asserts that a `ChatPromptDecoder` instance
@@ -53,18 +55,23 @@ suite('ChatPromptDecoder', () => {
 
 		const contents = [
 			'',
-			'haalo!',
+			'haalo! @workspace',
 			' message 👾 message #file:./path/to/file1.md',
 			'',
 			'## Heading Title',
 			' \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md',
 			' [#file:reference.md](./reference.md)some text #file:/some/file/with/absolute/path.md',
-			'text text #file: another text',
+			'text text #file: another @github text #selection even more text',
+			'\t\v#my-name:metadata:1:20 \t\t\t',
 		];
 
 		await test.run(
 			contents,
 			[
+				new PromptAtMention(
+					new Range(2, 8, 2, 18),
+					'workspace',
+				),
 				new FileReference(
 					new Range(3, 21, 3, 21 + 24),
 					'./path/to/file1.md',
@@ -91,7 +98,58 @@ suite('ChatPromptDecoder', () => {
 					new Range(8, 11, 8, 11 + 6),
 					'',
 				),
+				new PromptAtMention(
+					new Range(8, 26, 8, 33),
+					'github',
+				),
+				new PromptVariable(
+					new Range(8, 39, 8, 49),
+					'selection',
+				),
+				new PromptVariableWithData(
+					new Range(9, 3, 9, 3 + 22),
+					'my-name',
+					'metadata:1:20',
+				),
 			],
 		);
+	});
+
+	suite('variables', () => {
+		test('• produces expected tokens', async () => {
+			const test = testDisposables.add(
+				new TestChatPromptDecoder(),
+			);
+
+			const contents = [
+				'',
+				'\t\v#variable@',
+				' #selection#your-variable',
+				'some-text #var:12:67# some text',
+			];
+
+			await test.run(
+				contents,
+				[
+					new PromptVariable(
+						new Range(2, 3, 2, 3 + 9),
+						'variable',
+					),
+					new PromptVariable(
+						new Range(3, 2, 3, 2 + 10),
+						'selection',
+					),
+					new PromptVariable(
+						new Range(3, 12, 3, 12 + 14),
+						'your-variable',
+					),
+					new PromptVariableWithData(
+						new Range(4, 11, 4, 11 + 10),
+						'var',
+						'12:67',
+					),
+				],
+			);
+		});
 	});
 });
