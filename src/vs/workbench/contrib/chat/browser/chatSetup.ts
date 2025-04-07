@@ -58,7 +58,7 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
+import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatRequestModel } from '../common/chatModel.js';
@@ -108,33 +108,16 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 			let id: string;
 			let description = localize('chatDescription', "Ask Copilot");
-			let welcomeMessageContent: IChatWelcomeMessageContent | undefined;
-			const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 			switch (location) {
 				case ChatAgentLocation.Panel:
 					if (mode === ChatMode.Ask) {
 						id = 'setup.chat';
-						welcomeMessageContent = {
-							title: description,
-							message: new MarkdownString(baseMessage),
-							icon: Codicon.copilotLarge
-						};
 					} else if (mode === ChatMode.Edit) {
 						id = 'setup.edits';
 						description = localize('editsDescription', "Edit files in your workspace");
-						welcomeMessageContent = {
-							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
-							icon: Codicon.copilotLarge
-						};
 					} else {
 						id = 'setup.agent';
 						description = localize('agentDescription', "Edit files in your workspace in agent mode");
-						welcomeMessageContent = {
-							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent') + `\n\n${baseMessage}`),
-							icon: Codicon.copilotLarge
-						};
 					}
 					break;
 				case ChatAgentLocation.Terminal:
@@ -161,7 +144,6 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				disambiguation: [],
 				locations: [location],
 				metadata: {
-					welcomeMessageContent,
 					helpTextPrefix: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE
 				},
 				description,
