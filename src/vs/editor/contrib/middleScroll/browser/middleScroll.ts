@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./middleScroll';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { getWindow, getActiveWindow } from '../../../../base/browser/dom.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+
+import './middleScroll.css';
 
 export class MiddleScrollController extends Disposable implements IEditorContribution {
 
@@ -32,6 +33,11 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		return editor.getContribution<MiddleScrollController>(MiddleScrollController.ID);
 	}
 
+	get editor(): ICodeEditor {
+		return this._editor;
+	}
+
+
 	constructor(editor: ICodeEditor) {
 		super();
 		this._editor = editor;
@@ -50,7 +56,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	}
 
 	getWindow() {
-		return this._editor.getDomNode() ? dom.getWindow(this._editor.getDomNode()) : dom.getActiveWindow();
+		return this._editor.getDomNode() ? getWindow(this._editor.getDomNode()) : getActiveWindow();
 	}
 
 	scrollPane() {
