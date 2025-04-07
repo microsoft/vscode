@@ -9,24 +9,19 @@ import { attachPrompts } from './utils/attachPrompts.js';
 import { handleButtonClick } from './utils/handleButtonClick.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
+import { createPromptPickItem } from './utils/createPromptPickItem.js';
+import { createPlaceholderText } from './utils/createPlaceholderText.js';
 import { extUri } from '../../../../../../../../base/common/resources.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
-import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
-import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
+import { IPromptPath } from '../../../../../common/promptSyntax/service/types.js';
+import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 import { IViewsService } from '../../../../../../../services/views/common/viewsService.js';
-import { IPromptPath } from '../../../../../common/promptSyntax/service/types.js';
-import { IChatWidget } from '../../../../chat.js';
-import { DOCS_OPTION } from './constants.js';
-import { attachPrompts } from './utils/attachPrompts.js';
-import { createPlaceholderText } from './utils/createPlaceholderText.js';
-import { createPromptPickItem } from './utils/createPromptPickItem.js';
-import { handleButtonClick } from './utils/handleButtonClick.js';
+import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
+import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Options for the {@link askToSelectPrompt} function.

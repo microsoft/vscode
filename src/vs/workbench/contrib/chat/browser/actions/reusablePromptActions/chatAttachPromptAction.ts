@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { CHAT_CATEGORY } from '../chatActions.js';
 import { localize2 } from '../../../../../../nls.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
