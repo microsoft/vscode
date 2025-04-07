@@ -5,7 +5,6 @@
 
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../../nls.js';
-import { IChatService } from '../../../common/chatService.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
@@ -87,22 +86,12 @@ class AttachPromptAction extends Action2 {
 			const attachOptions: IAttachPromptOptions = {
 				...options,
 				viewsService,
-				chatService,
 				commandService,
 			};
 
 			const widget = await attachPrompts(
 				[{ value: resource }],
 				attachOptions,
-				/**
-				 * The `alt` option is always set to `false` here, but it should not
-				 * matter - it signifies usage of the `Edit` view which isn't enabled
-				 * in the `unified view` mode which is currently the only mode that
-				 * produces the `skipSelectionDialog: true` option. Furthermore,
-				 * the `unified view` mode will be the default and the only mode
-				 * supported in the next iteration and this option will be removed.
-				 */
-				false,
 			);
 
 			widget.focusInput();
