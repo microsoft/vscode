@@ -7,6 +7,7 @@ import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { runAttachPromptAction } from './chatAttachPromptAction.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { ILocalizedString, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -17,7 +18,6 @@ import { ICommandAction } from '../../../../../../platform/action/common/action.
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { getActivePromptUri } from '../../promptSyntax/contributions/usePromptCommand.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../../../common/contextkeys.js';
@@ -114,7 +114,6 @@ abstract class RunPromptBaseAction extends Action2 {
  */
 const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
 	ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-	ChatContextKeyExprs.unifiedChatEnabled,
 	ResourceContextKey.HasResource,
 	ContextKeyExpr.regex(
 		ResourceContextKey.Filename.key,

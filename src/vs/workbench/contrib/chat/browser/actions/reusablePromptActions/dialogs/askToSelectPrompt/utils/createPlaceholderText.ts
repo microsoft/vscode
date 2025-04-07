@@ -6,7 +6,6 @@
 import { SUPER_KEY_NAME } from '../constants.js';
 import { localize } from '../../../../../../../../../nls.js';
 import { ISelectPromptOptions } from '../askToSelectPrompt.js';
-import { SUPER_KEY_NAME } from '../constants.js';
 
 /**
  * Creates a placeholder text to show in the prompt selection dialog.
