@@ -227,9 +227,7 @@ steps:
           mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
         displayName: Mix in CLI
 
-    - script: |
-        set -e
-        tar -czf $CLIENT_PATH -C .. VSCode-linux-$(VSCODE_ARCH)
+    - script: tar -czf $CLIENT_PATH -C .. VSCode-linux-$(VSCODE_ARCH)
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Archive client
@@ -391,7 +389,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+      condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''))
       displayName: Publish client archive
 
     - task: 1ES.PublishPipelineArtifact@1
@@ -401,7 +399,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+      condition: and(succeeded(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
     - task: 1ES.PublishPipelineArtifact@1
@@ -411,7 +409,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+      condition: and(succeeded(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive
 
     - task: 1ES.PublishPipelineArtifact@1
@@ -421,7 +419,7 @@ steps:
         sbomBuildDropPath: .build/linux/deb
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
+      condition: and(succeeded(), ne(variables['DEB_PATH'], ''))
       displayName: Publish deb package
 
     - task: 1ES.PublishPipelineArtifact@1
@@ -431,7 +429,7 @@ steps:
         sbomBuildDropPath: .build/linux/rpm
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
+      condition: and(succeeded(), ne(variables['RPM_PATH'], ''))
       displayName: Publish rpm package
 
     - task: 1ES.PublishPipelineArtifact@1
@@ -439,5 +437,5 @@ steps:
         targetPath: $(SNAP_PATH)
         artifactName: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
         sbomEnabled: false
-      condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
+      condition: and(succeeded(), ne(variables['SNAP_PATH'], ''))
       displayName: Publish snap pre-package
