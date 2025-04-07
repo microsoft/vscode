@@ -4,29 +4,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-const zx_1 = require("zx");
-function printBanner(title) {
-    console.log('#'.repeat(65));
-    console.log(`# ${title.padEnd(61)} #`);
-    console.log('#'.repeat(65));
-}
-function sign(folder, glob) {
-    return (0, zx_1.$) `node build/azure-pipelines/common/sign ${process.env['AGENT_ROOTDIRECTORY']}/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp ${folder} '${glob}'`;
-}
+const codesign_js_1 = require("../common/codesign.js");
 async function main() {
+    const esrpDLLPath = `${process.env['AGENT_ROOTDIRECTORY']}/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll`;
     const codesignTasks = [
         {
-            banner: 'Codesign Debian package',
-            processPromise: sign('.build/linux/deb', '*.deb')
+            title: 'Codesign Debian package',
+            processPromise: (0, codesign_js_1.sign)(esrpDLLPath, 'sign-pgp', '.build/linux/deb', '*.deb')
         },
         {
-            banner: 'Codesign RPM package',
-            processPromise: sign('.build/linux/rpm', '*.rpm')
+            title: 'Codesign RPM package',
+            processPromise: (0, codesign_js_1.sign)(esrpDLLPath, 'sign-pgp', '.build/linux/rpm', '*.rpm')
         }
     ];
     // Wait for processes to finish and stream their output
-    for (const { banner, processPromise } of codesignTasks) {
-        printBanner(banner);
+    for (const { title, processPromise } of codesignTasks) {
+        (0, codesign_js_1.printTitle)(title);
         await processPromise.pipe(process.stdout);
     }
 }
