@@ -84,7 +84,6 @@ export namespace ChatContextKeys {
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 
 	export const Editing = {
-		hasToolsAgent: new RawContextKey<boolean>('chatHasToolsAgent', false, { type: 'boolean', description: localize('chatEditingHasToolsAgent', "True when a tools agent is registered.") }),
 		agentModeDisallowed: new RawContextKey<boolean>('chatAgentModeDisallowed', undefined, { type: 'boolean', description: localize('chatAgentModeDisallowed', "True when agent mode is not allowed.") }), // experiment-driven disablement
 		hasToolConfirmation: new RawContextKey<boolean>('chatHasToolConfirmation', false, { type: 'boolean', description: localize('chatEditingHasToolConfirmation', "True when a tool confirmation is present.") }),
 	};

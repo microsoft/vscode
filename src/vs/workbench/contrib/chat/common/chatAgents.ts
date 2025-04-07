@@ -51,8 +51,6 @@ export interface IChatAgentData {
 	extensionDisplayName: string;
 	/** The agent invoked when no agent is specified */
 	isDefault?: boolean;
-	/** The default agent when "agent-mode" is enabled */
-	isToolsAgent?: boolean;
 	/** This agent is not contributed in package.json, but is registered dynamically */
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
@@ -60,6 +58,7 @@ export interface IChatAgentData {
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
+	modes: ChatMode[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
 }
 
@@ -237,7 +236,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
 	private readonly _editingAgentRegistered: IContextKey<boolean>;
-	private readonly _hasToolsAgentContextKey: IContextKey<boolean>;
+	private _hasToolsAgent = false;
 
 	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
 
@@ -253,8 +252,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 				this._updateContextKeys();
 			}
 		}));
-
-		this._hasToolsAgentContextKey = ChatContextKeys.Editing.hasToolsAgent.bindTo(contextKeyService);
 	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
@@ -303,20 +300,21 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		let defaultAgentRegistered = false;
 		let toolsAgentRegistered = false;
 		for (const agent of this.getAgents()) {
-			if (agent.isDefault && agent.locations.includes(ChatAgentLocation.EditingSession)) {
-				editingAgentRegistered = true;
-				if (agent.isToolsAgent) {
+			if (agent.isDefault) {
+				if (agent.modes.includes(ChatMode.Agent)) {
 					toolsAgentRegistered = true;
+				} else if (agent.modes.includes(ChatMode.Edit)) {
+					editingAgentRegistered = true;
+				} else {
+					defaultAgentRegistered = true;
 				}
-			} else if (agent.isDefault) {
-				defaultAgentRegistered = true;
 			}
 		}
 		this._editingAgentRegistered.set(editingAgentRegistered);
 		this._defaultAgentRegistered.set(defaultAgentRegistered);
-		if (toolsAgentRegistered !== this._hasToolsAgentContextKey.get()) {
-			this._hasToolsAgentContextKey.set(toolsAgentRegistered);
-			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.EditingSession));
+		if (toolsAgentRegistered !== this._hasToolsAgent) {
+			this._hasToolsAgent = toolsAgentRegistered;
+			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Panel, ChatMode.Agent));
 		}
 	}
 
@@ -381,13 +379,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._onDidChangeAgents.fire(new MergedChatAgent(agent.data, agent.impl));
 	}
 
-	getDefaultAgent(location: ChatAgentLocation, mode?: ChatMode): IChatAgent | undefined {
-		if (mode === ChatMode.Edit || mode === ChatMode.Agent) {
-			location = ChatAgentLocation.EditingSession;
-		}
-
+	getDefaultAgent(location: ChatAgentLocation, mode: ChatMode = ChatMode.Ask): IChatAgent | undefined {
 		return this._preferExtensionAgent(this.getActivatedAgents().filter(a => {
-			if ((mode === ChatMode.Agent) !== !!a.isToolsAgent) {
+			if (mode && !a.modes.includes(mode)) {
 				return false;
 			}
 
@@ -396,7 +390,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	public get hasToolsAgent(): boolean {
-		return !!this._hasToolsAgentContextKey.get();
+		return !!this._hasToolsAgent;
 	}
 
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
@@ -587,11 +581,11 @@ export class MergedChatAgent implements IChatAgent {
 	get extensionPublisherDisplayName() { return this.data.publisherDisplayName; }
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
-	get isToolsAgent(): boolean | undefined { return this.data.isToolsAgent; }
 	get isCore(): boolean | undefined { return this.data.isCore; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
+	get modes(): ChatMode[] { return this.data.modes; }
 	get disambiguation(): { category: string; description: string; examples: string[] }[] { return this.data.disambiguation; }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {

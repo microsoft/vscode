@@ -17,7 +17,7 @@ import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatFollowup, IChatProgress } from '../../common/chatService.js';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from '../../common/voiceChatService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 
 suite('VoiceChat', () => {
 
@@ -32,6 +32,7 @@ suite('VoiceChat', () => {
 		extensionDisplayName = '';
 		extensionPublisherId = '';
 		locations: ChatAgentLocation[] = [ChatAgentLocation.Panel];
+		modes = [ChatMode.Ask];
 		public readonly name: string;
 		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {
 			this.name = id;

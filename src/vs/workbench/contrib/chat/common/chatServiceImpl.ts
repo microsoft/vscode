@@ -920,7 +920,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async checkAgentAllowed(agent: IChatAgentData): Promise<void> {
-		if (agent.isToolsAgent) {
+		if (agent.modes.includes(ChatMode.Agent)) {
 			const enabled = await this.experimentService.getTreatment<boolean>('chatAgentEnabled');
 			if (enabled === false) {
 				throw new Error('Agent is currently disabled');
