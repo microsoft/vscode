@@ -238,14 +238,14 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		try {
 			if (url.length > MAX_URL_LENGTH || issueBody.length > MAX_GITHUB_API_LENGTH) {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = await this.writeToClipboard(baseUrl, issueBody) + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			}
 		} catch (_) {
 			console.error('Writing to clipboard failed');
 			return false;
 		}
 
-		await this.nativeHostService.openExternal(url + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName));
+		await this.nativeHostService.openExternal(url);
 		return true;
 	}
 
