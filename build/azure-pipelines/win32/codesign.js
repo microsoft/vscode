@@ -18,8 +18,6 @@ function sign(type, glob) {
 }
 async function main() {
     (0, zx_1.usePwsh)();
-    const version = await (0, zx_1.$) `node -p "require('../../package.json').version"`;
-    console.log(`Version: ${version}`);
     const codesignTasks = [
         {
             banner: 'Codesign executables and shared libraries',
