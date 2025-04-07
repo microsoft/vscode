@@ -47,6 +47,8 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	flex: 1;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
