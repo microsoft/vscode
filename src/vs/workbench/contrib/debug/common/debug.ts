@@ -809,6 +809,7 @@ export interface IDebugConfiguration {
 		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
 		acceptSuggestionOnEnter: 'off' | 'on';
+		maximumLines: number;
 	};
 	focusWindowOnBreak: boolean;
 	focusEditorOnBreak: boolean;
