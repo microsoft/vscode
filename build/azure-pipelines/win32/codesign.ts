@@ -27,6 +27,9 @@ function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): Process
 async function main() {
 	usePwsh();
 
+	const version = await $`node -p "require('../../package.json').version"`;
+	console.log(`Version: ${version}`);
+
 	const codesignTasks: CodeSignTask[] = [
 		{
 			banner: 'Codesign executables and shared libraries',
@@ -56,8 +59,7 @@ async function main() {
 	// Package client
 	if (process.env['BUILT_CLIENT']) {
 		// Product version
-		const packageJson = await $`Get-Content -Raw -Path ../VSCode-win32-${arch}/resources/app/package.json | ConvertFrom-Json`;
-		const version = (packageJson as any).version;
+		const version = await $`node -p "require('../VSCode-win32-${arch}/resources/app/package.json').version"`;
 
 		printBanner('Package client');
 		const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}-${version}.zip`;
