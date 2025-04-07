@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -14,19 +13,18 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
-import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
-import { ChatTreeItem, IChatWidgetService } from '../chat.js';
+import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatMode } from '../../common/constants.js';
+import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -222,7 +220,7 @@ export function registerChatTitleActions() {
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
 			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
 			const mode = widget?.input.currentMode;
-			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession || chatModel && (mode === ChatMode.Edit || mode === ChatMode.Agent)) {
+			if (chatModel && (mode === ChatMode.Edit || mode === ChatMode.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
@@ -339,61 +337,6 @@ export function registerChatTitleActions() {
 					],
 					{ quotableLabel: 'Insert into Notebook' }
 				);
-			}
-		}
-	});
-
-
-	registerAction2(class RemoveAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.remove',
-				title: localize2('chat.removeRequest.label', "Remove Request"),
-				f1: false,
-				category: CHAT_CATEGORY,
-				icon: Codicon.x,
-				precondition: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeyExprs.unifiedChatEnabled.negate()),
-				keybinding: {
-					primary: KeyCode.Delete,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-					},
-					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
-					weight: KeybindingWeight.WorkbenchContrib,
-				},
-				menu: {
-					id: MenuId.ChatMessageTitle,
-					group: 'navigation',
-					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.isRequest, ChatContextKeyExprs.unifiedChatEnabled.negate())
-				}
-			});
-		}
-
-		run(accessor: ServicesAccessor, ...args: any[]) {
-			let item: ChatTreeItem | undefined = args[0];
-			if (!isRequestVM(item)) {
-				const chatWidgetService = accessor.get(IChatWidgetService);
-				const widget = chatWidgetService.lastFocusedWidget;
-				item = widget?.getFocus();
-			}
-
-			if (!item) {
-				return;
-			}
-
-			const chatService = accessor.get(IChatService);
-			const chatModel = chatService.getSession(item.sessionId);
-			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
-				return;
-			}
-
-			const requestId = isRequestVM(item) ? item.id :
-				isResponseVM(item) ? item.requestId : undefined;
-
-			if (requestId) {
-				const chatService = accessor.get(IChatService);
-				chatService.removeRequest(item.sessionId, requestId);
 			}
 		}
 	});

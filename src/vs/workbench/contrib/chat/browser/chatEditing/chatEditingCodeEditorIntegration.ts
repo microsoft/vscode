@@ -623,7 +623,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		} else {
 			// DIFF editor
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
 				original: { resource: this._entry.originalURI, options: { selection: undefined } },
 				modified: { resource: this._entry.modifiedURI, options: { selection } },

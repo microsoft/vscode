@@ -368,7 +368,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			id: result.account?.homeAccountId ?? result.uniqueId,
 			account: {
 				id: result.account?.homeAccountId ?? result.uniqueId,
-				label: result.account?.username ?? 'Unknown',
+				label: result.account?.username.toLowerCase() ?? 'Unknown',
 			},
 			scopes
 		};
@@ -381,7 +381,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			scopes: [],
 			account: {
 				id: account.homeAccountId,
-				label: account.username
+				label: account.username.toLowerCase(),
 			},
 			idToken: account.idToken,
 		};

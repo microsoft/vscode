@@ -201,8 +201,14 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .value .rendered-markdown .codicon {
-	font-size: inherit;
+.interactive-item-container .value .rendered-markdown {
+	.codicon {
+		font-size: inherit;
+	}
+
+	.interactive-result-code-block .codicon {
+		font-size: initial;
+	}
 }
 
 .interactive-item-container .value .rendered-markdown blockquote {
@@ -1038,7 +1044,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.warning {
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.warning,
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
@@ -1704,11 +1711,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attached-context-hover {
 	padding: 0 6px;
-	padding-top: 6px;
 }
 
 .chat-attached-context-hover .chat-attached-context-image-container {
-	padding-bottom: 4px;
+	padding: 6px 0 4px;
 	height: auto;
 	width: 100%;
 	display: block;
@@ -1718,8 +1724,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: auto;
 	width: 100%;
 	display: block;
-	max-height: 512px;
-	max-width: 512px;
+	max-height: 350px;
+	max-width: 400px;
 }
 
 .chat-attached-context-hover .chat-attached-context-url {
@@ -1781,6 +1787,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-attachment.show-file-icons.warning .chat-attached-context-custom-text {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 	text-decoration: line-through;
+}
+
+.chat-attached-context-attachment.show-file-icons.partial-warning .chat-attached-context-custom-text {
+	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
 .interactive-session .chat-scroll-down {

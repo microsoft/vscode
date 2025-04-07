@@ -553,7 +553,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		this.next(true);
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
-		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 		const diffInput = {
 			original: { resource: this._entry.originalURI, options: { selection: undefined } },
 			modified: { resource: this._entry.modifiedURI, options: { selection: undefined } },

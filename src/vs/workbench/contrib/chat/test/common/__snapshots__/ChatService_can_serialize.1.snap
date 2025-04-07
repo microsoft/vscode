@@ -31,6 +31,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: { requester: { name: "test" } },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -81,6 +82,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -148,6 +150,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ],
