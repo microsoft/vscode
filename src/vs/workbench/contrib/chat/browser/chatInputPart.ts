@@ -244,6 +244,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._editSessionWidgetHeight;
 	}
 
+	get attachmentsHeight() {
+		return this.attachmentsContainer.offsetHeight + (this.attachmentsContainer.checkVisibility() ? 6 : 0);
+	}
+
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
 
@@ -283,10 +287,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _currentMode: ChatMode = ChatMode.Ask;
 	public get currentMode(): ChatMode {
-		if (this.location === ChatAgentLocation.Panel && !this.chatService.unifiedViewEnabled) {
-			return ChatMode.Ask;
-		}
-
 		return this._currentMode === ChatMode.Agent && !this.agentService.hasToolsAgent ?
 			ChatMode.Edit :
 			this._currentMode;
@@ -354,7 +354,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
-		@IChatService private readonly chatService: IChatService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
 	) {
 		super();
@@ -379,7 +378,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatMode = ChatContextKeys.chatMode.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
-		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], ChatInputHistoryMaxEntries, historyKeyFn)));
+		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
@@ -405,12 +404,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		this.initSelectedModel();
-
-		this._register(agentService.onDidChangeAgents(() => {
-			if (!agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
-				this.setChatMode(ChatMode.Edit);
-			}
-		}));
 
 		this._register(this.onDidChangeCurrentChatMode(() => this.accessibilityService.alert(this._currentMode)));
 		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
@@ -476,11 +469,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		mode = validateChatMode(mode) ?? (this.location === ChatAgentLocation.Panel ? ChatMode.Ask : ChatMode.Edit);
-		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
-			mode = ChatMode.Edit;
-		}
-
+		mode = validateChatMode(mode) ?? ChatMode.Ask;
 		this._currentMode = mode;
 		this.chatMode.set(mode);
 		this._onDidChangeCurrentChatMode.fire();
@@ -541,7 +530,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
 		const history = this.historyService.getHistory(this.location);
 		if (history.length === 0) {
-			history.push({ text: '' });
+			history.push({ text: '', state: this.getInputState() });
 		}
 
 		return new HistoryNavigator2(history, 50, historyKeyFn);
@@ -571,8 +560,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (state.inputState?.chatMode) {
 			this.setChatMode(state.inputState.chatMode);
-		} else if (this.location === ChatAgentLocation.EditingSession) {
-			this.setChatMode(ChatMode.Edit);
 		}
 	}
 
@@ -719,6 +706,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			this._inputEditor.focus();
 			this._inputEditor.setValue('');
+		}
+	}
+
+	validateCurrentMode(): void {
+		if (!this.agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
+			this.setChatMode(ChatMode.Edit);
 		}
 	}
 
@@ -1362,7 +1355,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
-			attachmentsHeight: this.attachmentsContainer.offsetHeight + (this.attachmentsContainer.checkVisibility() ? 6 : 0),
+			attachmentsHeight: this.attachmentsHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,
@@ -1557,10 +1550,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 					agentStateActions.push(makeAction(ChatMode.Agent));
 				}
 
-				if (chatService.unifiedViewEnabled) {
-					agentStateActions.unshift(makeAction(ChatMode.Ask));
-				}
-
+				agentStateActions.unshift(makeAction(ChatMode.Ask));
 				return agentStateActions;
 			}
 		};

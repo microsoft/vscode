@@ -41,7 +41,6 @@ interface IViewPaneState extends IChatViewState {
 
 export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
-export const CHAT_EDITING_SIDEBAR_PANEL_ID = 'workbench.panel.chatEditing';
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -55,7 +54,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _restoringSession: Promise<void> | undefined;
 
 	constructor(
-		private readonly chatOptions: { location: ChatAgentLocation.Panel | ChatAgentLocation.EditingSession },
+		private readonly chatOptions: { location: ChatAgentLocation.Panel },
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -75,10 +74,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
+		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 
-		if (this.chatService.unifiedViewEnabled && this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
+		if (this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
 			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
 			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 			if (lastEditsState.sessionId) {
@@ -205,15 +204,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
-							return this.chatService.isEditingLocation(this.chatOptions.location);
+							return true;
 						},
-						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(this.chatOptions.location),
+						referencesExpandedWhenEmptyResponse: false,
 						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),
-					enableWorkingSet: this.chatService.isEditingLocation(this.chatOptions.location) ? 'explicit' : undefined,
-					supportsChangingModes: this.chatService.isEditingLocation(this.chatOptions.location),
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+					enableWorkingSet: 'explicit',
+					supportsChangingModes: true,
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,

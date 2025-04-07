@@ -29,7 +29,7 @@ import { IChatEditingService, IChatEditingSession } from './chatEditingService.j
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { ChatAgentLocation } from './constants.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 export interface IBaseChatRequestVariableEntry {
 	id: string;
@@ -1303,7 +1303,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private get _defaultAgent() {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, ChatMode.Ask);
 	}
 
 	get requesterUsername(): string {
