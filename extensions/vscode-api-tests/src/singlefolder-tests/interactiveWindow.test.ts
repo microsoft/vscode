@@ -87,6 +87,11 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 
 		assert.strictEqual(notebookEditor.notebook.cellCount, 1);
 		assert.strictEqual(notebookEditor.notebook.cellAt(0).kind, vscode.NotebookCellKind.Code);
+
+		// woraround to reduce the following test's run time 30s -> 1s
+		await new Promise<void>((resolve) => setTimeout(() => {
+			resolve();
+		}, 0));
 	});
 
 	test('Interactive window scrolls after execute', async () => {
