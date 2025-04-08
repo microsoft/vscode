@@ -59,6 +59,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { safeIntl } from '../../../../base/common/date.js';
 import { CONTEXT_UPDATE_STATE } from '../../../contrib/update/browser/update.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { CommandEmitter } from '../../../../platform/commands/browser/commandEmitter.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -809,7 +810,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		visibleCreatorModeButton.style.cursor = "pointer";
 
 		visibleCreatorModeButton.onclick = () => {
-			// TODO: run workbench.action.toggleCreatorView
+			CommandEmitter.emit("workbench.action.toggleCreatorView");
 		}
 	}
 
