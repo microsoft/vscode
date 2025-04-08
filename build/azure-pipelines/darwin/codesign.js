@@ -6,7 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const zx_1 = require("zx");
 const arch = process.env['VSCODE_ARCH'];
-const agentRootDirectory = process.env['AGENT_ROOTDIRECTORY'];
+const esrpCliDLLPath = process.env['EsrpCliDllPath'];
 const pipelineWorkspace = process.env['PIPELINE_WORKSPACE'];
 function printBanner(title) {
     title = `${title} (${new Date().toISOString()})`;
@@ -16,20 +16,19 @@ function printBanner(title) {
     console.log('#'.repeat(75));
     console.log('\n\n');
 }
-function sign(esrpCliDLLPath, type, folder, glob) {
+function sign(type, folder, glob) {
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
 }
 async function main() {
     (0, zx_1.useBash)();
-    const esrpCliDLLPath = `${agentRootDirectory}/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll`;
     const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
     const glob = `VSCode-darwin-${arch}.zip`;
     // Codesign
-    const codeSignTask = sign(esrpCliDLLPath, 'sign-darwin', folder, glob);
+    const codeSignTask = sign('sign-darwin', folder, glob);
     printBanner('Codesign');
     await codeSignTask.pipe(process.stdout);
     // Notarize
-    const notarizeTask = sign(esrpCliDLLPath, 'notarize-darwin', folder, glob);
+    const notarizeTask = sign('notarize-darwin', folder, glob);
     printBanner('Notarize');
     await notarizeTask.pipe(process.stdout);
 }
