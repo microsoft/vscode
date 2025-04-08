@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../base/common/assert.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
 
 /**
@@ -58,5 +59,53 @@ export abstract class BaseToken {
 		);
 
 		return this;
+	}
+
+	/**
+	 * Render a list of tokens into a string.
+	 */
+	public static render(tokens: readonly BaseToken[]): string {
+		return tokens.map((token) => {
+			return token.text;
+		}).join('');
+	}
+
+	/**
+	 * Returns the full range of a list of tokens in which the first token is
+	 * used as the start of a tokens sequence and the last token reflects the end.
+	 *
+	 * @throws if:
+	 * 	- provided {@link tokens} list is empty
+	 *  - the first token start number is greater than the start line of the last token
+	 *  - if the first and last token are on the same line, the first token start column must
+	 * 	  be smaller than the start column of the last token
+	 */
+	public static fullRange(tokens: readonly BaseToken[]): Range {
+		assert(
+			tokens.length > 0,
+			'Cannot get full range for an empty list of tokens.',
+		);
+
+		const firstToken = tokens[0];
+		const lastToken = tokens[tokens.length - 1];
+
+		// sanity checks for the full range we would construct
+		assert(
+			firstToken.range.startLineNumber <= lastToken.range.startLineNumber,
+			'First token must start on previous or the same line as the last token.',
+		);
+		if (firstToken.range.startLineNumber === lastToken.range.startLineNumber) {
+			assert(
+				firstToken.range.endColumn <= lastToken.range.startColumn,
+				'First token must end at least on previous or the same column as the last token.',
+			);
+		}
+
+		return new Range(
+			firstToken.range.startLineNumber,
+			firstToken.range.startColumn,
+			lastToken.range.endLineNumber,
+			lastToken.range.endColumn,
+		);
 	}
 }

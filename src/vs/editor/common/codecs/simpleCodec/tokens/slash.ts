@@ -6,26 +6,26 @@
 import { SimpleToken } from './simpleToken.js';
 
 /**
- * A token that represent a `tab` with a `range`. The `range`
+ * A token that represent a `/` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Tab extends SimpleToken {
+export class Slash extends SimpleToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static override readonly symbol: '\t' = '\t';
+	public static override readonly symbol: '/' = '/';
 
 	/**
 	 * Return text representation of the token.
 	 */
 	public override get text() {
-		return Tab.symbol;
+		return Slash.symbol;
 	}
 
 	/**
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `tab${this.range}`;
+		return `slash${this.range}`;
 	}
 }

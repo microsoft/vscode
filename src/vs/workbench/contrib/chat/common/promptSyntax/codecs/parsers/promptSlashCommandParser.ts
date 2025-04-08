@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptAtMention } from '../tokens/promptAtMention.js';
 import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
+import { PromptSlashCommand } from '../tokens/promptSlashCommand.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
 import { Hash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
+import { Slash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/slash.js';
 import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/space.js';
 import { Colon } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
@@ -25,7 +26,7 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../.
 /**
  * List of characters that terminate the prompt at-mention sequence.
  */
-export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed, At, Colon, Hash]
+export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed, Colon, At, Hash, Slash]
 	.map((token) => { return token.symbol; });
 
 /**
@@ -35,23 +36,23 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [ExclamationMark, Left
 	.map((token) => { return token.symbol; });
 
 /**
- * The parser responsible for parsing a `prompt @mention` sequences.
- * E.g., `@workspace` or `@github` participant mention.
+ * The parser responsible for parsing a `prompt /command` sequences.
+ * E.g., `/search` or `/explain` command.
  */
-export class PartialPromptAtMention extends ParserBase<TSimpleDecoderToken, PartialPromptAtMention | PromptAtMention> {
-	constructor(token: At) {
+export class PartialPromptSlashCommand extends ParserBase<TSimpleDecoderToken, PartialPromptSlashCommand | PromptSlashCommand> {
+	constructor(token: Slash) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptAtMention | PromptAtMention> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptSlashCommand | PromptSlashCommand> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
 			try {
-				// if it is possible to convert current parser to `PromptAtMention`, return success result
+				// if it is possible to convert current parser to `PromptSlashCommand`, return success result
 				return {
 					result: 'success',
-					nextParser: this.asPromptAtMention(),
+					nextParser: this.asPromptSlashCommand(),
 					wasTokenConsumed: false,
 				};
 			} catch (error) {
@@ -88,27 +89,27 @@ export class PartialPromptAtMention extends ParserBase<TSimpleDecoderToken, Part
 	}
 
 	/**
-	 * Try to convert current parser instance into a fully-parsed {@link PromptAtMention} token.
+	 * Try to convert current parser instance into a fully-parsed {@link PromptSlashCommand} token.
 	 *
 	 * @throws if sequence of tokens received so far do not constitute a valid prompt variable,
-	 *        for instance, if there is only `1` starting `@` token is available.
+	 *        for instance, if there is only `1` starting `/` token is available.
 	 */
-	public asPromptAtMention(): PromptAtMention {
+	public asPromptSlashCommand(): PromptSlashCommand {
 		// if there is only one token before the stop character
-		// must be the starting `@` one), then fail
+		// must be the starting `/` one), then fail
 		assert(
 			this.currentTokens.length > 1,
-			'Cannot create a prompt @mention out of incomplete token sequence.',
+			'Cannot create a prompt /command out of incomplete token sequence.',
 		);
 
 		const firstToken = this.currentTokens[0];
 		const lastToken = this.currentTokens[this.currentTokens.length - 1];
 
-		// render the characters above into strings, excluding the starting `@` character
+		// render the characters above into strings, excluding the starting `/` character
 		const nameTokens = this.currentTokens.slice(1);
 		const atMentionName = nameTokens.map(pick('text')).join('');
 
-		return new PromptAtMention(
+		return new PromptSlashCommand(
 			new Range(
 				firstToken.range.startLineNumber,
 				firstToken.range.startColumn,

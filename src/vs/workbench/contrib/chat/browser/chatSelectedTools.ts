@@ -95,7 +95,7 @@ export class ChatSelectedTools extends Disposable {
 					override render(container: HTMLElement): void {
 						this.options.icon = false;
 						this.options.label = true;
-						container.classList.add('chat-mcp');
+						container.classList.add('chat-mcp', 'chat-attachment-button');
 						super.render(container);
 					}
 
