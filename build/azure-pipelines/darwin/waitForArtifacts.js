@@ -18,9 +18,9 @@ async function main() {
             const allArtifacts = await (0, retry_1.retry)(() => (0, publish_1.getPipelineArtifacts)());
             console.log(`  * Artifacts attached to the pipelines: ${allArtifacts.length > 0 ? allArtifacts.map(a => a.name).join(', ') : 'none'}`);
             const foundArtifacts = allArtifacts.filter(a => artifacts.includes(a.name));
-            console.log(`  * Found ${foundArtifacts.length} of ${artifacts.length} artifacts${foundArtifacts.length > 0 ? `: ${foundArtifacts.map(a => a.name).join(', ')}` : ''}`);
+            console.log(`  * Found artifacts: ${foundArtifacts.length > 0 ? foundArtifacts.map(a => a.name).join(', ') : 'none'}`);
             if (foundArtifacts.length === artifacts.length) {
-                console.log(`  * All artifacts (${artifacts.join(', ')}) were found`);
+                console.log(`  * All artifacts were found`);
                 return;
             }
         }
