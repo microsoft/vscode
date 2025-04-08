@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise } from 'zx';
+import { $, ProcessPromise, useBash } from 'zx';
 
 const arch = process.env['VSCODE_ARCH'];
 const agentRootDirectory = process.env['AGENT_ROOTDIRECTORY'];
@@ -24,6 +24,8 @@ function sign(esrpCliDLLPath: string, type: 'sign-darwin' | 'notarize-darwin', f
 }
 
 async function main() {
+	useBash();
+
 	const esrpCliDLLPath = `${agentRootDirectory}/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll`;
 	const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
 	const glob = `VSCode-darwin-${arch}.zip`;

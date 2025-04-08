@@ -20,6 +20,7 @@ function sign(esrpCliDLLPath, type, folder, glob) {
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
 }
 async function main() {
+    (0, zx_1.useBash)();
     const esrpCliDLLPath = `${agentRootDirectory}/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll`;
     const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
     const glob = `VSCode-darwin-${arch}.zip`;
