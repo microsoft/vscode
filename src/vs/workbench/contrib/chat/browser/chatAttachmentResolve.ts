@@ -48,7 +48,7 @@ export async function resolveEditorAttachContext(editor: EditorInput | IDraggedR
 		return undefined;
 	}
 
-	const imageContext = await resolveImageEditorAttachContext(editor.resource, fileService, dialogService);
+	const imageContext = await resolveImageEditorAttachContext(fileService, dialogService, editor.resource);
 	if (imageContext) {
 		return extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 	}
@@ -114,7 +114,7 @@ export type ImageTransferData = {
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = /\.(png|jpg|jpeg|gif|webp)$/i;
 
-export async function resolveImageEditorAttachContext(resource: URI, fileService: IFileService, dialogService: IDialogService, data?: VSBuffer): Promise<IChatRequestVariableEntry | undefined> {
+export async function resolveImageEditorAttachContext(fileService: IFileService, dialogService: IDialogService, resource: URI, data?: VSBuffer): Promise<IChatRequestVariableEntry | undefined> {
 	if (!resource) {
 		return undefined;
 	}
@@ -131,9 +131,17 @@ export async function resolveImageEditorAttachContext(resource: URI, fileService
 	if (data) {
 		dataBuffer = data;
 	} else {
+
+		let stat;
+		try {
+			stat = await fileService.stat(resource);
+		} catch {
+			return undefined;
+		}
+
 		const readFile = await fileService.readFile(resource);
 
-		if (readFile.size > 30 * 1024 * 1024) { // 30 MB
+		if (stat.size > 30 * 1024 * 1024) { // 30 MB
 			dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
 			throw new Error('Image is too large');
 		}

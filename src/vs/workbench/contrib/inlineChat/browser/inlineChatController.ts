@@ -11,6 +11,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
 import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -84,13 +85,13 @@ export abstract class InlineChatRunOptions {
 	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
-	attachment?: URI | string;
+	attachments?: URI[];
 	autoSend?: boolean;
 	existingSession?: Session;
 	position?: IPosition;
 
 	static isInlineChatRunOptions(options: any): options is InlineChatRunOptions {
-		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachment } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments: attachments } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -98,7 +99,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof initialSelection !== 'undefined' && !Selection.isISelection(initialSelection)
 			|| typeof position !== 'undefined' && !Position.isIPosition(position)
 			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
-			|| typeof attachment !== 'undefined' && !(attachment instanceof URI || typeof attachment === 'string')
+			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 		) {
 			return false;
 		}
@@ -583,12 +584,18 @@ export class InlineChatController1 implements IEditorContribution {
 			barrier.open();
 		}));
 
-		if (options.attachment) {
-			const context = await this.createImageAttachment(options.attachment);
-			if (context) {
-				this._ui.value.widget.chatWidget.attachmentModel.addContext(context);
-				delete options.attachment;
-			}
+		if (options.attachments) {
+			await Promise.all(options.attachments.map(async attachment => {
+				if (/\.(png|jpe?g|gif|webp)$/i.test(attachment.path)) {
+					const context = await this.createImageAttachment(attachment);
+					if (context) {
+						this._ui.value.widget.chatWidget.attachmentModel.addContext(context);
+					}
+				} else {
+					this._ui.value.widget.chatWidget.attachmentModel.addFile(attachment);
+				}
+			}));
+			delete options.attachments;
 		}
 
 		if (options.autoSend) {
@@ -1184,36 +1191,19 @@ export class InlineChatController1 implements IEditorContribution {
 		return Boolean(this._currentRun);
 	}
 
-	async createImageAttachment(attachment: string | URI): Promise<IChatRequestVariableEntry | undefined> {
-		const isImageFile = (path: string) => /\.(png|jpg|jpeg|gif|webp)$/i.test(path);
-
-		if (typeof attachment === 'string') {
-			const isUrl = this.isValidUrl(attachment);
-			const uri = isUrl ? URI.parse(attachment) : URI.file(attachment);
-
-			if (isUrl) {
-				const extractedImages = await this._webContentExtractorService.readImage(uri, CancellationToken.None);
-				if (extractedImages) {
-					return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService, extractedImages);
-				}
-			} else if (isImageFile(uri.path) && await this._fileService.canHandleResource(uri)) {
-				return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService);
+	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
+		if (attachment.scheme === Schemas.file) {
+			if (await this._fileService.canHandleResource(attachment)) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
 			}
-		} else if (URI.isUri(attachment) && isImageFile(attachment.path)) {
-			return await resolveImageEditorAttachContext(attachment, this._fileService, this._dialogService);
+		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
+			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
+			if (extractedImages) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+			}
 		}
 
 		return undefined;
-	}
-
-
-	private isValidUrl(imagePath: string): boolean {
-		try {
-			new URL(imagePath);
-			return true;
-		} catch (e) {
-			return false;
-		}
 	}
 }
 
@@ -1445,13 +1435,18 @@ export class InlineChatController2 implements IEditorContribution {
 			if (arg.initialSelection) {
 				this._editor.setSelection(arg.initialSelection);
 			}
-			if (arg.attachment) {
-				const context = await this.createImageAttachment(arg.attachment);
-				if (context) {
-					this._zone.value.widget.chatWidget.attachmentModel.addContext(context);
-					delete arg.attachment;
-				}
-
+			if (arg.attachments) {
+				await Promise.all(arg.attachments.map(async attachment => {
+					if (/\.(png|jpe?g|gif|webp)$/i.test(attachment.path)) {
+						const context = await this.createImageAttachment(attachment);
+						if (context) {
+							this._zone.value.widget.chatWidget.attachmentModel.addContext(context);
+						}
+					} else {
+						this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
+					}
+				}));
+				delete arg.attachments;
 			}
 			if (arg.message) {
 				this._zone.value.widget.chatWidget.setInput(arg.message);
@@ -1472,41 +1467,22 @@ export class InlineChatController2 implements IEditorContribution {
 		value?.editingSession.accept();
 	}
 
-	async createImageAttachment(attachment: string | URI): Promise<IChatRequestVariableEntry | undefined> {
+	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
 		const value = this._currentSession.get();
 		if (!value) {
 			return undefined;
 		}
-
-		const isImageFile = (path: string) => /\.(png|jpg|jpeg|gif|webp)$/i.test(path);
-
-		if (typeof attachment === 'string') {
-			const isUrl = this.isValidUrl(attachment);
-			const uri = isUrl ? URI.parse(attachment) : URI.file(attachment);
-
-			if (isUrl) {
-				const extractedImages = await this._webContentExtractorService.readImage(uri, CancellationToken.None);
-				if (extractedImages) {
-					return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService, extractedImages);
-				}
-			} else if (isImageFile(uri.path) && await this._fileService.canHandleResource(uri)) {
-				return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService);
+		if (attachment.scheme === Schemas.file) {
+			if (await this._fileService.canHandleResource(attachment)) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
 			}
-		} else if (URI.isUri(attachment) && isImageFile(attachment.path)) {
-			return await resolveImageEditorAttachContext(attachment, this._fileService, this._dialogService);
+		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
+			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
+			if (extractedImages) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+			}
 		}
-
 		return undefined;
-	}
-
-
-	private isValidUrl(imagePath: string): boolean {
-		try {
-			new URL(imagePath);
-			return true;
-		} catch (e) {
-			return false;
-		}
 	}
 }
 
