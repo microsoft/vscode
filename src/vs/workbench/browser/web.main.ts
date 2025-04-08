@@ -150,7 +150,7 @@ export class BrowserMain extends Disposable {
 			const commandService = accessor.get(ICommandService);
 			// eslint-disable-next-line no-restricted-globals
 			window.addEventListener('tour:show-learn-membrane', async () => {
-				await commandService.executeCommand('membrane.installPackage', 'membrane/getting-started');
+				await commandService.executeCommand('membrane.installPackage', 'membrane/learn-membrane');
 			});
 		});
 
