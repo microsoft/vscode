@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, SortBy, FilterType } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -292,70 +292,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					minimumVersion: '1.99',
 				},
 			},
-			[AllowedExtensionsConfigKey]: {
-				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
-				type: 'object',
-				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
-				default: '*',
-				defaultSnippets: [{
-					body: {},
-					description: localize('extensions.allowed.none', "No extensions are allowed."),
-				}, {
-					body: {
-						'*': true
-					},
-					description: localize('extensions.allowed.all', "All extensions are allowed."),
-				}],
-				scope: ConfigurationScope.APPLICATION,
-				policy: {
-					name: 'AllowedExtensions',
-					minimumVersion: '1.96',
-					description: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
-				},
-				additionalProperties: false,
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						anyOf: [
-							{
-								type: ['boolean', 'string'],
-								enum: [true, false, 'stable'],
-								description: localize('extensions.allow.description', "Allow or disallow the extension."),
-								enumDescriptions: [
-									localize('extensions.allowed.enable.desc', "Extension is allowed."),
-									localize('extensions.allowed.disable.desc', "Extension is not allowed."),
-									localize('extensions.allowed.disable.stable.desc', "Allow only stable versions of the extension."),
-								],
-							},
-							{
-								type: 'array',
-								items: {
-									type: 'string',
-								},
-								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
-							},
-						]
-					},
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						type: ['boolean', 'string'],
-						enum: [true, false, 'stable'],
-						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
-						enumDescriptions: [
-							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
-							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
-							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
-						],
-					},
-					'\\*': {
-						type: 'boolean',
-						enum: [true, false],
-						description: localize('extensions.allow.all.description', "Allow or disallow all extensions."),
-						enumDescriptions: [
-							localize('extensions.allow.all.enable', "Allow all extensions."),
-							localize('extensions.allow.all.disable', "Disallow all extensions.")
-						],
-					}
-				}
-			}
 		}
 	});
 
