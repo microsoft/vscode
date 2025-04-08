@@ -3,15 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PartialYamlObject } from './parsers/yamlObject.js';
+import { PartialYamlString } from './parsers/yamlString.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { LeftBracket } from '../simpleCodec/tokens/brackets.js';
-import { PartialYamlString } from './parsers/yamlRecord.js';
+import { assertDefined } from '../../../../base/common/types.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
-import { LeftAngleBracket } from '../simpleCodec/tokens/angleBrackets.js';
-import { ExclamationMark } from '../simpleCodec/tokens/exclamationMark.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { SimpleDecoder, TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
-import { MarkdownExtensionsDecoder } from '../markdownExtensionsCodec/markdownExtensionsDecoder.js';
+import { Dash, DoubleQuote, LeftAngleBracket, LeftParenthesis, Quote, RightAngleBracket, RightParenthesis, Slash, Space, Word } from '../simpleCodec/tokens/index.js';
+
+/**
+ * TODO: @legomushroom
+ */
+const VALID_START_TOKENS = [
+	Word, Dash, Space, Quote, DoubleQuote, Slash, LeftParenthesis, RightParenthesis, LeftAngleBracket, RightAngleBracket
+];
 
 /**
  * Tokens produced by this decoder.
@@ -26,7 +32,17 @@ export class YamlDecoder extends BaseDecoder<TYamlToken, TSimpleDecoderToken> {
 	 * Current parser object that is responsible for parsing a sequence of tokens into
 	 * some yaml entity. Set to `undefined` when no parsing is in progress at the moment.
 	 */
-	private current?: PartialYamlString;
+	private current?: PartialYamlString | PartialYamlObject;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private readonly indentation: Space[] = [];
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private indentationFinished: boolean = false;
 
 	constructor(
 		stream: ReadableStream<VSBuffer>,
@@ -35,94 +51,115 @@ export class YamlDecoder extends BaseDecoder<TYamlToken, TSimpleDecoderToken> {
 	}
 
 	protected override onStreamData(token: TSimpleDecoderToken): void {
-		// // `markdown links` start with `[` character, so here we can
-		// // initiate the process of parsing a markdown link
-		// if (token instanceof LeftBracket && !this.current) {
-		// 	this.current = new PartialMarkdownLinkCaption(token);
+		if (this.indentationFinished === true) {
+			assertDefined(
+				this.current,
+				'Current parser must be defined.',
+			);
 
-		// 	return;
-		// }
+			const acceptResult = this.current.accept(token);
+			const { wasTokenConsumed } = acceptResult;
 
-		// // `markdown comments` start with `<` character, so here we can
-		// // initiate the process of parsing a markdown comment
-		// if (token instanceof LeftAngleBracket && !this.current) {
-		// 	this.current = new PartialMarkdownCommentStart(token);
+			if (acceptResult.result === 'success') {
+				const { nextParser } = acceptResult;
 
-		// 	return;
-		// }
+				if ((nextParser instanceof PartialYamlObject) || (nextParser instanceof PartialYamlString)) {
+					this.current = nextParser;
 
-		// // `markdown image links` start with `!` character, so here we can
-		// // initiate the process of parsing a markdown image
-		// if (token instanceof ExclamationMark && !this.current) {
-		// 	this.current = new PartialMarkdownImage(token);
+					if (wasTokenConsumed === false) {
+						this._onData.fire(token);
+					}
 
-		// 	return;
-		// }
+					return;
+				}
 
-		// // if current parser was not initiated before, - we are not inside a sequence
-		// // of tokens we care about, therefore re-emit the token immediately and continue
-		// if (!this.current) {
-		// 	this._onData.fire(token);
-		// 	return;
-		// }
+				this._onData.fire(nextParser);
+				delete this.current;
 
-		// // if there is a current parser object, submit the token to it
-		// // so it can progress with parsing the tokens sequence
-		// const parseResult = this.current.accept(token);
-		// if (parseResult.result === 'success') {
-		// 	const { nextParser } = parseResult;
+				return;
+			}
 
-		// 	// if got a fully parsed out token back, emit it and reset
-		// 	// the current parser object so a new parsing process can start
-		// 	if (nextParser instanceof MarkdownToken) {
-		// 		this._onData.fire(nextParser);
-		// 		delete this.current;
-		// 	} else {
-		// 		// otherwise, update the current parser object
-		// 		this.current = nextParser;
-		// 	}
-		// } else {
-		// 	// if failed to parse a sequence of a tokens as a single markdown
-		// 	// entity (e.g., a link), re-emit the tokens accumulated so far
-		// 	// then reset the current parser object
-		// 	for (const token of this.current.tokens) {
-		// 		this._onData.fire(token);
-		// 	}
+			this.reEmitCurrentTokens();
 
-		// 	delete this.current;
-		// }
+			if (wasTokenConsumed === false) {
+				this._onData.fire(token);
+			}
 
-		// // if token was not consumed by the parser, call `onStreamData` again
-		// // so the token is properly handled by the decoder in the case when a
-		// // new sequence starts with this token
-		// if (!parseResult.wasTokenConsumed) {
-		// 	this.onStreamData(token);
-		// }
+			delete this.current;
+
+			return;
+		}
+
+		if (token instanceof Space) {
+			this.indentation.push(token);
+			return;
+		}
+
+		for (const ValidToken of VALID_START_TOKENS) {
+			if (token instanceof ValidToken) {
+				this.indentationFinished = true;
+				this.current = new PartialYamlString(this.indentation, token);
+				return;
+			}
+		}
+
+		if (this.current) {
+			// TODO: @legomushroom
+			for (const accumulatedToken of this.current.tokens) {
+				this._onData.fire(accumulatedToken);
+			}
+			delete this.current;
+		}
+
+		this._onData.fire(token);
 	}
 
 	protected override onStreamEnd(): void {
-		// // if the stream has ended and there is a current incomplete parser
-		// // object present, handle the remaining parser object
-		// if (this.current) {
-		// 	// if a `markdown comment` does not have an end marker `-->`
-		// 	// it is still a comment that extends to the end of the file
-		// 	// so re-emit the current parser as a comment token
-		// 	if (this.current instanceof MarkdownCommentStart) {
-		// 		this._onData.fire(this.current.asMarkdownComment());
-		// 		delete this.current;
-		// 		return this.onStreamEnd();
-		// 	}
+		if (this.current === undefined) {
+			return;
+		}
 
-		// 	// in all other cases, re-emit existing parser tokens
-		// 	const { tokens } = this.current;
+		try {
+			// TODO: @legomushroom
+			if (this.current instanceof PartialYamlString) {
+				this._onData.fire(
+					this.current.asYamlString(),
+				);
+				delete this.current;
 
-		// 	for (const token of [...tokens]) {
-		// 		this._onData.fire(token);
-		// 	}
+				return;
+			}
 
-		// 	delete this.current;
-		// }
+			if (this.current instanceof PartialYamlObject) {
+				this._onData.fire(
+					this.current.asYamlObject(),
+				);
+				delete this.current;
 
-		// super.onStreamEnd();
+				return;
+			}
+
+		} catch (_error) {
+			// if failed to convert current parser object to a token,
+			// re-emit the tokens accumulated so far
+			this.reEmitCurrentTokens();
+		} finally {
+			delete this.current;
+			super.onStreamEnd();
+		}
+	}
+
+	/**
+	 * Re-emit tokens accumulated so far in the current parser object.
+	 */
+	protected reEmitCurrentTokens(): void {
+		if (this.current === undefined) {
+			return;
+		}
+
+		for (const token of this.current.tokens) {
+			this._onData.fire(token);
+		}
+		delete this.current;
 	}
 }

@@ -126,7 +126,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	 * Note! that this method marks the current parser object as "consumed"
 	 *       hence it should not be used after this method is called.
 	 */
-	public asFrontMatterHeader(): FrontMatterHeader | null {
+	public asFrontMatterHeader(): FrontMatterHeader {
 		assertDefined(
 			this.maybeEndMarker,
 			'Cannot convert to Front Matter header token without an end marker.',
