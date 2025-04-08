@@ -70,7 +70,7 @@ if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE"
 	done
-	builtin unset VSCODE_ENV_REPLACE I I
+	builtin unset VSCODE_ENV_REPLACE
 fi
 if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
