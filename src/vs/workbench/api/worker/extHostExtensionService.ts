@@ -125,6 +125,10 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 	}
 
+	protected override _loadESMModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+		throw new Error('ESM modules are not supported in the web worker extension host');
+	}
+
 	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
 		return;
 	}

@@ -145,5 +145,23 @@ suite('History Storage', () => {
 		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
 	});
 
+	test('toStoreData drops label if it matches path', () => {
+		const actual = toStoreData({
+			workspaces: [],
+			files: [{
+				fileUri: URI.parse('file:///foo/bar/test.txt'),
+				label: '/foo/bar/test.txt',
+				remoteAuthority: undefined
+			}]
+		});
+		assert.deepStrictEqual(actual, {
+			entries: [{
+				fileUri: 'file:///foo/bar/test.txt',
+				label: undefined,
+				remoteAuthority: undefined
+			}]
+		});
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

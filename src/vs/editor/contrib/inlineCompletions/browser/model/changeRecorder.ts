@@ -8,7 +8,7 @@ import { autorunWithStore } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
-import { IRecordableEditorLogEntry, StructuredLogger } from './inlineCompletionsSource.js';
+import { IRecordableEditorLogEntry, StructuredLogger } from '../structuredLogger.js';
 
 export class TextModelChangeRecorder extends Disposable {
 	private readonly _structuredLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<IRecordableEditorLogEntry & { source: string }>(),

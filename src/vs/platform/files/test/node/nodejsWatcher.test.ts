@@ -72,7 +72,11 @@ suite.skip('File Watcher (node.js)', function () {
 	setup(async () => {
 		await createWatcher(undefined);
 
-		testDir = URI.file(getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher')).fsPath;
+		// Rule out strange testing conditions by using the realpath
+		// here. for example, on macOS the tmp dir is potentially a
+		// symlink in some of the root folders, which is a rather
+		// unrealisic case for the file watcher.
+		testDir = URI.file(getRandomTestPath(fs.realpathSync(tmpdir()), 'vsctests', 'filewatcher')).fsPath;
 
 		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 

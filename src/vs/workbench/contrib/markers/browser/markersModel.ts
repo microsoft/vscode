@@ -124,8 +124,7 @@ export class MarkerTableItem extends Marker {
 		readonly sourceMatches?: IMatch[],
 		readonly codeMatches?: IMatch[],
 		readonly messageMatches?: IMatch[],
-		readonly fileMatches?: IMatch[],
-		readonly ownerMatches?: IMatch[],
+		readonly fileMatches?: IMatch[]
 	) {
 		super(marker.id, marker.marker, marker.relatedInformation);
 	}

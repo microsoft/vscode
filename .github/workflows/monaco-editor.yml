@@ -65,7 +65,7 @@ jobs:
         run: npm run monaco-compile-check
 
       - name: Editor Distro & ESM
-        run: npm run gulp editor-esm
+        run: npm run gulp editor-distro
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco

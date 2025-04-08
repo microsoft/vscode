@@ -38,6 +38,9 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	private _phase = LifecyclePhase.Starting;
 	get phase(): LifecyclePhase { return this._phase; }
 
+	protected _willShutdown = false;
+	get willShutdown(): boolean { return this._willShutdown; }
+
 	private readonly phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	protected shutdownReason: ShutdownReason | undefined;

@@ -176,6 +176,10 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsur
 	return `${uriWithoutFileSegments}${fileSegments}`;
 }
 
+export function getAvatarLink(userId: string, size: number): string {
+	return `https://avatars.githubusercontent.com/u/${userId}?s=${size}`;
+}
+
 export function getBranchLink(url: string, branch: string, hostPrefix: string = 'https://github.com') {
 	const repo = getRepositoryFromUrl(url);
 	if (!repo) {

@@ -10,14 +10,15 @@ import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -110,23 +111,26 @@ export interface IChatViewWelcomeContent {
 	icon?: ThemeIcon;
 	title: string;
 	message: IMarkdownString | ((disposables: DisposableStore) => HTMLElement);
+	additionalMessage?: string | IMarkdownString;
 	tips?: IMarkdownString;
 }
 
 export interface IChatViewWelcomeRenderOptions {
 	firstLinkToButton?: boolean;
 	location: ChatAgentLocation;
+	isWidgetAgentWelcomeViewContent?: boolean;
 }
 
 export class ChatViewWelcomePart extends Disposable {
 	public readonly element: HTMLElement;
 
 	constructor(
-		content: IChatViewWelcomeContent,
+		public readonly content: IChatViewWelcomeContent,
 		options: IChatViewWelcomeRenderOptions | undefined,
 		@IOpenerService private openerService: IOpenerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -145,9 +149,9 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			if (options?.location === ChatAgentLocation.EditingSession && typeof content.message !== 'function') {
-				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
-				featureIndicator.textContent = localize('preview', 'PREVIEW');
+			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent) {
+				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
+				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
 			}
 
 			// Message
@@ -155,21 +159,19 @@ export class ChatViewWelcomePart extends Disposable {
 			if (typeof content.message === 'function') {
 				dom.append(message, content.message(this._register(new DisposableStore())));
 			} else {
-				const messageResult = this._register(renderer.render(content.message));
-				const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
-				if (firstLink) {
-					const target = firstLink.getAttribute('data-href');
-					const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
-					button.label = firstLink.textContent ?? '';
-					if (target) {
-						this._register(button.onDidClick(() => {
-							this.openerService.open(target, { allowCommands: true });
-						}));
-					}
-					firstLink.replaceWith(button.element);
-				}
-
+				const messageResult = this.renderMarkdownMessageContent(renderer, content.message, options);
 				dom.append(message, messageResult.element);
+
+			}
+
+			// Additional message
+			if (typeof content.additionalMessage === 'string') {
+				const element = $('');
+				element.textContent = content.additionalMessage;
+				dom.append(message, element);
+			} else if (content.additionalMessage) {
+				const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
+				dom.append(message, additionalMessageResult.element);
 			}
 
 			// Tips
@@ -181,5 +183,22 @@ export class ChatViewWelcomePart extends Disposable {
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
+	}
+
+	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {
+		const messageResult = this._register(renderer.render(content));
+		const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
+		if (firstLink) {
+			const target = firstLink.getAttribute('data-href');
+			const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
+			button.label = firstLink.textContent ?? '';
+			if (target) {
+				this._register(button.onDidClick(() => {
+					this.openerService.open(target, { allowCommands: true });
+				}));
+			}
+			firstLink.replaceWith(button.element);
+		}
+		return messageResult;
 	}
 }

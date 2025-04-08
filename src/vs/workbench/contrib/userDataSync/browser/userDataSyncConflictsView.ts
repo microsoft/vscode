@@ -21,7 +21,6 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -44,7 +43,6 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IHoverService hoverService: IHoverService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -53,7 +51,7 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IAccessibleViewInformationService accessibleViewVisibilityService: IAccessibleViewInformationService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService, hoverService, accessibleViewVisibilityService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, notificationService, hoverService, accessibleViewVisibilityService);
 		this._register(this.userDataSyncService.onDidChangeConflicts(() => this.treeView.refresh()));
 		this.registerActions();
 	}
