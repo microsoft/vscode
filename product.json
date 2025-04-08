@@ -15,7 +15,7 @@
 	"serverDataFolderName": ".pearai-server",
 	"tunnelApplicationName": "code-tunnel",
 	"downloadUrl": "https://trypear.ai/",
-	"updateUrl": "https://walrus-backup-app-sgqep.ondigitalocean.app/pearai-backup-server-api",
+	"updateUrl": "updates.trypear.ai/pearai-backup-server-api",
 	"win32DirName": "PearAI",
 	"win32NameVersion": "PearAI",
 	"win32RegValueName": "PearAI",
