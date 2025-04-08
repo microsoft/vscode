@@ -701,7 +701,7 @@ suite('Configuration Resolver Service', () => {
 					'name': 'Test',
 					'mappings': {
 						'pos1': 'value1',
-						'file:///VSCode/workspaceLocation/test1': 'file:///VSCode/workspaceLocation/test2',
+						'/VSCode/workspaceLocation/test1': '/VSCode/workspaceLocation/test2',
 						'pos3': 'value3'
 					}
 				});

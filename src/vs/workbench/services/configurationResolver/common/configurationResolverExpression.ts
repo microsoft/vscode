@@ -224,10 +224,10 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			for (const { object, propertyName, replaceKeyName } of location.locations || []) {
 				if (replaceKeyName && typeof propertyName === 'string') {
 					// replace key
-					const value = object[propertyName]
+					const value = object[propertyName];
 					const newValue = propertyName.replaceAll(replacement.id, data.value);
-					delete object[propertyName]
-					object[newValue] = value
+					delete object[propertyName];
+					object[newValue] = value;
 				} else {
 					const newValue = object[propertyName].replaceAll(replacement.id, data.value);
 					object[propertyName] = newValue;
