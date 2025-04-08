@@ -25,6 +25,8 @@ import { IEditorGroupsService } from "../../../../../workbench/services/editor/c
 const CREATOR_VIEW_ID = "pearai.creatorView";
 const CREATOR_OVERLAY_TITLE = "pearai.creatorOverlayView";
 
+const MAX_OVERLAY_HEIGHT = "90vh";
+
 export class CreatorOverlayPart extends Part {
 	static readonly ID = "workbench.parts.pearcreatoroverlay";
 
@@ -41,6 +43,9 @@ export class CreatorOverlayPart extends Part {
 	private state: "loading" | "open" | "closed" = "loading";
 	private _isLocked: boolean = false;
 	private initializedWebview: boolean = false;
+
+	// Flag to enable/disable webview functionality
+	private _webviewEnabled: boolean = true;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -71,11 +76,30 @@ export class CreatorOverlayPart extends Part {
 		return this.state === "open";
 	}
 
+	/**
+	 * Enable or disable webview functionality
+	 * @param enabled Whether webview functionality should be enabled
+	 */
+	public setWebviewEnabled(enabled: boolean): void {
+		this._webviewEnabled = enabled;
+		console.log(`Webview functionality ${enabled ? "enabled" : "disabled"}`);
+	}
+
+	/**
+	 * Check if webview functionality is enabled
+	 */
+	public get isWebviewEnabled(): boolean {
+		return this._webviewEnabled;
+	}
+
 	private initializingPromise: Promise<void> | null = null;
 
+	/**
+	 * Initialize the overlay part - can be called with or without webview functionality
+	 */
 	private async initialize() {
-		// If already initialized, don't do anything
-		if (this.initializedWebview) {
+		// If already initialized and we don't need webview, don't do anything
+		if (this.initializedWebview && this._webviewEnabled) {
 			console.log("Webview already initialized, skipping initialization");
 			return;
 		}
@@ -93,94 +117,17 @@ export class CreatorOverlayPart extends Part {
 			try {
 				this.state = "loading";
 
-				const extensionDescription: WebviewExtensionDescription = {
-					id: new ExtensionIdentifier(CREATOR_VIEW_ID),
-					location: URI.parse(""),
-				};
-
-				// Create the webview overlay
-				const webview = this._webviewService!.createWebviewOverlay({
-					title: CREATOR_OVERLAY_TITLE,
-					options: {
-						enableFindWidget: false,
-					},
-					contentOptions: {
-						allowScripts: true,
-						localResourceRoots: [],
-					},
-					extension: extensionDescription,
-				});
-
-				// Set initial visibility - important for initial state
-				webview.container.style.display = "none";
-				webview.container.style.opacity = "0";
-				webview.container.style.transition = "opacity 0.3s ease-in";
-				webview.container.style.position = "absolute";
-				webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
-				webview.container.setAttribute("id", "creator-overlay-webview");
-
-				// Claim the webview
-				webview.claim(this, getActiveWindow(), undefined);
-
-				// Initialize webviewView
-				this.webviewView = {
-					webview,
-					onDidChangeVisibility: () => {
-						return { dispose: () => {} };
-					},
-					onDispose: () => {
-						return { dispose: () => {} };
-					},
-
-					get title(): string | undefined {
-						return CREATOR_OVERLAY_TITLE;
-					},
-					set title(value: string | undefined) {},
-
-					get description(): string | undefined {
-						return undefined;
-					},
-					set description(value: string | undefined) {},
-
-					get badge() {
-						return undefined;
-					},
-					set badge(badge) {},
-
-					dispose: () => {},
-
-					show: (preserveFocus) => {},
-				} satisfies WebviewView;
-
-				// Connect webviewView to the provider - only try once
-				const source = new CancellationTokenSource();
-				try {
-					console.log("RESOLVING CreatorOverlayPart WEBVIEW SERVICE....");
-
-					await this._webviewViewService.resolve(
-						CREATOR_VIEW_ID,
-						this.webviewView!,
-						source.token,
+				// Initialize webview only if enabled
+				if (this._webviewEnabled) {
+					await this.initializeWebview();
+				} else {
+					console.log(
+						"Webview functionality disabled, skipping webview initialization",
 					);
-
-					console.log("WEBVIEW CreatorOverlayPart SERVICE RESOLVED!");
-				} catch (error) {
-					console.error("Failed to resolve creator view:", error);
-					// Continue despite error - we'll still mark as initialized
-				} finally {
-					// Always mark as initialized and closed when we're done trying
-					this.initializedWebview = true;
-					this.state = "closed";
-
-					// Set up layout if everything is ready
-					if (this.overlayContainer && this.webviewView) {
-						this.webviewView.webview.layoutWebviewOverElement(
-							this.overlayContainer,
-						);
-					}
-
-					resolve();
 				}
+
+				this.state = "closed";
+				resolve();
 			} catch (error) {
 				console.error("Critical error during initialization:", error);
 				this.state = "closed";
@@ -192,6 +139,106 @@ export class CreatorOverlayPart extends Part {
 		});
 
 		return this.initializingPromise;
+	}
+
+	/**
+	 * Initialize only the webview-related functionality
+	 */
+	private async initializeWebview(): Promise<void> {
+		if (this.initializedWebview) {
+			return;
+		}
+
+		try {
+			const extensionDescription: WebviewExtensionDescription = {
+				id: new ExtensionIdentifier(CREATOR_VIEW_ID),
+				location: URI.parse(""),
+			};
+
+			// Create the webview overlay
+			const webview = this._webviewService!.createWebviewOverlay({
+				title: CREATOR_OVERLAY_TITLE,
+				options: {
+					enableFindWidget: false,
+				},
+				contentOptions: {
+					allowScripts: true,
+					localResourceRoots: [],
+				},
+				extension: extensionDescription,
+			});
+
+			// Set initial visibility - important for initial state
+			webview.container.style.display = "none";
+			webview.container.style.opacity = "0";
+			webview.container.style.transition = "opacity 0.3s ease-in";
+			webview.container.style.position = "absolute";
+			webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
+			webview.container.setAttribute("id", "creator-overlay-webview");
+
+			// Claim the webview
+			webview.claim(this, getActiveWindow(), undefined);
+
+			// Initialize webviewView
+			this.webviewView = {
+				webview,
+				onDidChangeVisibility: () => {
+					return { dispose: () => {} };
+				},
+				onDispose: () => {
+					return { dispose: () => {} };
+				},
+
+				get title(): string | undefined {
+					return CREATOR_OVERLAY_TITLE;
+				},
+				set title(value: string | undefined) {},
+
+				get description(): string | undefined {
+					return undefined;
+				},
+				set description(value: string | undefined) {},
+
+				get badge() {
+					return undefined;
+				},
+				set badge(badge) {},
+
+				dispose: () => {},
+
+				show: (preserveFocus) => {},
+			} satisfies WebviewView;
+
+			// Connect webviewView to the provider - only try once
+			const source = new CancellationTokenSource();
+			try {
+				console.log("RESOLVING CreatorOverlayPart WEBVIEW SERVICE....");
+
+				await this._webviewViewService.resolve(
+					CREATOR_VIEW_ID,
+					this.webviewView!,
+					source.token,
+				);
+
+				console.log("WEBVIEW CreatorOverlayPart SERVICE RESOLVED!");
+			} catch (error) {
+				console.error("Failed to resolve creator view:", error);
+				// Continue despite error - we'll still mark as initialized
+			} finally {
+				// Always mark as initialized when we're done trying
+				this.initializedWebview = true;
+
+				// Set up layout if everything is ready
+				if (this.overlayContainer && this.webviewView) {
+					this.webviewView.webview.layoutWebviewOverElement(
+						this.overlayContainer,
+					);
+				}
+			}
+		} catch (error) {
+			console.error("Error initializing webview:", error);
+			throw error;
+		}
 	}
 
 	protected override createContentArea(element: HTMLElement): HTMLElement {
@@ -246,8 +293,8 @@ export class CreatorOverlayPart extends Part {
 		// Add the overlay container to the main element
 		this.element.appendChild(this.overlayContainer);
 
-		// Set up webview layout if both are ready
-		if (this.overlayContainer && this.webviewView) {
+		// Set up webview layout only if webview is enabled and initialized
+		if (this._webviewEnabled && this.overlayContainer && this.webviewView) {
 			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
 		}
 
@@ -267,43 +314,46 @@ export class CreatorOverlayPart extends Part {
 			this.overlayContainer.style.height = `${height}px`;
 		}
 
-		if (this.webviewView && this.overlayContainer) {
+		// Layout webview only if enabled
+		if (this._webviewEnabled && this.webviewView && this.overlayContainer) {
 			// Always layout the webview over the element
 			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
 		}
 	}
 
-	private openInProgress = false;
+	// private openInProgress = false;
 
 	private async open() {
 		// Prevent multiple simultaneous open attempts
-		if (this.openInProgress) {
-			console.log("Open already in progress, skipping");
-			return;
-		}
+		// if (this.openInProgress) {
+		// 	console.log("Open already in progress, skipping");
+		// 	return;
+		// }
 
-		this.openInProgress = true;
+		// this.openInProgress = true;
 
 		try {
-			// Make sure webview is initialized before opening
-			if (!this.initializedWebview) {
-				console.log("Webview not initialized yet, initializing...");
-				await this.initialize();
-				// If we're already open after initialization somehow, don't continue
-				if (this.state === "open") {
-					this.openInProgress = false;
-					return;
-				}
+			// // Make sure initialization is complete before opening
+			// if (this.state === "loading") {
+			// 	console.log("Overlay not initialized yet, initializing...");
+			// 	await this.initialize();
+			// 	// If we're already open after initialization somehow, don't continue
+			// 	// @ts-expect-error yeet
+			// 	if (this.state === "open") {
+			// 		this.openInProgress = false;
+			// 		return;
+			// 	}
+			// }
+
+			// If webview is enabled but not initialized, initialize it now
+			if (this._webviewEnabled && !this.initializedWebview) {
+				await this.initializeWebview();
 			}
 
 			await this.handleSlideAnimation("down");
 
-			if (
-				this.state === "open" ||
-				!this.overlayContainer ||
-				!this.webviewView
-			) {
-				this.openInProgress = false;
+			if (this.state === "open" || !this.overlayContainer) {
+				// this.openInProgress = false;
 				return;
 			}
 
@@ -318,14 +368,16 @@ export class CreatorOverlayPart extends Part {
 			void this.overlayContainer.offsetHeight;
 			this.overlayContainer.style.opacity = "1";
 
-			// Show the webview container
-			const container = this.webviewView.webview.container;
-			if (container) {
-				container.style.display = "flex";
-				container.style.zIndex = "1000";
-				// Force a layout reflow before setting opacity
-				void container.offsetHeight;
-				container.style.opacity = "1";
+			// Show the webview container (only if webview is enabled)
+			if (this._webviewEnabled && this.webviewView) {
+				const container = this.webviewView.webview.container;
+				if (container) {
+					container.style.display = "flex";
+					container.style.zIndex = "100";
+					// Force a layout reflow before setting opacity
+					void container.offsetHeight;
+					container.style.opacity = "1";
+				}
 			}
 
 			// Remove previous click handler if exists
@@ -343,8 +395,8 @@ export class CreatorOverlayPart extends Part {
 
 			this.overlayContainer.addEventListener("click", this.closeHandler);
 
-			// Always update layout when opening
-			if (this.webviewView && this.overlayContainer) {
+			// Always update layout when opening (if webview is enabled)
+			if (this._webviewEnabled && this.webviewView && this.overlayContainer) {
 				this.webviewView.webview.layoutWebviewOverElement(
 					this.overlayContainer,
 				);
@@ -352,17 +404,12 @@ export class CreatorOverlayPart extends Part {
 
 			this.focus();
 		} finally {
-			this.openInProgress = false;
+			// this.openInProgress = false;
 		}
 	}
 
 	private close() {
-		if (
-			this.isLocked ||
-			this.state === "closed" ||
-			!this.overlayContainer ||
-			!this.webviewView
-		) {
+		if (this.isLocked || this.state === "closed" || !this.overlayContainer) {
 			return;
 		}
 
@@ -371,9 +418,12 @@ export class CreatorOverlayPart extends Part {
 		// Start the transition by setting opacity to 0
 		this.overlayContainer.style.opacity = "0";
 
-		const container = this.webviewView.webview.container;
-		if (container) {
-			container.style.opacity = "0";
+		// Hide webview if enabled
+		if (this._webviewEnabled && this.webviewView) {
+			const container = this.webviewView.webview.container;
+			if (container) {
+				container.style.opacity = "0";
+			}
 		}
 
 		// Add a slide-up animation when closing
@@ -385,9 +435,13 @@ export class CreatorOverlayPart extends Part {
 				this.overlayContainer.style.display = "none";
 			}
 
-			if (container) {
-				container.style.zIndex = "-1";
-				container.style.display = "none";
+			// Hide webview if enabled
+			if (this._webviewEnabled && this.webviewView) {
+				const container = this.webviewView.webview.container;
+				if (container) {
+					container.style.zIndex = "-1";
+					container.style.display = "none";
+				}
 			}
 
 			// Focus the active editor
@@ -395,53 +449,19 @@ export class CreatorOverlayPart extends Part {
 		});
 	}
 
-	// private close() {
-	// 	if (this.isLocked || this.state === "closed" || !this.overlayContainer || !this.webviewView) {
-	// 		return;
-	// 	}
-
-	// 	console.log("Closing overlay view");
-
-	// 	// Start the transition by setting opacity to 0
-	// 	this.overlayContainer.style.opacity = "0";
-
-	// 	const container = this.webviewView.webview.container;
-	// 	if (container) {
-	// 		container.style.opacity = "0";
-	// 	}
-
-	// 	// Wait for the transition to complete before hiding elements
-	// 	setTimeout(() => {
-	// 		this.state = "closed";
-
-	// 		if (this.overlayContainer) {
-	// 			this.overlayContainer.style.zIndex = "-1";
-	// 			this.overlayContainer.style.display = "none";
-	// 		}
-
-	// 		if (container) {
-	// 			container.style.zIndex = "-1";
-	// 			container.style.display = "none";
-	// 		}
-
-	// 		// Focus the active editor
-	// 		this._editorGroupsService.activeGroup.focus();
-	// 	}, 300); // 300ms matches the transition duration
-	// }
-
 	private toggleOpenClose() {
 		this.state === "open" ? this.close() : this.open();
 	}
 
 	focus(): void {
-		if (this.webviewView) {
+		if (this._webviewEnabled && this.webviewView) {
 			this.webviewView.webview.focus();
 		}
 	}
 
 	hideLoadingOverlay(): void {
-		// If we're in open state, ensure the webview is visible
-		if (this.state === "open" && this.webviewView) {
+		// If we're in open state, ensure the webview is visible (if enabled)
+		if (this.state === "open" && this._webviewEnabled && this.webviewView) {
 			const container = this.webviewView.webview.container;
 			if (container) {
 				container.style.zIndex = "1000";
@@ -501,7 +521,8 @@ export class CreatorOverlayPart extends Part {
 		topOfBodyElement.style.backgroundColor = "#FFFFFF";
 		topOfBodyElement.style.display = "block";
 		topOfBodyElement.style.overflow = "hidden";
-		topOfBodyElement.style.transition = "height 500ms ease-in-out";
+		topOfBodyElement.style.transition =
+			"height 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
 		topOfBodyElement.style.zIndex = "20";
 		topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
 
@@ -511,27 +532,73 @@ export class CreatorOverlayPart extends Part {
 		return topOfBodyElement;
 	}
 
+	private getBlurOverlayElement(): HTMLElement {
+		const existingElement = document.getElementById("blurred-container");
+		if (existingElement) {
+			return existingElement;
+		}
+
+		// Create the blurred container element
+		const blurOverlayElement = document.createElement("div");
+		blurOverlayElement.id = "blurred-container";
+		blurOverlayElement.style.width = "100%";
+		blurOverlayElement.style.height = "90vh";
+		blurOverlayElement.style.display = "block";
+		blurOverlayElement.style.overflow = "hidden";
+		blurOverlayElement.style.zIndex = "20";
+		blurOverlayElement.style.transition =
+			"opacity 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
+		blurOverlayElement.style.backdropFilter = "blur(8px)";
+		blurOverlayElement.style.pointerEvents = "none";
+		blurOverlayElement.style.position = "absolute";
+		blurOverlayElement.style.opacity = "1";
+
+		const blurGradient = document.createElement("div");
+
+		blurGradient.style.width = "100%";
+		blurGradient.style.height = "10vh";
+		blurGradient.style.zIndex = "30";
+		blurGradient.style.background =
+			"linear-gradient(to bottom, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.9) 20%, rgba(255, 255, 255, 0.7) 30%, rgba(255, 255, 255, 0.3) 80%, rgba(255, 255, 255, 0) 100%)";
+		blurGradient.style.position = "absolute";
+		blurGradient.style.top = "0";
+		blurGradient.style.left = "0";
+
+		blurOverlayElement.appendChild(blurGradient);
+		const topOfBodyElement = this.getTopOfBodyElement();
+
+		topOfBodyElement.after(blurOverlayElement);
+
+		return blurOverlayElement;
+	}
+
 	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
 		return new Promise((resolve) => {
 			// Create the container element for slide-down animation
 			const topOfBodyElement = this.getTopOfBodyElement();
+			const blurryElement = this.getBlurOverlayElement();
 
-			topOfBodyElement.style.height = direction === "up" ? "100vh" : "0";
+			topOfBodyElement.style.height =
+				direction === "up" ? MAX_OVERLAY_HEIGHT : "0";
 
 			// Force layout reflow before starting animation
 			void topOfBodyElement.offsetWidth;
 
 			// Start animation - expand to full height
 			requestAnimationFrame(() => {
+				1;
 				if (!topOfBodyElement || !topOfBodyElement.parentNode) {
 					console.warn("topOfBodyElement not found in request animation frame");
 					return resolve();
 				}
 
-				topOfBodyElement.style.height = direction === "up" ? "0" : "100vh";
+				topOfBodyElement.style.height =
+					direction === "up" ? "0" : MAX_OVERLAY_HEIGHT;
+				blurryElement.style.opacity = direction === "up" ? "0" : "1"; // Fade in/out the blurry element
+
 				console.log(
 					"Animation started - height change to:",
-					direction === "up" ? "0" : "100vh",
+					direction === "up" ? "0" : MAX_OVERLAY_HEIGHT,
 				);
 
 				// Set a single timeout for animation completion
@@ -544,7 +611,7 @@ export class CreatorOverlayPart extends Part {
 					}
 
 					// Remove the element after animation completes
-					topOfBodyElement.parentNode.removeChild(topOfBodyElement);
+					// topOfBodyElement.parentNode.removeChild(topOfBodyElement);
 					resolve();
 				}, 500); // Match the transition duration
 			});
