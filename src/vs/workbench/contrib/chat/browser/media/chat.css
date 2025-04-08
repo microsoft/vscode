@@ -1146,17 +1146,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 0 0 0
 }
 
-.action-item.chat-attached-context-attachment.chat-add-files {
-	height: 20px;
-	color: var(--vscode-foreground);
-}
-
-.action-item.chat-attached-context-attachment.chat-add-files span.keybinding {
-	display: none;
-}
-
-.action-item.chat-mcp .action-label,
-.action-item.chat-attached-context-attachment.chat-add-files .action-label,
+.action-item.chat-attachment-button .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	gap: 2px;
@@ -1170,10 +1160,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
-.action-item.chat-attached-context-attachment.chat-add-files .action-label {
-	color: var(--vscode-foreground);
-	font-family: unset;
-	gap: 5px;
+.action-item.chat-attachment-button > .action-label > .codicon {
+	font-size: 14px;
 }
 
 .action-item.chat-mcp {
