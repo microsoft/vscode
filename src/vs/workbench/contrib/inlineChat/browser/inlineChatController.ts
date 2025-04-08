@@ -586,14 +586,7 @@ export class InlineChatController1 implements IEditorContribution {
 
 		if (options.attachments) {
 			await Promise.all(options.attachments.map(async attachment => {
-				if (/\.(png|jpe?g|gif|webp)$/i.test(attachment.path)) {
-					const context = await this.createImageAttachment(attachment);
-					if (context) {
-						this._ui.value.widget.chatWidget.attachmentModel.addContext(context);
-					}
-				} else {
-					this._ui.value.widget.chatWidget.attachmentModel.addFile(attachment);
-				}
+				await this._ui.value.widget.chatWidget.attachmentModel.addFile(attachment);
 			}));
 			delete options.attachments;
 		}
@@ -1436,14 +1429,7 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 			if (arg.attachments) {
 				await Promise.all(arg.attachments.map(async attachment => {
-					if (/\.(png|jpe?g|gif|webp)$/i.test(attachment.path)) {
-						const context = await this.createImageAttachment(attachment);
-						if (context) {
-							this._zone.value.widget.chatWidget.attachmentModel.addContext(context);
-						}
-					} else {
-						this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
-					}
+					await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
 				}));
 				delete arg.attachments;
 			}
