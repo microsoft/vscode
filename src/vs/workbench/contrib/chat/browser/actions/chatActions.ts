@@ -357,7 +357,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: `workbench.action.openChat`,
-				title: localize2('interactiveSession.open', "Open Editor"),
+				title: localize2('interactiveSession.open', "New Chat Editor"),
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled
