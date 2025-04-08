@@ -610,7 +610,7 @@ interface Artifact {
 	};
 }
 
-async function getPipelineArtifacts(): Promise<Artifact[]> {
+export async function getPipelineArtifacts(): Promise<Artifact[]> {
 	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
