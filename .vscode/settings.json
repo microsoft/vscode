@@ -173,8 +173,8 @@
 	"eslint.useFlatConfig": true,
 	"editor.occurrencesHighlightDelay": 0,
 	"typescript.experimental.expandableHover": true,
-	"git.diagnosticsCommitHook.Enabled": true,
-	"git.diagnosticsCommitHook.Sources": {
+	"git.diagnosticsCommitHook.enabled": true,
+	"git.diagnosticsCommitHook.sources": {
 		"*": "error",
 		"ts": "warning",
 		"eslint": "warning"
