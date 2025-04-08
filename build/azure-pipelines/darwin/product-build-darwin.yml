@@ -304,6 +304,7 @@ steps:
         $ErrorActionPreference = "Stop"
         exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/darwin/codesign.js }
       env:
+        EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: ✍️ Codesign
 
