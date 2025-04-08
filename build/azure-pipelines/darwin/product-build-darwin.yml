@@ -256,6 +256,46 @@ steps:
       condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive
 
+    - task: UseDotNet@2
+      inputs:
+        version: 6.x
+
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
+
+    - script: |
+        # For legacy purposes, arch for x64 is just 'darwin'
+        case $VSCODE_ARCH in
+          x64) ASSET_ID="darwin" ;;
+          arm64) ASSET_ID="darwin-arm64" ;;
+          universal) ASSET_ID="darwin-universal" ;;
+        esac
+        echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
+      displayName: Set asset id variable
+
+    - script: |
+        if [ -z "$(ASSET_ID)" ]; then
+          echo "ASSET_ID is empty"
+          exit 1
+        else
+          echo "ASSET_ID is set to $(ASSET_ID)"
+        fi
+      displayName: Check ASSET_ID variable
+
+    - script: npx deemon --detach --wait -- npx zx build/azure-pipelines/darwin/codesign.js
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: ✍️ Codesign & Notarize
+
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml@self
       parameters:
@@ -266,3 +306,34 @@ steps:
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
+
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+    - script: npx deemon --attach -- npx zx build/azure-pipelines/darwin/codesign.js
+      condition: succeededOrFailed()
+      displayName: "Post-job: ✍️ Codesign & Notarize"
+
+    - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      displayName: Extract signed app
+
+    - script: |
+        set -e
+        APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        codesign -dv --deep --verbose=4 "$APP_PATH"
+        "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+      displayName: Verify signature
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+    - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+      displayName: Rename x64 build to its legacy name
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
+        artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
+        sbomPackageVersion: $(Build.SourceVersion)
+      displayName: Publish client archive
