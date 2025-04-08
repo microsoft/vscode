@@ -620,6 +620,7 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
+                  BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -640,6 +641,7 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
+                  BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:

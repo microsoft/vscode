@@ -20,7 +20,7 @@ import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, Contai
 import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
-function e(name: string): string {
+export function e(name: string): string {
 	const result = process.env[name];
 
 	if (typeof result !== 'string') {

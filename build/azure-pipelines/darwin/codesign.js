@@ -5,43 +5,38 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 const zx_1 = require("zx");
-const arch = process.env['VSCODE_ARCH'];
-const esrpCliDLLPath = process.env['EsrpCliDllPath'];
-const pipelineWorkspace = process.env['PIPELINE_WORKSPACE'];
+const publish_1 = require("../common/publish");
 function printBanner(title) {
     title = `${title} (${new Date().toISOString()})`;
-    console.log('\n\n');
+    console.log('\n');
     console.log('#'.repeat(75));
     console.log(`# ${title.padEnd(71)} #`);
     console.log('#'.repeat(75));
-    console.log('\n\n');
+    console.log('\n');
 }
-function sign(type, folder, glob) {
-    console.log('Sign request:');
-    console.log(`  ESRP CLI DLL Path: ${esrpCliDLLPath}`);
-    console.log(`  Type: ${type}`);
-    console.log(`  Folder: ${folder}`);
-    console.log(`  Glob: ${glob}`);
+async function handleProcessPromise(name, promise) {
+    const result = await promise.pipe(process.stdout);
+    if (!result.ok) {
+        throw new Error(`${name} failed: ${result.stderr}`);
+    }
+}
+function sign(esrpCliDLLPath, type, folder, glob) {
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
 }
 async function main() {
-    (0, zx_1.useBash)();
+    const arch = (0, publish_1.e)('VSCODE_ARCH');
+    const esrpCliDLLPath = (0, publish_1.e)('EsrpCliDllPath');
+    const pipelineWorkspace = (0, publish_1.e)('PIPELINE_WORKSPACE');
     const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
     const glob = `VSCode-darwin-${arch}.zip`;
     // Codesign
     printBanner('Codesign');
-    const codeSignTask = sign('sign-darwin', folder, glob);
-    const codeSignTaskResult = await codeSignTask.pipe(process.stdout);
-    if (!codeSignTaskResult.ok) {
-        throw new Error(`Codesign failed: ${codeSignTaskResult.stderr}`);
-    }
+    const codeSignTask = sign(esrpCliDLLPath, 'sign-darwin', folder, glob);
+    await handleProcessPromise('Codesign', codeSignTask);
     // Notarize
     printBanner('Notarize');
-    const notarizeTask = sign('notarize-darwin', folder, glob);
-    const notarizeTaskResult = await notarizeTask.pipe(process.stdout);
-    if (!notarizeTaskResult.ok) {
-        throw new Error(`Notarize failed: ${notarizeTaskResult.stderr}`);
-    }
+    const notarizeTask = sign(esrpCliDLLPath, 'notarize-darwin', folder, glob);
+    await handleProcessPromise('Notarize', notarizeTask);
 }
 main().then(() => {
     process.exit(0);
