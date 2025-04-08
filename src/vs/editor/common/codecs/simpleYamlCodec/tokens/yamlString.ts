@@ -5,7 +5,9 @@
 
 import { YamlToken } from './yamlToken.js';
 import { BaseToken } from '../../baseToken.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { DoubleQuote, Quote } from '../../simpleCodec/tokens/index.js';
 
 /**
  * TODO: @legomushroom
@@ -15,7 +17,24 @@ export class YamlString extends YamlToken {
 		range: Range,
 		private readonly tokens: readonly BaseToken[],
 	) {
-		// TODO: @legomushroom - validate quotes/double quotes in the tokens?
+		const firstToken = tokens[0];
+		const lastToken = tokens[tokens.length - 1];
+
+		// sanity checks - if the string starts with a quote,
+		// it must also end with the same quote to be valid
+		if (firstToken instanceof Quote) {
+			assert(
+				lastToken instanceof Quote,
+				`Expected last token to be a Quote, got '${lastToken}'.`,
+			);
+		}
+		if (firstToken instanceof DoubleQuote) {
+			assert(
+				lastToken instanceof DoubleQuote,
+				`Expected last token to be a DoubleQuote, got '${lastToken}'.`,
+			);
+		}
+
 		super(range);
 	}
 
@@ -41,6 +60,6 @@ export class YamlString extends YamlToken {
 	 * String representation of the token.
 	 */
 	public override toString(): string {
-		return `yaml-str(${this.shortText}){this.range}`;
+		return `yaml-str(${this.shortText()}){this.range}`;
 	}
 }

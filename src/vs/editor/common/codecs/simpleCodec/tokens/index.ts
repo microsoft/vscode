@@ -12,6 +12,7 @@ export { Colon } from './colon.js';
 export { Quote } from './quote.js';
 export { Slash } from './slash.js';
 export { Space } from './space.js';
+export { Comma } from './comma.js';
 export { FormFeed } from './formFeed.js';
 export { DollarSign } from './dollarSign.js';
 export { VerticalTab } from './verticalTab.js';

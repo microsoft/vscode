@@ -20,6 +20,7 @@ import {
 	Slash,
 	Space,
 	Quote,
+	Comma,
 	FormFeed,
 	DollarSign,
 	DoubleQuote,
@@ -46,7 +47,7 @@ import { ISimpleTokenClass, SimpleToken } from './tokens/simpleToken.js';
  */
 export type TSimpleToken = Space | Tab | VerticalTab | At | Quote | DoubleQuote
 	| CarriageReturn | NewLine | FormFeed | TBracket | TAngleBracket | TCurlyBrace
-	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign
+	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign | Comma
 	| TLineBreakToken;
 
 /**
@@ -62,7 +63,7 @@ export type TSimpleDecoderToken = TSimpleToken | Word;
 export const WELL_KNOWN_TOKENS: readonly ISimpleTokenClass<TSimpleToken>[] = Object.freeze([
 	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket, LeftCurlyBrace, RightCurlyBrace,
 	LeftAngleBracket, RightAngleBracket, Space, Tab, VerticalTab, FormFeed, Colon, Hash, Dash,
-	ExclamationMark, At, Slash, DollarSign, Quote, DoubleQuote,
+	ExclamationMark, At, Slash, DollarSign, Quote, DoubleQuote, Comma,
 ]);
 
 /**
