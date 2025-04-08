@@ -199,7 +199,8 @@ export function resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[
 			id: symbolId(resource, symbol.range),
 			value: { uri: resource, range: symbol.range },
 			symbolKind: symbol.kind,
-			fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
+			icon: SymbolKinds.toIcon(symbol.kind),
+			fullName: symbol.name,
 			name: symbol.name,
 		};
 	});

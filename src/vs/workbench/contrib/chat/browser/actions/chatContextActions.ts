@@ -16,7 +16,7 @@ import { WithUriValue } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { Command } from '../../../../../editor/common/languages.js';
+import { Command, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -65,7 +65,7 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { ATTACH_PROMPT_ACTION_ID, AttachPromptAction, IChatAttachPromptActionOptions } from './chatAttachPromptAction/chatAttachPromptAction.js';
+import { runAttachPromptAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -491,6 +491,7 @@ export class AttachContextAction extends Action2 {
 					id: this._getFileContextId(pick.symbol.location),
 					value: pick.symbol.location,
 					symbolKind: pick.symbol.kind,
+					icon: SymbolKinds.toIcon(pick.symbol.kind),
 					fullName: pick.label,
 					name: pick.symbol.name,
 				});
@@ -616,8 +617,7 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				const options: IChatAttachPromptActionOptions = { widget };
-				await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
+				await runAttachPromptAction({ widget }, commandService);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -965,4 +965,7 @@ export class AttachContextAction extends Action2 {
 	}
 }
 
-registerAction2(AttachPromptAction);
+/**
+ * Register all actions related to reusable prompt files.
+ */
+registerReusablePromptActions();

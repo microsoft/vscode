@@ -859,29 +859,13 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		const symbolsToAdd: { symbol: DocumentSymbol; uri: URI }[] = [];
 		for (const outlineModel of this.outlineService.getCachedModels()) {
-			if (pattern) {
-				symbolsToAdd.push(...outlineModel.asListOfDocumentSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
-			} else {
-				symbolsToAdd.push(...outlineModel.getTopLevelSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
+			const symbols = outlineModel.asListOfDocumentSymbols();
+			for (const symbol of symbols) {
+				symbolsToAdd.push({ symbol, uri: outlineModel.uri });
 			}
 		}
 
-		const symbolsToAddFiltered = symbolsToAdd.filter(fileSymbol => {
-			switch (fileSymbol.symbol.kind) {
-				case SymbolKind.Enum:
-				case SymbolKind.Class:
-				case SymbolKind.Method:
-				case SymbolKind.Function:
-				case SymbolKind.Namespace:
-				case SymbolKind.Module:
-				case SymbolKind.Interface:
-					return true;
-				default:
-					return false;
-			}
-		});
-
-		for (const symbol of symbolsToAddFiltered) {
+		for (const symbol of symbolsToAdd) {
 			result.suggestions.push(makeSymbolCompletionItem({ ...symbol.symbol, location: { uri: symbol.uri, range: symbol.symbol.range } }, pattern ?? ''));
 		}
 

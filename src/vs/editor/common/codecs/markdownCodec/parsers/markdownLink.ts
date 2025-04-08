@@ -7,8 +7,8 @@ import { MarkdownLink } from '../tokens/markdownLink.js';
 import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { FormFeed } from '../../simpleCodec/tokens/formFeed.js';
-import { TSimpleToken } from '../../simpleCodec/simpleDecoder.js';
 import { VerticalTab } from '../../simpleCodec/tokens/verticalTab.js';
+import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
 import { LeftBracket, RightBracket } from '../../simpleCodec/tokens/brackets.js';
 import { ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
@@ -35,12 +35,12 @@ const MARKDOWN_LINK_STOP_CHARACTERS: readonly string[] = [CarriageReturn, NewLin
  * for re-emitting the {@link tokens} accumulated so far as standalone entities since they are no
  * longer represent a coherent token entity of a larger size.
  */
-export class PartialMarkdownLinkCaption extends ParserBase<TSimpleToken, PartialMarkdownLinkCaption | MarkdownLinkCaption> {
+export class PartialMarkdownLinkCaption extends ParserBase<TSimpleDecoderToken, PartialMarkdownLinkCaption | MarkdownLinkCaption> {
 	constructor(token: LeftBracket) {
 		super([token]);
 	}
 
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialMarkdownLinkCaption | MarkdownLinkCaption> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialMarkdownLinkCaption | MarkdownLinkCaption> {
 		// any of stop characters is are breaking a markdown link caption sequence
 		if (MARKDOWN_LINK_STOP_CHARACTERS.includes(token.text)) {
 			return {
@@ -82,8 +82,8 @@ export class PartialMarkdownLinkCaption extends ParserBase<TSimpleToken, Partial
  * to be responsible for re-emitting the {@link tokens} accumulated so far as standalone
  * entities since they are no longer represent a coherent token entity of a larger size.
  */
-export class MarkdownLinkCaption extends ParserBase<TSimpleToken, MarkdownLinkCaption | PartialMarkdownLink> {
-	public accept(token: TSimpleToken): TAcceptTokenResult<MarkdownLinkCaption | PartialMarkdownLink> {
+export class MarkdownLinkCaption extends ParserBase<TSimpleDecoderToken, MarkdownLinkCaption | PartialMarkdownLink> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<MarkdownLinkCaption | PartialMarkdownLink> {
 		// the `(` character starts the link part of a markdown link
 		// that is the only character that can follow the caption
 		if (token instanceof LeftParenthesis) {
@@ -123,7 +123,7 @@ export class MarkdownLinkCaption extends ParserBase<TSimpleToken, MarkdownLinkCa
  *     to be complete as soon as this requirement is met. Therefore the `final` word is used in
  *     the description comments above to highlight this important detail.
  */
-export class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink | MarkdownLink> {
+export class PartialMarkdownLink extends ParserBase<TSimpleDecoderToken, PartialMarkdownLink | MarkdownLink> {
 	/**
 	 * Number of open parenthesis in the sequence.
 	 * See comment in the {@linkcode accept} method for more details.
@@ -131,17 +131,17 @@ export class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdow
 	private openParensCount: number = 1;
 
 	constructor(
-		protected readonly captionTokens: TSimpleToken[],
+		protected readonly captionTokens: TSimpleDecoderToken[],
 		token: LeftParenthesis,
 	) {
 		super([token]);
 	}
 
-	public override get tokens(): readonly TSimpleToken[] {
+	public override get tokens(): readonly TSimpleDecoderToken[] {
 		return [...this.captionTokens, ...this.currentTokens];
 	}
 
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialMarkdownLink | MarkdownLink> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialMarkdownLink | MarkdownLink> {
 		// markdown links allow for nested parenthesis inside the link reference part, but
 		// the number of open parenthesis must match the number of closing parenthesis, e.g.:
 		// 	- `[caption](/some/p()th/file.md)` is a valid markdown link

@@ -385,7 +385,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
-		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
 		this.label.setLabel(withIcon, undefined);
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 

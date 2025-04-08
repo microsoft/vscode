@@ -299,7 +299,7 @@ export class InlineEditsView extends Disposable {
 	));
 
 	private getCacheId(model: IInlineEditModel) {
-		return model.inlineEdit.inlineCompletion.id;
+		return model.inlineEdit.inlineCompletion.identity.id;
 	}
 
 	private determineView(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {

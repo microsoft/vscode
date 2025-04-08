@@ -65,7 +65,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _suggestWidgetAdapter = this._register(new ObservableSuggestWidgetAdapter(
 		this._editorObs,
 		item => this.model.get()?.handleSuggestAccepted(item),
-		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
+		() => this.model.get()?.selectedInlineCompletion.get()?.getSingleTextEdit(),
 	));
 
 	private readonly _enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
@@ -215,7 +215,7 @@ export class InlineCompletionsController extends Disposable {
 
 			const model = this.model.get();
 			if (!model) { return; }
-			if (model.state.get()?.inlineCompletion?.request.isExplicitRequest && model.inlineEditAvailable.get()) {
+			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.get()) {
 				// dont hide inline edits on blur when requested explicitly
 				return;
 			}
@@ -298,7 +298,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.suppressSuggestions, reader => {
 			const model = this.model.read(reader);
 			const state = model?.inlineCompletionState.read(reader);
-			return state?.primaryGhostText && state?.inlineCompletion ? state.inlineCompletion.source.inlineCompletions.suppressSuggestions : undefined;
+			return state?.primaryGhostText && state?.inlineCompletion ? state.inlineCompletion.source.inlineSuggestions.suppressSuggestions : undefined;
 		}));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineSuggestionVisible, reader => {
 			const model = this.model.read(reader);

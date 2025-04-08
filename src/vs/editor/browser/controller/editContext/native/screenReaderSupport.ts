@@ -177,9 +177,14 @@ export class ScreenReaderSupport {
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
 			this._screenReaderContentState = this._getScreenReaderContentState();
-			if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
+			const endPosition = this._context.viewModel.model.getPositionAt(Infinity);
+			let value = this._screenReaderContentState.value;
+			if (endPosition.column === 1 && this._primarySelection.getEndPosition().equals(endPosition)) {
+				value += '\n';
+			}
+			if (this._domNode.domNode.textContent !== value) {
 				this.setIgnoreSelectionChangeTime('setValue');
-				this._domNode.domNode.textContent = this._screenReaderContentState.value;
+				this._domNode.domNode.textContent = value;
 			}
 			this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 		} else {
