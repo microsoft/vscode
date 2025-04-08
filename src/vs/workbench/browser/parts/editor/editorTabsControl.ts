@@ -8,7 +8,9 @@ import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { Dimension, getActiveWindow, getWindow, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+// MEMBRANE: hide editor tab actions (e.g. Split Editor, More Actions)
+// import { prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -265,12 +267,17 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	// MEMBRANE: see membraneActionsToolbar initialization above
 	private updateMembraneActions() {
 		const membraneActions: IAction[] = [];
-		const show = this.contextKeyService.contextMatchesRules(AuxiliaryBarVisibleContext.toNegated());
-		if (show) {
+		membraneActions.push(new MenuItemAction({
+			id: 'membrane.dashboard.show',
+			title: 'Dashboard',
+		}, undefined, undefined, undefined, this.contextKeyService, this.commandService));
+
+		const isAuxBarHidden = this.contextKeyService.contextMatchesRules(AuxiliaryBarVisibleContext.toNegated());
+		if (isAuxBarHidden) {
 			membraneActions.push(new Separator());
 			membraneActions.push(new MenuItemAction({
 				id: 'workbench.action.toggleAuxiliaryBar',
-				title: 'Show Auxiliary Bar',
+				title: 'Show Brane (AI) & Program Info',
 				icon: Codicon.chevronLeft,
 			}, undefined, undefined, undefined, this.contextKeyService, this.commandService));
 		}
@@ -303,11 +310,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables);
 		this.editorActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
 
-		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
-		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
-		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
-
-
+		// MEMBRANE: hide editor tab actions (e.g. Split Editor, More Actions)
+		// const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		// const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
+		// editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 	}
 
 	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;

@@ -440,11 +440,11 @@
 
 /* MEMBRANE: These changes allows us to have two toolbars in the editor title for the show aux bar button */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
-	display: flex;
-	flex-direction: row;
+	display: flex; /* MEMBRANE: */
+	flex-direction: row; /* MEMBRANE: */
 	cursor: default;
 	flex: initial;
-	padding: 0 0 0 4px;
+	padding: 0 0 0 4px; /* MEMBRANE: */
 	height: var(--editor-group-tab-height);
 }
 
@@ -470,19 +470,38 @@
 	display: none;
 }
 
-/* MEMBRANE: Positioning of button to open the aux bar so that it matches gaze's */
-.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .menu-entry {
-	margin-right: 0px !important;
-}
-.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .codicon-chevron-left {
-	border-radius: 0px;
-	padding: 7px;
-	margin-bottom: 0px;
-}
-.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .disabled {
-	margin-right: 0px !important;
-}
-.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .separator {
-	height: 30px;
-	opacity: 0.25;
+/* MEMBRANE: editor actions toolbar changes */
+.monaco-workbench .actions-container[aria-label="Additional Editor actions"] {
+	.action-item {
+		margin-right: 0px !important;
+		
+		/* Show Dashboard button */
+		&.menu-entry[title="Dashboard"] {
+			a[aria-label="Dashboard"] {
+				border-radius: 0px;
+				padding: 7px;
+				margin-bottom: 0px;
+			}
+		}
+	
+		/* Separator vertical line */
+		&.disabled {
+			.separator {
+				/* Note: margin on this element in actionbar.css also uses !important, but this declaration has higher specificity */
+				margin: 0 !important;
+				width: 1px;
+				height: 30px;
+				opacity: 0.25;
+			}
+		}
+	
+		/* Positioning of button to open the aux bar so that it matches gaze's */
+		&.menu-entry[title="Show Brane (AI) & Program Info (⌥⌘B)"] {
+			a.codicon-chevron-left {
+				border-radius: 0px;
+				padding: 7px;
+				margin-bottom: 0px;
+			}
+		}
+	}
 }
