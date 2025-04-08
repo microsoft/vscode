@@ -201,7 +201,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					autoScroll: mode => mode !== ChatMode.Ask,
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
-					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;
