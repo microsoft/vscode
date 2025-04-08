@@ -19,6 +19,13 @@ function printBanner(title: string) {
 	console.log('\n\n');
 }
 
+async function handleProcessPromise(name: string, promise: ProcessPromise): Promise<void> {
+	const result = await promise.pipe(process.stdout);
+	if (!result.ok) {
+		throw new Error(`${name} failed: ${result.stderr}`);
+	}
+}
+
 function sign(type: 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
 	console.log('Sign request:');
 	console.log(`  ESRP CLI DLL Path: ${esrpCliDLLPath}`);
@@ -37,18 +44,12 @@ async function main() {
 	// Codesign
 	printBanner('Codesign');
 	const codeSignTask = sign('sign-darwin', folder, glob);
-	const codeSignTaskResult = await codeSignTask.pipe(process.stdout);
-	if (!codeSignTaskResult.ok) {
-		throw new Error(`Codesign failed: ${codeSignTaskResult.stderr}`);
-	}
+	await handleProcessPromise('Codesign', codeSignTask);
 
 	// Notarize
 	printBanner('Notarize');
 	const notarizeTask = sign('notarize-darwin', folder, glob);
-	const notarizeTaskResult = await notarizeTask.pipe(process.stdout);
-	if (!notarizeTaskResult.ok) {
-		throw new Error(`Notarize failed: ${notarizeTaskResult.stderr}`);
-	}
+	await handleProcessPromise('Notarize', notarizeTask);
 }
 
 main().then(() => {
