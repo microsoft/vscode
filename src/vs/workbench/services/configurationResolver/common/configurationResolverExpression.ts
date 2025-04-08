@@ -46,6 +46,7 @@ interface IConfigurationResolverExpression<T> {
 type PropertyLocation = {
 	object: any;
 	propertyName: string | number;
+	replaceKeyName?: boolean;
 };
 
 export interface IResolvedValue {
@@ -174,9 +175,15 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 				this.parseObject(value);
 			}
 		}
+
+		// only after all values are marked for replacement, we can collect keys that have to be replaced
+		for (const [key] of Object.entries(obj)) {
+			this.parseString(obj, key, key, true);
+		}
+
 	}
 
-	private parseString(object: any, propertyName: string | number, value: string): void {
+	private parseString(object: any, propertyName: string | number, value: string, replaceKeyName?: boolean): void {
 		let pos = 0;
 		while (pos < value.length) {
 			const match = value.indexOf('${', pos);
@@ -186,7 +193,7 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			const parsed = this.parseVariable(value, match);
 			if (parsed) {
 				const locations = this.locations.get(parsed.replacement.id) || { locations: [], replacement: parsed.replacement };
-				locations.locations.push({ object, propertyName });
+				locations.locations.push({ object, propertyName, replaceKeyName });
 				this.locations.set(parsed.replacement.id, locations);
 				pos = parsed.end + 1;
 			} else {
@@ -214,9 +221,17 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		}
 
 		if (data.value !== undefined) {
-			for (const { object, propertyName } of location.locations || []) {
-				const newValue = object[propertyName].replaceAll(replacement.id, data.value);
-				object[propertyName] = newValue;
+			for (const { object, propertyName, replaceKeyName } of location.locations || []) {
+				if (replaceKeyName && typeof propertyName === 'string') {
+					// replace key
+					const value = object[propertyName];
+					const newValue = propertyName.replaceAll(replacement.id, data.value);
+					delete object[propertyName];
+					object[newValue] = value;
+				} else {
+					const newValue = object[propertyName].replaceAll(replacement.id, data.value);
+					object[propertyName] = newValue;
+				}
 			}
 		}
 
