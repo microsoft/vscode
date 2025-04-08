@@ -297,8 +297,6 @@ __vsc_update_env() {
 
 		else
 			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
-			builtin printf 'cant be using aa, so we are here boys\n'
-
 				# Non associative arrays are both empty, do not diff, just add
 				for key in "${envVarsToReport[@]}"; do
 					if [[ -v $key ]]; then
