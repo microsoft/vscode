@@ -17,7 +17,7 @@ async function main() {
 		try {
 			console.log(`Waiting for artifacts (${artifacts.join(', ')}) to be uploaded (${index + 1}/60)...`);
 			const allArtifacts = await retry(() => getPipelineArtifacts());
-			console.log(`  * Total number of artifacts attached to the pipelines: ${allArtifacts.length}`);
+			console.log(`  * Artifacts attached to the pipelines: ${allArtifacts.length > 0 ? allArtifacts.map(a => a.name).join(', ') : 'none'}`);
 
 			const foundArtifacts = allArtifacts.filter(a => artifacts.includes(a.name));
 			console.log(`  * Found ${foundArtifacts.length} of ${artifacts.length} artifacts${foundArtifacts.length > 0 ? `: ${foundArtifacts.map(a => a.name).join(', ')}` : ''}`);
