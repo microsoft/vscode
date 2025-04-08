@@ -32,12 +32,23 @@ async function main() {
 	// Codesign
 	const codeSignTask = sign('sign-darwin', folder, glob);
 	printBanner('Codesign');
-	await codeSignTask.pipe(process.stdout);
+	const codeSignTaskResult = await codeSignTask.pipe(process.stdout);
+	if (!codeSignTaskResult.ok) {
+		throw new Error(`Codesign failed: ${codeSignTaskResult.stderr}`);
+	}
 
 	// Notarize
 	const notarizeTask = sign('notarize-darwin', folder, glob);
 	printBanner('Notarize');
-	await notarizeTask.pipe(process.stdout);
+	const notarizeTaskResult = await notarizeTask.pipe(process.stdout);
+	if (!notarizeTaskResult.ok) {
+		throw new Error(`Notarize failed: ${notarizeTaskResult.stderr}`);
+	}
 }
 
-main();
+main().then(() => {
+	process.exit(0);
+}, err => {
+	console.error(err);
+	process.exit(1);
+});
