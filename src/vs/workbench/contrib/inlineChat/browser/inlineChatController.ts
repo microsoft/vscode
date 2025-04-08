@@ -84,7 +84,7 @@ export abstract class InlineChatRunOptions {
 	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
-	attachment?: (URI | string);
+	attachment?: URI | string;
 	autoSend?: boolean;
 	existingSession?: Session;
 	position?: IPosition;

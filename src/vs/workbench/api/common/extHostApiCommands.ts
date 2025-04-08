@@ -560,7 +560,7 @@ type InlineChatEditorApiArg = {
 	initialRange?: vscode.Range;
 	initialSelection?: vscode.Selection;
 	message?: string;
-	attachment?: (vscode.Uri | string);
+	attachment?: vscode.Uri | string;
 	autoSend?: boolean;
 	position?: vscode.Position;
 };
@@ -569,7 +569,7 @@ type InlineChatRunOptions = {
 	initialRange?: IRange;
 	initialSelection?: ISelection;
 	message?: string;
-	attachment?: (URI | string);
+	attachment?: URI | string;
 	autoSend?: boolean;
 	position?: IPosition;
 };
