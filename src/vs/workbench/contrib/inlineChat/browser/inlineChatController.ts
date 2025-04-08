@@ -16,6 +16,7 @@ import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEv
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
@@ -41,7 +42,7 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
+import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatRequestVariableEntry, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
@@ -55,6 +56,9 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -80,12 +84,13 @@ export abstract class InlineChatRunOptions {
 	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
+	attachment?: (URI | string);
 	autoSend?: boolean;
 	existingSession?: Session;
 	position?: IPosition;
 
 	static isInlineChatRunOptions(options: any): options is InlineChatRunOptions {
-		const { initialSelection, initialRange, message, autoSend, position, existingSession } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachment } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -93,6 +98,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof initialSelection !== 'undefined' && !Selection.isISelection(initialSelection)
 			|| typeof position !== 'undefined' && !Position.isIPosition(position)
 			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
+			|| typeof attachment !== 'undefined' && !(attachment instanceof URI || typeof attachment === 'string')
 		) {
 			return false;
 		}
@@ -200,6 +206,8 @@ export class InlineChatController1 implements IEditorContribution {
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxEditing = CTX_INLINE_CHAT_EDITING.bindTo(contextKeyService);
@@ -574,6 +582,14 @@ export class InlineChatController1 implements IEditorContribution {
 			message = m;
 			barrier.open();
 		}));
+
+		if (options.attachment) {
+			const context = await this.createImageAttachment(options.attachment);
+			if (context) {
+				this._ui.value.widget.chatWidget.attachmentModel.addContext(context);
+				delete options.attachment;
+			}
+		}
 
 		if (options.autoSend) {
 			delete options.autoSend;
@@ -1167,6 +1183,38 @@ export class InlineChatController1 implements IEditorContribution {
 	get isActive() {
 		return Boolean(this._currentRun);
 	}
+
+	async createImageAttachment(attachment: string | URI): Promise<IChatRequestVariableEntry | undefined> {
+		const isImageFile = (path: string) => /\.(png|jpg|jpeg|gif|webp)$/i.test(path);
+
+		if (typeof attachment === 'string') {
+			const isUrl = this.isValidUrl(attachment);
+			const uri = isUrl ? URI.parse(attachment) : URI.file(attachment);
+
+			if (isUrl) {
+				const extractedImages = await this._webContentExtractorService.readImage(uri, CancellationToken.None);
+				if (extractedImages) {
+					return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService, extractedImages);
+				}
+			} else if (isImageFile(uri.path) && await this._fileService.canHandleResource(uri)) {
+				return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService);
+			}
+		} else if (URI.isUri(attachment) && isImageFile(attachment.path)) {
+			return await resolveImageEditorAttachContext(attachment, this._fileService, this._dialogService);
+		}
+
+		return undefined;
+	}
+
+
+	private isValidUrl(imagePath: string): boolean {
+		try {
+			new URL(imagePath);
+			return true;
+		} catch (e) {
+			return false;
+		}
+	}
 }
 
 export class InlineChatController2 implements IEditorContribution {
@@ -1199,6 +1247,9 @@ export class InlineChatController2 implements IEditorContribution {
 		@IInlineChatSessionService private readonly _inlineChatSessions: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
+		@IFileService private readonly _fileService: IFileService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
@@ -1394,6 +1445,14 @@ export class InlineChatController2 implements IEditorContribution {
 			if (arg.initialSelection) {
 				this._editor.setSelection(arg.initialSelection);
 			}
+			if (arg.attachment) {
+				const context = await this.createImageAttachment(arg.attachment);
+				if (context) {
+					this._zone.value.widget.chatWidget.attachmentModel.addContext(context);
+					delete arg.attachment;
+				}
+
+			}
 			if (arg.message) {
 				this._zone.value.widget.chatWidget.setInput(arg.message);
 				if (arg.autoSend) {
@@ -1411,6 +1470,43 @@ export class InlineChatController2 implements IEditorContribution {
 	acceptSession() {
 		const value = this._currentSession.get();
 		value?.editingSession.accept();
+	}
+
+	async createImageAttachment(attachment: string | URI): Promise<IChatRequestVariableEntry | undefined> {
+		const value = this._currentSession.get();
+		if (!value) {
+			return undefined;
+		}
+
+		const isImageFile = (path: string) => /\.(png|jpg|jpeg|gif|webp)$/i.test(path);
+
+		if (typeof attachment === 'string') {
+			const isUrl = this.isValidUrl(attachment);
+			const uri = isUrl ? URI.parse(attachment) : URI.file(attachment);
+
+			if (isUrl) {
+				const extractedImages = await this._webContentExtractorService.readImage(uri, CancellationToken.None);
+				if (extractedImages) {
+					return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService, extractedImages);
+				}
+			} else if (isImageFile(uri.path) && await this._fileService.canHandleResource(uri)) {
+				return await resolveImageEditorAttachContext(uri, this._fileService, this._dialogService);
+			}
+		} else if (URI.isUri(attachment) && isImageFile(attachment.path)) {
+			return await resolveImageEditorAttachContext(attachment, this._fileService, this._dialogService);
+		}
+
+		return undefined;
+	}
+
+
+	private isValidUrl(imagePath: string): boolean {
+		try {
+			new URL(imagePath);
+			return true;
+		} catch (e) {
+			return false;
+		}
 	}
 }
 
