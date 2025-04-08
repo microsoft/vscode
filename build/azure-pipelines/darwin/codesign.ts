@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, ProcessPromise, usePwsh } from 'zx';
-
-const arch = process.env['VSCODE_ARCH'];
-const esrpCliDLLPath = process.env['EsrpCliDllPath'];
-const pipelineWorkspace = process.env['PIPELINE_WORKSPACE'];
+import { e } from '../common/publish';
 
 function printBanner(title: string) {
 	title = `${title} (${new Date().toISOString()})`;
@@ -26,7 +23,7 @@ async function handleProcessPromise(name: string, promise: ProcessPromise): Prom
 	}
 }
 
-function sign(type: 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
+function sign(esrpCliDLLPath: string, type: 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
 	console.log('Sign request:');
 	console.log(`  ESRP CLI DLL Path: ${esrpCliDLLPath}`);
 	console.log(`  Type: ${type}`);
@@ -38,17 +35,21 @@ function sign(type: 'sign-darwin' | 'notarize-darwin', folder: string, glob: str
 async function main() {
 	usePwsh();
 
+	const arch = e('VSCODE_ARCH');
+	const esrpCliDLLPath = e('EsrpCliDllPath');
+	const pipelineWorkspace = e('PIPELINE_WORKSPACE');
+
 	const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
 	const glob = `VSCode-darwin-${arch}.zip`;
 
 	// Codesign
 	printBanner('Codesign');
-	const codeSignTask = sign('sign-darwin', folder, glob);
+	const codeSignTask = sign(esrpCliDLLPath, 'sign-darwin', folder, glob);
 	await handleProcessPromise('Codesign', codeSignTask);
 
 	// Notarize
 	printBanner('Notarize');
-	const notarizeTask = sign('notarize-darwin', folder, glob);
+	const notarizeTask = sign(esrpCliDLLPath, 'notarize-darwin', folder, glob);
 	await handleProcessPromise('Notarize', notarizeTask);
 }
 

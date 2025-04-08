@@ -38,12 +38,10 @@ async function main() {
     }
     throw new Error(`ERROR: Artifacts (${artifacts.join(', ')}) were not uploaded within 30 minutes.`);
 }
-if (require.main === module) {
-    main().then(() => {
-        process.exit(0);
-    }, err => {
-        console.error(err);
-        process.exit(1);
-    });
-}
+main().then(() => {
+    process.exit(0);
+}, err => {
+    console.error(err);
+    process.exit(1);
+});
 //# sourceMappingURL=waitForArtifacts.js.map
