@@ -16,7 +16,7 @@ import { WithUriValue } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { Command } from '../../../../../editor/common/languages.js';
+import { Command, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -491,6 +491,7 @@ export class AttachContextAction extends Action2 {
 					id: this._getFileContextId(pick.symbol.location),
 					value: pick.symbol.location,
 					symbolKind: pick.symbol.kind,
+					icon: SymbolKinds.toIcon(pick.symbol.kind),
 					fullName: pick.label,
 					name: pick.symbol.name,
 				});
