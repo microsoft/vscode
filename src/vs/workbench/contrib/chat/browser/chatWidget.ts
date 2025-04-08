@@ -325,7 +325,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
-			session.entries.read(r); // SIGNAL
+			const entries = session.entries.read(r);
+			for (const entry of entries) {
+				entry.state.read(r); // SIGNAL
+			}
 
 			this._editingSession.set(session, undefined);
 
