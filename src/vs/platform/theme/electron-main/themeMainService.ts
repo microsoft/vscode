@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nativeTheme } from 'electron';
+import electron from 'electron';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -38,14 +38,19 @@ namespace ThemeSettings {
 	export const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
 }
 
+interface IPartSplashOverrideWorkspaces {
+	[workspaceId: string]: {
+		sideBarVisible: boolean;
+		auxiliaryBarVisible: boolean;
+	};
+}
+
 interface IPartsSplashOverride {
 	layoutInfo: {
 		sideBarWidth: number;
-		sideBarHidden: string[] /* workspace identifier */;
-
 		auxiliaryBarWidth: number;
-		auxiliaryBarVisible: string[] /* workspace identifier */;
-		auxiliaryBarHidden: string[] /* workspace identifier */;
+
+		workspaces: IPartSplashOverrideWorkspaces;
 	};
 }
 
@@ -71,7 +76,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	private static readonly DEFAULT_BAR_WIDTH = 300;
 
-	private static readonly WORKSPACE_OVERRIDE_LIMIT = 100;
+	private static readonly WORKSPACE_OVERRIDE_LIMIT = 50;
 
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
@@ -93,29 +98,29 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.updateSystemColorTheme();
 
 		// Color Scheme changes
-		this._register(Event.fromNodeEventEmitter(nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
+		this._register(Event.fromNodeEventEmitter(electron.nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
 	}
 
 	private updateSystemColorTheme(): void {
 		if (isLinux || this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
+			electron.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
 		} else {
 			switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(ThemeSettings.SYSTEM_COLOR_THEME)) {
 				case 'dark':
-					nativeTheme.themeSource = 'dark';
+					electron.nativeTheme.themeSource = 'dark';
 					break;
 				case 'light':
-					nativeTheme.themeSource = 'light';
+					electron.nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
 					switch (this.getPreferredBaseTheme() ?? this.getStoredBaseTheme()) {
-						case ThemeTypeSelector.VS: nativeTheme.themeSource = 'light'; break;
-						case ThemeTypeSelector.VS_DARK: nativeTheme.themeSource = 'dark'; break;
-						default: nativeTheme.themeSource = 'system';
+						case ThemeTypeSelector.VS: electron.nativeTheme.themeSource = 'light'; break;
+						case ThemeTypeSelector.VS_DARK: electron.nativeTheme.themeSource = 'dark'; break;
+						default: electron.nativeTheme.themeSource = 'system';
 					}
 					break;
 				default:
-					nativeTheme.themeSource = 'system';
+					electron.nativeTheme.themeSource = 'system';
 					break;
 			}
 		}
@@ -125,29 +130,29 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		// high contrast is reflected by the shouldUseInvertedColorScheme property
 		if (isWindows) {
-			if (nativeTheme.shouldUseHighContrastColors) {
+			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
-				return { dark: nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
+				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
 			}
 		}
 
 		// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set,
 		// reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
 		else if (isMacintosh) {
-			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-				return { dark: nativeTheme.shouldUseDarkColors, highContrast: true };
+			if (electron.nativeTheme.shouldUseInvertedColorScheme || electron.nativeTheme.shouldUseHighContrastColors) {
+				return { dark: electron.nativeTheme.shouldUseDarkColors, highContrast: true };
 			}
 		}
 
 		// ubuntu gnome seems to have 3 states, light dark and high contrast
 		else if (isLinux) {
-			if (nativeTheme.shouldUseHighContrastColors) {
+			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				return { dark: true, highContrast: true };
 			}
 		}
 
 		return {
-			dark: nativeTheme.shouldUseDarkColors,
+			dark: electron.nativeTheme.shouldUseDarkColors,
 			highContrast: false
 		};
 	}
@@ -234,62 +239,73 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	private doUpdateWindowSplashOverride(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, splash: IPartsSplash, splashOverride: IPartsSplashOverride, part: 'sideBar' | 'auxiliaryBar'): boolean {
 		const currentWidth = part === 'sideBar' ? splash.layoutInfo?.sideBarWidth : splash.layoutInfo?.auxiliarySideBarWidth;
 		const overrideWidth = part === 'sideBar' ? splashOverride.layoutInfo.sideBarWidth : splashOverride.layoutInfo.auxiliaryBarWidth;
-		const visibleOverrides = part === 'sideBar' ? undefined : splashOverride.layoutInfo.auxiliaryBarVisible;
-		const hiddenOverrides = part === 'sideBar' ? splashOverride.layoutInfo.sideBarHidden : splashOverride.layoutInfo.auxiliaryBarHidden;
 
 		// No layout info: remove override
 		let changed = false;
 		if (typeof currentWidth !== 'number') {
-			changed = this.insertOrRemove(visibleOverrides, workspace.id, 'remove');
-			changed = this.insertOrRemove(hiddenOverrides, workspace.id, 'remove') || changed;
+			if (splashOverride.layoutInfo.workspaces[workspace.id]) {
+				delete splashOverride.layoutInfo.workspaces[workspace.id];
+				changed = true;
+			}
+
+			return changed;
+		}
+
+		let workspaceOverride = splashOverride.layoutInfo.workspaces[workspace.id];
+		if (!workspaceOverride) {
+			const workspaceEntries = Object.keys(splashOverride.layoutInfo.workspaces);
+			if (workspaceEntries.length >= ThemeMainService.WORKSPACE_OVERRIDE_LIMIT) {
+				delete splashOverride.layoutInfo.workspaces[workspaceEntries[0]];
+				changed = true;
+			}
+
+			workspaceOverride = { sideBarVisible: false, auxiliaryBarVisible: false };
+			splashOverride.layoutInfo.workspaces[workspace.id] = workspaceOverride;
+			changed = true;
 		}
 
 		// Part has width: update width & visibility override
-		else if (currentWidth > 0) {
+		if (currentWidth > 0) {
 			if (overrideWidth !== currentWidth) {
 				splashOverride.layoutInfo[part === 'sideBar' ? 'sideBarWidth' : 'auxiliaryBarWidth'] = currentWidth;
 				changed = true;
 			}
 
-			changed = this.insertOrRemove(visibleOverrides, workspace.id, 'insert') || changed;
-			changed = this.insertOrRemove(hiddenOverrides, workspace.id, 'remove') || changed;
+			switch (part) {
+				case 'sideBar':
+					if (!workspaceOverride.sideBarVisible) {
+						workspaceOverride.sideBarVisible = true;
+						changed = true;
+					}
+					break;
+				case 'auxiliaryBar':
+					if (!workspaceOverride.auxiliaryBarVisible) {
+						workspaceOverride.auxiliaryBarVisible = true;
+						changed = true;
+					}
+					break;
+			}
 		}
 
 		// Part is hidden: update visibility override
 		else {
-			changed = this.insertOrRemove(hiddenOverrides, workspace.id, 'insert');
-			changed = this.insertOrRemove(visibleOverrides, workspace.id, 'remove') || changed;
+			switch (part) {
+				case 'sideBar':
+					if (workspaceOverride.sideBarVisible) {
+						workspaceOverride.sideBarVisible = false;
+						changed = true;
+					}
+					break;
+				case 'auxiliaryBar':
+					if (workspaceOverride.auxiliaryBarVisible) {
+						workspaceOverride.auxiliaryBarVisible = false;
+						changed = true;
+					}
+					break;
+			}
 		}
 
 		return changed;
-	}
-
-	private insertOrRemove<T>(array: T[] | undefined, item: T, mode: 'insert' | 'remove'): boolean {
-		if (array) {
-			switch (mode) {
-				case 'insert': {
-					if (array.length >= ThemeMainService.WORKSPACE_OVERRIDE_LIMIT) {
-						array.shift();
-					}
-
-					if (!array.includes(item)) {
-						array.push(item);
-						return true;
-					}
-					break;
-				}
-
-				case 'remove': {
-					const index = array.indexOf(item);
-					if (index > -1) {
-						array.splice(index, 1);
-						return true;
-					}
-					break;
-				}
-			}
-		}
-		return false;
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
@@ -312,7 +328,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		// Figure out side bar width based on workspace and overrides
 		let sideBarWidth: number;
 		if (workspace) {
-			if (override.layoutInfo.sideBarHidden.includes(workspace.id)) {
+			if (override.layoutInfo.workspaces[workspace.id]?.sideBarVisible === false) {
 				sideBarWidth = 0;
 			} else {
 				sideBarWidth = override.layoutInfo.sideBarWidth || partSplash.layoutInfo.sideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
@@ -325,9 +341,10 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		const auxiliarySideBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY);
 		let auxiliarySideBarWidth: number;
 		if (workspace) {
-			if (override.layoutInfo.auxiliaryBarVisible.includes(workspace.id)) {
+			const auxiliaryBarVisible = override.layoutInfo.workspaces[workspace.id]?.auxiliaryBarVisible;
+			if (auxiliaryBarVisible === true) {
 				auxiliarySideBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliarySideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
-			} else if (override.layoutInfo.auxiliaryBarHidden.includes(workspace.id)) {
+			} else if (auxiliaryBarVisible === false) {
 				auxiliarySideBarWidth = 0;
 			} else {
 				if (auxiliarySideBarDefaultVisibility === 'visible' || auxiliarySideBarDefaultVisibility === 'visibleInWorkspace') {
@@ -356,33 +373,23 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		if (!override?.layoutInfo) {
 			override = {
 				layoutInfo: {
-					sideBarHidden: [],
 					sideBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH,
-					auxiliaryBarVisible: [],
-					auxiliaryBarHidden: [],
-					auxiliaryBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH
+					auxiliaryBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH,
+					workspaces: {}
 				}
 			};
-		}
-
-		if (!override.layoutInfo.sideBarHidden) {
-			override.layoutInfo.sideBarHidden = [];
 		}
 
 		if (!override.layoutInfo.sideBarWidth) {
 			override.layoutInfo.sideBarWidth = ThemeMainService.DEFAULT_BAR_WIDTH;
 		}
 
-		if (!override.layoutInfo.auxiliaryBarVisible) {
-			override.layoutInfo.auxiliaryBarVisible = [];
-		}
-
-		if (!override.layoutInfo.auxiliaryBarHidden) {
-			override.layoutInfo.auxiliaryBarHidden = [];
-		}
-
 		if (!override.layoutInfo.auxiliaryBarWidth) {
 			override.layoutInfo.auxiliaryBarWidth = ThemeMainService.DEFAULT_BAR_WIDTH;
+		}
+
+		if (!override.layoutInfo.workspaces) {
+			override.layoutInfo.workspaces = {};
 		}
 
 		return override;
