@@ -31,12 +31,21 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
 	NONE = 'edit-context-composition-none',
 	SECONDARY = 'edit-context-composition-secondary',
 	PRIMARY = 'edit-context-composition-primary',
+}
+
+interface ITextUpdateEvent {
+	text: string;
+	selectionStart: number;
+	selectionEnd: number;
+	updateRangeStart: number;
+	updateRangeEnd: number;
 }
 
 export class NativeEditContext extends AbstractEditContext {
@@ -136,7 +145,28 @@ export class NativeEditContext extends AbstractEditContext {
 		// Edit context events
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
+		let highSurrogateCharacter: string | undefined;
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			const text = e.text;
+			if (text.length === 1) {
+				const charCode = text.charCodeAt(0);
+				if (isHighSurrogate(charCode)) {
+					highSurrogateCharacter = text;
+					return;
+				}
+				if (isLowSurrogate(charCode) && highSurrogateCharacter) {
+					const textUpdateEvent: ITextUpdateEvent = {
+						text: highSurrogateCharacter + text,
+						selectionEnd: e.selectionEnd,
+						selectionStart: e.selectionStart,
+						updateRangeStart: e.updateRangeStart - 1,
+						updateRangeEnd: e.updateRangeEnd - 1
+					};
+					highSurrogateCharacter = undefined;
+					this._emitTypeEvent(viewController, textUpdateEvent);
+					return;
+				}
+			}
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
@@ -328,7 +358,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 	}
 
-	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
+	private _emitTypeEvent(viewController: ViewController, e: ITextUpdateEvent): void {
 		if (!this._editContext) {
 			return;
 		}
