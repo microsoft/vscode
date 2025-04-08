@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise, useBash } from 'zx';
+import { $, ProcessPromise, usePwsh } from 'zx';
 
 const arch = process.env['VSCODE_ARCH'];
 const esrpCliDLLPath = process.env['EsrpCliDllPath'];
@@ -36,7 +36,7 @@ function sign(type: 'sign-darwin' | 'notarize-darwin', folder: string, glob: str
 }
 
 async function main() {
-	useBash();
+	usePwsh();
 
 	const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
 	const glob = `VSCode-darwin-${arch}.zip`;
