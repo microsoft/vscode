@@ -13,6 +13,6 @@ export const asCssVariable = (color: ColorIdentifier): string => {
 };
 
 export type * from './types.js';
-export { TDecorationClass, DecorationBase } from './decorationBase.js';
-export { ReactiveDecorationBase, TChangedDecorator } from './reactiveDecorationBase.js';
+export { DecorationBase, type TDecorationClass } from './decorationBase.js';
+export { ReactiveDecorationBase, type TChangedDecorator } from './reactiveDecorationBase.js';
 
