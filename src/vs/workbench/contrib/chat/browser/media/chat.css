@@ -1235,8 +1235,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
-	display: block !important;
-	align-items: center !important;
+	display: inline-flex;
+	align-items: center;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
@@ -1249,8 +1249,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
-	padding-left: 4px;
-	font-size: 100% !important;
+	font-size: 14px;
 }
 
 .interactive-session .chat-input-container .chat-attached-context {
@@ -1314,10 +1313,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-decoration: line-through;
 	font-style: italic;
 	opacity: 0.8;
-}
-
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label {
-	gap: 4px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
