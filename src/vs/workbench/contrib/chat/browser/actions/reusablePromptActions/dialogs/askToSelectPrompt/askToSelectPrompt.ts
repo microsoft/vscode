@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DOCS_OPTION } from './constants.js';
+import { IChatWidget } from '../../../../chat.js';
+import { attachPrompts } from './utils/attachPrompts.js';
+import { handleButtonClick } from './utils/handleButtonClick.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
+import { createPromptPickItem } from './utils/createPromptPickItem.js';
+import { createPlaceholderText } from './utils/createPlaceholderText.js';
 import { extUri } from '../../../../../../../../base/common/resources.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
-import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
-import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
+import { IPromptPath } from '../../../../../common/promptSyntax/service/types.js';
+import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 import { IViewsService } from '../../../../../../../services/views/common/viewsService.js';
-import { IPromptPath } from '../../../../../common/promptSyntax/service/types.js';
-import { IChatWidget } from '../../../../chat.js';
-import { DOCS_OPTION } from './constants.js';
-import { attachPrompts } from './utils/attachPrompts.js';
-import { createPlaceholderText } from './utils/createPlaceholderText.js';
-import { createPromptPickItem } from './utils/createPromptPickItem.js';
-import { handleButtonClick } from './utils/handleButtonClick.js';
+import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
+import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Options for the {@link askToSelectPrompt} function.
@@ -35,11 +35,11 @@ export interface ISelectPromptOptions {
 	readonly resource?: URI;
 
 	/**
-	 * Target chat widget reference to attach the prompt to. If not provided, the command
-	 * attaches the prompt to a `chat panel` widget by default (either the last focused,
-	 * or a new one). If the `alt` (`option` on mac) key was pressed when the prompt is
-	 * selected, the `edits` widget is used instead (likewise, either the last focused,
-	 * or a new one).
+	 * Target chat widget reference to attach the prompt to. If the reference is
+	 * provided, the command will attach the prompt to the input of the widget.
+	 * Otherwise, the command will either create a new chat widget and or re-use
+	 * an existing one, based on if user holds the `ctrl`/`cmd` key during prompt
+	 * selection.
 	 */
 	readonly widget?: IChatWidget;
 
@@ -153,6 +153,7 @@ export const askToSelectPrompt = async (
 		// handle the prompt `accept` event
 		disposables.add(quickPick.onDidAccept(async (event) => {
 			const { selectedItems } = quickPick;
+			const { keyMods } = quickPick;
 
 			// sanity check to confirm our expectations
 			assert(
@@ -173,7 +174,13 @@ export const askToSelectPrompt = async (
 			}
 
 			// otherwise attach the selected prompt to a chat input
-			lastActiveWidget = await attachPrompts(selectedItems, options, quickPick.keyMods);
+			lastActiveWidget = await attachPrompts(
+				selectedItems,
+				{
+					...options,
+					inNewChat: keyMods.ctrlCmd,
+				},
+			);
 
 			// if user submitted their selection, close the dialog
 			if (!event.inBackground) {

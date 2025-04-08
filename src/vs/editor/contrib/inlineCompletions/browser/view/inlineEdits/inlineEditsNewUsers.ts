@@ -34,7 +34,7 @@ export class InlineEditsOnboardingExperience extends Disposable {
 		const indicator = this._indicator.read(reader);
 		if (!indicator || !indicator.isVisible.read(reader)) { return undefined; }
 
-		return model.inlineEdit.inlineCompletion.id;
+		return model.inlineEdit.inlineCompletion.identity.id;
 	});
 
 	constructor(

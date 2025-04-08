@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Line } from './line.js';
-import { BaseToken } from '../../baseToken.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
+import { SimpleToken } from '../../simpleCodec/tokens/simpleToken.js';
 
 /**
  * A token that represent a `new line` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class NewLine extends BaseToken {
+export class NewLine extends SimpleToken {
 	/**
 	 * The underlying symbol of the `NewLine` token.
 	 */
-	public static readonly symbol: string = '\n';
+	public static override readonly symbol: '\n' = '\n';
 
 	/**
 	 * The byte representation of the {@link symbol}.
@@ -27,7 +24,7 @@ export class NewLine extends BaseToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): string {
+	public override get text() {
 		return NewLine.symbol;
 	}
 
@@ -36,24 +33,6 @@ export class NewLine extends BaseToken {
 	 */
 	public get byte() {
 		return NewLine.byte;
-	}
-
-	/**
-	 * Create new `NewLine` token with range inside
-	 * the given `Line` at the given `column number`.
-	 */
-	public static newOnLine(
-		line: Line,
-		atColumnNumber: number,
-	): NewLine {
-		const { range } = line;
-
-		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
-
-		return new NewLine(
-			Range.fromPositions(startPosition, endPosition),
-		);
 	}
 
 	/**

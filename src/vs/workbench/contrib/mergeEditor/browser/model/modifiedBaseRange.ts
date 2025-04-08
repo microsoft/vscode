@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, equals, numberComparator, tieBreakComparators } from '../../../../../base/common/arrays.js';
+import { compareBy, concatArrays, equals, numberComparator, tieBreakComparators } from '../../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { splitLines } from '../../../../../base/common/strings.js';
 import { Constants } from '../../../../../base/common/uint.js';
@@ -13,7 +13,6 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { LineRangeEdit, RangeEdit } from './editing.js';
 import { LineRange } from './lineRange.js';
 import { DetailedLineRangeMapping, MappingAlignment } from './mapping.js';
-import { concatArrays } from '../utils.js';
 
 /**
  * Describes modifications in input 1 and input 2 for a specific range in base.

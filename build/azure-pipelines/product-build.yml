@@ -254,15 +254,8 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
               - job: CLIAlpineARM64
                 pool:
-                  name: 1es-mariner-2.0-arm64
+                  name: 1es-ubuntu-22.04-x64
                   os: linux
-                  hostArchitecture: arm64
-                container: ubuntu-2004-arm64
-                templateContext:
-                  authenticatedContainerRegistries:
-                    - registry: onebranch.azurecr.io
-                      tenant: AME
-                      identity: 1ESPipelineIdentity
                 steps:
                   - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                     parameters:

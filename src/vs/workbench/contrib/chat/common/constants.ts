@@ -34,8 +34,6 @@ export enum ChatAgentLocation {
 	Terminal = 'terminal',
 	Notebook = 'notebook',
 	Editor = 'editor',
-	// TODO@roblourens Delete
-	EditingSession = 'editing-session',
 }
 
 export namespace ChatAgentLocation {
@@ -45,7 +43,6 @@ export namespace ChatAgentLocation {
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
 			case 'editor': return ChatAgentLocation.Editor;
-			case 'editing-session': return ChatAgentLocation.EditingSession;
 		}
 		return ChatAgentLocation.Panel;
 	}

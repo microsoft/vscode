@@ -187,13 +187,11 @@ class ToggleChatModeAction extends Action2 {
 	}
 
 	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): ChatMode {
-		const modes = [ChatMode.Agent];
+		const modes = [ChatMode.Ask];
 		if (configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0) {
 			modes.push(ChatMode.Edit);
 		}
-		if (chatWidget.location === ChatAgentLocation.Panel) {
-			modes.push(ChatMode.Ask);
-		}
+		modes.push(ChatMode.Agent);
 
 		const modeIndex = modes.indexOf(chatWidget.input.currentMode);
 		const newMode = modes[(modeIndex + 1) % modes.length];

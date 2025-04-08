@@ -23,6 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -244,6 +245,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._editSessionWidgetHeight;
 	}
 
+	get attachmentsHeight() {
+		return this.attachmentsContainer.offsetHeight + (this.attachmentsContainer.checkVisibility() ? 6 : 0);
+	}
+
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
 
@@ -374,7 +379,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatMode = ChatContextKeys.chatMode.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
-		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], ChatInputHistoryMaxEntries, historyKeyFn)));
+		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
@@ -400,12 +405,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		this.initSelectedModel();
-
-		this._register(agentService.onDidChangeAgents(() => {
-			if (!agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
-				this.setChatMode(ChatMode.Edit);
-			}
-		}));
 
 		this._register(this.onDidChangeCurrentChatMode(() => this.accessibilityService.alert(this._currentMode)));
 		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
@@ -471,11 +470,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		mode = validateChatMode(mode) ?? (this.location === ChatAgentLocation.Panel ? ChatMode.Ask : ChatMode.Edit);
-		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
-			mode = ChatMode.Edit;
-		}
-
+		mode = validateChatMode(mode) ?? ChatMode.Ask;
 		this._currentMode = mode;
 		this.chatMode.set(mode);
 		this._onDidChangeCurrentChatMode.fire();
@@ -536,7 +531,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
 		const history = this.historyService.getHistory(this.location);
 		if (history.length === 0) {
-			history.push({ text: '' });
+			history.push({ text: '', state: this.getInputState() });
 		}
 
 		return new HistoryNavigator2(history, 50, historyKeyFn);
@@ -712,6 +707,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			this._inputEditor.focus();
 			this._inputEditor.setValue('');
+		}
+	}
+
+	validateCurrentMode(): void {
+		if (!this.agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
+			this.setChatMode(ChatMode.Edit);
 		}
 	}
 
@@ -1026,7 +1027,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
-				if (action.id === 'workbench.action.chat.editing.attachContext' || action.id === 'workbench.action.chat.attachContext') {
+				if (action.id === 'workbench.action.chat.attachContext') {
 					const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
 					return viewItem;
 				}
@@ -1355,7 +1356,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
-			attachmentsHeight: this.attachmentsContainer.offsetHeight + (this.attachmentsContainer.checkVisibility() ? 6 : 0),
+			attachmentsHeight: this.attachmentsHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,
@@ -1587,12 +1588,24 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 }
 
 class AddFilesButton extends ActionViewItem {
+
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
-		super(context, action, options);
+		super(context, action, {
+			...options,
+			icon: false,
+			label: true,
+			keybindingNotRenderedWithLabel: true,
+		});
 	}
 
 	override render(container: HTMLElement): void {
+		container.classList.add('chat-attachment-button');
 		super.render(container);
-		container.classList.add('chat-attached-context-attachment', 'chat-add-files');
+	}
+
+	protected override updateLabel(): void {
+		assertType(this.label);
+		const message = `$(attach) ${this.action.label}`;
+		dom.reset(this.label, ...renderLabelWithIcons(message));
 	}
 }
