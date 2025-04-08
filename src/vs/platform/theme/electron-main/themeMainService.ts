@@ -232,14 +232,13 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private doUpdateWindowSplashOverride(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, splash: IPartsSplash, splashOverride: IPartsSplashOverride, part: 'sideBar' | 'auxiliaryBar'): boolean {
-		let changed = false;
-
 		const currentWidth = part === 'sideBar' ? splash.layoutInfo?.sideBarWidth : splash.layoutInfo?.auxiliarySideBarWidth;
 		const overrideWidth = part === 'sideBar' ? splashOverride.layoutInfo.sideBarWidth : splashOverride.layoutInfo.auxiliaryBarWidth;
 		const visibleOverrides = part === 'sideBar' ? undefined : splashOverride.layoutInfo.auxiliaryBarVisible;
 		const hiddenOverrides = part === 'sideBar' ? splashOverride.layoutInfo.sideBarHidden : splashOverride.layoutInfo.auxiliaryBarHidden;
 
 		// No layout info: remove override
+		let changed = false;
 		if (typeof currentWidth !== 'number') {
 			changed = this.insertOrRemove(visibleOverrides, workspace.id, 'remove');
 			changed = this.insertOrRemove(hiddenOverrides, workspace.id, 'remove') || changed;
@@ -358,10 +357,10 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			override = {
 				layoutInfo: {
 					sideBarHidden: [],
-					sideBarWidth: 300,
+					sideBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH,
 					auxiliaryBarVisible: [],
 					auxiliaryBarHidden: [],
-					auxiliaryBarWidth: 300
+					auxiliaryBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH
 				}
 			};
 		}
