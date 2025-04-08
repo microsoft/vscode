@@ -597,7 +597,6 @@ export class InlineChatController1 implements IEditorContribution {
 			}));
 			delete options.attachments;
 		}
-
 		if (options.autoSend) {
 			delete options.autoSend;
 			this._showWidget(this._session.headless, false);
