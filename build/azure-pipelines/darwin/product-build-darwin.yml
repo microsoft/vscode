@@ -302,7 +302,7 @@ steps:
     - pwsh: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/darwin/codesign.js }
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: ✍️ Codesign
@@ -322,7 +322,7 @@ steps:
     - pwsh: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --attach -- npx zx build/azure-pipelines/darwin/codesign.js }
       condition: succeededOrFailed()
       displayName: "Post-job: ✍️ Codesign & Notarize"
 
