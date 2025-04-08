@@ -15,6 +15,8 @@ import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions, Shel
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
+import { chmod, realpathSync } from 'fs';
+import { promisify } from 'util';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -55,13 +57,14 @@ export interface IShellIntegrationInjectionFailure {
  * that creates the process to ensure accuracy. Returns undefined if shell integration cannot be
  * enabled.
  */
-export function getShellIntegrationInjection(
+export async function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
 	options: ITerminalProcessOptions,
 	env: ITerminalEnvironment | undefined,
 	logService: ILogService,
-	productService: IProductService
-): IShellIntegrationConfigInjection | IShellIntegrationInjectionFailure {
+	productService: IProductService,
+	skipStickyBit: boolean = false
+): Promise<IShellIntegrationConfigInjection | IShellIntegrationInjectionFailure> {
 	// The global setting is disabled
 	if (!options.shellIntegration.enabled) {
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.InjectionSettingDisabled };
@@ -220,7 +223,27 @@ export function getShellIntegrationInjection(
 			} catch {
 				username = 'unknown';
 			}
-			const zdotdir = path.join(os.tmpdir(), `${username}-${productService.applicationName}-zsh`);
+
+			// Resolve the actual tmp directory so we can set the sticky bit
+			const realTmpDir = realpathSync(os.tmpdir());
+			const zdotdir = path.join(realTmpDir, `${username}-${productService.applicationName}-zsh`);
+
+			// Set directory permissions using octal notation:
+			// - 0o1700:
+			// - Sticky bit is set, preventing non-owners from deleting or renaming files within this directory (1)
+			// - Owner has full read (4), write (2), execute (1) permissions
+			// - Group has no permissions (0)
+			// - Others have no permissions (0)
+			if (!skipStickyBit) {
+				// skip for tests
+				try {
+					const chmodAsync = promisify(chmod);
+					await chmodAsync(zdotdir, 0o1700);
+				} catch (err) {
+					logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
+				}
+			}
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
