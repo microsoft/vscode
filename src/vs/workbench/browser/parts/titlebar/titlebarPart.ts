@@ -478,6 +478,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
 			this.createUpdateButton();
+			this.createCreatorModeButton();
 		}
 
 		// Window Controls Container
@@ -775,6 +776,41 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 		}));
+	}
+
+	private createCreatorModeButton() {
+		// Adding the creator mode button to the action toolbar so there's always space for it
+    const creatorModeButton = append(this.actionToolBarElement, $('.creator-mode-button'));
+
+    creatorModeButton.style.backgroundColor = '#000000';
+    creatorModeButton.style.color = '#ffffff';
+    creatorModeButton.style.padding = '8px 8px';
+		creatorModeButton.style.margin = '8px';
+    creatorModeButton.style.borderRadius = '8px';
+    creatorModeButton.style.border = 'none';
+    creatorModeButton.style.cursor = 'pointer';
+    creatorModeButton.style.fontSize = '14px';
+    creatorModeButton.style.display = 'inline-flex';
+    creatorModeButton.style.alignItems = 'center';
+    creatorModeButton.style.justifyContent = 'center';
+		creatorModeButton.style.height = "8px";
+    creatorModeButton.innerText = "Enter Creator";
+
+		// Cloning the creator mode button so we can make it fixed and add it to the body, so it's always visible
+		const visibleCreatorModeButton = creatorModeButton.cloneNode(true) as HTMLDivElement;
+		document.body.appendChild(visibleCreatorModeButton);
+
+		// Setting the opacity of the original button to 0 so we don't see it but it still makes space
+		creatorModeButton.style.opacity = "0";
+		visibleCreatorModeButton.style.position = "fixed";
+		visibleCreatorModeButton.style.top = "0";
+		visibleCreatorModeButton.style.right = "0";
+		visibleCreatorModeButton.style.zIndex = "110";
+		visibleCreatorModeButton.style.cursor = "pointer";
+
+		visibleCreatorModeButton.onclick = () => {
+			// TODO: run workbench.action.toggleCreatorView
+		}
 	}
 
 
