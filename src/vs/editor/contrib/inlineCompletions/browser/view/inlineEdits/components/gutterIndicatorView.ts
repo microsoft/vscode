@@ -280,7 +280,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const pillRect = pillFullyDockedRect;
 			const lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			const lineNumberRect = pillRect.withWidth(lineNumberWidth);
-			const iconRect = pillRect.withWidth(idealIconWidth).translateX(lineNumberWidth);
+			const iconWidth = Math.max(Math.min(layout.decorationsWidth, idealIconWidth), minimalIconWidth);
+			const iconRect = pillRect.withWidth(iconWidth).translateX(lineNumberWidth);
 
 			return {
 				gutterEditArea,
