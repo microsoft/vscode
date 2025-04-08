@@ -50,6 +50,11 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
+  - pwsh: node build/azure-pipelines/darwin/waitForArtifacts.js
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Wait for x64 and arm64 artifacts
+
   - download: current
     artifact: unsigned_vscode_client_darwin_x64_archive
     displayName: Download x64 artifact
@@ -87,5 +92,8 @@ steps:
       DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
     displayName: Set Hardened Entitlements
 
-  - script: pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+  - script: |
+      set -e
+      mkdir -p $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
