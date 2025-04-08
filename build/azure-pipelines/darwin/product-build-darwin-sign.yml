@@ -44,12 +44,12 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: ✍️ Notarize
 
-  - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+  - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
     displayName: Extract signed app
 
   - script: |
       set -e
-      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       APP_PATH="$APP_ROOT/$APP_NAME"
       codesign -dv --deep --verbose=4 "$APP_PATH"
@@ -65,7 +65,7 @@ steps:
     inputs:
       targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
       artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
-      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
       sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
       sbomPackageVersion: $(Build.SourceVersion)
     displayName: Publish client archive
