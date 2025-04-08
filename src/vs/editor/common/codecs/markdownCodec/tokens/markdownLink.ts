@@ -131,6 +131,6 @@ export class MarkdownLink extends MarkdownToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-link("${this.text}")${this.range}`;
+		return `md-link("${this.shortText()}")${this.range}`;
 	}
 }

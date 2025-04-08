@@ -8,15 +8,16 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { LeftBracket } from '../simpleCodec/tokens/brackets.js';
 import { PartialMarkdownImage } from './parsers/markdownImage.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
+import { TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
 import { LeftAngleBracket } from '../simpleCodec/tokens/angleBrackets.js';
 import { ExclamationMark } from '../simpleCodec/tokens/exclamationMark.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { SimpleDecoder, TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
 import { MarkdownCommentStart, PartialMarkdownCommentStart } from './parsers/markdownComment.js';
+import { MarkdownExtensionsDecoder } from '../markdownExtensionsCodec/markdownExtensionsDecoder.js';
 import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } from './parsers/markdownLink.js';
 
 /**
- * Tokens handled by this decoder.
+ * Tokens produced by this decoder.
  */
 export type TMarkdownToken = MarkdownToken | TSimpleDecoderToken;
 
@@ -36,7 +37,7 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderT
 	constructor(
 		stream: ReadableStream<VSBuffer>,
 	) {
-		super(new SimpleDecoder(stream));
+		super(new MarkdownExtensionsDecoder(stream));
 	}
 
 	protected override onStreamData(token: TSimpleDecoderToken): void {
@@ -92,8 +93,9 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderT
 			// then reset the current parser object
 			for (const token of this.current.tokens) {
 				this._onData.fire(token);
-				delete this.current;
 			}
+
+			delete this.current;
 		}
 
 		// if token was not consumed by the parser, call `onStreamData` again
@@ -119,11 +121,12 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderT
 
 			// in all other cases, re-emit existing parser tokens
 			const { tokens } = this.current;
-			delete this.current;
 
 			for (const token of [...tokens]) {
 				this._onData.fire(token);
 			}
+
+			delete this.current;
 		}
 
 		super.onStreamEnd();

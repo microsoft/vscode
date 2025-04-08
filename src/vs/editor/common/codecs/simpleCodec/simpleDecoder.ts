@@ -92,15 +92,16 @@ export class SimpleDecoder extends BaseDecoder<TSimpleDecoderToken, TLineToken> 
 		}
 
 		// loop through the text separating it into `Word` and `well-known` tokens
+		const lineText = line.text.split('');
 		let i = 0;
-		while (i < line.text.length) {
+		while (i < lineText.length) {
 			// index is 0-based, but column numbers are 1-based
 			const columnNumber = i + 1;
 
 			// check if the current character is a well-known token
 			const tokenConstructor = WELL_KNOWN_TOKENS
 				.find((wellKnownToken) => {
-					return wellKnownToken.symbol === line.text[i];
+					return wellKnownToken.symbol === lineText[i];
 				});
 
 			// if it is a well-known token, emit it and continue to the next one
@@ -115,8 +116,8 @@ export class SimpleDecoder extends BaseDecoder<TSimpleDecoderToken, TLineToken> 
 			// that needs to be collected into a single `Word` token, hence
 			// read all the characters until a stop character is encountered
 			let word = '';
-			while (i < line.text.length && !(WORD_STOP_CHARACTERS.includes(line.text[i]))) {
-				word += line.text[i];
+			while (i < lineText.length && !(WORD_STOP_CHARACTERS.includes(lineText[i]))) {
+				word += lineText[i];
 				i++;
 			}
 

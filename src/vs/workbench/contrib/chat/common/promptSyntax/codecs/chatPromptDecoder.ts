@@ -18,7 +18,6 @@ import { At } from '../../../../../../editor/common/codecs/simpleCodec/tokens/at
 import { Hash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
 import { Slash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/slash.js';
 import { DollarSign } from '../../../../../../editor/common/codecs/simpleCodec/tokens/dollarSign.js';
-import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { PartialPromptVariableName, PartialPromptVariableWithData } from './parsers/promptVariableParser.js';
 import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
 import { PartialPromptTemplateVariable, PartialPromptTemplateVariableStart, TPromptTemplateVariableParser } from './parsers/promptTemplateVariableParser.js';
@@ -26,7 +25,7 @@ import { PartialPromptTemplateVariable, PartialPromptTemplateVariableStart, TPro
 /**
  * Tokens produced by this decoder.
  */
-export type TChatPromptToken = MarkdownLink | (PromptVariable | PromptVariableWithData)
+export type TChatPromptToken = TMarkdownToken | (PromptVariable | PromptVariableWithData)
 	| PromptAtMention | PromptSlashCommand | PromptTemplateVariable;
 
 /**
@@ -89,17 +88,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		// if current parser was not yet initiated, - we are in the general "text"
 		// parsing mode, therefore re-emit the token immediately and continue
 		if (!this.current) {
-			// at the moment, the decoder outputs only specific markdown tokens, like
-			// the `markdown link` one, so re-emit only these tokens ignoring the rest
-			//
-			// note! to make the decoder consistent with others we would need to:
-			// 	- re-emit all tokens here
-			//  - collect all "text" sequences of tokens and emit them as a single
-			// 	  "text" sequence token
-			if (token instanceof MarkdownLink) {
-				this._onData.fire(token);
-			}
-
+			this._onData.fire(token);
 			return;
 		}
 
@@ -129,11 +118,9 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 			}
 			// in the case of failure, reset the current parser object
 			case 'failure': {
-				delete this.current;
-
-				// note! when this decoder becomes consistent with other ones and hence starts emitting
-				// 		 all token types, not just links, we would need to re-emit all the tokens that
-				//       the parser object has accumulated so far
+				// if failed to parse a sequence of a tokens, re-emit the tokens accumulated
+				// so far then reset the current parser object
+				this.reEmitCurrentTokens();
 				break;
 			}
 		}
@@ -149,7 +136,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 	protected override onStreamEnd(): void {
 		try {
 			// if there is no currently active parser object present, nothing to do
-			if (!this.current) {
+			if (this.current === undefined) {
 				return;
 			}
 
@@ -182,13 +169,27 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 				this.current,
 				`Unknown parser object '${this.current}'`,
 			);
-		} catch (error) {
-			// note! when this decoder becomes consistent with other ones and hence starts emitting
-			// 		 all token types, not just links, we would need to re-emit all the tokens that
-			//       the parser object has accumulated so far
+		} catch (_error) {
+			// if failed to convert current parser object to a token,
+			// re-emit the tokens accumulated so far
+			this.reEmitCurrentTokens();
 		} finally {
 			delete this.current;
 			super.onStreamEnd();
 		}
+	}
+
+	/**
+	 * Re-emit tokens accumulated so far in the current parser object.
+	 */
+	protected reEmitCurrentTokens(): void {
+		if (this.current === undefined) {
+			return;
+		}
+
+		for (const token of this.current.tokens) {
+			this._onData.fire(token);
+		}
+		delete this.current;
 	}
 }
