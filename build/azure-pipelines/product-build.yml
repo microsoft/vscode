@@ -625,9 +625,6 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                      VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                      VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
 
               # - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
@@ -672,6 +669,9 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
 
               # - job: macOSARM64Sign
