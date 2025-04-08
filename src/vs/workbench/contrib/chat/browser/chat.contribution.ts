@@ -204,7 +204,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.autoApprove': {
 			default: false,
-			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved ('YOLO mode')."),
+			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved."),
 			type: 'boolean',
 			tags: ['experimental'],
 			policy: {
