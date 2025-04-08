@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPipelineArtifacts } from '../common/publish';
+import { Artifact, requestAZDOAPI } from '../common/publish';
 import { retry } from '../common/retry';
+
+async function getPipelineArtifacts(): Promise<Artifact[]> {
+	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
+	return result.value.filter(a => !/sbom$/.test(a.name));
+}
 
 async function main() {
 	const artifacts = [
@@ -12,7 +17,10 @@ async function main() {
 		'unsigned_vscode_client_darwin_arm64_archive'
 	];
 
-	// Wait for artifacts for 30 minutes
+	// This loop will run for 30 minutes and waits to the x64 and arm64 artifacts
+	// to be uploaded to the pipeline by the `macOS` and `macOSARM64` jobs. As soon
+	// as these artifacts are found, the loop completes and the `macOSUnivesrsal`
+	// job resumes.
 	for (let index = 0; index < 60; index++) {
 		try {
 			console.log(`Waiting for artifacts (${artifacts.join(', ')}) to be uploaded (${index + 1}/60)...`);
