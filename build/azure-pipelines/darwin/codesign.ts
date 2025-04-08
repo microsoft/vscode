@@ -20,6 +20,11 @@ function printBanner(title: string) {
 }
 
 function sign(type: 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
+	console.log('Sign request:');
+	console.log(`  ESRP CLI DLL Path: ${esrpCliDLLPath}`);
+	console.log(`  Type: ${type}`);
+	console.log(`  Folder: ${folder}`);
+	console.log(`  Glob: ${glob}`);
 	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
 }
 
@@ -30,16 +35,16 @@ async function main() {
 	const glob = `VSCode-darwin-${arch}.zip`;
 
 	// Codesign
-	const codeSignTask = sign('sign-darwin', folder, glob);
 	printBanner('Codesign');
+	const codeSignTask = sign('sign-darwin', folder, glob);
 	const codeSignTaskResult = await codeSignTask.pipe(process.stdout);
 	if (!codeSignTaskResult.ok) {
 		throw new Error(`Codesign failed: ${codeSignTaskResult.stderr}`);
 	}
 
 	// Notarize
-	const notarizeTask = sign('notarize-darwin', folder, glob);
 	printBanner('Notarize');
+	const notarizeTask = sign('notarize-darwin', folder, glob);
 	const notarizeTaskResult = await notarizeTask.pipe(process.stdout);
 	if (!notarizeTaskResult.ok) {
 		throw new Error(`Notarize failed: ${notarizeTaskResult.stderr}`);
