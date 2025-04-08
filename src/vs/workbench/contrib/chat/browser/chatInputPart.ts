@@ -404,12 +404,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		this.initSelectedModel();
-
-		this._register(agentService.onDidChangeAgents(() => {
-			if (!agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
-				this.setChatMode(ChatMode.Edit);
-			}
-		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -469,10 +463,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		mode = validateChatMode(mode) ?? (this.location === ChatAgentLocation.Panel ? ChatMode.Ask : ChatMode.Edit);
-		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
-			mode = ChatMode.Edit;
-		}
-
 		this._currentMode = mode;
 		this.chatMode.set(mode);
 		this._onDidChangeCurrentChatMode.fire();
@@ -711,6 +701,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			this._inputEditor.focus();
 			this._inputEditor.setValue('');
+		}
+	}
+
+	validateCurrentMode(): void {
+		if (!this.agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
+			this.setChatMode(ChatMode.Edit);
 		}
 	}
 
