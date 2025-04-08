@@ -226,7 +226,7 @@ steps:
     - pwsh: node build/azure-pipelines/darwin/checkForArtifact.js CLIENT_ARCHIVE_UPLOADED unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: Check for client archive
+      displayName: Check for client artifact
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
