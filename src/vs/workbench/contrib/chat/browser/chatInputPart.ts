@@ -572,6 +572,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						const defaultMode = validateChatMode(defaultModeTreatment);
 						if (defaultMode) {
+							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
 							this.setChatMode(defaultMode);
 							this.checkModelSupported();
 						}
@@ -579,6 +580,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 					if (typeof defaultLanguageModelTreatment === 'string' && this._currentMode === ChatMode.Agent) {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
 						this.setExpModelOrWait(defaultLanguageModelTreatment);
 					}
 				});
