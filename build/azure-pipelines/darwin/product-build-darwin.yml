@@ -262,25 +262,6 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - script: |
-        # For legacy purposes, arch for x64 is just 'darwin'
-        case $VSCODE_ARCH in
-          x64) ASSET_ID="darwin" ;;
-          arm64) ASSET_ID="darwin-arm64" ;;
-          universal) ASSET_ID="darwin-universal" ;;
-        esac
-        echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
-      displayName: Set asset id variable
-
-    - script: |
-        if [ -z "$(ASSET_ID)" ]; then
-          echo "ASSET_ID is empty"
-          exit 1
-        else
-          echo "ASSET_ID is set to $(ASSET_ID)"
-        fi
-      displayName: Check ASSET_ID variable
-
     - pwsh: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
