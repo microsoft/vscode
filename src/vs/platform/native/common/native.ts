@@ -150,7 +150,7 @@ export interface ICommonNativeHostService {
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard
-	triggerPaste(): Promise<void>;
+	triggerPaste(options?: INativeHostOptions): Promise<void>;
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;
