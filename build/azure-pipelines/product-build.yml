@@ -185,8 +185,6 @@ extends:
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
     containers:
-      snapcraft:
-        image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
@@ -498,21 +496,6 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
-              - job: LinuxSnap
-                dependsOn:
-                  - Linuxx64
-                container: snapcraft
-                variables:
-                  VSCODE_ARCH: x64
-                templateContext:
-                  authenticatedContainerRegistries:
-                    - registry: onebranch.azurecr.io
-                      tenant: AME
-                      identity: 1ESPipelineIdentity
-                steps:
-                  - template: build/azure-pipelines/linux/snap-build-linux.yml@self
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - job: LinuxArmhf
