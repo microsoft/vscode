@@ -25,6 +25,7 @@ import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEdi
 import { InlineEditsOnboardingExperience } from './inlineEditsNewUsers.js';
 import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditsCollapsedView } from './inlineEditsViews/inlineEditsCollapsedView.js';
+import { InlineEditsCustomView } from './inlineEditsViews/inlineEditsCustomView.js';
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
 import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertionView.js';
 import { InlineEditsLineReplacementView } from './inlineEditsViews/inlineEditsLineReplacementView.js';
@@ -78,6 +79,7 @@ export class InlineEditsView extends Disposable {
 					this._insertion.onDidClick,
 					...this._wordReplacementViews.read(reader).map(w => w.onDidClick),
 					this._inlineDiffView.onDidClick,
+					this._customView.onDidClick,
 				)(e => {
 					if (this._viewHasBeenShownLongerThan(350)) {
 						e.preventDefault();
@@ -220,7 +222,8 @@ export class InlineEditsView extends Disposable {
 			|| this._deletion.isHovered.read(reader)
 			|| this._inlineDiffView.isHovered.read(reader)
 			|| this._lineReplacementView.isHovered.read(reader)
-			|| this._insertion.isHovered.read(reader);
+			|| this._insertion.isHovered.read(reader)
+			|| this._customView.isHovered.read(reader);
 	});
 
 	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {
@@ -265,7 +268,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e || !e.state) { return undefined; }
-		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed') {
+		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed' || e.state.kind === 'custom') {
 			return undefined;
 		}
 		return {
@@ -279,6 +282,12 @@ export class InlineEditsView extends Disposable {
 	protected readonly _inlineCollapsedView = this._register(this._instantiationService.createInstance(InlineEditsCollapsedView,
 		this._editor,
 		this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'collapsed' ? m?.inlineEdit : undefined)
+	));
+
+	protected readonly _customView = this._register(this._instantiationService.createInstance(InlineEditsCustomView,
+		this._editor,
+		this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'custom' ? m?.displayLocation : undefined),
+		this._tabAction,
 	));
 
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
@@ -314,6 +323,10 @@ export class InlineEditsView extends Disposable {
 
 		if (canUseCache && !reconsiderViewEditorWidthChange) {
 			return this._previousView!.view;
+		}
+
+		if (model.displayLocation) {
+			return 'custom';
 		}
 
 		// Determine the view based on the edit / diff
@@ -368,6 +381,7 @@ export class InlineEditsView extends Disposable {
 		this._previousView = { id: this.getCacheId(model), view, editorWidth: this._editor.getLayoutInfo().width, timestamp: Date.now() };
 
 		switch (view) {
+			case 'custom': return { kind: 'custom' as const };
 			case 'insertionInline': return { kind: 'insertionInline' as const };
 			case 'sideBySide': return { kind: 'sideBySide' as const };
 			case 'collapsed': return { kind: 'collapsed' as const };

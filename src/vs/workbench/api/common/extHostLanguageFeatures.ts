@@ -1428,6 +1428,10 @@ class InlineCompletionAdapter {
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 					isInlineEdit: this._isAdditionsProposedApiEnabled ? item.isInlineEdit : false,
 					showInlineEditMenu: this._isAdditionsProposedApiEnabled ? item.showInlineEditMenu : false,
+					displayLocation: (item.displayLocation && this._isAdditionsProposedApiEnabled) ? {
+						range: typeConvert.Range.from(item.displayLocation.range),
+						label: item.displayLocation.label,
+					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
 						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
