@@ -611,7 +611,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getDefaultModeExperimentStorageKey(): string {
 		const tag = this.options.widgetViewKindTag;
-		return `chat.${tag}.hasSetDefaultModeByExperiment.4`;
+		return `chat.${tag}.hasSetDefaultModeByExperiment`;
 	}
 
 	logInputHistory(): void {
