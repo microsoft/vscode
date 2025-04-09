@@ -930,7 +930,7 @@ export class ChatService extends Disposable implements IChatService {
 				return 'implicit';
 			} else if (v.range) {
 				// 'range' is range within the prompt text
-				if (v.isTool) {
+				if (v.kind === 'tool') {
 					return 'toolInPrompt';
 				} else {
 					return 'fileInPrompt';
@@ -943,7 +943,7 @@ export class ChatService extends Disposable implements IChatService {
 				return 'image';
 			} else if (v.isDirectory) {
 				return 'directory';
-			} else if (v.isTool) {
+			} else if (v.kind === 'tool') {
 				return 'tool';
 			} else {
 				if (URI.isUri(v.value)) {

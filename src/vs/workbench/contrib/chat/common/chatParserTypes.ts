@@ -88,7 +88,7 @@ export class ChatRequestToolPart implements IParsedChatRequestPart {
 	}
 
 	toVariableEntry(): IChatRequestVariableEntry {
-		return { id: this.toolId, name: this.toolName, range: this.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(this.icon) ? this.icon : undefined, fullName: this.displayName };
+		return { kind: 'tool', id: this.toolId, name: this.toolName, range: this.range, value: undefined, icon: ThemeIcon.isThemeIcon(this.icon) ? this.icon : undefined, fullName: this.displayName };
 	}
 }
 

@@ -50,7 +50,6 @@ export interface IBaseChatRequestVariableEntry {
 	kind?: never;
 	isFile?: boolean;
 	isDirectory?: boolean;
-	isTool?: boolean;
 	omittedState?: OmittedState;
 }
 
@@ -58,6 +57,11 @@ export const enum OmittedState {
 	NotOmitted,
 	Partial,
 	Full,
+}
+
+
+export interface IChatRequestToolEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'tool';
 }
 
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
@@ -168,7 +172,7 @@ export interface IDiagnosticVariableEntry extends Omit<IBaseChatRequestVariableE
 	readonly kind: 'diagnostic';
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';

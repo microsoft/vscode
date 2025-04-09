@@ -641,7 +641,7 @@ export class AttachContextAction extends Action2 {
 						fullName: attachmentPick.label,
 						value: undefined,
 						icon: attachmentPick.icon,
-						isTool: true
+						kind: 'tool'
 					});
 				} else if (attachmentPick.kind === 'image') {
 					const fileBuffer = await clipboardService.readImage();
