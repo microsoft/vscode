@@ -238,20 +238,14 @@ if (PasteAction) {
 			if (experimentalEditContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					const triggerPaste = nativeEditContext.triggerPaste();
-					if (triggerPaste) {
-						return triggerPaste.then(async () => {
-							return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-						});
-					}
+					nativeEditContext.onWillPaste();
 				}
-			} else {
-				const triggerPaste = clipboardService.triggerPaste();
-				if (triggerPaste) {
-					return triggerPaste.then(async () => {
-						return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-					});
-				}
+			}
+			const triggerPaste = clipboardService.triggerPaste();
+			if (triggerPaste) {
+				return triggerPaste.then(async () => {
+					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+				});
 			}
 			if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
