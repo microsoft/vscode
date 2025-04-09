@@ -14024,14 +14024,14 @@ declare module 'vscode' {
 			 * when the specified encoding is different from the encoding of the document.
 			 *
 			 * See {@link TextDocument.encoding} for more information about valid
-			 * values for encoding. Using an invalid encoding will fallback to the
+			 * values for encoding. Using an unsupported encoding will fallback to the
 			 * default encoding for the document.
 			 *
 			 * *Note* that if you open a document with an encoding that does not
 			 * support decoding the underlying bytes, content may be replaced with
 			 * substitution characters as appropriate.
 			 */
-			encoding?: string;
+			readonly encoding?: string;
 		}): Thenable<TextDocument>;
 
 		/**
@@ -14055,14 +14055,14 @@ declare module 'vscode' {
 			 * when the specified encoding is different from the encoding of the document.
 			 *
 			 * See {@link TextDocument.encoding} for more information about valid
-			 * values for encoding. Using an invalid encoding will fallback to the
+			 * values for encoding. Using an unsupported encoding will fallback to the
 			 * default encoding for the document.
 			 *
 			 * *Note* that if you open a document with an encoding that does not
 			 * support decoding the underlying bytes, content may be replaced with
 			 * substitution characters as appropriate.
 			 */
-			encoding?: string;
+			readonly encoding?: string;
 		}): Thenable<TextDocument>;
 
 		/**
@@ -14086,10 +14086,10 @@ declare module 'vscode' {
 			 * The {@link TextDocument.encoding encoding} of the document.
 			 *
 			 * See {@link TextDocument.encoding} for more information about valid
-			 * values for encoding. Using an invalid encoding will fallback to the
+			 * values for encoding. Using an unsupported encoding will fallback to the
 			 * default encoding for the document.
 			 */
-			encoding?: string;
+			readonly encoding?: string;
 		}): Thenable<TextDocument>;
 
 		/**
@@ -14394,13 +14394,13 @@ declare module 'vscode' {
 		 * @param options Additional context for picking the encoding.
 		 * @returns A thenable that resolves to the decoded `string`.
 		 */
-		export function decode(content: Uint8Array, options?: {
+		export function decode(content: Uint8Array, options: {
 			/**
 			 * Allows to explicitly pick the encoding to use.
 			 * See {@link TextDocument.encoding} for more information
 			 * about valid values for encoding.
 			 */
-			encoding: string;
+			readonly encoding: string;
 		}): Thenable<string>;
 
 		/**
@@ -14422,13 +14422,13 @@ declare module 'vscode' {
 		 * @param options Additional context for picking the encoding.
 		 * @returns A thenable that resolves to the decoded `string`.
 		 */
-		export function decode(content: Uint8Array, options?: {
+		export function decode(content: Uint8Array, options: {
 			/**
-			 * The URI that represents the file. This information
+			 * The URI that represents the file if known. This information
 			 * is used to figure out the encoding related configuration
 			 * for the file if any.
 			 */
-			uri: Uri;
+			readonly uri: Uri | undefined;
 		}): Thenable<string>;
 
 		/**
@@ -14441,13 +14441,13 @@ declare module 'vscode' {
 		 * @param options Additional context for picking the encoding.
 		 * @returns A thenable that resolves to the encoded `Uint8Array`.
 		 */
-		export function encode(content: string, options?: {
+		export function encode(content: string, options: {
 			/**
 			 * Allows to explicitly pick the encoding to use.
 			 * See {@link TextDocument.encoding} for more information
 			 * about valid values for encoding.
 			 */
-			encoding: string;
+			readonly encoding: string;
 		}): Thenable<Uint8Array>;
 
 		/**
@@ -14459,13 +14459,13 @@ declare module 'vscode' {
 		 * @param options Additional context for picking the encoding.
 		 * @returns A thenable that resolves to the encoded `Uint8Array`.
 		 */
-		export function encode(content: string, options?: {
+		export function encode(content: string, options: {
 			/**
-			 * The URI that represents the file. This information
+			 * The URI that represents the file if known. This information
 			 * is used to figure out the encoding related configuration
 			 * for the file if any.
 			 */
-			uri: Uri;
+			readonly uri: Uri | undefined;
 		}): Thenable<Uint8Array>;
 	}
 
