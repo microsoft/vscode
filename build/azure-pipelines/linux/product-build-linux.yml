@@ -369,6 +369,7 @@ steps:
 
     - script: npx deemon --detach --wait -- npx zx build/azure-pipelines/linux/codesign.js
       env:
+        EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: ✍️ Codesign deb & rpm
 
