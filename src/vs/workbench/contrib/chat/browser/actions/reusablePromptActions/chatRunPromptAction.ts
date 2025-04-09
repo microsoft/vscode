@@ -5,6 +5,7 @@
 
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ChatSubmitAction } from '../chatExecuteActions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { runAttachPromptAction } from './chatAttachPromptAction.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
@@ -101,11 +102,14 @@ abstract class RunPromptBaseAction extends Action2 {
 			'Cannot find URI resource for an active text editor.',
 		);
 
-		return await runAttachPromptAction({
+		await runAttachPromptAction({
 			resource,
 			inNewChat,
 			skipSelectionDialog: true,
 		}, commandService);
+
+		// submit the prompt immediately
+		await commandService.executeCommand(ChatSubmitAction.ID);
 	}
 }
 
