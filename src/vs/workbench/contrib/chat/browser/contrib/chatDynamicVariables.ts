@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import * as glob from '../../../../../base/common/glob.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { basename, dirname, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -101,7 +101,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 						}
 
 						// dispose the reference if possible before dropping it off
-						if ('dispose' in ref && typeof ref.dispose === 'function') {
+						if (isDisposable(ref)) {
 							ref.dispose();
 						}
 
@@ -251,7 +251,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	 */
 	private disposeVariables(): void {
 		for (const variable of this._variables) {
-			if ('dispose' in variable && typeof variable.dispose === 'function') {
+			if (isDisposable(variable)) {
 				variable.dispose();
 			}
 		}
