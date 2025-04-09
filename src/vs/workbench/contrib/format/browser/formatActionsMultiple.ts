@@ -339,7 +339,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: FormatDocumentMultipleArgs): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor, args?: FormatDocumentMultipleArgs): Promise<void> {
 		if (!editor.hasModel()) {
 			return;
 		}
