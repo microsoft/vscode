@@ -328,7 +328,10 @@ steps:
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
-        targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
+        ${{ if eq(variables.VSCODE_ARCH, 'arm64') }}:
+          targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
+        ${{ else }}:
+          targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
         artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
         sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
