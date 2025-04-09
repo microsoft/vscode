@@ -320,7 +320,6 @@ steps:
         codesign -dv --deep --verbose=4 "$APP_PATH"
         "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
       displayName: Verify signature
-      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
     - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
       displayName: Rename x64 build to its legacy name
