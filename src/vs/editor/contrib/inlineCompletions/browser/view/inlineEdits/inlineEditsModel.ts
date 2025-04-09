@@ -12,7 +12,7 @@ import { LineRange } from '../../../../../common/core/lineRange.js';
 import { StringText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { Command } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { InlineCompletionWithUpdatedRange } from '../../model/inlineCompletionsSource.js';
+import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 import { IInlineEditHost, IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
@@ -31,7 +31,7 @@ export class InlineEditModel implements IInlineEditModel {
 	) {
 		this.action = this.inlineEdit.inlineCompletion.action;
 		this.displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
-		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineCompletions.commands ?? [];
+		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineSuggestions.commands ?? [];
 
 		this.showCollapsed = this._model.showCollapsed;
 	}
@@ -74,7 +74,7 @@ export class GhostTextIndicator {
 		editor: ICodeEditor,
 		model: InlineCompletionsModel,
 		readonly lineRange: LineRange,
-		inlineCompletion: InlineCompletionWithUpdatedRange,
+		inlineCompletion: InlineSuggestionItem,
 	) {
 		const editorObs = observableCodeEditor(editor);
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
@@ -92,8 +92,8 @@ export class GhostTextIndicator {
 				new StringText(''),
 				new TextEdit([]),
 				model.primaryPosition.get(),
-				inlineCompletion.source.inlineCompletions.commands ?? [],
-				inlineCompletion.inlineCompletion
+				inlineCompletion.source.inlineSuggestions.commands ?? [],
+				inlineCompletion
 			),
 			tabAction,
 		);

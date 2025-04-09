@@ -11,8 +11,7 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
@@ -57,27 +56,6 @@ export function showCopilotView(viewsService: IViewsService, layoutService: IWor
 	}
 
 	return showChatView(viewsService);
-}
-
-export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService, viewsService: IViewsService): void {
-	const location = viewDescriptorService.getViewLocationById(ChatViewId);
-	if (location === ViewContainerLocation.Panel) {
-		return; // panel is typically very wide
-	}
-
-	const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
-	const partSize = layoutService.getSize(viewPart);
-
-	let adjustedChatWidth: number | undefined;
-	if (partSize.width < 400 && layoutService.mainContainerDimension.width > 1200) {
-		adjustedChatWidth = 400; // up to 400px if window bounds permit
-	} else if (partSize.width < 300) {
-		adjustedChatWidth = 300; // at minimum 300px
-	}
-
-	if (typeof adjustedChatWidth === 'number') {
-		layoutService.setSize(viewPart, { width: adjustedChatWidth, height: partSize.height });
-	}
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -150,7 +128,6 @@ export interface IChatWidgetViewOptions {
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	supportsFileReferences?: boolean;
-	supportsAdditionalParticipants?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
