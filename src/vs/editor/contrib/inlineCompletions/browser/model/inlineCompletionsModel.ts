@@ -694,13 +694,17 @@ export class InlineCompletionsModel extends Disposable {
 		} else {
 			const edits = state.edits;
 			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
+
 			TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion), () => {
 				editor.executeEdits('inlineSuggestion.accept', [
 					...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
 					...completion.additionalTextEdits
 				]);
 			});
-			editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
+			if (completion.displayLocation === undefined) {
+				// do not move the cursor when the completion is displayed in a different location
+				editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
+			}
 
 			if (state.kind === 'inlineEdit' && !this._accessibilityService.isMotionReduced()) {
 				// we can assume that edits is sorted!

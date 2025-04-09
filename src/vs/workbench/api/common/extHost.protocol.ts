@@ -3062,7 +3062,7 @@ export interface MainThreadTestingShape {
 
 export type ChatStatusItemDto = {
 	id: string;
-	title: string;
+	title: string | { label: string; link: string };
 	description: string;
 	detail: string | undefined;
 };

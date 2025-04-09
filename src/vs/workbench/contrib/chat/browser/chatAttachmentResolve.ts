@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -47,7 +48,7 @@ export async function resolveEditorAttachContext(editor: EditorInput | IDraggedR
 		return undefined;
 	}
 
-	const imageContext = await resolveImageEditorAttachContext(editor, fileService, dialogService);
+	const imageContext = await resolveImageEditorAttachContext(fileService, dialogService, editor.resource);
 	if (imageContext) {
 		return extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 	}
@@ -113,32 +114,48 @@ export type ImageTransferData = {
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = /\.(png|jpg|jpeg|gif|webp)$/i;
 
-export async function resolveImageEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, dialogService: IDialogService): Promise<IChatRequestVariableEntry | undefined> {
-	if (!editor.resource) {
+export async function resolveImageEditorAttachContext(fileService: IFileService, dialogService: IDialogService, resource: URI, data?: VSBuffer): Promise<IChatRequestVariableEntry | undefined> {
+	if (!resource) {
 		return undefined;
 	}
 
-	const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(editor.resource.path);
+	const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(resource.path);
 	if (!match) {
 		return undefined;
 	}
 
 	const mimeType = getMimeTypeFromPath(match);
-	const fileName = basename(editor.resource);
-	const readFile = await fileService.readFile(editor.resource);
+	const fileName = basename(resource);
 
-	if (readFile.size > 30 * 1024 * 1024) { // 30 MB
-		dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
-		throw new Error('Image is too large');
+	let dataBuffer: VSBuffer | undefined;
+	if (data) {
+		dataBuffer = data;
+	} else {
+
+		let stat;
+		try {
+			stat = await fileService.stat(resource);
+		} catch {
+			return undefined;
+		}
+
+		const readFile = await fileService.readFile(resource);
+
+		if (stat.size > 30 * 1024 * 1024) { // 30 MB
+			dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
+			throw new Error('Image is too large');
+		}
+
+		dataBuffer = readFile.value;
 	}
 
-	const isPartiallyOmitted = /\.gif$/i.test(editor.resource.path);
+	const isPartiallyOmitted = /\.gif$/i.test(resource.path);
 	const imageFileContext = await resolveImageAttachContext([{
-		id: editor.resource.toString(),
+		id: resource.toString(),
 		name: fileName,
-		data: readFile.value.buffer,
+		data: dataBuffer.buffer,
 		icon: Codicon.fileMedia,
-		resource: editor.resource,
+		resource: resource,
 		mimeType: mimeType,
 		omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
 	}]);

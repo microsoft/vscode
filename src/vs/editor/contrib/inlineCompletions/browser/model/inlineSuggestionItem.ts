@@ -16,7 +16,7 @@ import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { InlineCompletions, InlineCompletionsProvider, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, Command, InlineCompletionWarning } from '../../../../common/languages.js';
+import { InlineCompletions, InlineCompletionsProvider, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, Command, InlineCompletionWarning, InlineCompletionDisplayLocation } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
@@ -61,6 +61,7 @@ abstract class InlineSuggestionItemBase {
 	get command(): Command | undefined { return this._sourceInlineCompletion.command; }
 	get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
 	get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
+	get displayLocation(): InlineCompletionDisplayLocation | undefined { return this._sourceInlineCompletion.displayLocation; }
 
 	public get hash() {
 		return JSON.stringify([
