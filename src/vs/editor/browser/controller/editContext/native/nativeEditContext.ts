@@ -30,6 +30,7 @@ import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 
 // Corresponds to classes in nativeEditContext.css
@@ -50,6 +51,7 @@ interface ITextUpdateEvent {
 export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
+	private readonly _textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -77,11 +79,15 @@ export class NativeEditContext extends AbstractEditContext {
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		super(context);
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
+		this._textArea = new FastDomNode(document.createElement('textarea'));
+		this._textArea.setClassName('native-edit-context-textarea');
+		this._textArea.setAttribute('tabindex', '-1');
 		this.domNode.setAttribute('autocorrect', 'off');
 		this.domNode.setAttribute('autocapitalize', 'off');
 		this.domNode.setAttribute('autocomplete', 'off');
@@ -90,6 +96,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
+		overflowGuardContainer.appendChild(this._textArea);
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
@@ -176,6 +183,31 @@ export class NativeEditContext extends AbstractEditContext {
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
 		}));
+		this._register(addDisposableListener(this._textArea.domNode, 'paste', (e) => {
+			// Pretend here we touched the text area, as the `paste` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
+			e.preventDefault();
+			if (!e.clipboardData) {
+				return;
+			}
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			if (!text) {
+				return;
+			}
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+			let pasteOnNewLine = false;
+			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
+			if (metadata) {
+				const options = this._context.configuration.options;
+				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
+				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
+				mode = metadata.mode;
+			}
+			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
+		}));
 		this._register(NativeEditContextRegistry.register(ownerID, this));
 	}
 
@@ -185,6 +217,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
+		this._textArea.domNode.remove();
 		super.dispose();
 	}
 
@@ -252,8 +285,26 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
-	public onWillPaste(): void {
+	public triggerPaste(): Promise<void> | undefined {
 		this._onWillPaste();
+		// pause focus tracking because we don't want to react to focus/blur
+		// events while pasting since we move the focus to the textarea
+		this._focusTracker.pause();
+
+		// Since we can not call execCommand('paste') on a dom node with edit context set
+		// we added a hidden text area that receives the paste execution
+		this._textArea.focus();
+		const triggerPaste = this._clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
+		if (!triggerPaste) {
+			this.domNode.domNode.focus();
+			this._focusTracker.resume(); // resume focus tracking
+			return undefined;
+		}
+		return triggerPaste.then(() => {
+			this._textArea.domNode.textContent = '';
+			this.domNode.domNode.focus();
+			this._focusTracker.resume(); // resume focus tracking
+		});
 	}
 
 	private _onWillPaste(): void {
