@@ -9,13 +9,15 @@ import { isMacintosh, isLinux, language, isWeb } from '../../../base/common/plat
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { URI } from '../../../base/common/uri.js';
-import { MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { MenuId, Action2, registerAction2, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { KeyChord, KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 class KeybindingsReferenceAction extends Action2 {
 
@@ -355,6 +357,44 @@ class GetStartedWithCopilot extends Action2 {
 	}
 }
 
+class AskVSCodeCopilot extends Action2 {
+	static readonly ID = 'workbench.action.askVScode';
+	static readonly AVAILABE = !!product.defaultChatAgent?.chatExtensionId;
+
+	//  add check for enablement
+	constructor() {
+		super({
+			id: AskVSCodeCopilot.ID,
+			title: localize2('askVScode', 'Ask @vscode'),
+			category: Categories.Help,
+			f1: true,
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, true)),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+		const input = await quickInputService.input({
+			title: localize('askVscodeTitle', "Ask @vscode"),
+			placeHolder: localize('askVscodePlaceholder', "@vscode can help you with settings, commands, or how to do something in VS Code.")
+		});
+		if (input) {
+			commandService.executeCommand('workbench.action.chat.open', { query: `@vscode ${input}` });
+		}
+	}
+}
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	command: {
+		id: AskVSCodeCopilot.ID,
+		title: localize2('askVScode', 'Ask @vscode'),
+	},
+	order: 8,
+	group: '1_welcome',
+	when: ContextKeyExpr.equals(`chatIsEnabled`, true),
+});
+
 // --- Actions Registration
 
 if (KeybindingsReferenceAction.AVAILABLE) {
@@ -398,3 +438,5 @@ registerAction2(GetStartedWithAccessibilityFeatures);
 if (GetStartedWithCopilot.AVAILABE) {
 	registerAction2(GetStartedWithCopilot);
 }
+
+registerAction2(AskVSCodeCopilot);
