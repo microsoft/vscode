@@ -238,7 +238,7 @@ steps:
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
         sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
-      displayName: Publish client archive
+      displayName: Publish client archive (unsigned)
 
     - task: UseDotNet@2
       inputs:
