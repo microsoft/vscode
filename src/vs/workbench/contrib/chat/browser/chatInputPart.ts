@@ -568,23 +568,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.experimentService.getTreatment('chat.defaultMode'),
 					this.experimentService.getTreatment('chat.defaultLanguageModel'),
 				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
-					let usingExpValue = false;
-					if (typeof defaultLanguageModelTreatment === 'string') {
-						this.setExpModelOrWait(defaultLanguageModelTreatment);
-						usingExpValue = true;
-					}
-
-					if (typeof defaultModeTreatment === 'string' && this._currentMode === ChatMode.Agent) {
+					if (typeof defaultModeTreatment === 'string') {
+						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						const defaultMode = validateChatMode(defaultModeTreatment);
 						if (defaultMode) {
 							this.setChatMode(defaultMode);
 							this.checkModelSupported();
-							usingExpValue = true;
 						}
 					}
 
-					if (usingExpValue) {
+					if (typeof defaultLanguageModelTreatment === 'string' && this._currentMode === ChatMode.Agent) {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						this.setExpModelOrWait(defaultLanguageModelTreatment);
 					}
 				});
 			}
