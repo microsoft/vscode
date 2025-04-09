@@ -66,6 +66,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ResourceLabels } from '../../../browser/labels.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
@@ -355,6 +356,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatService private readonly chatService: IChatService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
+		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -410,21 +412,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return `chat.currentLanguageModel.${this.location}`;
 	}
 
-	private initSelectedModel() {
-		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		if (persistedSelection) {
-			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
+	private async initSelectedModel() {
+		const hasSetDefaultLanguageModel = this.storageService.getBoolean(HasSetDefaultLanguageModelByExperimentKey, StorageScope.WORKSPACE, false);
+		const defaultLanguageModelTreatment = hasSetDefaultLanguageModel || this._currentMode !== ChatMode.Agent ?
+			undefined :
+			await this.experimentService.getTreatment<string>('chat.defaultLanguageModel');
+		const defaultLanguageModel = defaultLanguageModelTreatment ||
+			this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+
+		if (defaultLanguageModel) {
+			const model = this.languageModelsService.lookupLanguageModel(defaultLanguageModel);
 			if (model) {
-				this.setCurrentLanguageModel({ metadata: model, identifier: persistedSelection });
+				this.setCurrentLanguageModel({ metadata: model, identifier: defaultLanguageModel });
 				this.checkModelSupported();
 			} else {
 				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
-					const persistedModel = e.added?.find(m => m.identifier === persistedSelection);
+					const persistedModel = e.added?.find(m => m.identifier === defaultLanguageModel);
 					if (persistedModel) {
 						this._waitForPersistedLanguageModel.clear();
 
 						if (persistedModel.metadata.isUserSelectable) {
-							this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: persistedSelection });
+							this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: defaultLanguageModel });
 							this.checkModelSupported();
 						}
 					}
@@ -1594,3 +1602,5 @@ class AddFilesButton extends ActionViewItem {
 		container.classList.add('chat-attached-context-attachment', 'chat-add-files');
 	}
 }
+
+const HasSetDefaultLanguageModelByExperimentKey = 'chatInput.hasSetDefaultLanguageModelByExperiment';

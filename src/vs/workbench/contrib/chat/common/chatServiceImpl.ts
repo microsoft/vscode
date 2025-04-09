@@ -35,7 +35,7 @@ import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
@@ -193,6 +193,10 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
+
+		this.experimentService.getTreatment<string>('chat.defaultMode').then(defaultModeTreatment => {
+			this._defaultModeExp = validateChatMode(defaultModeTreatment);
+		});
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
@@ -1151,6 +1155,11 @@ export class ChatService extends Disposable implements IChatService {
 
 	logChatIndex(): void {
 		this._chatSessionStore.logIndex();
+	}
+
+	private _defaultModeExp: ChatMode | undefined;
+	get defaultModeExp(): ChatMode | undefined {
+		return this._defaultModeExp;
 	}
 }
 
