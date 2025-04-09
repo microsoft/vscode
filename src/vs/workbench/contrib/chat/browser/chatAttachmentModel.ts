@@ -12,9 +12,11 @@ import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { resizeImage } from './imageUtils.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { localize } from '../../../../nls.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export class ChatAttachmentModel extends Disposable {
 	/**
@@ -26,6 +28,7 @@ export class ChatAttachmentModel extends Disposable {
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 
@@ -75,7 +78,10 @@ export class ChatAttachmentModel extends Disposable {
 
 	async addFile(uri: URI, range?: IRange) {
 		if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(uri.path)) {
-			this.addContext(await this.asImageVariableEntry(uri));
+			const context = await this.asImageVariableEntry(uri);
+			if (context) {
+				this.addContext(context);
+			}
 			return;
 		}
 
@@ -101,23 +107,18 @@ export class ChatAttachmentModel extends Disposable {
 		};
 	}
 
-	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry> {
-		const fileName = basename(uri);
-		const readFile = await this.fileService.readFile(uri);
-		if (readFile.size > 30 * 1024 * 1024) { // 30 MB
-			this.dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
-			throw new Error('Image is too large');
+	// Gets an image variable for a given URI, which may be a file or a web URL
+	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
+		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
+			return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri);
+		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
+			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
+			if (extractedImages) {
+				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri, extractedImages);
+			}
 		}
-		const resizedImage = await resizeImage(readFile.value.buffer);
-		return {
-			id: uri.toString(),
-			name: fileName,
-			fullName: uri.path,
-			value: resizedImage,
-			kind: 'image',
-			isFile: false,
-			references: [{ reference: uri, kind: 'reference' }]
-		};
+
+		return undefined;
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
