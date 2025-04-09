@@ -367,18 +367,11 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/linux/codesign.js }
+    - script: npx deemon -- npx zx build/azure-pipelines/linux/codesign.js
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: ✍️ Codesign deb & rpm
-    # - script: npx deemon --detach --wait -- npx zx build/azure-pipelines/linux/codesign.js
-    #   env:
-    #     EsrpCliDllPath: $(EsrpCliDllPath)
-    #     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-linux-test.yml@self
@@ -392,13 +385,13 @@ steps:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        exec { npx deemon --attach -- npx zx build/azure-pipelines/linux/codesign.js }
-    # - script: npx deemon --attach -- npx zx build/azure-pipelines/linux/codesign.js
-      condition: succeededOrFailed()
-      displayName: "✍️ Post-job: Codesign deb & rpm"
+    # - pwsh: |
+    #     . build/azure-pipelines/win32/exec.ps1
+    #     $ErrorActionPreference = "Stop"
+    #     exec { npx deemon --attach -- npx zx build/azure-pipelines/linux/codesign.js }
+    # # - script: npx deemon --attach -- npx zx build/azure-pipelines/linux/codesign.js
+    #   condition: succeededOrFailed()
+    #   displayName: "✍️ Post-job: Codesign deb & rpm"
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
       condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
