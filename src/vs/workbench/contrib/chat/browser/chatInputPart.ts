@@ -413,27 +413,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return `chat.currentLanguageModel.${this.location}`;
 	}
 
-	private async initSelectedModel() {
-		const hasSetDefaultLanguageModel = this.storageService.getBoolean(HasSetDefaultLanguageModelByExperimentKey, StorageScope.WORKSPACE, false);
-		const defaultLanguageModelTreatment = hasSetDefaultLanguageModel || this._currentMode !== ChatMode.Agent ?
-			undefined :
-			await this.experimentService.getTreatment<string>('chat.defaultLanguageModel');
-		const defaultLanguageModel = defaultLanguageModelTreatment ||
-			this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-
-		if (defaultLanguageModel) {
-			const model = this.languageModelsService.lookupLanguageModel(defaultLanguageModel);
+	private initSelectedModel() {
+		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+		if (persistedSelection) {
+			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
 			if (model) {
-				this.setCurrentLanguageModel({ metadata: model, identifier: defaultLanguageModel });
+				this.setCurrentLanguageModel({ metadata: model, identifier: persistedSelection });
 				this.checkModelSupported();
 			} else {
 				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
-					const persistedModel = e.added?.find(m => m.identifier === defaultLanguageModel);
+					const persistedModel = e.added?.find(m => m.identifier === persistedSelection);
 					if (persistedModel) {
 						this._waitForPersistedLanguageModel.clear();
 
 						if (persistedModel.metadata.isUserSelectable) {
-							this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: defaultLanguageModel });
+							this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: persistedSelection });
 							this.checkModelSupported();
 						}
 					}
@@ -547,7 +541,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
-	initForNewChatModel(state: IChatViewState): void {
+	initForNewChatModel(state: IChatViewState, modelIsEmpty: boolean): void {
 		this.history = this.loadHistory();
 		this.history.add({
 			text: state.inputValue ?? this.history.current().text,
@@ -566,15 +560,47 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(ChatMode.Edit);
 		}
 
-		const storageKey = this.getDefaultModeExperimentStorageKey();
-		const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
-		if (!hasSetDefaultMode) {
-			this.experimentService.getTreatment('chat.defaultMode').then(defaultModeTreatment => {
-				const defaultMode = validateChatMode(defaultModeTreatment);
-				if (defaultMode) {
-					this.setChatMode(defaultMode);
-					this.checkModelSupported();
-					this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (modelIsEmpty) {
+			const storageKey = this.getDefaultModeExperimentStorageKey();
+			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
+			if (!hasSetDefaultMode) {
+				Promise.all([
+					this.experimentService.getTreatment('chat.defaultMode'),
+					this.experimentService.getTreatment('chat.defaultLanguageModel'),
+				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
+					if (typeof defaultLanguageModelTreatment === 'string') {
+						this.waitForModel(defaultLanguageModelTreatment);
+					}
+
+					if (typeof defaultModeTreatment === 'string') {
+						const defaultMode = validateChatMode(defaultModeTreatment);
+						if (defaultMode) {
+							this.setChatMode(defaultMode);
+							this.checkModelSupported();
+							this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						}
+					}
+				});
+			}
+		}
+	}
+
+	private waitForModel(modelId: string) {
+		const model = this.languageModelsService.lookupLanguageModel(modelId);
+		if (model) {
+			this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
+			this.checkModelSupported();
+			this._waitForPersistedLanguageModel.clear();
+		} else {
+			this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
+				const persistedModel = e.added?.find(m => m.identifier === modelId);
+				if (persistedModel) {
+					this._waitForPersistedLanguageModel.clear();
+
+					if (persistedModel.metadata.isUserSelectable) {
+						this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: modelId });
+						this.checkModelSupported();
+					}
 				}
 			});
 		}
