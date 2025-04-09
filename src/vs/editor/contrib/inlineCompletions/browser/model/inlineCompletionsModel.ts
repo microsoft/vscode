@@ -35,6 +35,7 @@ import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
+import { ITextModelChangeRecorderMetadata, TextModelChangeRecorder } from './changeRecorder.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -645,6 +646,14 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
+	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): ITextModelChangeRecorderMetadata {
+		return {
+			extensionId: completion.source.provider.groupId,
+			nes: completion.isInlineEdit,
+			type
+		};
+	}
+
 	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
@@ -671,22 +680,26 @@ export class InlineCompletionsModel extends Disposable {
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
-			editor.executeEdits(
-				'inlineSuggestion.accept',
-				[
-					EditOperation.replace(completion.range, ''),
-					...completion.additionalTextEdits
-				]
-			);
+			TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion), () => {
+				editor.executeEdits(
+					'inlineSuggestion.accept',
+					[
+						EditOperation.replace(completion.range, ''),
+						...completion.additionalTextEdits
+					]
+				);
+			});
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			const edits = state.edits;
 			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-			editor.executeEdits('inlineSuggestion.accept', [
-				...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
-				...completion.additionalTextEdits
-			]);
+			TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion), () => {
+				editor.executeEdits('inlineSuggestion.accept', [
+					...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
+					...completion.additionalTextEdits
+				]);
+			});
 			editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
 
 			if (state.kind === 'inlineEdit' && !this._accessibilityService.isMotionReduced()) {
@@ -715,7 +728,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public async acceptNextWord(): Promise<void> {
-		await this._acceptNext(this._editor, (pos, text) => {
+		await this._acceptNext(this._editor, 'word', (pos, text) => {
 			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
 			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
 			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
@@ -744,7 +757,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public async acceptNextLine(): Promise<void> {
-		await this._acceptNext(this._editor, (pos, text) => {
+		await this._acceptNext(this._editor, 'line', (pos, text) => {
 			const m = text.match(/\n/);
 			if (m && m.index !== undefined) {
 				return m.index + 1;
@@ -753,7 +766,7 @@ export class InlineCompletionsModel extends Disposable {
 		}, PartialAcceptTriggerKind.Line);
 	}
 
-	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number, kind: PartialAcceptTriggerKind): Promise<void> {
+	private async _acceptNext(editor: ICodeEditor, type: 'word' | 'line', getAcceptUntilIndex: (position: Position, text: string) => number, kind: PartialAcceptTriggerKind): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -795,7 +808,9 @@ export class InlineCompletionsModel extends Disposable {
 				const primaryEdit = new SingleTextEdit(replaceRange, newText);
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion, type), () => {
+					editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				});
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Immediate);
 			} finally {
