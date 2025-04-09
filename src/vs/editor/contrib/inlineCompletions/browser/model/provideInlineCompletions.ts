@@ -10,20 +10,19 @@ import { onUnexpectedExternalError } from '../../../../../base/common/errors.js'
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { SetMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
-import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from '../../../../common/languages.js';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
+import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem, InlineSuggestionList, SnippetInfo } from './inlineSuggestionItem.js';
 
 export async function provideInlineCompletions(
 	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
@@ -60,7 +59,7 @@ export async function provideInlineCompletions(
 		return result;
 	}
 
-	type Result = Promise<InlineCompletionList | undefined>;
+	type Result = Promise<InlineSuggestionList | undefined>;
 	const states = new Map<InlineCompletionsProvider, Result>();
 
 	const seen = new Set<InlineCompletionsProvider>();
@@ -94,7 +93,7 @@ export async function provideInlineCompletions(
 				+ ` Path: ${circle.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
 		}
 
-		const deferredPromise = new DeferredPromise<InlineCompletionList | undefined>();
+		const deferredPromise = new DeferredPromise<InlineSuggestionList | undefined>();
 		states.set(provider, deferredPromise.p);
 
 		(async () => {
@@ -102,7 +101,7 @@ export async function provideInlineCompletions(
 				const preferred = getPreferredProviders(provider);
 				for (const p of preferred) {
 					const result = await queryProviderOrPreferredProvider(p);
-					if (result && result.inlineCompletions.items.length > 0) {
+					if (result && result.inlineSuggestions.items.length > 0) {
 						// Skip provider
 						return undefined;
 					}
@@ -115,7 +114,7 @@ export async function provideInlineCompletions(
 		return deferredPromise.p;
 	}
 
-	async function query(provider: InlineCompletionsProvider): Promise<InlineCompletionList | undefined> {
+	async function query(provider: InlineCompletionsProvider): Promise<InlineSuggestionList | undefined> {
 		let result: InlineCompletions | null | undefined;
 		try {
 			if (positionOrRange instanceof Position) {
@@ -129,7 +128,7 @@ export async function provideInlineCompletions(
 		}
 
 		if (!result) { return undefined; }
-		const list = new InlineCompletionList(result, provider);
+		const list = new InlineSuggestionList(result, provider);
 
 		runWhenCancelled(token, () => list.removeRef());
 		return list;
@@ -165,40 +164,41 @@ function runWhenCancelled(token: CancellationToken, callback: () => void): IDisp
 // TODO: check cancellation token!
 async function addRefAndCreateResult(
 	context: InlineCompletionContext,
-	inlineCompletionLists: AsyncIterable<(InlineCompletionList | undefined)>,
+	inlineCompletionLists: AsyncIterable<(InlineSuggestionList | undefined)>,
 	defaultReplaceRange: Range,
 	model: ITextModel,
 	languageConfigurationService: ILanguageConfigurationService | undefined
 ): Promise<InlineCompletionProviderResult> {
 	// for deduplication
-	const itemsByHash = new Map<string, InlineCompletionItem>();
+	const itemsByHash = new Map<string, InlineSuggestionItem>();
 
 	let shouldStop = false;
-	const lists: InlineCompletionList[] = [];
+	const lists: InlineSuggestionList[] = [];
 	for await (const completions of inlineCompletionLists) {
 		if (!completions) { continue; }
 		completions.addRef();
 		lists.push(completions);
-		for (const item of completions.inlineCompletions.items) {
+		for (const item of completions.inlineSuggestions.items) {
 			if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
 			if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
-			const inlineCompletionItem = InlineCompletionItem.from(
+			const inlineCompletionItem = createInlineCompletionItem(
 				item,
 				completions,
 				defaultReplaceRange,
 				model,
-				languageConfigurationService
+				languageConfigurationService,
+				context,
 			);
 
-			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
+			itemsByHash.set(inlineCompletionItem.hash, inlineCompletionItem);
 
 			// Stop after first visible inline completion
 			if (!(item.isInlineEdit || item.showInlineEditMenu) && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
-				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
+				const minifiedEdit = inlineCompletionItem.getSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;
 				}
@@ -219,13 +219,13 @@ export class InlineCompletionProviderResult implements IDisposable {
 		/**
 		 * Free of duplicates.
 		 */
-		public readonly completions: readonly InlineCompletionItem[],
+		public readonly completions: readonly InlineSuggestionItem[],
 		private readonly hashs: Set<string>,
-		private readonly providerResults: readonly InlineCompletionList[],
+		private readonly providerResults: readonly InlineSuggestionList[],
 	) { }
 
-	public has(item: InlineCompletionItem): boolean {
-		return this.hashs.has(item.hash());
+	public has(item: InlineSuggestionItem): boolean {
+		return this.hashs.has(item.hash);
 	}
 
 	// TODO: This is not complete as it does not take the textmodel into account
@@ -241,184 +241,92 @@ export class InlineCompletionProviderResult implements IDisposable {
 	}
 }
 
-/**
- * A ref counted pointer to the computed `InlineCompletions` and the `InlineCompletionsProvider` that
- * computed them.
- */
-export class InlineCompletionList {
-	private refCount = 1;
-	constructor(
-		public readonly inlineCompletions: InlineCompletions,
-		public readonly provider: InlineCompletionsProvider,
-	) { }
+function createInlineCompletionItem(
+	inlineCompletion: InlineCompletion,
+	source: InlineSuggestionList,
+	defaultReplaceRange: Range,
+	textModel: ITextModel,
+	languageConfigurationService: ILanguageConfigurationService | undefined,
+	context: InlineCompletionContext,
+): InlineSuggestionItem {
+	let insertText: string;
+	let snippetInfo: SnippetInfo | undefined;
+	let range = inlineCompletion.range ? Range.lift(inlineCompletion.range) : defaultReplaceRange;
 
-	addRef(): void {
-		this.refCount++;
-	}
+	if (typeof inlineCompletion.insertText === 'string') {
+		insertText = inlineCompletion.insertText;
 
-	removeRef(): void {
-		this.refCount--;
-		if (this.refCount === 0) {
-			this.provider.freeInlineCompletions(this.inlineCompletions);
-		}
-	}
-}
+		if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
+			insertText = closeBrackets(
+				insertText,
+				range.getStartPosition(),
+				textModel,
+				languageConfigurationService
+			);
 
-export class InlineCompletionItem {
-	public static from(
-		inlineCompletion: InlineCompletion,
-		source: InlineCompletionList,
-		defaultReplaceRange: Range,
-		textModel: ITextModel,
-		languageConfigurationService: ILanguageConfigurationService | undefined,
-	) {
-		let insertText: string;
-		let snippetInfo: SnippetInfo | undefined;
-		let range = inlineCompletion.range ? Range.lift(inlineCompletion.range) : defaultReplaceRange;
-
-		if (typeof inlineCompletion.insertText === 'string') {
-			insertText = inlineCompletion.insertText;
-
-			if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
-				insertText = closeBrackets(
-					insertText,
-					range.getStartPosition(),
-					textModel,
-					languageConfigurationService
-				);
-
-				// Modify range depending on if brackets are added or removed
-				const diff = insertText.length - inlineCompletion.insertText.length;
-				if (diff !== 0) {
-					range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
-				}
+			// Modify range depending on if brackets are added or removed
+			const diff = insertText.length - inlineCompletion.insertText.length;
+			if (diff !== 0) {
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
 			}
+		}
 
+		snippetInfo = undefined;
+	} else if ('snippet' in inlineCompletion.insertText) {
+		const preBracketCompletionLength = inlineCompletion.insertText.snippet.length;
+
+		if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
+			inlineCompletion.insertText.snippet = closeBrackets(
+				inlineCompletion.insertText.snippet,
+				range.getStartPosition(),
+				textModel,
+				languageConfigurationService
+			);
+
+			// Modify range depending on if brackets are added or removed
+			const diff = inlineCompletion.insertText.snippet.length - preBracketCompletionLength;
+			if (diff !== 0) {
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+			}
+		}
+
+		const snippet = new SnippetParser().parse(inlineCompletion.insertText.snippet);
+
+		if (snippet.children.length === 1 && snippet.children[0] instanceof Text) {
+			insertText = snippet.children[0].value;
 			snippetInfo = undefined;
-		} else if ('snippet' in inlineCompletion.insertText) {
-			const preBracketCompletionLength = inlineCompletion.insertText.snippet.length;
-
-			if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
-				inlineCompletion.insertText.snippet = closeBrackets(
-					inlineCompletion.insertText.snippet,
-					range.getStartPosition(),
-					textModel,
-					languageConfigurationService
-				);
-
-				// Modify range depending on if brackets are added or removed
-				const diff = inlineCompletion.insertText.snippet.length - preBracketCompletionLength;
-				if (diff !== 0) {
-					range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
-				}
-			}
-
-			const snippet = new SnippetParser().parse(inlineCompletion.insertText.snippet);
-
-			if (snippet.children.length === 1 && snippet.children[0] instanceof Text) {
-				insertText = snippet.children[0].value;
-				snippetInfo = undefined;
-			} else {
-				insertText = snippet.toString();
-				snippetInfo = {
-					snippet: inlineCompletion.insertText.snippet,
-					range: range
-				};
-			}
 		} else {
-			assertNever(inlineCompletion.insertText);
+			insertText = snippet.toString();
+			snippetInfo = {
+				snippet: inlineCompletion.insertText.snippet,
+				range: range
+			};
 		}
+	} else {
+		assertNever(inlineCompletion.insertText);
+	}
 
-		return new InlineCompletionItem(
+	if (inlineCompletion.isInlineEdit) {
+		return InlineEditItem.create(
+			range,
 			insertText,
-			inlineCompletion.command,
-			inlineCompletion.shownCommand,
-			inlineCompletion.action,
+			inlineCompletion,
+			source,
+			context,
+			textModel,
+		);
+	} else {
+		return InlineCompletionItem.create(
 			range,
 			insertText,
 			snippetInfo,
-			Range.lift(inlineCompletion.showRange) ?? undefined,
 			inlineCompletion.additionalTextEdits || getReadonlyEmptyArray(),
 			inlineCompletion,
 			source,
+			context,
+			textModel,
 		);
 	}
-
-	static ID = 1;
-
-	private _didCallShow = false;
-
-	constructor(
-		readonly filterText: string,
-		readonly command: Command | undefined,
-		/** @deprecated. Use handleItemDidShow */
-		readonly shownCommand: Command | undefined,
-		readonly action: Command | undefined,
-		readonly range: Range,
-		readonly insertText: string,
-		readonly snippetInfo: SnippetInfo | undefined,
-		readonly cursorShowRange: Range | undefined,
-
-		readonly additionalTextEdits: readonly ISingleEditOperation[],
-
-
-		/**
-		 * A reference to the original inline completion this inline completion has been constructed from.
-		 * Used for event data to ensure referential equality.
-		*/
-		readonly sourceInlineCompletion: InlineCompletion,
-
-		/**
-		 * A reference to the original inline completion list this inline completion has been constructed from.
-		 * Used for event data to ensure referential equality.
-		*/
-		readonly source: InlineCompletionList,
-
-		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
-	) {
-	}
-
-	get isInlineEdit(): boolean {
-		return this.sourceInlineCompletion.isInlineEdit!!;
-	}
-
-	public get didShow(): boolean {
-		return this._didCallShow;
-	}
-	public markAsShown(): void {
-		this._didCallShow = true;
-	}
-
-	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
-		return new InlineCompletionItem(
-			updatedFilterText,
-			this.command,
-			this.shownCommand,
-			this.action,
-			updatedRange,
-			updatedInsertText,
-			this.snippetInfo,
-			this.cursorShowRange,
-			this.additionalTextEdits,
-			this.sourceInlineCompletion,
-			this.source,
-			this.id,
-		);
-	}
-
-	public hash(): string {
-		return JSON.stringify({ insertText: this.insertText, range: this.range.toString() });
-	}
-
-	public toSingleTextEdit(): SingleTextEdit {
-		return new SingleTextEdit(this.range, this.insertText);
-	}
-}
-
-export interface SnippetInfo {
-	snippet: string;
-	/* Could be different than the main range */
-	range: Range;
 }
 
 function getDefaultRange(position: Position, model: ITextModel): Range {

@@ -325,7 +325,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
-			session.entries.read(r); // SIGNAL
+			const entries = session.entries.read(r);
+			for (const entry of entries) {
+				entry.state.read(r); // SIGNAL
+			}
 
 			this._editingSession.set(session, undefined);
 
@@ -614,7 +617,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!numItems) {
 			const welcomeContent = this.getWelcomeViewContent();
 			dom.clearNode(this.welcomeMessageContainer);
-			const tips = this.viewOptions.supportsAdditionalParticipants
+			const tips = this.input.currentMode === ChatMode.Ask
 				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
@@ -788,7 +791,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeTreeContentHeight();
 		}));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
-			this.tree.updateElementHeight(e.element, e.height);
+			if (this.tree.hasElement(e.element)) {
+				this.tree.updateElementHeight(e.element, e.height);
+			}
 		}));
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();

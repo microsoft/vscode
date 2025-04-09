@@ -11,9 +11,8 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IExtensionManagementService, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDefaultChatAgent } from '../../../../../base/common/product.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ensureSideBarChatViewSize, showCopilotView } from '../chat.js';
+import { showCopilotView } from '../chat.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
@@ -30,7 +29,6 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -74,10 +72,6 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 		// Open Copilot view
 		showCopilotView(this.viewsService, this.layoutService);
-		const setupFromDialog = this.configurationService.getValue('chat.setupFromDialog');
-		if (!setupFromDialog) {
-			ensureSideBarChatViewSize(this.viewDescriptorService, this.layoutService, this.viewsService);
-		}
 
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);

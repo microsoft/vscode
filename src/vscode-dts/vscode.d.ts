@@ -11997,6 +11997,8 @@ declare module 'vscode' {
 		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
 		 * Extensions can use `handleDrag` to add their {@link DataTransferItem `DataTransferItem`} items to the drag and drop.
 		 *
+		 * Mime types added in `handleDrag` won't be available outside the application.
+		 *
 		 * When the items are dropped on **another tree item** in **the same tree**, your `DataTransferItem` objects
 		 * will be preserved. Use the recommended mime type for the tree (`application/vnd.code.tree.<treeidlowercase>`) to add
 		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.

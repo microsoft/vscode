@@ -14,25 +14,21 @@
  *   - add `Windows` support
  */
 
-import { LANGUAGE_SELECTOR } from '../constants.js';
-import { IPromptsService } from '../service/types.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { assertOneOf } from '../../../../../../base/common/types.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Position } from '../../../../../../editor/common/core/position.js';
-import { IPromptFileReference, IPromptReference } from '../parsers/types.js';
-import { dirname, extUri } from '../../../../../../base/common/resources.js';
-import { assert, assertNever } from '../../../../../../base/common/assert.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
+import { LANGUAGE_SELECTOR } from '../../constants.js';
+import { IPromptsService } from '../../service/types.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { assertOneOf } from '../../../../../../../base/common/types.js';
+import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
+import { Position } from '../../../../../../../editor/common/core/position.js';
+import { IPromptFileReference, IPromptReference } from '../../parsers/types.js';
+import { dirname, extUri } from '../../../../../../../base/common/resources.js';
+import { assert, assertNever } from '../../../../../../../base/common/assert.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../../editor/common/languages.js';
 
 /**
  * Type for a filesystem completion item - the one that has its {@link CompletionItem.kind kind} set
@@ -307,8 +303,8 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return [];
 		}
 
-		const currenFolder = extUri.resolvePath(fileFolderUri, path);
-		let suggestions = await this.getFolderSuggestions(currenFolder);
+		const currentFolder = extUri.resolvePath(fileFolderUri, path);
+		let suggestions = await this.getFolderSuggestions(currentFolder);
 
 		// when trigger character was a `.`, which is we know is inside
 		// the folder/file name in the path, filter out to only items
@@ -343,18 +339,4 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 				};
 			});
 	}
-}
-
-/**
- * We restrict this provider to `Unix` machines for now because of
- * the filesystem paths differences on `Windows` operating system.
- *
- * Notes on `Windows` support:
- * 	- we add the `./` for the first path component, which may not work on `Windows`
- * 	- the first path component of the absolute paths must be a drive letter
- */
-if (!isWindows) {
-	// register the provider as a workbench contribution
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-		.registerWorkbenchContribution(PromptPathAutocompletion, LifecyclePhase.Eventually);
 }
