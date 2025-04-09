@@ -10,7 +10,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
-import { INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
+import { CellEditState, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { IModifiedFileEntryChangeHunk } from '../../../common/chatEditingService.js';
 import { ICellDiffInfo } from './notebookCellChanges.js';
@@ -50,56 +50,71 @@ export class OverlayToolbarController extends Disposable {
 			if (!cellViewModel) {
 				continue;
 			}
+			const toolbarContainer = document.createElement('div');
+
+			let overlayId: string | undefined = undefined;
 			editor.changeCellOverlays((accessor) => {
-				const toolbarContainer = document.createElement('div');
 				toolbarContainer.style.right = '44px';
-				const overlayId = accessor.addOverlay({
+				overlayId = accessor.addOverlay({
 					cell: cellViewModel,
 					domNode: toolbarContainer,
 				});
-
-				const toolbar = document.createElement('div');
-				toolbarContainer.appendChild(toolbar);
-				toolbar.className = 'chat-diff-change-content-widget';
-				toolbar.classList.add('hover'); // Show by default
-				toolbar.style.position = 'relative';
-				toolbar.style.top = '18px';
-				toolbar.style.zIndex = '10';
-
-				const removeOverlay = () => {
-					editor.changeCellOverlays(accessor => {
-						accessor.removeOverlay(overlayId);
-					});
-				};
-
-				this.overlayDisposables.add({ dispose: removeOverlay });
-
-				const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.notebookEditor.scopedContextKeyService])));
-				const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, toolbar, MenuId.ChatEditingEditorHunk, {
-					telemetrySource: 'chatEditingNotebookHunk',
-					hiddenItemStrategy: HiddenItemStrategy.NoHide,
-					toolbarOptions: { primaryGroup: () => true },
-					menuOptions: {
-						renderShortTitle: true,
-						arg: {
-							accept() {
-								accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
-								removeOverlay();
-								toolbarWidget.dispose();
-								return change.keep(change.diff.get().changes[0]);
-							},
-							reject() {
-								accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
-								removeOverlay();
-								toolbarWidget.dispose();
-								return change.undo(change.diff.get().changes[0]);
-							}
-						} satisfies IModifiedFileEntryChangeHunk,
-					},
-				});
-
-				this.overlayDisposables.add(toolbarWidget);
 			});
+
+			const removeOverlay = () => {
+				editor.changeCellOverlays(accessor => {
+					if (overlayId) {
+						accessor.removeOverlay(overlayId);
+					}
+				});
+			};
+
+			this.overlayDisposables.add({ dispose: removeOverlay });
+
+			const toolbar = document.createElement('div');
+			toolbarContainer.appendChild(toolbar);
+			toolbar.className = 'chat-diff-change-content-widget';
+			toolbar.classList.add('hover'); // Show by default
+			toolbar.style.position = 'relative';
+			toolbar.style.top = '18px';
+			toolbar.style.zIndex = '10';
+			toolbar.style.display = cellViewModel.getEditState() === CellEditState.Editing ? 'none' : 'block';
+
+			this.overlayDisposables.add(cellViewModel.onDidChangeState((e) => {
+				if (e.editStateChanged) {
+					if (cellViewModel.getEditState() === CellEditState.Editing) {
+						toolbar.style.display = 'none';
+					} else {
+						toolbar.style.display = 'block';
+					}
+				}
+			}));
+
+			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.notebookEditor.scopedContextKeyService])));
+			const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, toolbar, MenuId.ChatEditingEditorHunk, {
+				telemetrySource: 'chatEditingNotebookHunk',
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: { primaryGroup: () => true },
+				menuOptions: {
+					renderShortTitle: true,
+					arg: {
+						accept() {
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+							removeOverlay();
+							toolbarWidget.dispose();
+							return change.keep(change.diff.get().changes[0]);
+						},
+						reject() {
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+							removeOverlay();
+							toolbarWidget.dispose();
+							return change.undo(change.diff.get().changes[0]);
+						}
+					} satisfies IModifiedFileEntryChangeHunk,
+				},
+			});
+
+			this.overlayDisposables.add(toolbarWidget);
 		}
 	}
 
