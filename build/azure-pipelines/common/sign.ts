@@ -208,7 +208,6 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 	];
 
 	try {
-		console.log('ESRP signing arguments: ', args);
 		cp.execFileSync('dotnet', args, { stdio: 'inherit' });
 	} catch (err) {
 		console.error('ESRP failed');
