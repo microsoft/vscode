@@ -9,11 +9,11 @@ import { e } from '../common/publish';
 function printBanner(title: string) {
 	title = `${title} (${new Date().toISOString()})`;
 
-	console.log('\n\n');
+	console.log('\n');
 	console.log('#'.repeat(75));
 	console.log(`# ${title.padEnd(71)} #`);
 	console.log('#'.repeat(75));
-	console.log('\n\n');
+	console.log('\n');
 }
 
 async function handleProcessPromise(name: string, promise: ProcessPromise): Promise<void> {
@@ -24,11 +24,6 @@ async function handleProcessPromise(name: string, promise: ProcessPromise): Prom
 }
 
 function sign(esrpCliDLLPath: string, type: 'sign-darwin' | 'notarize-darwin', folder: string, glob: string): ProcessPromise {
-	console.log('Sign request:');
-	console.log(`  ESRP CLI DLL Path: ${esrpCliDLLPath}`);
-	console.log(`  Type: ${type}`);
-	console.log(`  Folder: ${folder}`);
-	console.log(`  Glob: ${glob}`);
 	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
 }
 

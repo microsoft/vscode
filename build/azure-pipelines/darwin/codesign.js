@@ -8,11 +8,11 @@ const zx_1 = require("zx");
 const publish_1 = require("../common/publish");
 function printBanner(title) {
     title = `${title} (${new Date().toISOString()})`;
-    console.log('\n\n');
+    console.log('\n');
     console.log('#'.repeat(75));
     console.log(`# ${title.padEnd(71)} #`);
     console.log('#'.repeat(75));
-    console.log('\n\n');
+    console.log('\n');
 }
 async function handleProcessPromise(name, promise) {
     const result = await promise.pipe(process.stdout);
@@ -21,11 +21,6 @@ async function handleProcessPromise(name, promise) {
     }
 }
 function sign(esrpCliDLLPath, type, folder, glob) {
-    console.log('Sign request:');
-    console.log(`  ESRP CLI DLL Path: ${esrpCliDLLPath}`);
-    console.log(`  Type: ${type}`);
-    console.log(`  Folder: ${folder}`);
-    console.log(`  Glob: ${glob}`);
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
 }
 async function main() {
