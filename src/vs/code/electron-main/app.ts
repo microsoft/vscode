@@ -168,7 +168,10 @@ export class CodeApplication extends Disposable {
 		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
+		const alwaysAllowedPermissions = new Set(['pointerLock']);
+
 		const allowedPermissionsInWebview = new Set([
+			...alwaysAllowedPermissions,
 			'clipboard-read',
 			'clipboard-sanitized-write',
 			// TODO(deepak1556): Should be removed once migration is complete
@@ -177,6 +180,7 @@ export class CodeApplication extends Disposable {
 		]);
 
 		const allowedPermissionsInCore = new Set([
+			...alwaysAllowedPermissions,
 			'media',
 			'local-fonts',
 			// TODO(deepak1556): Should be removed once migration is complete
