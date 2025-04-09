@@ -277,7 +277,7 @@ export class GitBlameController {
 		}
 
 		// Subject | Message
-		markdownString.appendMarkdown(`${emojify(message.replace(/(?:\r\n|\n\n|\r|\n)/g, '\n\n'))}\n\n`);
+		markdownString.appendMarkdown(`${emojify(message.replace(/(?:\r\n|\r|\n)/g, '\n\n'))}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
 		// Short stats
