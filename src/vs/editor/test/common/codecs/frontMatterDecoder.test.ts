@@ -7,19 +7,14 @@ import { Range } from '../../../common/core/range.js';
 import { TestDecoder } from '../utils/testDecoder.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { newWriteableStream } from '../../../../base/common/stream.js';
-import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
-import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
-import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
-import { Colon } from '../../../common/codecs/simpleCodec/tokens/colon.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
 import { DoubleQuote } from '../../../common/codecs/simpleCodec/tokens/doubleQuote.js';
 import { type TSimpleDecoderToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
-import { ExclamationMark, Quote } from '../../../common/codecs/simpleCodec/tokens/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
 import { FrontMatterDecoder } from '../../../common/codecs/frontMatterCodec/frontMatterDecoder.js';
-import { FrontMatterBoolean, FrontMatterString, FrontMatterArray } from '../../../common/codecs/frontMatterCodec/tokens/index.js';
-import { FrontMatterRecord, FrontMatterRecordDelimiter, FrontMatterRecordName } from '../../../common/codecs/frontMatterCodec/parsers/frontMatterRecord.js';
+import { ExclamationMark, Quote, Tab, Word, Space, Colon } from '../../../common/codecs/simpleCodec/tokens/index.js';
+import { FrontMatterBoolean, FrontMatterString, FrontMatterArray, FrontMatterRecord, FrontMatterRecordDelimiter, FrontMatterRecordName } from '../../../common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
  * Front Matter decoder for testing purposes.
