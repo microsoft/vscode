@@ -248,6 +248,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	//#endregion
 
+	protected scopedContextKeyService: IContextKeyService;
+
 	protected rootContainer!: HTMLElement;
 	protected windowControlsContainer: HTMLElement | undefined;
 
@@ -302,7 +304,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
@@ -313,12 +315,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.isAuxiliary = editorGroupsContainer !== 'main';
 
-		this.contextKeyService = contextKeyService.createScoped(layoutService.getContainer(targetWindow));
-		const isAuxiliaryTitleBarContext = IsAuxiliaryTitleBarContext.bindTo(this.contextKeyService);
+		this.scopedContextKeyService = contextKeyService.createScoped(layoutService.getContainer(targetWindow));
+		const isAuxiliaryTitleBarContext = IsAuxiliaryTitleBarContext.bindTo(this.scopedContextKeyService);
 		isAuxiliaryTitleBarContext.set(this.isAuxiliary);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
-		this.globalToolbarMenu = this._register(this.menuService.createMenu(MenuId.TitleBar, this.contextKeyService));
+		this.globalToolbarMenu = this._register(this.menuService.createMenu(MenuId.TitleBar, this.scopedContextKeyService));
 
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.editorGroupsContainer = editorGroupsContainer === 'main' ? editorGroupService.mainPart : editorGroupsContainer;
@@ -595,7 +597,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		const editorPaneAwareContextKeyService = this.editorGroupsContainer.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const editorPaneAwareContextKeyService = this.editorGroupsContainer.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.scopedContextKeyService;
 
 		return this.keybindingService.lookupKeybinding(action.id, editorPaneAwareContextKeyService);
 	}
@@ -699,7 +701,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.layoutToolbarMenuDisposables.clear();
 
 			if (this.layoutControlEnabled) {
-				this.layoutToolbarMenu = this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService);
+				this.layoutToolbarMenu = this.menuService.createMenu(MenuId.LayoutControlMenu, this.scopedContextKeyService);
 
 				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu);
 				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu.onDidChange(() => updateToolBarActions()));
@@ -766,7 +768,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
 			menuId,
-			contextKeyService: this.contextKeyService,
+			contextKeyService: this.scopedContextKeyService,
 			domForShadowRoot: isMacintosh && isNative ? event.target : undefined
 		});
 	}

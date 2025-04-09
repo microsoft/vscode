@@ -86,7 +86,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	}
 
 	private async handleWindowsAlwaysOnTop(targetWindowId: number): Promise<void> {
-		const isWindowAlwaysOnTopContext = IsWindowAlwaysOnTopContext.bindTo(this.contextKeyService);
+		const isWindowAlwaysOnTopContext = IsWindowAlwaysOnTopContext.bindTo(this.scopedContextKeyService);
 
 		this._register(this.nativeHostService.onDidChangeWindowAlwaysOnTop(({ windowId, alwaysOnTop }) => {
 			if (windowId === targetWindowId) {

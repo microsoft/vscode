@@ -428,10 +428,7 @@ export class ToggleWindowAlwaysOnTopAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleWindowAlwaysOnTopAction.ID,
-			title: {
-				...localize2('toggleWindowAlwaysOnTop', "Toggle Window Always On Top"),
-				mnemonicTitle: localize({ key: 'miToggleWindowAlwaysOnTop', comment: ['&& denotes a mnemonic'] }, "Tog&&gle Window Always On Top"),
-			},
+			title: localize('toggleWindowAlwaysOnTop', "Toggle Window Always on Top"),
 			icon: Codicon.pin,
 			toggled: { condition: IsWindowAlwaysOnTopContext, icon: Codicon.pinned },
 			menu: {
@@ -450,6 +447,6 @@ export class ToggleWindowAlwaysOnTopAction extends Action2 {
 			return; // Currently, we only support toggling always on top for auxiliary windows
 		}
 
-		nativeHostService.toggleWindowAlwaysOnTop({ targetWindowId: getActiveWindow().vscodeWindowId });
+		return nativeHostService.toggleWindowAlwaysOnTop({ targetWindowId: getActiveWindow().vscodeWindowId });
 	}
 }
