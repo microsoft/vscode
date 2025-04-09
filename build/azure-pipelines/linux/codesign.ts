@@ -35,15 +35,15 @@ async function main() {
 	// 1. Codesign deb package
 	// 2. Codesign rpm package
 	const codesignTask1 = sign('sign-pgp', '.build/linux/deb', '*.deb');
-	const codesignTask2 = sign('sign-pgp', '.build/linux/rpm', '*.rpm');
+	// const codesignTask2 = sign('sign-pgp', '.build/linux/rpm', '*.rpm');
 
 	// Codesign deb package
 	printBanner('Codesign deb package');
 	await codesignTask1.pipe(process.stdout);
 
 	// Codesign rpm package
-	printBanner('Codesign rpm package');
-	await codesignTask2.pipe(process.stdout);
+	// printBanner('Codesign rpm package');
+	// await codesignTask2.pipe(process.stdout);
 }
 
 main();

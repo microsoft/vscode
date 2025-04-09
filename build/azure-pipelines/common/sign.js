@@ -191,6 +191,7 @@ function main([esrpCliPath, type, folderPath, pattern]) {
         '-federatedTokenData', JSON.stringify(federatedTokenData)
     ];
     try {
+        console.log('ESRP signing arguments: ', args);
         child_process_1.default.execFileSync('dotnet', args, { stdio: 'inherit' });
     }
     catch (err) {
