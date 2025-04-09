@@ -5,15 +5,13 @@
 
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { FrontMatterToken } from './tokens/frontMatterToken.js';
-import { Space, Tab, Word } from '../simpleCodec/tokens/index.js';
+import { ReadableStream } from '../../../../base/common/stream.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
-import { assert, assertNever } from '../../../../base/common/assert.js';
+import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { ObservableDisposable } from '../../../../base/common/observableDisposable.js';
+import { FormFeed, Space, Tab, VerticalTab, Word } from '../simpleCodec/tokens/index.js';
 import { SimpleDecoder, type TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
-import { newWriteableStream, WriteableStream, ReadableStream } from '../../../../base/common/stream.js';
-import { FrontMatterRecord, PartialFrontMatterRecord, PartialFrontMatterRecordName, PartialFrontMatterRecordNameWithDelimiter } from './parsers/frontMatterRecord.js';
+import { PartialFrontMatterRecord, PartialFrontMatterRecordName, PartialFrontMatterRecordNameWithDelimiter } from './parsers/frontMatterRecord.js';
 
 /**
  * Tokens produced by this decoder.
@@ -21,163 +19,27 @@ import { FrontMatterRecord, PartialFrontMatterRecord, PartialFrontMatterRecordNa
 export type TFrontMatterToken = FrontMatterRecord | TSimpleDecoderToken;
 
 /**
- * TODO: @legomushroom
+ * List of valid "space" tokens that are allowed in between
+ * separate records of a Front Matter header.
  */
-class TokenStream<T> extends ObservableDisposable implements ReadableStream<T> {
-	private readonly _stream: WriteableStream<T>;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private index: number;
-
-	constructor(
-		private readonly tokens: readonly T[],
-	) {
-		super();
-
-		this._stream = newWriteableStream<T>(null);
-		this.index = 0;
-
-		this.startSendingTokens();
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private interval: NodeJS.Timeout | undefined;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private startSendingTokens(): void {
-		assert(
-			this.interval === undefined,
-			'Tokens are already being sent.',
-		);
-
-		assert(
-			this.index === 0,
-			'Tokens are already being sent.',
-		);
-
-		if (this.tokens.length === 0) {
-			this._stream.end();
-			return;
-		}
-
-		this.interval = setInterval(() => {
-			if (this.index >= this.tokens.length) {
-				clearInterval(this.interval);
-				delete this.interval;
-
-				this._stream.end();
-
-				return;
-			}
-
-			this.sendSomeTokens();
-		}, 1);
-
-		this._register({
-			dispose: () => {
-				clearInterval(this.interval);
-				delete this.interval;
-			}
-		});
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private sendSomeTokens(): void {
-		const tokensLeft = this.tokens.length - this.index;
-		if (tokensLeft <= 0) {
-			return;
-		}
-
-		// send up to 10 tokens at a time
-		let tokensToSend = Math.min(tokensLeft, 10);
-		while (tokensToSend > 0) {
-			assert(
-				this.index < this.tokens.length,
-				`Token index '${this.index}' is out of bounds.`,
-			);
-
-			this._stream.write(this.tokens[this.index]);
-			this.index++;
-			tokensToSend--;
-		}
-	}
-
-	public pause(): void {
-		return this._stream.pause();
-	}
-
-	public resume(): void {
-		return this._stream.resume();
-	}
-
-	public destroy(): void {
-		this._stream.destroy();
-		this.dispose();
-	}
-
-	public removeListener(event: string, callback: Function): void {
-		return this._stream.removeListener(event, callback);
-	}
-
-	public on(event: 'data', callback: (data: T) => void): void;
-	public on(event: 'error', callback: (err: Error) => void): void;
-	public on(event: 'end', callback: () => void): void;
-	public on(event: 'data' | 'error' | 'end', callback: (arg?: any) => void): void {
-		if (event === 'data') {
-			return this._stream.on(event, callback);
-		}
-
-		if (event === 'error') {
-			return this._stream.on(event, callback);
-		}
-
-		if (event === 'end') {
-			return this._stream.on(event, callback);
-		}
-
-		assertNever(
-			event,
-			`Unexpected event name '${event}'.`,
-		);
-	}
-}
+const VALID_SPACE_TOKENS = [
+	Space, Tab, CarriageReturn, NewLine, FormFeed, VerticalTab
+];
 
 /**
- * TODO: @legomushroom
+ * Decoder capable of parsing Front Matter contents from a sequence of simple tokens.
  */
 export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDecoderToken> {
 	/**
-	 * TODO: @legomushroom
+	 * Current parser reference responsible for parsing a specific sequence
+	 * of tokens into a standalone token.
 	 */
 	private current?: PartialFrontMatterRecordName | PartialFrontMatterRecordNameWithDelimiter | PartialFrontMatterRecord;
 
 	constructor(
-		stream: ReadableStream<VSBuffer> | TokenStream<TSimpleDecoderToken> | SimpleDecoder,
+		stream: ReadableStream<VSBuffer>,
 	) {
-		if ((stream instanceof TokenStream) || (stream instanceof SimpleDecoder)) {
-			super(stream);
-
-			return;
-		}
-
 		super(new SimpleDecoder(stream));
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public static fromTokens(
-		tokens: readonly TSimpleDecoderToken[],
-	): FrontMatterDecoder {
-		return new FrontMatterDecoder(new TokenStream(tokens));
 	}
 
 	protected override onStreamData(token: TSimpleDecoderToken): void {
@@ -217,20 +79,22 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 			return;
 		}
 
-		// TODO: @legomushroom - add other tokens?
-		// TODO: @legomushroom - reuse common constant with the tokens list
-		if ((token instanceof Space) || (token instanceof Tab) || (token instanceof CarriageReturn) || (token instanceof NewLine)) {
-			this._onData.fire(token);
-			return;
-		}
-
+		// a word token starts a new record
 		if (token instanceof Word) {
 			this.current = new PartialFrontMatterRecordName(token);
 			return;
 		}
 
+		// re-emit all "space" tokens immediately as all of them
+		// are valid while we are not in the "record parsing" mode
+		for (const ValidToken of VALID_SPACE_TOKENS) {
+			if (token instanceof ValidToken) {
+				this._onData.fire(token);
+				return;
+			}
+		}
+
 		// unexpected token type, re-emit existing tokens and continue
-		// TODO: @legomushroom - fire an error event?
 		this.reEmitCurrentTokens();
 	}
 
@@ -240,7 +104,6 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 				return;
 			}
 
-			// TODO: @legomushroom - fire an error event?
 			this.reEmitCurrentTokens();
 		} finally {
 			delete this.current;

@@ -3,39 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Colon, Word, Dash, Space, Tab } from '../../simpleCodec/tokens/index.js';
-import { FrontMatterToken, FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { FrontMatterValueToken, FrontMatterRecordName, type TRecordNameToken, type TRecordSpaceToken, FrontMatterRecordDelimiter, FrontMatterRecord } from '../tokens/index.js';
 
 /**
- * TODO: @legomushroom
+ * Tokens that can be used inside a record name.
  */
-type TNameToken = Word | Dash;
-
-/**
- * TODO: @legomushroom
- */
-// TODO: @legomushroom - any other tokens allowed?
-const VALID_NON_VALUE_TOKENS = [
-	Space, Tab,
-];
-
-/**
- * TODO: @legomushroom
- */
-// TODO: @legomushroom - any other tokens allowed?
 const VALID_NAME_TOKENS = [
 	Word, Dash,
 ];
 
 /**
- * TODO: @legomushroom
+ * List of a "space" tokens that are allowed in between
+ * record name, delimiter and value tokens inside a record.
+ *
+ * E.g. the following is a valid record with `\t` used as a "space" token:
+ *
+ * ```
+ * \t\tname\t\t:\t\t'value'\t\t\n
+ * ```
  */
-export class PartialFrontMatterRecordName extends ParserBase<TNameToken, PartialFrontMatterRecordName | PartialFrontMatterRecordNameWithDelimiter> {
+const VALID_SPACE_TOKENS = [
+	Space, Tab,
+];
+
+/**
+ * List of tokens that terminate a record name.
+ */
+const VALID_NAME_STOP_TOKENS = [
+	...VALID_SPACE_TOKENS,
+	Colon,
+];
+
+/**
+ * Parser for a `name` part of a Front Matter record.
+ *
+ * E.g., `'name'` in the example below:
+ *
+ * ```
+ * name: 'value'
+ * ```
+ */
+export class PartialFrontMatterRecordName extends ParserBase<TRecordNameToken, PartialFrontMatterRecordName | PartialFrontMatterRecordNameWithDelimiter> {
 	constructor(
 		startToken: Word,
 	) {
@@ -56,15 +69,19 @@ export class PartialFrontMatterRecordName extends ParserBase<TNameToken, Partial
 			}
 		}
 
-		if ((token instanceof Space) || (token instanceof Tab) || (token instanceof Colon)) {
-			const recordName = new FrontMatterRecordName(this.currentTokens);
+		// once name is followed by a "space" token or a "colon", we have the full
+		// record name hence can transition to the next parser
+		for (const SpaceOrDelimiterToken of VALID_NAME_STOP_TOKENS) {
+			if (token instanceof SpaceOrDelimiterToken) {
+				const recordName = new FrontMatterRecordName(this.currentTokens);
 
-			this.isConsumed = true;
-			return {
-				result: 'success',
-				nextParser: new PartialFrontMatterRecordNameWithDelimiter([recordName, token]),
-				wasTokenConsumed: true,
-			};
+				this.isConsumed = true;
+				return {
+					result: 'success',
+					nextParser: new PartialFrontMatterRecordNameWithDelimiter([recordName, token]),
+					wasTokenConsumed: true,
+				};
+			}
 		}
 
 		// in all other cases fail due to the unexpected token type for a record name
@@ -77,11 +94,17 @@ export class PartialFrontMatterRecordName extends ParserBase<TNameToken, Partial
 }
 
 /**
- * TODO: @legomushroom
+ * Parser for a record `name` with the `: ` delimiter.
+ *
+ *  * E.g., `name:` in the example below:
+ *
+ * ```
+ * name: 'value'
+ * ```
  */
-export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<FrontMatterRecordName | Space | Tab | Colon, PartialFrontMatterRecordNameWithDelimiter | PartialFrontMatterRecord> {
+export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<FrontMatterRecordName | TRecordSpaceToken | Colon, PartialFrontMatterRecordNameWithDelimiter | PartialFrontMatterRecord> {
 	constructor(
-		tokens: readonly [FrontMatterRecordName, Space | Tab | Colon],
+		tokens: readonly [FrontMatterRecordName, TRecordSpaceToken | Colon],
 	) {
 		super([...tokens]);
 	}
@@ -92,6 +115,8 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<FrontM
 
 		const isSpacingToken = (token instanceof Space) || (token instanceof Tab);
 
+		// delimiter must always be a `:` followed by a "space" character
+		// once we encounter that sequence, we can transition to the next parser
 		if ((isSpacingToken === true) && (previousToken instanceof Colon)) {
 			const recordDelimiter = new FrontMatterRecordDelimiter([
 				previousToken,
@@ -117,7 +142,7 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<FrontM
 		}
 
 		// allow some spacing before the colon delimiter
-		for (const ValidToken of VALID_NON_VALUE_TOKENS) {
+		for (const ValidToken of VALID_SPACE_TOKENS) {
 			if (token instanceof ValidToken) {
 				this.currentTokens.push(token);
 
@@ -129,6 +154,7 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<FrontM
 			}
 		}
 
+		// include the colon delimiter
 		if (token instanceof Colon) {
 			this.currentTokens.push(token);
 
@@ -150,100 +176,16 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<FrontM
 }
 
 /**
- * TODO: @legomushroom
- */
-export class FrontMatterRecordName extends FrontMatterToken {
-	constructor(
-		public readonly tokens: readonly TNameToken[],
-	) {
-		super(BaseToken.fullRange(tokens));
-	}
-
-	public override get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-
-	public override toString(): string {
-		return `front-matter-record-name(${this.shortText()})${this.range}`;
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export class FrontMatterRecord extends FrontMatterToken {
-	constructor(
-		public readonly tokens: readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken],
-	) {
-		super(
-			BaseToken.fullRange(tokens),
-		);
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public static fromTokens(
-		tokens: readonly FrontMatterToken[],
-	): FrontMatterRecord {
-		assert(
-			tokens.length === 3,
-			`A front matter record must consist of exactly 3 tokens, got '${tokens.length}'.`,
-		);
-
-		const token1 = tokens[0];
-		const token2 = tokens[1];
-		const token3 = tokens[2];
-
-		assert(
-			token1 instanceof FrontMatterRecordName,
-			`Token #1 must be a front matter record name, got '${token1}'.`,
-		);
-		assert(
-			token2 instanceof FrontMatterRecordDelimiter,
-			`Token #2 must be a front matter record delimiter, got '${token2}'.`,
-		);
-		assert(
-			token3 instanceof FrontMatterValueToken,
-			`Token #3 must be a front matter value, got '${token3}'.`,
-		);
-
-		return new FrontMatterRecord([
-			token1, token2, token3,
-		]);
-	}
-
-	public override get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-	public override toString(): string {
-		return `front-matter-record(${this.shortText()})${this.range}`;
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export class FrontMatterRecordDelimiter extends FrontMatterToken {
-	constructor(
-		public readonly tokens: readonly [Colon, Space | Tab],
-	) {
-		super(
-			BaseToken.fullRange(tokens),
-		);
-	}
-
-	public override get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-
-	public override toString(): string {
-		return `front-matter-delimiter(${this.shortText()})${this.range}`;
-	}
-}
-
-/**
- * TODO: @legomushroom
+ * Parser for a `record` inside a Front Matter header.
+ *
+ *  * E.g., `name: 'value'` in the example below:
+ *
+ * ```
+ * ---
+ * name: 'value'
+ * isExample: true
+ * ---
+ * ```
  */
 export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, PartialFrontMatterRecord | FrontMatterRecord> {
 	constructor(
@@ -253,7 +195,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Current parser reference responsible for parsing the "value" part of the record.
 	 */
 	private currentValueParser?: PartialFrontMatterValue;
 
@@ -306,7 +248,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 		}
 
 		// iterate until the first "value" token is found
-		for (const ValidToken of VALID_NON_VALUE_TOKENS) {
+		for (const ValidToken of VALID_SPACE_TOKENS) {
 			if (token instanceof ValidToken) {
 				this.currentTokens.push(token);
 
@@ -318,6 +260,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 			}
 		}
 
+		// if token can start a "value" sequence, parse the value
 		if (PartialFrontMatterValue.isValueStartToken(token)) {
 			this.currentValueParser = new PartialFrontMatterValue();
 

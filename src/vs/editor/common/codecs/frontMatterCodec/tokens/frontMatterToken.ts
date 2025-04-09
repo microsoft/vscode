@@ -6,11 +6,11 @@
 import { BaseToken } from '../../baseToken.js';
 
 /**
- * TODO: @legomushroom
+ * Base class for all tokens inside a Front Matter header.
  */
 export abstract class FrontMatterToken extends BaseToken { }
 
 /**
- * TODO: @legomushroom
+ * Base class for all tokens that represent a `value` inside a Front Matter header.
  */
 export abstract class FrontMatterValueToken extends FrontMatterToken { }
