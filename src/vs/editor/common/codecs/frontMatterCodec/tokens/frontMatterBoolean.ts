@@ -5,7 +5,7 @@
 
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { Range } from '../../../core/range.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 
 /**
@@ -39,8 +39,6 @@ export class FrontMatterBoolean extends FrontMatterValueToken {
 	}
 }
 
-
-
 /**
  * TODO: @legomushroom
  */
@@ -56,15 +54,4 @@ const asBoolean = (
 	}
 
 	return null;
-};
-
-/**
- * TODO: @legomushroom
- */
-const isBooleanWord = (
-	token: Word,
-): boolean => {
-	const result = asBoolean(token);
-
-	return (result !== null);
 };

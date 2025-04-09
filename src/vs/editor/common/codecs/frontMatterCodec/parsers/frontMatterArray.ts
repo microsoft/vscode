@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
@@ -10,9 +11,8 @@ import { assertDefined } from '../../../../../base/common/types.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
-import { Comma, DoubleQuote, LeftBracket, Quote, RightBracket, Space, Tab, Word } from '../../simpleCodec/tokens/index.js';
+import { Comma, LeftBracket, RightBracket, Space, Tab } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
-import { NewLine } from '../../linesCodec/tokens/newLine.js';
 
 /**
  * TODO: @legomushroom
@@ -41,7 +41,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	/**
 	 * TODO: @legomushroom
 	 */
-	private canBeValue = true;
+	private arrayItemAllowed = true;
 
 	constructor(
 		private readonly startToken: LeftBracket,
@@ -108,8 +108,8 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			if (token instanceof AllowedToken) {
 				this.currentTokens.push(token);
 
-				if (token instanceof Comma) {
-					this.canBeValue = true;
+				if ((this.arrayItemAllowed === false) && token instanceof Comma) {
+					this.arrayItemAllowed = true;
 				}
 
 				return {
@@ -121,9 +121,9 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 		}
 
 		// once we found a valid start value token, create a new value parser
-		if ((this.canBeValue === true) && PartialFrontMatterValue.isValueStartToken(token)) {
+		if ((this.arrayItemAllowed === true) && PartialFrontMatterValue.isValueStartToken(token)) {
 			this.currentValueParser = new PartialFrontMatterValue();
-			this.canBeValue = false;
+			this.arrayItemAllowed = false;
 
 			return this.accept(token);
 		}
@@ -137,27 +137,34 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	}
 
 	/**
-		 * TODO: @legomushroom
-		 */
+	 * TODO: @legomushroom
+	 */
 	public asArrayToken(): FrontMatterArray {
 		this.isConsumed = true;
 
+		const endToken = this.currentTokens[this.currentTokens.length - 1];
+
 		assertDefined(
-			this.endToken,
-			`No matching end bracket found.`,
+			endToken,
+			`No tokens found.`,
 		);
 
-		const middleTokens: FrontMatterValueToken[] = [];
+		assert(
+			endToken instanceof RightBracket,
+			'Cannot find a closing bracket of the array.',
+		);
+
+		const valueTokens: FrontMatterValueToken[] = [];
 		for (const currentToken of this.currentTokens) {
 			if (currentToken instanceof FrontMatterValueToken) {
-				middleTokens.push(currentToken);
+				valueTokens.push(currentToken);
 			}
 		}
 
 		return new FrontMatterArray([
 			this.startToken,
-			...middleTokens,
-			this.endToken,
+			...valueTokens,
+			endToken,
 		]);
 	}
 }

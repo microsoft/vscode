@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseToken } from '../../baseToken.js';
 import { PartialFrontMatterArray } from './frontMatterArray.js';
 import { PartialFrontMatterString } from './frontMatterString.js';
 import { FrontMatterBoolean } from '../tokens/frontMatterBoolean.js';
@@ -10,14 +11,6 @@ import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Word, Quote, DoubleQuote, LeftBracket } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
-import { BaseToken } from '../../baseToken.js';
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// export const VALUE_START_TOKENS = [
-// 	Word, Quote, DoubleQuote, LeftBracket,
-// ];
 
 /**
  * TODO: @legomushroom
