@@ -11,11 +11,10 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => !/sbom$/.test(a.name));
 }
 
-async function main() {
-	const artifacts = [
-		'unsigned_vscode_client_darwin_x64_archive',
-		'unsigned_vscode_client_darwin_arm64_archive'
-	];
+async function main(artifacts: string[]): Promise<void> {
+	if (artifacts.length === 0) {
+		throw new Error(`Usage: node waitForArtifacts.js <artifactName1> <artifactName2> ...`);
+	}
 
 	// This loop will run for 30 minutes and waits to the x64 and arm64 artifacts
 	// to be uploaded to the pipeline by the `macOS` and `macOSARM64` jobs. As soon
@@ -44,7 +43,7 @@ async function main() {
 	throw new Error(`ERROR: Artifacts (${artifacts.join(', ')}) were not uploaded within 30 minutes.`);
 }
 
-main().then(() => {
+main(process.argv.splice(2)).then(() => {
 	process.exit(0);
 }, err => {
 	console.error(err);
