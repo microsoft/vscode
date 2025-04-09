@@ -64,6 +64,9 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 			});
 			process.on('close', () => {
 				const result = chunks.flat().map(path => relative(basePath, path).replace(/\\/g, '/')).filter(Boolean).sort();
+				if (result.some(path => path.indexOf('vs/') !== 0)) {
+					this.logService.error(`[CSS_DEV] Detected invalid paths in css modules: ${result.filter(path => path.indexOf('vs/') !== 0)} with base path ${basePath}\nOriginal RipGrep output:\n${chunks.flat().join('\n')}`);
+				}
 				resolve(result);
 				this.logService.info(`[CSS_DEV] DONE, ${result.length} css modules (${Math.round(sw.elapsed())}ms)`);
 			});
