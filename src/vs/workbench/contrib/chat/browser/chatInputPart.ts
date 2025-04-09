@@ -66,6 +66,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ResourceLabels } from '../../../browser/labels.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
@@ -123,6 +124,7 @@ interface IChatInputPartOptions {
 	renderWorkingSet?: boolean;
 	enableImplicitContext?: boolean;
 	supportsChangingModes?: boolean;
+	widgetViewKindTag: string;
 }
 
 export interface IWorkingSetEntry {
@@ -355,6 +357,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatService private readonly chatService: IChatService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
+		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -538,7 +541,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
-	initForNewChatModel(state: IChatViewState): void {
+	initForNewChatModel(state: IChatViewState, modelIsEmpty: boolean): void {
 		this.history = this.loadHistory();
 		this.history.add({
 			text: state.inputValue ?? this.history.current().text,
@@ -556,6 +559,59 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (this.location === ChatAgentLocation.EditingSession) {
 			this.setChatMode(ChatMode.Edit);
 		}
+
+		if (modelIsEmpty) {
+			const storageKey = this.getDefaultModeExperimentStorageKey();
+			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
+			if (!hasSetDefaultMode) {
+				Promise.all([
+					this.experimentService.getTreatment('chat.defaultMode'),
+					this.experimentService.getTreatment('chat.defaultLanguageModel'),
+				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
+					if (typeof defaultModeTreatment === 'string') {
+						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						const defaultMode = validateChatMode(defaultModeTreatment);
+						if (defaultMode) {
+							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
+							this.setChatMode(defaultMode);
+							this.checkModelSupported();
+						}
+					}
+
+					if (typeof defaultLanguageModelTreatment === 'string' && this._currentMode === ChatMode.Agent) {
+						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
+						this.setExpModelOrWait(defaultLanguageModelTreatment);
+					}
+				});
+			}
+		}
+	}
+
+	private setExpModelOrWait(modelId: string) {
+		const model = this.languageModelsService.lookupLanguageModel(modelId);
+		if (model) {
+			this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
+			this.checkModelSupported();
+			this._waitForPersistedLanguageModel.clear();
+		} else {
+			this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
+				const model = e.added?.find(m => m.identifier === modelId);
+				if (model) {
+					this._waitForPersistedLanguageModel.clear();
+
+					if (model.metadata.isUserSelectable) {
+						this.setCurrentLanguageModel({ metadata: model.metadata, identifier: modelId });
+						this.checkModelSupported();
+					}
+				}
+			});
+		}
+	}
+
+	private getDefaultModeExperimentStorageKey(): string {
+		const tag = this.options.widgetViewKindTag;
+		return `chat.${tag}.hasSetDefaultModeByExperiment`;
 	}
 
 	logInputHistory(): void {
