@@ -586,6 +586,7 @@ extends:
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
+                      VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: electron
@@ -598,6 +599,7 @@ extends:
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
+                      VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: browser
@@ -610,6 +612,7 @@ extends:
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
+                      VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: remote
@@ -620,36 +623,15 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
+                  BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
+                      VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
-              - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
-                - job: macOSTest
-                  timeoutInMinutes: 90
-                  variables:
-                    VSCODE_ARCH: arm64
-                  steps:
-                    - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
-                      parameters:
-                        VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                        VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                        VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                        VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                        VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-
-              - job: macOSSign
-                dependsOn:
-                  - macOS
-                timeoutInMinutes: 90
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
-
-              - job: macOSCLISign
+              - job: macOSCLI
                 timeoutInMinutes: 90
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-cli-sign.yml@self
@@ -663,40 +645,25 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
+                  BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
+                      VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-
-              - job: macOSARM64Sign
-                dependsOn:
-                  - macOSARM64
-                timeoutInMinutes: 90
-                variables:
-                  VSCODE_ARCH: arm64
-                steps:
-                  - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
+                      VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
               - job: macOSUniversal
-                dependsOn:
-                  - macOS
-                  - macOSARM64
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: universal
+                  BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-universal.yml@self
-
-              - job: macOSUniversalSign
-                dependsOn:
-                  - macOSUniversal
-                timeoutInMinutes: 90
-                variables:
-                  VSCODE_ARCH: universal
-                steps:
-                  - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
         - stage: Web
