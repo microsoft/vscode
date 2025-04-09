@@ -114,42 +114,15 @@ steps:
       Pattern: noop
     displayName: 'Install ESRP Tooling'
 
-  - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
-      $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
-      echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
-    displayName: Find ESRP CLI
-
-  - script: |
-      # For legacy purposes, arch for x64 is just 'darwin'
-      case $VSCODE_ARCH in
-        x64) ASSET_ID="darwin" ;;
-        arm64) ASSET_ID="darwin-arm64" ;;
-        universal) ASSET_ID="darwin-universal" ;;
-      esac
-      echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
-    displayName: Set asset id variable
-
-  - script: |
-      if [ -z "$(ASSET_ID)" ]; then
-        echo "ASSET_ID is empty"
-        exit 1
-      else
-        echo "ASSET_ID is set to $(ASSET_ID)"
-      fi
-    displayName: Check ASSET_ID variable
-
-  - script: npx deemon --detach --wait -- npx zx build/azure-pipelines/darwin/codesign.js
+  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
     env:
-      EsrpCliDllPath: $(EsrpCliDllPath)
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: ✍️ Codesign & Notarize
+    displayName: ✍️ Codesign
 
-  - script: npx deemon --attach -- npx zx build/azure-pipelines/darwin/codesign.js
-    condition: succeededOrFailed()
-    displayName: "Post-job: ✍️ Codesign & Notarize"
+  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: ✍️ Notarize
 
   - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
     displayName: Extract signed app
@@ -170,7 +143,7 @@ steps:
 
   - task: 1ES.PublishPipelineArtifact@1
     inputs:
-      targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
+      targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-universal.zip
       artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
       sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
       sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
