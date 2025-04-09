@@ -6,7 +6,7 @@
 import { distinct, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { Barrier, CancelablePromise, createCancelablePromise } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError, isInvalidAuthorityError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -936,7 +936,7 @@ export function toExtensionManagementError(error: Error, code?: ExtensionManagem
 	if (error instanceof ExtensionGalleryError) {
 		extensionManagementError = new ExtensionManagementError(error.message, error.code === ExtensionGalleryErrorCode.DownloadFailedWriting ? ExtensionManagementErrorCode.DownloadFailedWriting : ExtensionManagementErrorCode.Gallery);
 	} else {
-		extensionManagementError = new ExtensionManagementError(error.message, isCancellationError(error) ? ExtensionManagementErrorCode.Cancelled : (code ?? ExtensionManagementErrorCode.Internal));
+		extensionManagementError = new ExtensionManagementError(error.message, isInvalidAuthorityError(error) ? ExtensionManagementErrorCode.InvalidAuthority : isCancellationError(error) ? ExtensionManagementErrorCode.Cancelled : code ?? ExtensionManagementErrorCode.Internal);
 	}
 	extensionManagementError.stack = error.stack;
 	return extensionManagementError;
