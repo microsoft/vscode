@@ -60,7 +60,6 @@ export interface IDynamicVariable {
 	id: string;
 	fullName?: string;
 	icon?: ThemeIcon;
-	prefix?: string;
 	modelDescription?: string;
 	isFile?: boolean;
 	isDirectory?: boolean;

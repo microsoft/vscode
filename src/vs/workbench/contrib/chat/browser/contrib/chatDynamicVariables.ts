@@ -18,7 +18,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
-import { Command, isLocation } from '../../../../../editor/common/languages.js';
+import { Command, isLocation, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -357,7 +357,6 @@ export class SelectAndInsertFileAction extends Action2 {
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			id: 'vscode.file',
 			isFile: true,
-			prefix: 'file',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: resource
 		});
@@ -412,7 +411,6 @@ export class SelectAndInsertFolderAction extends Action2 {
 			id: 'vscode.folder',
 			isFile: false,
 			isDirectory: true,
-			prefix: 'folder',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: folder
 		});
@@ -666,10 +664,10 @@ export class SelectAndInsertSymAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: 'vscode.symbol',
-			prefix: 'symbol',
+			id: `vscode.symbol/${JSON.stringify(symbol.location)}`,
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: symbol.location
+			data: symbol.location,
+			icon: SymbolKinds.toIcon(symbol.kind)
 		});
 	}
 }
@@ -739,7 +737,6 @@ export class AddDynamicVariableAction extends Action2 {
 			id: context.id,
 			range: range,
 			isFile: true,
-			prefix: 'file',
 			data: variableData
 		});
 	}
@@ -868,7 +865,6 @@ export class SelectAndInsertProblemAction extends Action2 {
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			id: 'vscode.problems',
-			prefix: SelectAndInsertProblemAction.Name,
 			range: varRange,
 			data: { id: 'vscode.problems', filter: pick } satisfies IChatRequestProblemsVariable,
 		});
