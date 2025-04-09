@@ -52,9 +52,7 @@ export const toChatVariable = (
 		id,
 		name: uri.fsPath,
 		value: uri,
-		isSelection: false,
-		enabled: true,
-		isFile: true,
+		kind: 'file',
 	};
 };
 

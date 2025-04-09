@@ -49,7 +49,7 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	get fileAttachments(): URI[] {
-		return this.attachments.filter(file => file.isFile && URI.isUri(file.value))
+		return this.attachments.filter(file => file.kind === 'file' && URI.isUri(file.value))
 			.map(file => file.value as URI);
 	}
 
@@ -80,20 +80,20 @@ export class ChatAttachmentModel extends Disposable {
 
 	addFolder(uri: URI) {
 		this.addContext({
+			kind: 'directory',
 			value: uri,
 			id: uri.toString(),
 			name: basename(uri),
-			isFile: false,
-			isDirectory: true,
+
 		});
 	}
 
 	asVariableEntry(uri: URI, range?: IRange): IChatRequestVariableEntry {
 		return {
+			kind: 'file',
 			value: range ? { uri, range } : uri,
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
-			isFile: true,
 		};
 	}
 
@@ -111,7 +111,6 @@ export class ChatAttachmentModel extends Disposable {
 			fullName: uri.path,
 			value: resizedImage,
 			kind: 'image',
-			isFile: false,
 			references: [{ reference: uri, kind: 'reference' }]
 		};
 	}

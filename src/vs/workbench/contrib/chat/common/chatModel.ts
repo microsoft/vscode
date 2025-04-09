@@ -31,7 +31,7 @@ import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownCont
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 
-export interface IBaseChatRequestVariableEntry {
+interface IBaseChatRequestVariableEntry {
 	id: string;
 	fullName?: string;
 	icon?: ThemeIcon;
@@ -46,11 +46,19 @@ export interface IBaseChatRequestVariableEntry {
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 
-	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
-	kind?: never;
-	isFile?: boolean;
-	isDirectory?: boolean;
 	omittedState?: OmittedState;
+}
+
+export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
+	kind: 'generic';
+}
+
+export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
+	kind: 'directory';
+}
+
+export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
+	kind: 'file';
 }
 
 export const enum OmittedState {
@@ -59,12 +67,11 @@ export const enum OmittedState {
 	Full,
 }
 
-
-export interface IChatRequestToolEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';
 }
 
-export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'implicit';
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
@@ -72,7 +79,7 @@ export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequest
 	enabled: boolean;
 }
 
-export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'paste';
 	code: string;
 	language: string;
@@ -88,17 +95,17 @@ export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVar
 	} | undefined;
 }
 
-export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface ISymbolVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'symbol';
 	readonly value: Location;
 	readonly symbolKind: SymbolKind;
 }
 
-export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface ICommandResultVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'command';
 }
 
-export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'image';
 	readonly isPasted?: boolean;
 	readonly isURL?: boolean;
@@ -168,11 +175,13 @@ export namespace IDiagnosticVariableEntryFilterData {
 	}
 }
 
-export interface IDiagnosticVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'>, IDiagnosticVariableEntryFilterData {
+export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry, IDiagnosticVariableEntryFilterData {
 	readonly kind: 'diagnostic';
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry;
+export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
+	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
+	| IChatRequestDirectoryEntry | IChatRequestFileEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -1472,6 +1481,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			// Old variables format
 			if (v && 'values' in v && Array.isArray(v.values)) {
 				return {
+					kind: 'generic',
 					id: v.id ?? '',
 					name: v.name,
 					value: v.values[0]?.value,

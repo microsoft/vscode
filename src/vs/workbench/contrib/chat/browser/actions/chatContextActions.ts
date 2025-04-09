@@ -498,11 +498,11 @@ export class AttachContextAction extends Action2 {
 			} else if (isIFolderSearchResultQuickPickItem(pick)) {
 				const folder = pick.resource;
 				toAttach.push({
+					kind: 'directory',
 					id: pick.id,
 					value: folder,
 					name: basename(folder),
-					isFile: false,
-					isDirectory: true,
+
 				});
 			} else if (isIDiagnosticsQuickPickItemWithFilter(pick)) {
 				toAttach.push({
@@ -538,15 +538,16 @@ export class AttachContextAction extends Action2 {
 					}
 
 					toAttach.push({
+						kind: 'file',
 						id: this._getFileContextId({ resource: pick.resource }),
 						value: pick.resource,
 						name: pick.label,
-						isFile: true,
 						omittedState
 					});
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
 				toAttach.push({
+					kind: 'generic',
 					id: this._getFileContextId({ uri: pick.uri, range: pick.range.decoration }),
 					value: { uri: pick.uri, range: pick.range.decoration },
 					fullName: pick.label,
@@ -557,10 +558,10 @@ export class AttachContextAction extends Action2 {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
 						toAttach.push({
+							kind: 'file',
 							id: this._getFileContextId({ resource: uri }),
 							value: uri,
 							name: labelService.getUriBasenameLabel(uri),
-							isFile: true,
 						});
 					}
 				}
@@ -568,10 +569,10 @@ export class AttachContextAction extends Action2 {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
 					toAttach.push({
+						kind: 'file',
 						id: this._getFileContextId({ resource: result.resource }),
 						value: result.resource,
 						name: labelService.getUriBasenameLabel(result.resource),
-						isFile: true,
 					});
 				}
 			} else if (isRelatedFileQuickPickItem(pick)) {
@@ -603,10 +604,10 @@ export class AttachContextAction extends Action2 {
 				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
 				for (const file of selectedFiles ?? []) {
 					toAttach.push({
+						kind: 'file',
 						id: this._getFileContextId({ resource: file.value }),
 						value: file.value,
 						name: file.label,
-						isFile: true,
 						omittedState: OmittedState.NotOmitted
 					});
 				}

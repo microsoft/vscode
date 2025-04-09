@@ -26,7 +26,7 @@ import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatIn
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
-import { IBaseChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
+import { IGenericChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
@@ -246,6 +246,7 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 				name: variableName,
 				value: variableName,
 				icon: codiconsLibrary.variable,
+				kind: 'generic'
 			});
 		}
 	}
@@ -359,11 +360,11 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 
 
-			const l: IBaseChatRequestVariableEntry = {
+			const l: IGenericChatRequestVariableEntry = {
+				kind: 'generic',
 				value: outputCellUri,
 				id: outputCellUri.toString(),
 				name: outputCellUri.toString(),
-				isFile: true,
 			};
 			widget.attachmentModel.addContext(l);
 			(await showChatView(viewService))?.focusInput();

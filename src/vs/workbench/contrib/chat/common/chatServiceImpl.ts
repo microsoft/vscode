@@ -941,7 +941,7 @@ export class ChatService extends Disposable implements IChatService {
 				return 'symbol';
 			} else if (isImageVariableEntry(v)) {
 				return 'image';
-			} else if (v.isDirectory) {
+			} else if (v.kind === 'directory') {
 				return 'directory';
 			} else if (v.kind === 'tool') {
 				return 'tool';
