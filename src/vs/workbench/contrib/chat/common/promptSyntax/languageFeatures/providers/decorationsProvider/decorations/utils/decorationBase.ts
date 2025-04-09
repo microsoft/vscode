@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from '../../../../../../../../../editor/common/core/range.js';
-import { IMarkdownString } from '../../../../../../../../../base/common/htmlContent.js';
-import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
-import { ModelDecorationOptions } from '../../../../../../../../../editor/common/model/textModel.js';
-import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from '../../../../../../../../../editor/common/model.js';
+import { Range } from '../../../../../../../../../../editor/common/core/range.js';
+import { IMarkdownString } from '../../../../../../../../../../base/common/htmlContent.js';
+import { BaseToken } from '../../../../../../../../../../editor/common/codecs/baseToken.js';
+import { TrackedRangeStickiness } from '../../../../../../../../../../editor/common/model.js';
+import type { TAddAccessor, TChangeAccessor, TDecorationStyles, TRemoveAccessor } from './types.js';
+import { ModelDecorationOptions } from '../../../../../../../../../../editor/common/model/textModel.js';
 
 /**
  * Base class for all editor decorations.
@@ -51,7 +52,7 @@ export abstract class DecorationBase<
 	public readonly id: string;
 
 	constructor(
-		accessor: Pick<IModelDecorationsChangeAccessor, 'addDecoration'>,
+		accessor: TAddAccessor,
 		protected readonly token: TPromptToken,
 	) {
 		this.id = accessor.addDecoration(this.range, this.decorationOptions);
@@ -65,10 +66,10 @@ export abstract class DecorationBase<
 	}
 
 	/**
-	 * Renders (updates) the decoration in the editor.
+	 * Changes the decoration in the editor.
 	 */
-	public render(
-		accessor: Pick<IModelDecorationsChangeAccessor, 'changeDecoration' | 'changeDecorationOptions'>,
+	public change(
+		accessor: TChangeAccessor,
 	): this {
 		accessor.changeDecorationOptions(
 			this.id,
@@ -82,7 +83,7 @@ export abstract class DecorationBase<
 	 * Removes associated editor decoration(s).
 	 */
 	public remove(
-		accessor: Pick<IModelDecorationsChangeAccessor, 'removeDecoration'>,
+		accessor: TRemoveAccessor,
 	): this {
 		accessor.removeDecoration(this.id);
 
@@ -106,18 +107,11 @@ export abstract class DecorationBase<
 }
 
 /**
- * CSS styles for a decoration to be registered.
- */
-export type TDecorationStyles<TClassNames extends string = string> = {
-	readonly [key in TClassNames]: readonly string[];
-};
-
-/**
  * Type of a generic decoration class.
  */
 export type TDecorationClass<TPromptToken extends BaseToken = BaseToken> = {
 	new(
-		accessor: Pick<IModelDecorationsChangeAccessor, 'addDecoration'>,
+		accessor: TAddAccessor,
 		token: TPromptToken,
 	): DecorationBase<TPromptToken>;
 

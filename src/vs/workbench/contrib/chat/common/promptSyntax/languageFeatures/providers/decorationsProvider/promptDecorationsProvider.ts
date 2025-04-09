@@ -6,13 +6,12 @@
 import { IPromptsService } from '../../../service/types.js';
 import { ProviderInstanceBase } from '../providerInstanceBase.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { DecorationBase, TDecorationClass } from './decorations/decorationBase.js';
-import { FrontMatterHeaderDecoration } from './decorations/frontMatterDecoration.js';
+import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
 import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
 import { IPromptFileEditor, ProviderInstanceManagerBase } from '../providerInstanceManagerBase.js';
-import { ReactiveDecorationBase, TChangedDecorator } from './decorations/reactiveDecorationBase.js';
 import { registerThemingParticipant } from '../../../../../../../../platform/theme/common/themeService.js';
 import { FrontMatterHeader } from '../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { DecorationBase, ReactiveDecorationBase, type TDecorationClass, type TChangedDecorator } from './decorations/utils/index.js';
 
 /**
  * Prompt tokens that are decorated by this provider.
@@ -23,7 +22,7 @@ type TDecoratedToken = FrontMatterHeader;
  * List of all supported decorations.
  */
 const SUPPORTED_DECORATIONS: readonly TDecorationClass<TDecoratedToken>[] = Object.freeze([
-	FrontMatterHeaderDecoration,
+	FrontMatterDecoration,
 ]);
 
 /**
@@ -93,7 +92,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	): this {
 		this.editor.changeDecorations((accessor) => {
 			for (const decoration of decorations) {
-				decoration.render(accessor);
+				decoration.change(accessor);
 			}
 		});
 
@@ -167,7 +166,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 registerThemingParticipant((_theme, collector) => {
 	for (const Decoration of SUPPORTED_DECORATIONS) {
 		for (const [className, styles] of Object.entries(Decoration.cssStyles)) {
-			collector.addRule(`${className} { ${styles.join(' ')} }`);
+			collector.addRule(`.monaco-editor ${className} { ${styles.join(' ')} }`);
 		}
 	}
 });
