@@ -55,7 +55,17 @@ export interface IEnvironmentService {
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
+	/**
+	 * The storage root for all workspace data.
+	 * Warning- This must only be used to store data under workspaceStorageHome/<workspaceId>, from `workspaceContextService.getWorkspace().id`.
+	 * Any other data will be deleted by UnusedWorkspaceStorageDataCleaner.
+	 */
 	workspaceStorageHome: URI;
+	/**
+	 * The storage folder for current workspace data.
+	 * Equivalent to `workspaceStorageHome/<workspaceId>`.
+	 */
+	currentWorkspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
 
