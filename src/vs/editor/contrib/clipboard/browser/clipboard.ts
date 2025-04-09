@@ -243,33 +243,20 @@ if (PasteAction) {
 			if (experimentalEditContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					nativeEditContext.onWillPaste();
-				}
-			}
-
-			const sw = StopWatch.create(true);
-			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
-			if (triggerPaste) {
-				return triggerPaste.then(async () => {
-
-					if (productService.quality !== 'stable') {
-						const duration = sw.elapsed();
-						type EditorAsyncPasteClassification = {
-							duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the paste operation.' };
-							owner: 'aiday-mar';
-							comment: 'Provides insight into the delay introduced by pasting async via keybindings.';
-						};
-						type EditorAsyncPasteEvent = {
-							duration: number;
-						};
-						telemetryService.publicLog2<EditorAsyncPasteEvent, EditorAsyncPasteClassification>(
-							'editorAsyncPaste',
-							{ duration }
-						);
+					const triggerPaste = nativeEditContext.triggerPaste();
+					if (triggerPaste) {
+						return triggerPaste.then(async () => {
+							return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+						});
 					}
-
-					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-				});
+				}
+			} else {
+				const triggerPaste = clipboardService.triggerPaste();
+				if (triggerPaste) {
+					return triggerPaste.then(async () => {
+						return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+					});
+				}
 			}
 			if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
