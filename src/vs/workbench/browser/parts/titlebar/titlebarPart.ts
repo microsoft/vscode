@@ -615,7 +615,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			overflowBehavior: { maxItems: 9, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			telemetrySource: 'titlePart',
-			highlightToggledItems: this.editorActionsEnabled, // Only show toggled state for editor actions (Layout actions are not shown as toggled)
+			highlightToggledItems: this.editorActionsEnabled || this.isAuxiliary, // Only show toggled state for editor actions or auxiliary title bars
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			hoverDelegate: this.hoverDelegate
 		}));
