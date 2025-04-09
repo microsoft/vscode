@@ -8,7 +8,7 @@ import {
 } from "../../../../../workbench/services/layout/browser/layoutService.js";
 import { IThemeService } from "../../../../../platform/theme/common/themeService.js";
 import { IStorageService } from "../../../../../platform/storage/common/storage.js";
-import { $, getActiveWindow } from "../../../../../base/browser/dom.js";
+import { getActiveWindow } from "../../../../../base/browser/dom.js";
 import { CancellationTokenSource } from "../../../../../base/common/cancellation.js";
 import { IInstantiationService } from "../../../../../platform/instantiation/common/instantiation.js";
 import { WebviewExtensionDescription } from "../../../../../workbench/contrib/webview/browser/webview.js";
@@ -168,12 +168,25 @@ export class CreatorOverlayPart extends Part {
 				extension: extensionDescription,
 			});
 
+			// moving the webview container to the overlay container
+			if (!this.overlayContainer) {
+				throw new Error("Overlay container is not initialized");
+			}
+
+			console.log("WEBVIEW CONTAINER:::");
+			console.dir(webview.container);
+
+			// TODO: find out why this shizz isn't working!
+			webview.container.remove();
+			this.overlayContainer.appendChild(webview.container);
+
 			// Set initial visibility - important for initial state
 			webview.container.style.display = "none";
-			webview.container.style.opacity = "0";
-			webview.container.style.transition = "opacity 0.3s ease-in";
-			webview.container.style.position = "absolute";
-			webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
+			// webview.container.style.transition = "opacity 0.3s ease-in";
+			webview.container.style.height = "100vh";
+			webview.container.style.width = "100vw";
+
+			// webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
 			webview.container.setAttribute("id", "creator-overlay-webview");
 
 			// Claim the webview
@@ -243,62 +256,44 @@ export class CreatorOverlayPart extends Part {
 
 	protected override createContentArea(element: HTMLElement): HTMLElement {
 		this.element = element;
-		this.overlayContainer = $("div.pearcreatoroverlay-part-container");
+		// Create a container for the PearCreatorOverlayPart
 
-		if (!this.overlayContainer) {
-			console.warn("Overlay container not found");
-			return element;
-		}
-
-		// Set up overlay container styles
+		this.overlayContainer = document.createElement("div");
 		this.overlayContainer.style.position = "fixed";
 		this.overlayContainer.style.top = "0";
 		this.overlayContainer.style.left = "0";
-		this.overlayContainer.style.right = "0";
-		this.overlayContainer.style.bottom = "0";
-		this.overlayContainer.style.zIndex = "-1"; // Using -1 instead of -9999
-		this.overlayContainer.style.display = "none";
-		this.overlayContainer.style.alignItems = "center";
-		this.overlayContainer.style.justifyContent = "center";
-		this.overlayContainer.style.backgroundColor = "#FFFFFF";
-		this.overlayContainer.style.opacity = "0";
-		this.overlayContainer.style.transition = "opacity 0.3s ease-in-out";
-		this.overlayContainer.style.width = "100%";
-		this.overlayContainer.style.height = "100%";
+		this.overlayContainer.style.zIndex = "-10";
+		this.overlayContainer.style.display = "block";
+		this.overlayContainer.classList.add("pearcreatoroverlay-part-container");
+		this.overlayContainer.style.backgroundColor = 'transparent';
 
-		// Create container div for the gradient effect
-		const container = document.createElement("div");
-		container.style.position = "relative";
+		document.body.appendChild(this.overlayContainer);
 
-		// Create the gradient background element
-		const gradientBg = document.createElement("div");
-		gradientBg.style.position = "absolute";
-		gradientBg.style.top = "-20px";
-		gradientBg.style.left = "-20px";
-		gradientBg.style.right = "-20px";
-		gradientBg.style.bottom = "-20px";
-		gradientBg.style.background =
-			"linear-gradient(45deg, #ff00cc, #3333ff, #00ccff, #33cc33)";
-		gradientBg.style.borderRadius = "40px";
-		gradientBg.style.zIndex = "-1";
-		gradientBg.style.filter = "blur(20px)";
-		gradientBg.style.opacity = "0.7";
-
-		// First add the gradient background to the container
-		container.appendChild(gradientBg);
-
-		// Add the container to the overlay container
-		this.overlayContainer.appendChild(container);
+		// Set up overlay container styles
+		// this.element.style.position = "fixed";
+		// this.element.style.top = "0";
+		// this.element.style.left = "0";
+		// this.element.style.right = "0";
+		// this.element.style.bottom = "0";
+		// this.element.style.display = "none";
+		// this.element.style.alignItems = "center";
+		// this.element.style.justifyContent = "center";
+		// this.element.style.backgroundColor = "#FFFFFF";
+		// this.element.style.opacity = "0";
+		// this.element.style.transition = "opacity 0.3s ease-in-out";
+		// this.element.style.width = "100vw";
+		// this.element.style.height = "100vh";
+		// this.element.style.zIndex = "-20";
 
 		// Add the overlay container to the main element
-		this.element.appendChild(this.overlayContainer);
+		// this.element.appendChild(this.element);
 
 		// Set up webview layout only if webview is enabled and initialized
 		if (this._webviewEnabled && this.overlayContainer && this.webviewView) {
 			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
 		}
 
-		return element;
+		return this.overlayContainer;
 	}
 
 	override layout(
@@ -307,78 +302,66 @@ export class CreatorOverlayPart extends Part {
 		top: number,
 		left: number,
 	): void {
-		super.layout(width, height, top, left);
-
-		if (this.overlayContainer) {
-			this.overlayContainer.style.width = `${width}px`;
-			this.overlayContainer.style.height = `${height}px`;
-		}
+		super.layout(width, height, 0, 0);
 
 		// Layout webview only if enabled
 		if (this._webviewEnabled && this.webviewView && this.overlayContainer) {
 			// Always layout the webview over the element
-			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
+			// this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
 		}
 	}
 
-	// private openInProgress = false;
+	private openInProgress = false;
 
 	private async open() {
 		// Prevent multiple simultaneous open attempts
-		// if (this.openInProgress) {
-		// 	console.log("Open already in progress, skipping");
-		// 	return;
-		// }
+		if (this.openInProgress) {
+			console.log("Open already in progress, skipping");
+			return;
+		}
 
-		// this.openInProgress = true;
+		this.openInProgress = true;
 
 		try {
 			// // Make sure initialization is complete before opening
-			// if (this.state === "loading") {
-			// 	console.log("Overlay not initialized yet, initializing...");
-			// 	await this.initialize();
-			// 	// If we're already open after initialization somehow, don't continue
-			// 	// @ts-expect-error yeet
-			// 	if (this.state === "open") {
-			// 		this.openInProgress = false;
-			// 		return;
-			// 	}
-			// }
+			if (this.state === "loading") {
+				console.log("Overlay not initialized yet, initializing...");
+				await this.initialize();
+				// If we're already open after initialization somehow, don't continue
+				// @ts-expect-error yeet
+				if (this.state === "open") {
+					this.openInProgress = false;
+					return;
+				}
+			}
 
 			// If webview is enabled but not initialized, initialize it now
 			if (this._webviewEnabled && !this.initializedWebview) {
 				await this.initializeWebview();
 			}
 
+			if(!this.webviewView) {
+				throw new Error("wevbviewView is not initialized");
+			}
+
 			await this.handleSlideAnimation("down");
 
 			if (this.state === "open" || !this.overlayContainer) {
-				// this.openInProgress = false;
+				this.openInProgress = false;
 				return;
 			}
 
 			console.log("Opening overlay view");
 			this.state = "open";
-
-			// Show the overlay container
-			this.overlayContainer.style.display = "flex";
-			this.overlayContainer.style.zIndex = "20";
-
-			// Force a layout reflow before setting opacity
-			void this.overlayContainer.offsetHeight;
-			this.overlayContainer.style.opacity = "1";
-
-			// Show the webview container (only if webview is enabled)
-			if (this._webviewEnabled && this.webviewView) {
-				const container = this.webviewView.webview.container;
-				if (container) {
-					container.style.display = "flex";
-					container.style.zIndex = "100";
-					// Force a layout reflow before setting opacity
-					void container.offsetHeight;
-					container.style.opacity = "1";
-				}
-			}
+			const { container } = this.webviewView.webview;
+			container.style.display = "block";
+			container.style.zIndex = "999";
+			container.style.opacity = "1";
+			container.style.width = "100vw";
+			container.style.height = "100vh";
+			container.style.top = "0";
+			container.style.left = "0";
+			container.style.position = "fixed";
 
 			// Remove previous click handler if exists
 			if (this.closeHandler) {
@@ -397,14 +380,31 @@ export class CreatorOverlayPart extends Part {
 
 			// Always update layout when opening (if webview is enabled)
 			if (this._webviewEnabled && this.webviewView && this.overlayContainer) {
-				this.webviewView.webview.layoutWebviewOverElement(
-					this.overlayContainer,
-				);
+				setTimeout(() => {
+					if (this.webviewView && this.overlayContainer) {
+							this.webviewView.webview.layoutWebviewOverElement(
+									this.overlayContainer
+							);
+
+							// Reapply fixed positioning to ensure it sticks
+							requestAnimationFrame(() => {
+									if(!this.webviewView) {
+										throw new Error("webviewView is not initialized in request animation frame");
+									}
+									const { container } = this.webviewView.webview;
+									if (container) {
+											container.style.position = "fixed";
+											container.style.top = "0";
+											container.style.left = "0";
+									}
+							});
+					}
+			}, 50);
 			}
 
 			this.focus();
 		} finally {
-			// this.openInProgress = false;
+			this.openInProgress = false;
 		}
 	}
 
@@ -415,33 +415,13 @@ export class CreatorOverlayPart extends Part {
 
 		console.log("Closing overlay view");
 
-		// Start the transition by setting opacity to 0
-		this.overlayContainer.style.opacity = "0";
-
-		// Hide webview if enabled
-		if (this._webviewEnabled && this.webviewView) {
-			const container = this.webviewView.webview.container;
-			if (container) {
-				container.style.opacity = "0";
-			}
-		}
-
 		// Add a slide-up animation when closing
 		this.handleSlideAnimation("up").then(() => {
 			this.state = "closed";
 
 			if (this.overlayContainer) {
-				this.overlayContainer.style.zIndex = "-1";
 				this.overlayContainer.style.display = "none";
-			}
-
-			// Hide webview if enabled
-			if (this._webviewEnabled && this.webviewView) {
-				const container = this.webviewView.webview.container;
-				if (container) {
-					container.style.zIndex = "-1";
-					container.style.display = "none";
-				}
+				this.overlayContainer.style.zIndex = "-20";
 			}
 
 			// Focus the active editor
@@ -456,18 +436,6 @@ export class CreatorOverlayPart extends Part {
 	focus(): void {
 		if (this._webviewEnabled && this.webviewView) {
 			this.webviewView.webview.focus();
-		}
-	}
-
-	hideLoadingOverlay(): void {
-		// If we're in open state, ensure the webview is visible (if enabled)
-		if (this.state === "open" && this._webviewEnabled && this.webviewView) {
-			const container = this.webviewView.webview.container;
-			if (container) {
-				container.style.zIndex = "1000";
-				container.style.display = "flex";
-				container.style.opacity = "1";
-			}
 		}
 	}
 
@@ -602,18 +570,7 @@ export class CreatorOverlayPart extends Part {
 				);
 
 				// Set a single timeout for animation completion
-				setTimeout(() => {
-					if (!topOfBodyElement || !topOfBodyElement.parentNode) {
-						console.warn(
-							"Animation element removed before animation completed",
-						);
-						return resolve();
-					}
-
-					// Remove the element after animation completes
-					// topOfBodyElement.parentNode.removeChild(topOfBodyElement);
-					resolve();
-				}, 500); // Match the transition duration
+				setTimeout(() => resolve(), 500); // Match the transition duration
 			});
 		});
 	}
