@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument, getActiveWindow, getWindowId } from '../../../../base/browser/dom.js';
+import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -248,8 +248,7 @@ if (PasteAction) {
 			}
 
 			const sw = StopWatch.create(true);
-			const targetWindowId = getWindowId(getActiveWindow());
-			const triggerPaste = clipboardService.triggerPaste(targetWindowId);
+			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				return triggerPaste.then(async () => {
 
@@ -302,8 +301,7 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		const targetWindowId = getWindowId(getActiveWindow());
-		const triggerPaste = accessor.get(IClipboardService).triggerPaste(targetWindowId);
+		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
 		return triggerPaste ?? false;
 	});
 }
