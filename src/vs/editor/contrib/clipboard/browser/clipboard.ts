@@ -246,11 +246,13 @@ if (PasteAction) {
 					nativeEditContext.onWillPaste();
 				}
 			}
+
 			const sw = StopWatch.create(true);
 			const targetWindowId = getWindowId(getActiveWindow());
 			const triggerPaste = clipboardService.triggerPaste(targetWindowId);
 			if (triggerPaste) {
 				return triggerPaste.then(async () => {
+
 					if (productService.quality !== 'stable') {
 						const duration = sw.elapsed();
 						type EditorAsyncPasteClassification = {
@@ -266,6 +268,7 @@ if (PasteAction) {
 							{ duration }
 						);
 					}
+
 					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 				});
 			}
