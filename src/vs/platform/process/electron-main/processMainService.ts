@@ -33,7 +33,6 @@ interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
 	title: string;
 	zoomLevel: number;
-	alwaysOnTop: boolean;
 }
 
 type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
@@ -145,8 +144,7 @@ export class ProcessMainService implements IProcessMainService {
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
 					backgroundColor: data.styles.backgroundColor,
 					title: localize('processExplorer', "Process Explorer"),
-					zoomLevel: data.zoomLevel,
-					alwaysOnTop: true
+					zoomLevel: data.zoomLevel
 				}, 'process-explorer');
 
 				// Store into config object URL
@@ -349,7 +347,7 @@ export class ProcessMainService implements IProcessMainService {
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
 				sandbox: true
 			},
-			alwaysOnTop: options.alwaysOnTop,
+			alwaysOnTop: true,
 			experimentalDarkMode: true
 		};
 		const window = new BrowserWindow(browserWindowOptions);
