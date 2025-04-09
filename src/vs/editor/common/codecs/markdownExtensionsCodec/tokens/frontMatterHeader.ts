@@ -26,13 +26,18 @@ export class FrontMatterHeader extends MarkdownExtensionsToken {
 	 * Return complete text representation of the token.
 	 */
 	public get text(): string {
-		const text: string[] = [
-			this.startMarker.text,
-			this.content.text,
-			this.endMarker.text,
-		];
+		return BaseToken.render([
+			this.startMarker,
+			this.content,
+			this.endMarker,
+		]);
+	}
 
-		return text.join('');
+	/**
+	 * Return text inside the header.
+	 */
+	public get contentText(): string {
+		return this.content.text;
 	}
 
 	/**

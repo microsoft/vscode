@@ -21,6 +21,8 @@ import { Colon, Dash, Space, Tab, VerticalTab } from '../../../../../../../edito
 import { MarkdownExtensionsDecoder } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/markdownExtensionsDecoder.js';
 import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { FrontMatterMarker, TMarkerToken } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
+import { PromptHeader } from '../../../../common/promptSyntax/parsers/promptHeaderParser.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 
 /**
  * Type for supported end-of-line tokens.
@@ -145,6 +147,50 @@ suite('MarkdownExtensionsDecoder', () => {
 
 		return new Array(dashCount).fill('-').join('');
 	};
+
+	// TODO: @legomushroom - remove
+	test('• test module loading', async () => {
+		const test = disposables.add(
+			new TestMarkdownExtensionsDecoder(),
+		);
+
+		const headerText = [
+			'---',
+			'  tag1: "value1"',
+			'  tag2: false',
+			'  tag3: 12.4',
+			'  tag4:',
+			'    - { hi: there }',
+			'    - true',
+			'    - 24.2',
+			'    - \'value2\'',
+			'---',
+			'', // TODO: @legomushroom - fix this
+		];
+
+		test.sendData(headerText.join('\n'));
+		const tokens = await test.receiveTokens();
+
+		assert(
+			tokens.length === 1,
+			`Must receive exactly 1 token, got '${tokens.length}'.`,
+		);
+
+		const frontMatterToken = tokens[0];
+		assert(
+			frontMatterToken instanceof FrontMatterHeader,
+			`Must be a front matter header token, got '${frontMatterToken}'.`,
+		);
+
+		const header = new PromptHeader(frontMatterToken);
+
+		assertDefined(
+			header,
+			'Header must be defined.',
+		);
+
+		await header.parse();
+	});
 
 	suite('• Front Matter header', () => {
 		suite('• successful cases', () => {

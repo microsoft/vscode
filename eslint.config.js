@@ -1065,7 +1065,7 @@ export default tseslint.config(
 						{
 							'when': 'hasBrowser',
 							'pattern': 'vscode-textmate'
-						} // node module allowed even in /browser/
+						}, // node module allowed even in /browser/
 					]
 				},
 				{
