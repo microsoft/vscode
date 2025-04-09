@@ -40,11 +40,6 @@ export interface ICreatorOverlayService extends IDisposable {
 	hide(): void;
 
 	/**
-	 * Hides the loading overlay.
-	 */
-	hideLoadingOverlay(): void;
-
-	/**
 	 * Toggles the visibility of the Creator view popup.
 	 */
 	toggle(): void;
@@ -68,11 +63,6 @@ export interface ICreatorOverlayService extends IDisposable {
 	 * Returns true if the Creator view popup is locked.
 	 */
 	isLocked(): boolean;
-
-	/**
-	 * Hides the loading overlay message.
-	 */
-	hideOverlayLoadingMessage(): void;
 }
 
 export class CreatorOverlayService
@@ -166,14 +156,6 @@ export class CreatorOverlayService
 				return overlayService.isLocked();
 			},
 		);
-
-		CommandsRegistry.registerCommand(
-			"pearai.hideCreatorOverlayLoadingMessage",
-			(accessor) => {
-				const overlayService = accessor.get(ICreatorOverlayService);
-				overlayService.hideOverlayLoadingMessage();
-			},
-		);
 	}
 
 	get creatorOverlayPart(): CreatorOverlayPart {
@@ -198,10 +180,6 @@ export class CreatorOverlayService
 
 	unlock(): void {
 		this._creatorOverlayPart.unlock();
-	}
-
-	hideLoadingOverlay(): void {
-		this._creatorOverlayPart.hideLoadingOverlay();
 	}
 
 	isLocked(): boolean {

@@ -9,26 +9,6 @@ import { ICreatorOverlayService } from "./creatorOverlayService.js"; // Added .j
 import { KeyCode, KeyMod } from "../../../../../base/common/keyCodes.js";
 // import { PearAICreatorVisibleContext } from "../../../../common/contextkeys.js";
 
-export class HideCreatorLoadingOverlayAction extends Action2 {
-	static readonly ID = "workbench.action.hideCreatorLoadingOverlay";
-
-	constructor() {
-		super({
-			id: HideCreatorLoadingOverlayAction.ID,
-			title: {
-				value: "Close Creator Loading Overlay",
-				original: "Close Creator Loading Overlay",
-			},
-			f1: false,
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const creatorOverlayService = accessor.get(ICreatorOverlayService);
-		creatorOverlayService.hideLoadingOverlay();
-	}
-}
-
 export class CloseCreatorOverlayAction extends Action2 {
 	static readonly ID = "workbench.action.closeCreatorView";
 
@@ -117,4 +97,3 @@ registerAction2(CloseCreatorOverlayAction);
 registerAction2(ToggleCreatorOverlayAction);
 registerAction2(LockCreatorOverlayAction);
 registerAction2(UnlockCreatorOverlayAction);
-registerAction2(HideCreatorLoadingOverlayAction);
