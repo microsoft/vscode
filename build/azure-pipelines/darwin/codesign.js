@@ -29,7 +29,6 @@ function sign(esrpCliDLLPath, type, folder, glob) {
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
 }
 async function main() {
-    (0, zx_1.usePwsh)();
     const arch = (0, publish_1.e)('VSCODE_ARCH');
     const esrpCliDLLPath = (0, publish_1.e)('EsrpCliDllPath');
     const pipelineWorkspace = (0, publish_1.e)('PIPELINE_WORKSPACE');

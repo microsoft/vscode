@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise, usePwsh } from 'zx';
+import { $, ProcessPromise } from 'zx';
 import { e } from '../common/publish';
 
 function printBanner(title: string) {
@@ -33,8 +33,6 @@ function sign(esrpCliDLLPath: string, type: 'sign-darwin' | 'notarize-darwin', f
 }
 
 async function main() {
-	usePwsh();
-
 	const arch = e('VSCODE_ARCH');
 	const esrpCliDLLPath = e('EsrpCliDllPath');
 	const pipelineWorkspace = e('PIPELINE_WORKSPACE');
