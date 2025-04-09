@@ -10,21 +10,14 @@ const esrpCliDLLPath = process.env['EsrpCliDllPath'];
 function printBanner(title: string) {
 	title = `${title} (${new Date().toISOString()})`;
 
-	console.log('\n\n');
+	console.log('\n');
 	console.log('#'.repeat(75));
 	console.log(`# ${title.padEnd(71)} #`);
 	console.log('#'.repeat(75));
-	console.log('\n\n');
+	console.log('\n');
 }
 
 function sign(type: 'sign-pgp', folder: string, glob: string): ProcessPromise {
-	console.log('Signing request:');
-	console.log(`  * Type: ${type}`);
-	console.log(`  * Folder: ${folder}`);
-	console.log(`  * Glob: ${glob}`);
-	console.log(`  * ESRP CLI DLL Path: ${esrpCliDLLPath}`);
-	console.log('----------------------------------------');
-
 	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
 }
 
