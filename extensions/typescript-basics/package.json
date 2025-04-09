@@ -76,7 +76,7 @@
         ],
         "tokenTypes": {
           "meta.template.expression": "other",
-          "meta.template.expression string": "string",
+          "meta.template.expression string.quoted": "string",
           "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
@@ -103,7 +103,7 @@
         },
         "tokenTypes": {
           "meta.template.expression": "other",
-          "meta.template.expression string": "string",
+          "meta.template.expression string.quoted": "string",
           "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
