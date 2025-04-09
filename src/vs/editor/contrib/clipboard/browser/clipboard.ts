@@ -7,15 +7,12 @@ import * as browser from '../../../../base/browser/browser.js';
 import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
 import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -232,8 +229,6 @@ if (PasteAction) {
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const productService = accessor.get(IProductService);
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
@@ -251,7 +246,7 @@ if (PasteAction) {
 					}
 				}
 			} else {
-				const triggerPaste = clipboardService.triggerPaste();
+				const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 				if (triggerPaste) {
 					return triggerPaste.then(async () => {
 						return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
