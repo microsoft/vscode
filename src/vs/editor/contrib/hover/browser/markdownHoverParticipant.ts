@@ -489,7 +489,6 @@ export function renderMarkdownHovers(
 			markdownHover,
 			languageService,
 			openerService,
-
 			context.onContentsChanged,
 		);
 		context.fragment.appendChild(renderedHoverPart.hoverElement);
