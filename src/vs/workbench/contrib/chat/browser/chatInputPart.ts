@@ -568,24 +568,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.experimentService.getTreatment('chat.defaultMode'),
 					this.experimentService.getTreatment('chat.defaultLanguageModel'),
 				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
+					let usingExpValue = false;
 					if (typeof defaultLanguageModelTreatment === 'string') {
-						this.waitForModel(defaultLanguageModelTreatment);
+						this.setExpModelOrWait(defaultLanguageModelTreatment);
+						usingExpValue = true;
 					}
 
-					if (typeof defaultModeTreatment === 'string') {
+					if (typeof defaultModeTreatment === 'string' && this._currentMode === ChatMode.Agent) {
 						const defaultMode = validateChatMode(defaultModeTreatment);
 						if (defaultMode) {
 							this.setChatMode(defaultMode);
 							this.checkModelSupported();
-							this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+							usingExpValue = true;
 						}
+					}
+
+					if (usingExpValue) {
+						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 					}
 				});
 			}
 		}
 	}
 
-	private waitForModel(modelId: string) {
+	private setExpModelOrWait(modelId: string) {
 		const model = this.languageModelsService.lookupLanguageModel(modelId);
 		if (model) {
 			this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
@@ -593,12 +599,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._waitForPersistedLanguageModel.clear();
 		} else {
 			this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
-				const persistedModel = e.added?.find(m => m.identifier === modelId);
-				if (persistedModel) {
+				const model = e.added?.find(m => m.identifier === modelId);
+				if (model) {
 					this._waitForPersistedLanguageModel.clear();
 
-					if (persistedModel.metadata.isUserSelectable) {
-						this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: modelId });
+					if (model.metadata.isUserSelectable) {
+						this.setCurrentLanguageModel({ metadata: model.metadata, identifier: modelId });
 						this.checkModelSupported();
 					}
 				}
@@ -608,7 +614,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getDefaultModeExperimentStorageKey(): string {
 		const tag = this.options.widgetViewKindTag;
-		return `chat.${tag}.hasSetDefaultModeByExperiment`;
+		return `chat.${tag}.hasSetDefaultModeByExperiment.4`;
 	}
 
 	logInputHistory(): void {
@@ -1647,5 +1653,3 @@ class AddFilesButton extends ActionViewItem {
 		container.classList.add('chat-attached-context-attachment', 'chat-add-files');
 	}
 }
-
-const HasSetDefaultLanguageModelByExperimentKey = 'chatInput.hasSetDefaultLanguageModelByExperiment';
