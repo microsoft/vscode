@@ -27,9 +27,10 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
-import type * as Parser from '@vscode/tree-sitter-wasm';
 import { ITextModel } from './model.js';
 import { TokenUpdate } from './model/tokenStore.js';
+import { ITextModelTreeSitter } from './services/treeSitterParserService.js';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 
 /**
  * @internal
@@ -89,12 +90,15 @@ export class EncodedTokenizationResult {
 export interface SyntaxNode {
 	startIndex: number;
 	endIndex: number;
+	startPosition: IPosition;
+	endPosition: IPosition;
 }
 
 export interface QueryCapture {
 	name: string;
 	text?: string;
 	node: SyntaxNode;
+	encodedLanguageId: number;
 }
 
 /**
@@ -108,10 +112,11 @@ export interface ITreeSitterTokenizationSupport {
 	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): void;
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
+	captureAtRangeTree(range: Range, tree: Parser.Tree, textModelTreeSitter: ITextModelTreeSitter): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 	onDidChangeBackgroundTokenization: Event<{ textModel: model.ITextModel }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
+	guessTokensForLinesContent(lineNumber: number, textModel: model.ITextModel, lines: string[]): Uint32Array[] | undefined;
 }
 
 /**

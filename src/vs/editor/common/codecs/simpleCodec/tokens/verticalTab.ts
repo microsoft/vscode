@@ -3,45 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
-import { Line } from '../../linesCodec/tokens/line.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
+import { SimpleToken } from './simpleToken.js';
 
 /**
  * Token that represent a `vertical tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class VerticalTab extends BaseToken {
+export class VerticalTab extends SimpleToken {
 	/**
 	 * The underlying symbol of the `VerticalTab` token.
 	 */
-	public static readonly symbol: string = '\v';
+	public static override readonly symbol: '\v' = '\v';
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): string {
+	public override get text() {
 		return VerticalTab.symbol;
-	}
-
-	/**
-	 * Create new `VerticalTab` token with range inside
-	 * the given `Line` at the given `column number`.
-	 */
-	public static newOnLine(
-		line: Line,
-		atColumnNumber: number,
-	): VerticalTab {
-		const { range } = line;
-
-		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
-
-		return new VerticalTab(Range.fromPositions(
-			startPosition,
-			endPosition,
-		));
 	}
 
 	/**

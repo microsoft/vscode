@@ -6,6 +6,7 @@
 import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
@@ -32,13 +33,13 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { addPositions, getEndPositionsAfterApplying, getModifiedRangesAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
-import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
+import { InlineCompletionsSource } from './inlineCompletionsSource.js';
 import { InlineEdit } from './inlineEdit.js';
-import { InlineCompletionItem } from './provideInlineCompletions.js';
+import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 
@@ -56,13 +57,16 @@ export class InlineCompletionsModel extends Disposable {
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
+	private readonly _onDidAccept = new Emitter<void>();
+	public readonly onDidAccept = this._onDidAccept.event;
+
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	private readonly _suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
 	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
 	private readonly _inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
-	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+	private readonly _inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -81,7 +85,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
-		let lastItem: InlineCompletionWithUpdatedRange | undefined = undefined;
+		let lastItem: InlineCompletionItem | undefined = undefined;
 		this._register(autorun(reader => {
 			/** @description call handleItemDidShow */
 			const item = this.inlineCompletionState.read(reader);
@@ -89,22 +93,8 @@ export class InlineCompletionsModel extends Disposable {
 			if (completion?.semanticId !== lastItem?.semanticId) {
 				lastItem = completion;
 				if (completion) {
-					const i = completion.inlineCompletion;
-					const src = i.source;
-					src.provider.handleItemDidShow?.(src.inlineCompletions, i.sourceInlineCompletion, i.insertText);
-				}
-			}
-		}));
-		this._register(autorun(reader => {
-			/** @description handle text edits collapsing */
-			const inlineCompletions = this._source.inlineCompletions.read(reader);
-			if (!inlineCompletions) {
-				return;
-			}
-			for (const inlineCompletion of inlineCompletions.inlineCompletions) {
-				if (inlineCompletion.updatedEdit.read(reader) === undefined) {
-					this.stop();
-					break;
+					const src = completion.source;
+					src.provider.handleItemDidShow?.(src.inlineSuggestions, completion.getSourceCompletion(), completion.insertText);
 				}
 			}
 		}));
@@ -114,8 +104,53 @@ export class InlineCompletionsModel extends Disposable {
 			this._inAcceptFlow.set(false, undefined);
 		}));
 
+		this._register(autorun(reader => {
+			const jumpToReset = this.state.map((s, reader) => !s || s.kind === 'inlineEdit' && !s.cursorAtInlineEdit.read(reader)).read(reader);
+			if (jumpToReset) {
+				this._jumpedToId.set(undefined, undefined);
+			}
+		}));
 
+		const inlineEditSemanticId = this.inlineEditState.map(s => s?.inlineCompletion.semanticId);
+
+		this._register(autorun(reader => {
+			const id = inlineEditSemanticId.read(reader);
+			if (id) {
+				this._editor.pushUndoStop();
+				this._lastShownInlineCompletionInfo = {
+					alternateTextModelVersionId: this.textModel.getAlternativeVersionId(),
+					inlineCompletion: this.state.get()!.inlineCompletion!,
+				};
+			}
+		}));
+
+		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}
+
+	private _lastShownInlineCompletionInfo: { alternateTextModelVersionId: number; /* already freed! */ inlineCompletion: InlineSuggestionItem } | undefined = undefined;
+	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineSuggestionItem } | undefined = undefined;
+	private readonly _didUndoInlineEdits = derivedHandleChanges({
+		owner: this,
+		changeTracker: {
+			createChangeSummary: () => ({ didUndo: false }),
+			handleChange: (ctx, changeSummary) => {
+				changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
+				return true;
+			}
+		}
+	}, (reader, changeSummary) => {
+		const versionId = this._textModelVersionId.read(reader);
+		if (versionId !== null
+			&& this._lastAcceptedInlineCompletionInfo
+			&& this._lastAcceptedInlineCompletionInfo.textModelVersionIdAfter === versionId - 1
+			&& this._lastAcceptedInlineCompletionInfo.inlineCompletion.isInlineEdit
+			&& changeSummary.didUndo
+		) {
+			this._lastAcceptedInlineCompletionInfo = undefined;
+			return true;
+		}
+		return false;
+	});
 
 	public debugGetSelectedSuggestItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedSuggestItem;
@@ -168,29 +203,32 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _fetchInlineCompletionsPromise = derivedHandleChanges({
 		owner: this,
-		createEmptyChangeSummary: () => ({
-			dontRefetch: false,
-			preserveCurrentCompletion: false,
-			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
-			onlyRequestInlineEdits: false,
-			shouldDebounce: true,
-		}),
-		handleChange: (ctx, changeSummary) => {
-			/** @description fetch inline completions */
-			if (ctx.didChange(this._textModelVersionId) && this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
-				changeSummary.preserveCurrentCompletion = true;
-			} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
-				changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
-			} else if (ctx.didChange(this.dontRefetchSignal)) {
-				changeSummary.dontRefetch = true;
-			} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
-				changeSummary.onlyRequestInlineEdits = true;
-			} else if (ctx.didChange(this._noDelaySignal)) {
-				changeSummary.shouldDebounce = false;
-			}
-			return true;
+		changeTracker: {
+			createChangeSummary: () => ({
+				dontRefetch: false,
+				preserveCurrentCompletion: false,
+				inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
+				onlyRequestInlineEdits: false,
+				shouldDebounce: true,
+			}),
+			handleChange: (ctx, changeSummary) => {
+				/** @description fetch inline completions */
+				if (ctx.didChange(this._textModelVersionId) && this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
+					changeSummary.preserveCurrentCompletion = true;
+				} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
+					changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
+				} else if (ctx.didChange(this.dontRefetchSignal)) {
+					changeSummary.dontRefetch = true;
+				} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
+					changeSummary.onlyRequestInlineEdits = true;
+				} else if (ctx.didChange(this._noDelaySignal)) {
+					changeSummary.shouldDebounce = false;
+				}
+				return true;
+			},
 		},
 	}, (reader, changeSummary) => {
+		this._source.clearOperationOnTextModelChange.read(reader); // Make sure the clear operation runs before the fetch operation
 		this._noDelaySignal.read(reader);
 		this.dontRefetchSignal.read(reader);
 		this._onlyRequestInlineEditsSignal.read(reader);
@@ -206,14 +244,7 @@ export class InlineCompletionsModel extends Disposable {
 		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
 		const suggestItem = this._selectedSuggestItem.read(reader);
 		if (suggestWidgetInlineCompletions && !suggestItem) {
-			const inlineCompletions = this._source.inlineCompletions.get();
-			transaction(tx => {
-				/** @description Seed inline completions with (newer) suggest widget inline completions */
-				if (!inlineCompletions || suggestWidgetInlineCompletions.request.versionId > inlineCompletions.request.versionId) {
-					this._source.inlineCompletions.set(suggestWidgetInlineCompletions.clone(), tx);
-				}
-				this._source.clearSuggestWidgetInlineCompletions(tx);
-			});
+			this._source.seedInlineCompletionsWithSuggestWidget();
 		}
 
 		const cursorPosition = this.primaryPosition.get();
@@ -221,16 +252,38 @@ export class InlineCompletionsModel extends Disposable {
 			return Promise.resolve(true);
 		}
 
-		const context: InlineCompletionContext = {
+		if (this._didUndoInlineEdits.read(reader) && changeSummary.inlineCompletionTriggerKind !== InlineCompletionTriggerKind.Explicit) {
+			transaction(tx => {
+				this._source.clear(tx);
+			});
+			return undefined;
+		}
+
+		let context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 		};
+
+		if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			if (this.textModel.getAlternativeVersionId() === this._lastShownInlineCompletionInfo?.alternateTextModelVersionId) {
+				// When undoing back to a version where an inline edit/completion was shown,
+				// we want to show an inline edit (or completion) again if it was originally an inline edit (or completion).
+				context = {
+					...context,
+					includeInlineCompletions: !this._lastShownInlineCompletionInfo.inlineCompletion.isInlineEdit,
+					includeInlineEdits: this._lastShownInlineCompletionInfo.inlineCompletion.isInlineEdit,
+				};
+			}
+		}
+
 		const itemToPreserveCandidate = this.selectedInlineCompletion.get() ?? this._inlineCompletionItems.get()?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;
-		return this._source.fetch(cursorPosition, context, itemToPreserve, changeSummary.shouldDebounce);
+		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
+
+		return this._source.fetch(cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion);
 	});
 
 	public async trigger(tx?: ITransaction, options?: { onlyFetchInlineEdits?: boolean; noDelay?: boolean }): Promise<void> {
@@ -263,13 +316,12 @@ export class InlineCompletionsModel extends Disposable {
 			if (stopReason === 'explicitCancel') {
 				const inlineCompletion = this.state.get()?.inlineCompletion;
 				const source = inlineCompletion?.source;
-				const sourceInlineCompletion = inlineCompletion?.sourceInlineCompletion;
+				const sourceInlineCompletion = inlineCompletion?.getSourceCompletion();
 				if (sourceInlineCompletion && source?.provider.handleRejection) {
-					source.provider.handleRejection(source.inlineCompletions, sourceInlineCompletion);
+					source.provider.handleRejection(source.inlineSuggestions, sourceInlineCompletion);
 				}
 			}
 
-			this._inAcceptPartialFlow.set(false, tx);
 			this._isActive.set(false, tx);
 			this._source.clear(tx);
 		});
@@ -279,11 +331,11 @@ export class InlineCompletionsModel extends Disposable {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return undefined; }
 		const cursorPosition = this.primaryPosition.read(reader);
-		let inlineEdit: InlineCompletionWithUpdatedRange | undefined = undefined;
-		const visibleCompletions: InlineCompletionWithUpdatedRange[] = [];
+		let inlineEdit: InlineEditItem | undefined = undefined;
+		const visibleCompletions: InlineCompletionItem[] = [];
 		for (const completion of c.inlineCompletions) {
-			if (!completion.sourceInlineCompletion.isInlineEdit) {
-				if (completion.isVisible(this.textModel, cursorPosition, reader)) {
+			if (!completion.isInlineEdit) {
+				if (completion.isVisible(this.textModel, cursorPosition)) {
 					visibleCompletions.push(completion);
 				}
 			} else {
@@ -320,18 +372,18 @@ export class InlineCompletionsModel extends Disposable {
 		return idx;
 	});
 
-	public readonly selectedInlineCompletion = derived<InlineCompletionWithUpdatedRange | undefined>(this, (reader) => {
+	public readonly selectedInlineCompletion = derived<InlineCompletionItem | undefined>(this, (reader) => {
 		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
 		const idx = this.selectedInlineCompletionIndex.read(reader);
 		return filteredCompletions[idx];
 	});
 
 	public readonly activeCommands = derivedOpts<Command[]>({ owner: this, equalsFn: itemsEquals() },
-		r => this.selectedInlineCompletion.read(r)?.source.inlineCompletions.commands ?? []
+		r => this.selectedInlineCompletion.read(r)?.source.inlineSuggestions.commands ?? []
 	);
 
 	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined>
-		= this._source.inlineCompletions.map(this, v => v?.request.context.triggerKind);
+		= this._source.inlineCompletions.map(this, v => v?.request?.context.triggerKind);
 
 	public readonly inlineCompletionsCount = derived<number | undefined>(this, reader => {
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {
@@ -349,13 +401,13 @@ export class InlineCompletionsModel extends Disposable {
 		primaryGhostText: GhostTextOrReplacement;
 		ghostTexts: readonly GhostTextOrReplacement[];
 		suggestItem: SuggestItemInfo | undefined;
-		inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
+		inlineCompletion: InlineCompletionItem | undefined;
 	} | {
 		kind: 'inlineEdit';
 		edits: readonly SingleTextEdit[];
 		inlineEdit: InlineEdit;
-		inlineCompletion: InlineCompletionWithUpdatedRange;
-		cursorAtInlineEdit: boolean;
+		inlineCompletion: InlineEditItem;
+		cursorAtInlineEdit: IObservable<boolean>;
 	} | undefined>({
 		owner: this,
 		equalsFn: (a, b) => {
@@ -366,7 +418,7 @@ export class InlineCompletionsModel extends Disposable {
 					&& a.inlineCompletion === b.inlineCompletion
 					&& a.suggestItem === b.suggestItem;
 			} else if (a.kind === 'inlineEdit' && b.kind === 'inlineEdit') {
-				return a.inlineEdit.equals(b.inlineEdit) && a.cursorAtInlineEdit === b.cursorAtInlineEdit;
+				return a.inlineEdit.equals(b.inlineEdit);
 			}
 			return false;
 		}
@@ -379,32 +431,23 @@ export class InlineCompletionsModel extends Disposable {
 			if (this._hasVisiblePeekWidgets.read(reader)) {
 				return undefined;
 			}
-			let edit = inlineEditResult.toSingleTextEdit(reader);
+			let edit = inlineEditResult.getSingleTextEdit();
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
-			const cursorPos = this.primaryPosition.read(reader);
-			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
-			const cursorInsideShowRange = cursorAtInlineEdit || (inlineEditResult.inlineCompletion.cursorShowRange?.containsPosition(cursorPos) ?? true);
+			const cursorAtInlineEdit = this.primaryPosition.map(cursorPos => LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber));
 
-			if (!cursorInsideShowRange && !this._inAcceptFlow.read(reader)) {
-				return undefined;
-			}
+			const commands = inlineEditResult.source.inlineSuggestions.commands;
+			const inlineEdit = new InlineEdit(edit, commands ?? [], inlineEditResult);
 
-			const commands = inlineEditResult.inlineCompletion.source.inlineCompletions.commands;
-			const renderExplicitly = this._jumpedTo.read(reader);
-			const inlineEdit = new InlineEdit(edit, renderExplicitly, commands ?? [], inlineEditResult.inlineCompletion);
-
-			const edits = inlineEditResult.updatedEdit.read(reader);
+			const edits = inlineEditResult.updatedEdit;
 			const e = edits ? TextEdit.fromOffsetEdit(edits, new TextModelText(this.textModel)).edits : [edit];
 
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit };
 		}
 
-		this._jumpedTo.set(false, undefined);
-
 		const suggestItem = this._selectedSuggestItem.read(reader);
 		if (suggestItem) {
-			const suggestCompletionEdit = singleTextRemoveCommonPrefix(suggestItem.toSingleTextEdit(), model);
+			const suggestCompletionEdit = singleTextRemoveCommonPrefix(suggestItem.getSingleTextEdit(), model);
 			const augmentation = this._computeAugmentation(suggestCompletionEdit, reader);
 
 			const isSuggestionPreviewEnabled = this._suggestPreviewEnabled.read(reader);
@@ -426,7 +469,7 @@ export class InlineCompletionsModel extends Disposable {
 			const inlineCompletion = this.selectedInlineCompletion.read(reader);
 			if (!inlineCompletion) { return undefined; }
 
-			const replacement = inlineCompletion.toSingleTextEdit(reader);
+			const replacement = inlineCompletion.getSingleTextEdit();
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
 			const edits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
@@ -474,11 +517,11 @@ export class InlineCompletionsModel extends Disposable {
 		const model = this.textModel;
 		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(reader);
 		const candidateInlineCompletions = suggestWidgetInlineCompletions
-			? suggestWidgetInlineCompletions.inlineCompletions
+			? suggestWidgetInlineCompletions.inlineCompletions.filter(c => !c.isInlineEdit)
 			: [this.selectedInlineCompletion.read(reader)].filter(isDefined);
 
 		const augmentedCompletion = mapFindFirst(candidateInlineCompletions, completion => {
-			let r = completion.toSingleTextEdit(reader);
+			let r = completion.getSingleTextEdit();
 			r = singleTextRemoveCommonPrefix(
 				r,
 				model,
@@ -491,7 +534,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public readonly warning = derived(this, reader => {
-		return this.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.warning;
+		return this.inlineCompletionState.read(reader)?.inlineCompletion?.warning;
 	});
 
 	public readonly ghostTexts = derivedOpts({ owner: this, equalsFn: ghostTextsOrReplacementsEqual }, reader => {
@@ -508,6 +551,18 @@ export class InlineCompletionsModel extends Disposable {
 			return undefined;
 		}
 		return v?.primaryGhostText;
+	});
+
+	public readonly showCollapsed = derived<boolean>(this, reader => {
+		const state = this.state.read(reader);
+		if (!state || state.kind !== 'inlineEdit') {
+			return false;
+		}
+
+		const isCurrentModelVersion = state.inlineCompletion.updatedEditModelVersion === this._textModelVersionId.read(reader);
+		return (this._inlineEditsShowCollapsedEnabled.read(reader) || !isCurrentModelVersion)
+			&& this._jumpedToId.read(reader) !== state.inlineCompletion.semanticId
+			&& !this._inAcceptFlow.read(reader);
 	});
 
 	private readonly _tabShouldIndent = derived(this, reader => {
@@ -546,11 +601,11 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		if (this._inlineEditsShowCollapsed.read(reader)) {
-			return !this._jumpedTo.read(reader);
+		if (this.showCollapsed.read(reader)) {
+			return true;
 		}
 
-		return !s.cursorAtInlineEdit;
+		return !s.cursorAtInlineEdit.read(reader);
 	});
 
 	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
@@ -558,20 +613,20 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) {
 			return false;
 		}
-		if (this._inlineEditsShowCollapsed.read(reader)) {
-			return this._jumpedTo.read(reader);
+		if (this.showCollapsed.read(reader)) {
+			return false;
 		}
 		if (s.inlineEdit.range.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
 			return true;
 		}
-		if (this._jumpedTo.read(reader)) {
+		if (this._jumpedToId.read(reader) === s.inlineCompletion.semanticId) {
 			return true;
 		}
 		if (this._tabShouldIndent.read(reader)) {
 			return false;
 		}
 
-		return s.cursorAtInlineEdit;
+		return s.cursorAtInlineEdit.read(reader);
 	});
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
@@ -595,27 +650,19 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
-		if (this._inAcceptPartialFlow.get()) {
-			this._inAcceptPartialFlow.set(false, undefined);
-			this.jump();
-			return;
-		}
-
-		let completionWithUpdatedRange: InlineCompletionWithUpdatedRange;
+		let completion: InlineSuggestionItem;
 
 		const state = this.state.get();
 		if (state?.kind === 'ghostText') {
 			if (!state || state.primaryGhostText.isEmpty() || !state.inlineCompletion) {
 				return;
 			}
-			completionWithUpdatedRange = state.inlineCompletion;
+			completion = state.inlineCompletion;
 		} else if (state?.kind === 'inlineEdit') {
-			completionWithUpdatedRange = state.inlineCompletion;
+			completion = state.inlineCompletion;
 		} else {
 			return;
 		}
-
-		const completion = completionWithUpdatedRange.toInlineCompletion(undefined);
 
 		if (completion.command) {
 			// Make sure the completion list will not be disposed.
@@ -651,6 +698,8 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}
 
+		this._onDidAccept.fire();
+
 		// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
 		this.stop();
 
@@ -662,10 +711,11 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		this._inAcceptFlow.set(true, undefined);
+		this._lastAcceptedInlineCompletionInfo = { textModelVersionIdAfter: this.textModel.getVersionId(), inlineCompletion: completion };
 	}
 
-	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
-		await this._acceptNext(editor, (pos, text) => {
+	public async acceptNextWord(): Promise<void> {
+		await this._acceptNext(this._editor, (pos, text) => {
 			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
 			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
 			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
@@ -693,8 +743,8 @@ export class InlineCompletionsModel extends Disposable {
 		}, PartialAcceptTriggerKind.Word);
 	}
 
-	public async acceptNextLine(editor: ICodeEditor): Promise<void> {
-		await this._acceptNext(editor, (pos, text) => {
+	public async acceptNextLine(): Promise<void> {
+		await this._acceptNext(this._editor, (pos, text) => {
 			const m = text.match(/\n/);
 			if (m && m.index !== undefined) {
 				return m.index + 1;
@@ -713,9 +763,9 @@ export class InlineCompletionsModel extends Disposable {
 			return;
 		}
 		const ghostText = state.primaryGhostText;
-		const completion = state.inlineCompletion.toInlineCompletion(undefined);
+		const completion = state.inlineCompletion;
 
-		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
+		if (completion.snippetInfo) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
 			await this.accept(editor);
 			return;
@@ -758,8 +808,8 @@ export class InlineCompletionsModel extends Disposable {
 				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
 				const acceptedLength = text.length;
 				completion.source.provider.handlePartialAccept(
-					completion.source.inlineCompletions,
-					completion.sourceInlineCompletion,
+					completion.source.inlineSuggestions,
+					completion.getSourceCompletion(),
 					acceptedLength,
 					{ kind, acceptedLength: acceptedLength, }
 				);
@@ -769,84 +819,19 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	// TODO: clean this up if we keep it
-	private readonly _inAcceptPartialFlow = observableValue(this, false);
-	public readonly inPartialAcceptFlow: IObservable<boolean> = this._inAcceptPartialFlow;
-	public async acceptNextInlineEditPart(editor: ICodeEditor): Promise<void> {
-		if (editor.getModel() !== this.textModel) {
-			throw new BugIndicatingError();
-		}
-
-		const state = this.inlineEditState.get();
-		const updatedEdit = state?.inlineCompletion.updatedEdit.get();
-		const completion = state?.inlineCompletion.toInlineCompletion(undefined);
-		if (!updatedEdit || updatedEdit.isEmpty || !completion) {
-			return;
-		}
-
-		const nextPart = updatedEdit.edits[0];
-
-		const edit = new SingleTextEdit(Range.fromPositions(
-			this.textModel.getPositionAt(nextPart.replaceRange.start),
-			this.textModel.getPositionAt(nextPart.replaceRange.endExclusive)
-		), nextPart.newText);
-
-		const cursorAtStartPosition = this._editor.getSelection()?.getStartPosition().equals(edit.range.getStartPosition());
-		if (!cursorAtStartPosition || !this._inAcceptPartialFlow.get()) {
-			this._inAcceptPartialFlow.set(true, undefined);
-			this.jump();
-			return;
-		}
-
-		const partToJumpToNext = updatedEdit.edits[1] ?? undefined;
-		const editToJumpToNext = partToJumpToNext ? new SingleTextEdit(Range.fromPositions(
-			this.textModel.getPositionAt(partToJumpToNext.replaceRange.start),
-			this.textModel.getPositionAt(partToJumpToNext.replaceRange.endExclusive)
-		), partToJumpToNext.newText) : undefined;
-
-		// Executing the edit might free the completion, so we have to hold a reference on it.
-		completion.source.addRef();
-		try {
-			this._isAcceptingPartially = true;
-			try {
-				editor.pushUndoStop();
-
-				let selections;
-				if (editToJumpToNext) {
-					const [_, rangeOfEditToJumpTo] = getModifiedRangesAfterApplying([edit, editToJumpToNext]);
-					selections = [Selection.fromPositions(rangeOfEditToJumpTo.getStartPosition())];
-				} else {
-					selections = getEndPositionsAfterApplying([edit]).map(p => Selection.fromPositions(p));
-				}
-
-				const edits = [edit];
-				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
-				editor.setSelections(selections, 'inlineCompletionPartialAccept');
-				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Immediate);
-			} finally {
-				this._isAcceptingPartially = false;
-			}
-		} finally {
-			completion.source.removeRef();
-		}
-	}
-
 	public handleSuggestAccepted(item: SuggestItemInfo) {
-		const itemEdit = singleTextRemoveCommonPrefix(item.toSingleTextEdit(), this.textModel);
+		const itemEdit = singleTextRemoveCommonPrefix(item.getSingleTextEdit(), this.textModel);
 		const augmentedCompletion = this._computeAugmentation(itemEdit, undefined);
 		if (!augmentedCompletion) { return; }
 
-		const source = augmentedCompletion.completion.source;
-		const sourceInlineCompletion = augmentedCompletion.completion.sourceInlineCompletion;
-
-		const completion = augmentedCompletion.completion.toInlineCompletion(undefined);
 		// This assumes that the inline completion and the model use the same EOL style.
-		const alreadyAcceptedLength = this.textModel.getValueInRange(completion.range, EndOfLinePreference.LF).length;
+		const alreadyAcceptedLength = this.textModel.getValueInRange(augmentedCompletion.completion.range, EndOfLinePreference.LF).length;
 		const acceptedLength = alreadyAcceptedLength + itemEdit.text.length;
 
+		const source = augmentedCompletion.completion.source;
 		source.provider.handlePartialAccept?.(
-			source.inlineCompletions,
-			sourceInlineCompletion,
+			source.inlineSuggestions,
+			augmentedCompletion.completion.getSourceCompletion(),
 			itemEdit.text.length,
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
@@ -857,14 +842,14 @@ export class InlineCompletionsModel extends Disposable {
 
 	public extractReproSample(): Repro {
 		const value = this.textModel.getValue();
-		const item = this.state.get()?.inlineCompletion?.toInlineCompletion(undefined);
+		const item = this.state.get()?.inlineCompletion;
 		return {
 			documentValue: value,
-			inlineCompletion: item?.sourceInlineCompletion,
+			inlineCompletion: item?.getSourceCompletion(),
 		};
 	}
 
-	private readonly _jumpedTo = observableValue(this, false);
+	private readonly _jumpedToId = observableValue<undefined | string>(this, undefined);
 	private readonly _inAcceptFlow = observableValue(this, false);
 	public readonly inAcceptFlow: IObservable<boolean> = this._inAcceptFlow;
 
@@ -873,9 +858,9 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) { return; }
 
 		transaction(tx => {
-			this._jumpedTo.set(true, tx);
+			this._jumpedToId.set(s.inlineCompletion.semanticId, tx);
 			this.dontRefetchSignal.trigger(tx);
-			const edit = s.inlineCompletion.toSingleTextEdit(undefined);
+			const edit = s.inlineCompletion.getSingleTextEdit();
 			this._editor.setPosition(edit.range.getStartPosition(), 'inlineCompletions.jump');
 
 			// TODO: consider using view information to reveal it
@@ -891,13 +876,13 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public async handleInlineEditShown(inlineCompletion: InlineCompletionItem): Promise<void> {
+	public async handleInlineEditShown(inlineCompletion: InlineSuggestionItem): Promise<void> {
 		if (inlineCompletion.didShow) {
 			return;
 		}
-		inlineCompletion.markAsShown();
+		inlineCompletion.didShow = true;
 
-		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineCompletions, inlineCompletion.sourceInlineCompletion, inlineCompletion.insertText);
+		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineSuggestions, inlineCompletion.getSourceCompletion(), inlineCompletion.insertText);
 
 		if (inlineCompletion.shownCommand) {
 			await this._commandService.executeCommand(inlineCompletion.shownCommand.id, ...(inlineCompletion.shownCommand.arguments || []));

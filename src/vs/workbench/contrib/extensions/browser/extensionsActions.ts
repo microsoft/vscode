@@ -72,6 +72,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUpdateService } from '../../../../platform/update/common/update.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -420,7 +421,7 @@ export class InstallAction extends ExtensionAction {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.hideOnDisabled = false;
@@ -469,7 +470,7 @@ export class InstallAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.gallery && !this.extension.gallery.isSigned && (await this.galleryService.getCapabilities()).allRepositorySigned) {
+		if (this.extension.gallery && !this.extension.gallery.isSigned && (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned) {
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Warning,
 				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
@@ -998,17 +999,19 @@ export class UpdateAction extends ExtensionAction {
 			}
 		}
 
-		alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
-		return this.install(this.extension);
-	}
-
-	private async install(extension: IExtension): Promise<void> {
-		const options = extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined;
+		const installOptions: InstallOptions = {};
+		if (this.extension.local?.source === 'vsix' && this.extension.local.pinned) {
+			installOptions.pinned = false;
+		}
+		if (this.extension.local?.preRelease) {
+			installOptions.installPreReleaseVersion = true;
+		}
 		try {
-			await this.extensionsWorkbenchService.install(extension, options);
-			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
+			alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
+			await this.extensionsWorkbenchService.install(this.extension, installOptions);
+			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", this.extension.displayName, this.extension.latestVersion));
 		} catch (err) {
-			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, options, extension.latestVersion, InstallOperation.Update, err).run();
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, installOptions, this.extension.latestVersion, InstallOperation.Update, err).run();
 		}
 	}
 }
@@ -2524,7 +2527,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2551,7 +2554,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned && (await this.galleryService.getCapabilities()).allRepositorySigned) {
+		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned && (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned) {
 			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('not signed tooltip', "This extension is not signed by the Extension Marketplace.")) }, true);
 			return;
 		}
@@ -2609,11 +2612,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		// Extension is disabled by its dependency
-		const result = this.allowedExtensionsService.isAllowed(this.extension.local);
-		if (result !== true) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
-			return;
+		// Extension is disabled by allowed list
+		if (this.extension.enablementState === EnablementState.DisabledByAllowlist) {
+			const result = this.allowedExtensionsService.isAllowed(this.extension.local);
+			if (result !== true) {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
+				return;
+			}
 		}
 
 		// Extension is disabled by environment

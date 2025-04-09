@@ -10,7 +10,6 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
@@ -32,20 +31,9 @@ import { cancelPreviousCalls } from '../../../../../../base/common/decorators/ca
 export abstract class PromptContentsProviderBase<
 	TChangeEvent extends NonNullable<unknown>,
 > extends ObservableDisposable implements IPromptContentsProvider {
-	/**
-	 * Internal event emitter for the prompt contents change event. Classes that extend
-	 * this abstract class are responsible to use this emitter to fire the contents change
-	 * event when the prompt contents get modified.
-	 */
-	protected readonly onChangeEmitter = this._register(new Emitter<TChangeEvent | 'full'>());
-
-	constructor() {
-		super();
-		// ensure that the `onChangeEmitter` always fires with the correct context
-		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
-		// subscribe to the change event emitted by an extending class
-		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
-	}
+	public abstract readonly uri: URI;
+	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
+	public abstract override toString(): string;
 
 	/**
 	 * Function to get contents stream for the provider. This function should
@@ -61,15 +49,19 @@ export abstract class PromptContentsProviderBase<
 	): Promise<VSBufferReadableStream>;
 
 	/**
-	 * URI reference associated with the prompt contents.
+	 * Internal event emitter for the prompt contents change event. Classes that extend
+	 * this abstract class are responsible to use this emitter to fire the contents change
+	 * event when the prompt contents get modified.
 	 */
-	public abstract readonly uri: URI;
+	protected readonly onChangeEmitter = this._register(new Emitter<TChangeEvent | 'full'>());
 
-	/**
-	 * Return a string representation of this object
-	 * for debugging/tracing purposes.
-	 */
-	public abstract override toString(): string;
+	constructor() {
+		super();
+		// ensure that the `onChangeEmitter` always fires with the correct context
+		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
+		// subscribe to the change event emitted by an extending class
+		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
+	}
 
 	/**
 	 * Event emitter for the prompt contents change event.
@@ -139,12 +131,5 @@ export abstract class PromptContentsProviderBase<
 		this.onContentsChanged('full');
 
 		return this;
-	}
-
-	/**
-	 * Check if the current URI points to a prompt snippet.
-	 */
-	public isPromptSnippet(): boolean {
-		return isPromptFile(this.uri);
 	}
 }

@@ -1380,6 +1380,13 @@ suite('vscode API - workspace', () => {
 		assert.ok(err);
 	});
 
+	test('encoding: openTextDocument - invalid encoding falls back to default', async () => {
+		const uri1 = await createRandomFile();
+
+		const doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'foobar123' });
+		assert.strictEqual(doc1.encoding, 'utf8');
+	});
+
 	test('encoding: openTextDocument - multiple requests with different encoding work', async () => {
 		const uri1 = await createRandomFile();
 

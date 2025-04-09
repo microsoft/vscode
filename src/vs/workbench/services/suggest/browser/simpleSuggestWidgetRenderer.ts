@@ -12,6 +12,12 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMatches } from '../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
 
 export function getAriaId(index: number): string {
 	return `simple-suggest-aria-id-${index}`;
@@ -59,8 +65,12 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 
 	readonly templateId = 'suggestion';
 
-	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo, private readonly _onDidFontConfigurationChange: Event<void>) {
-	}
+	constructor(
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
+		private readonly _onDidFontConfigurationChange: Event<void>,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService) { }
 
 	dispose(): void {
 		this._onDidToggleDetails.dispose();
@@ -134,28 +144,29 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		// 	data.iconContainer.className = 'icon hide';
 		// 	data.colorspan.style.backgroundColor = color[0];
 
-		// } else if (completion.kind === CompletionItemKind.File && this._themeService.getFileIconTheme().hasFileIcons) {
-		// 	// special logic for 'file' completion items
-		// 	data.icon.className = 'icon hide';
-		// 	data.iconContainer.className = 'icon hide';
-		// 	const labelClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
-		// 	const detailClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
-		// 	labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
+		// } else
+		if (completion.kindLabel === 'File' && this._themeService.getFileIconTheme().hasFileIcons) {
+			// special logic for 'file' completion items
+			data.icon.className = 'icon hide';
+			data.iconContainer.className = 'icon hide';
+			const labelClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
+			const detailClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
+			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
-		// } else if (completion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
-		// 	// special logic for 'folder' completion items
-		// 	data.icon.className = 'icon hide';
-		// 	data.iconContainer.className = 'icon hide';
-		// 	labelOptions.extraClasses = [
-		// 		getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
-		// 		getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
-		// 	].flat();
-		// } else {
-		// normal icon
-		data.icon.className = 'icon hide';
-		data.iconContainer.className = '';
-		data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(completion.icon || Codicon.symbolText));
-		// }
+		} else if (completion.kindLabel === 'Folder' && this._themeService.getFileIconTheme().hasFolderIcons) {
+			// special logic for 'folder' completion items
+			data.icon.className = 'icon hide';
+			data.iconContainer.className = 'icon hide';
+			labelOptions.extraClasses = [
+				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
+				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
+			].flat();
+		} else {
+			// normal icon
+			data.icon.className = 'icon hide';
+			data.iconContainer.className = '';
+			data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(completion.icon || Codicon.symbolText));
+		}
 
 		// if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
 		// 	labelOptions.extraClasses = (labelOptions.extraClasses || []).concat(['deprecated']);

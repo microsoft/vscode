@@ -11,7 +11,7 @@ import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '..
 import { Disposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import { isAbsolute, join } from '../../base/common/path.js';
-import { isWindows } from '../../base/common/platform.js';
+import { isWindows, isMacintosh } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { URI } from '../../base/common/uri.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -66,6 +66,8 @@ import { FileUserDataProvider } from '../../platform/userData/common/fileUserDat
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { McpManagementCli } from '../../platform/mcp/common/mcpManagementCli.js';
+import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 
 class CliMain extends Disposable {
 
@@ -163,9 +165,16 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(logService, productService.win32RegValueName))
-			: environmentService.policyFile ? this._register(new FilePolicyService(environmentService.policyFile, fileService, logService))
-				: new NullPolicyService();
+		let policyService: IPolicyService | undefined;
+		if (isWindows && productService.win32RegValueName) {
+			policyService = this._register(new NativePolicyService(logService, productService.win32RegValueName));
+		} else if (isMacintosh && productService.darwinBundleIdentifier) {
+			policyService = this._register(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (environmentService.policyFile) {
+			policyService = this._register(new FilePolicyService(environmentService.policyFile, fileService, logService));
+		} else {
+			policyService = new NullPolicyService();
+		}
 		services.set(IPolicyService, policyService);
 
 		// Configuration
@@ -209,6 +218,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
 		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
+		services.set(IExtensionGalleryManifestService, new SyncDescriptor(ExtensionGalleryManifestService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 
 		// Localizations

@@ -1780,6 +1780,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
 			}
+			case 'markupDecorations': {
+				const markupCell = window.document.getElementById(event.data.cellId);
+				// The cell may not have been added yet if it is out of view.
+				// Decorations will be added when the cell is shown.
+				if (markupCell) {
+					markupCell?.classList.add(...event.data.addedClassNames);
+					markupCell?.classList.remove(...event.data.removedClassNames);
+				}
+				break;
+			}
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;

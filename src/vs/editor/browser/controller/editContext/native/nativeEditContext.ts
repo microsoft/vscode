@@ -30,6 +30,7 @@ import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
+import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -38,10 +39,17 @@ enum CompositionClassName {
 	PRIMARY = 'edit-context-composition-primary',
 }
 
+interface ITextUpdateEvent {
+	text: string;
+	selectionStart: number;
+	selectionEnd: number;
+	updateRangeStart: number;
+	updateRangeEnd: number;
+}
+
 export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
-	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -68,15 +76,12 @@ export class NativeEditContext extends AbstractEditContext {
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super(context);
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
-		this.textArea = new FastDomNode(document.createElement('textarea'));
-		this.textArea.setClassName('native-edit-context-textarea');
-		this.textArea.setAttribute('tabindex', '-1');
 		this.domNode.setAttribute('autocorrect', 'off');
 		this.domNode.setAttribute('autocapitalize', 'off');
 		this.domNode.setAttribute('autocomplete', 'off');
@@ -85,7 +90,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
-		overflowGuardContainer.appendChild(this.textArea);
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
@@ -134,7 +138,28 @@ export class NativeEditContext extends AbstractEditContext {
 		// Edit context events
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
+		let highSurrogateCharacter: string | undefined;
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			const text = e.text;
+			if (text.length === 1) {
+				const charCode = text.charCodeAt(0);
+				if (isHighSurrogate(charCode)) {
+					highSurrogateCharacter = text;
+					return;
+				}
+				if (isLowSurrogate(charCode) && highSurrogateCharacter) {
+					const textUpdateEvent: ITextUpdateEvent = {
+						text: highSurrogateCharacter + text,
+						selectionEnd: e.selectionEnd,
+						selectionStart: e.selectionStart,
+						updateRangeStart: e.updateRangeStart - 1,
+						updateRangeEnd: e.updateRangeEnd - 1
+					};
+					highSurrogateCharacter = undefined;
+					this._emitTypeEvent(viewController, textUpdateEvent);
+					return;
+				}
+			}
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
@@ -151,31 +176,6 @@ export class NativeEditContext extends AbstractEditContext {
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
 		}));
-		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
-			// Pretend here we touched the text area, as the `paste` event will most likely
-			// result in a `selectionchange` event which we want to ignore
-			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
-			e.preventDefault();
-			if (!e.clipboardData) {
-				return;
-			}
-			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-			if (!text) {
-				return;
-			}
-			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
-			let pasteOnNewLine = false;
-			let multicursorText: string[] | null = null;
-			let mode: string | null = null;
-			if (metadata) {
-				const options = this._context.configuration.options;
-				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
-				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
-				mode = metadata.mode;
-			}
-			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
-		}));
 		this._register(NativeEditContextRegistry.register(ownerID, this));
 	}
 
@@ -185,7 +185,6 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
-		this.textArea.domNode.remove();
 		super.dispose();
 	}
 
@@ -254,6 +253,10 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public onWillPaste(): void {
+		this._onWillPaste();
+	}
+
+	private _onWillPaste(): void {
 		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
 	}
 
@@ -262,7 +265,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public isFocused(): boolean {
-		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
+		return this._focusTracker.isFocused;
 	}
 
 	public focus(): void {
@@ -299,12 +302,12 @@ export class NativeEditContext extends AbstractEditContext {
 		if (!editContextState) {
 			return;
 		}
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 	}
 
-	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
+	private _emitTypeEvent(viewController: ViewController, e: ITextUpdateEvent): void {
 		if (!this._editContext) {
 			return;
 		}

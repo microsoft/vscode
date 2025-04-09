@@ -157,7 +157,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadDisposables = [];
 		this.create();
 
-		this._globalToDispose.add(this.themeService.onDidColorThemeChange(e => this._applyTheme(e.theme)));
+		this._globalToDispose.add(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._applyTheme(this.themeService.getColorTheme());

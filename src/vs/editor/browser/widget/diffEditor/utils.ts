@@ -137,12 +137,14 @@ export function animatedObservable(targetWindow: Window, base: IObservableWithCh
 	let animationFrame: number | undefined = undefined;
 
 	store.add(autorunHandleChanges({
-		createEmptyChangeSummary: () => ({ animate: false }),
-		handleChange: (ctx, s) => {
-			if (ctx.didChange(base)) {
-				s.animate = s.animate || ctx.change;
+		changeTracker: {
+			createChangeSummary: () => ({ animate: false }),
+			handleChange: (ctx, s) => {
+				if (ctx.didChange(base)) {
+					s.animate = s.animate || ctx.change;
+				}
+				return true;
 			}
-			return true;
 		}
 	}, (reader, s) => {
 		/** @description update value */
@@ -328,14 +330,16 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 
 		// Layout zone on change
 		store.add(autorunHandleChanges({
-			createEmptyChangeSummary() {
-				return { zoneIds: [] as string[] };
-			},
-			handleChange(context, changeSummary) {
-				const id = viewZoneIdPerOnChangeObservable.get(context.changedObservable);
-				if (id !== undefined) { changeSummary.zoneIds.push(id); }
-				return true;
-			},
+			changeTracker: {
+				createChangeSummary() {
+					return { zoneIds: [] as string[] };
+				},
+				handleChange(context, changeSummary) {
+					const id = viewZoneIdPerOnChangeObservable.get(context.changedObservable);
+					if (id !== undefined) { changeSummary.zoneIds.push(id); }
+					return true;
+				},
+			}
 		}, (reader, changeSummary) => {
 			/** @description layoutZone on change */
 			for (const vz of curViewZones) {

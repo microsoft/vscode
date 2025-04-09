@@ -77,15 +77,18 @@ export class MergeEditorModel extends EditorModel {
 			this._register(
 				autorunHandleChanges(
 					{
-						handleChange: (ctx) => {
-							if (ctx.didChange(this.modifiedBaseRangeResultStates)) {
-								shouldRecomputeHandledFromAccepted = true;
-							}
-							return ctx.didChange(this.resultTextModelDiffs.diffs)
-								// Ignore non-text changes as we update the state directly
-								? ctx.change === TextModelDiffChangeReason.textChange
-								: true;
-						},
+						changeTracker: {
+							createChangeSummary: () => undefined,
+							handleChange: (ctx) => {
+								if (ctx.didChange(this.modifiedBaseRangeResultStates)) {
+									shouldRecomputeHandledFromAccepted = true;
+								}
+								return ctx.didChange(this.resultTextModelDiffs.diffs)
+									// Ignore non-text changes as we update the state directly
+									? ctx.change === TextModelDiffChangeReason.textChange
+									: true;
+							},
+						}
 					},
 					(reader) => {
 						/** @description Merge Editor Model: Recompute State From Result */

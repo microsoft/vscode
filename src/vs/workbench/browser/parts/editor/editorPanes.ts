@@ -371,7 +371,21 @@ export class EditorPanes extends Disposable {
 			// right `window` can be determined in floating window cases.
 			this.editorPanesParent.appendChild(editorPaneContainer);
 
-			editorPane.create(editorPaneContainer);
+			try {
+				editorPane.create(editorPaneContainer);
+			} catch (error) {
+
+				// At this point the editor pane container is not healthy
+				// and as such, we remove it from the pane parent and hide
+				// it so that we have a chance to show an error placeholder.
+				// Not doing so would result in multiple `.editor-instance`
+				// lingering around in the DOM.
+
+				editorPaneContainer.remove();
+				hide(editorPaneContainer);
+
+				throw error;
+			}
 		}
 
 		return editorPane;

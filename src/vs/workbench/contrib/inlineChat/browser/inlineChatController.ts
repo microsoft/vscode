@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -44,7 +44,7 @@ import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
 import { HunkInformation, Session, StashedSession } from './inlineChatSession.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatError } from './inlineChatSessionServiceImpl.js';
@@ -53,7 +53,8 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -111,10 +112,10 @@ export class InlineChatController implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 
-		const inlineChat2 = observableFromEvent(this, Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(CTX_INLINE_CHAT_HAS_AGENT2.keys()))), () => contextKeyService.contextMatchesRules(CTX_INLINE_CHAT_HAS_AGENT2));
+		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
 
 		this._delegate = derived(r => {
 			if (inlineChat2.read(r)) {
@@ -1237,8 +1238,7 @@ export class InlineChatController2 implements IEditorContribution {
 				{
 					enableWorkingSet: 'implicit',
 					rendererOptions: {
-						renderCodeBlockPills: true,
-						renderTextEditsAsSummary: uri => isEqual(uri, _editor.getModel()?.uri)
+						renderTextEditsAsSummary: _uri => true
 					}
 				},
 				this._editor
@@ -1404,7 +1404,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		await Event.toPromise(session.editingSession.onDidDispose);
 
-		const rejected = session.editingSession.getEntry(uri)?.state.get() === WorkingSetEntryState.Rejected;
+		const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
 		return !rejected;
 	}
 
@@ -1423,9 +1423,9 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const chatEditingService = accessor.get(IChatEditingService);
 
 	const uri = editor.getModel().uri;
-	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token);
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
 
-	const editSession = await chatEditingService.createEditingSession(chatModel.sessionId);
+	const editSession = await chatEditingService.createEditingSession(chatModel);
 
 	const store = new DisposableStore();
 	store.add(chatModel);
@@ -1456,7 +1456,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 			return false;
 		}
 		const state = entry.state.read(r);
-		return state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected;
+		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
 	});
 
 	const whenDecided = waitForState(isSettled, Boolean);

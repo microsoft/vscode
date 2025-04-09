@@ -398,6 +398,11 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		}
 		return false;
 	}
+	clearAiSearchResults(): void {
+		this._aiResultQueue.length = 0;
+		// it's not clear all as we are only clearing the AI results
+		this._searchResult.aiTextSearchResult.clear(false);
+	}
 	override dispose(): void {
 		this.cancelSearch();
 		this.cancelAISearch();
