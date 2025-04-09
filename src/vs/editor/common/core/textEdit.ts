@@ -193,6 +193,68 @@ export class TextEdit {
 	equals(other: TextEdit): boolean {
 		return equals(this.edits, other.edits, (a, b) => a.equals(b));
 	}
+
+	toString(text: AbstractText | string | undefined): string {
+		if (text === undefined) {
+			return this.edits.map(edit => edit.toString()).join('\n');
+		}
+
+		if (typeof text === 'string') {
+			return this.toString(new StringText(text));
+		}
+
+		if (this.edits.length === 0) {
+			return '';
+		}
+
+		return this.edits.map(edit => {
+			const maxLength = 10;
+			const originalText = text.getValueOfRange(edit.range);
+
+			// Get text before the edit
+			const beforeRange = Range.fromPositions(
+				new Position(Math.max(1, edit.range.startLineNumber - 1), 1),
+				edit.range.getStartPosition()
+			);
+			let beforeText = text.getValueOfRange(beforeRange);
+			if (beforeText.length > maxLength) {
+				beforeText = '...' + beforeText.substring(beforeText.length - maxLength);
+			}
+
+			// Get text after the edit
+			const afterRange = Range.fromPositions(
+				edit.range.getEndPosition(),
+				new Position(edit.range.endLineNumber + 1, 1)
+			);
+			let afterText = text.getValueOfRange(afterRange);
+			if (afterText.length > maxLength) {
+				afterText = afterText.substring(0, maxLength) + '...';
+			}
+
+			// Format the replaced text
+			let replacedText = originalText;
+			if (replacedText.length > maxLength) {
+				const halfMax = Math.floor(maxLength / 2);
+				replacedText = replacedText.substring(0, halfMax) + '...' +
+					replacedText.substring(replacedText.length - halfMax);
+			}
+
+			// Format the new text
+			let newText = edit.text;
+			if (newText.length > maxLength) {
+				const halfMax = Math.floor(maxLength / 2);
+				newText = newText.substring(0, halfMax) + '...' +
+					newText.substring(newText.length - halfMax);
+			}
+
+			if (replacedText.length === 0) {
+				// allow-any-unicode-next-line
+				return `${beforeText}❰${newText}❱${afterText}`;
+			}
+			// allow-any-unicode-next-line
+			return `${beforeText}❰${replacedText}↦${newText}❱${afterText}`;
+		}).join('\n');
+	}
 }
 
 export class SingleTextEdit {

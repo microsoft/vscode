@@ -7,20 +7,22 @@ import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
 import { Position } from '../../../../../common/core/position.js';
 import { AbstractText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { Command } from '../../../../../common/languages.js';
-import { InlineCompletionItem } from '../../model/provideInlineCompletions.js';
+import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 
 export class InlineEditWithChanges {
-	public readonly lineEdit = SingleLineEdit.fromSingleTextEdit(this.edit.toSingle(this.originalText), this.originalText);
+	public get lineEdit() {
+		return SingleLineEdit.fromSingleTextEdit(this.edit.toSingle(this.originalText), this.originalText);
+	}
 
-	public readonly originalLineRange = this.lineEdit.lineRange;
-	public readonly modifiedLineRange = this.lineEdit.toLineEdit().getNewLineRanges()[0];
+	public get originalLineRange() { return this.lineEdit.lineRange; }
+	public get modifiedLineRange() { return this.lineEdit.toLineEdit().getNewLineRanges()[0]; }
 
 	constructor(
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly cursorPosition: Position,
 		public readonly commands: readonly Command[],
-		public readonly inlineCompletion: InlineCompletionItem
+		public readonly inlineCompletion: InlineSuggestionItem
 	) {
 	}
 

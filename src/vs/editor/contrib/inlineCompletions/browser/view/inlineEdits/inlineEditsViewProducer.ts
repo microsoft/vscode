@@ -33,7 +33,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit.read(reader);
+		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit;
 		if (!editOffset) { return undefined; }
 
 		const edits = editOffset.edits.map(e => {
@@ -81,7 +81,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const inlineCompletion = state.inlineCompletion;
 		if (!inlineCompletion) { return undefined; }
 
-		if (!inlineCompletion.sourceInlineCompletion.showInlineEditMenu) {
+		if (!inlineCompletion.showInlineEditMenu) {
 			return undefined;
 		}
 

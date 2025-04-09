@@ -5,6 +5,7 @@
 
 import { TopError } from './topError.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { PromptToken } from '../codecs/tokens/promptToken.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
@@ -17,12 +18,14 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
 import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 
 /**
@@ -35,6 +38,17 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
 export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
+	/**
+	 * List of all tokens that were parsed from the prompt contents so far.
+	 */
+	public get tokens(): readonly BaseToken[] {
+		return [...this.receivedTokens];
+	}
+	/**
+	 * Private field behind the readonly {@link tokens} property.
+	 */
+	private receivedTokens: BaseToken[] = [];
+
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
@@ -203,6 +217,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		this.stream?.dispose();
 		delete this.stream;
 		delete this._errorCondition;
+		this.receivedTokens = [];
 
 		// dispose all currently existing references
 		this.disposeReferences();
@@ -224,6 +239,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// when some tokens received, process and store the references
 		this.stream.on('data', (token) => {
+			// store all markdown and prompt token references
+			if ((token instanceof MarkdownToken) || (token instanceof PromptToken)) {
+				this.receivedTokens.push(token);
+			}
+
+			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
 					this.onReference(FileReference.from(token), [...seenReferences]);
@@ -259,7 +280,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		token: FileReference | MarkdownLink,
 		seenReferences: string[],
 	): this {
-
 		const referenceUri = extUri.resolvePath(this.dirname, token.path);
 		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
 

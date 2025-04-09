@@ -55,6 +55,7 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainWindow: Event<number>;
 
 	readonly onDidChangeWindowFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
+	readonly onDidChangeWindowAlwaysOnTop: Event<{ windowId: number; alwaysOnTop: boolean }>;
 
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
@@ -91,6 +92,9 @@ export interface ICommonNativeHostService {
 	minimizeWindow(options?: INativeHostOptions): Promise<void>;
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
+
+	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
+	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
@@ -150,7 +154,7 @@ export interface ICommonNativeHostService {
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard
-	triggerPaste(): Promise<void>;
+	triggerPaste(options?: INativeHostOptions): Promise<void>;
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;

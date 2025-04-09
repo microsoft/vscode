@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
@@ -30,7 +30,6 @@ export namespace ChatContextKeys {
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
-	export const inUnifiedChat = new RawContextKey<boolean>('inUnifiedChat', false, { type: 'boolean', description: localize('inUnifiedChat', "True when focus is in the unified chat widget, false otherwise.") });
 	export const instructionsAttached = new RawContextKey<boolean>('chatInstructionsAttached', false, { type: 'boolean', description: localize('chatInstructionsAttachedContextDescription', "True when the chat has a prompt instructions attached.") });
 	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
@@ -52,8 +51,7 @@ export namespace ChatContextKeys {
 
 	export const Setup = {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
-		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
-		fromDialog: ContextKeyExpr.has('config.chat.setupFromDialog'),
+		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true)  	// True when the chat extension is installed.
 	};
 
 	export const Entitlement = {
@@ -63,29 +61,10 @@ export namespace ChatContextKeys {
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
 
-	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Entitlement.signedOut.key, ChatContextKeys.Entitlement.canSignUp.key, ...Setup.fromDialog.keys()]);
-	export const SetupViewCondition = ContextKeyExpr.and(
-		Setup.fromDialog.negate(),
-		ContextKeyExpr.or(
-			ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.installed.negate()
-			),
-			ContextKeyExpr.and(
-				ChatContextKeys.Entitlement.canSignUp,
-				ChatContextKeys.Setup.installed
-			),
-			ContextKeyExpr.and(
-				ChatContextKeys.Entitlement.signedOut,
-				ChatContextKeys.Setup.installed
-			)
-		))!;
-
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 
 	export const Editing = {
-		hasToolsAgent: new RawContextKey<boolean>('chatHasToolsAgent', false, { type: 'boolean', description: localize('chatEditingHasToolsAgent', "True when a tools agent is registered.") }),
 		agentModeDisallowed: new RawContextKey<boolean>('chatAgentModeDisallowed', undefined, { type: 'boolean', description: localize('chatAgentModeDisallowed', "True when agent mode is not allowed.") }), // experiment-driven disablement
 		hasToolConfirmation: new RawContextKey<boolean>('chatHasToolConfirmation', false, { type: 'boolean', description: localize('chatEditingHasToolConfirmation', "True when a tool confirmation is present.") }),
 	};
@@ -96,16 +75,6 @@ export namespace ChatContextKeys {
 }
 
 export namespace ChatContextKeyExprs {
-	export const unifiedChatEnabled = ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedChatView}`);
-
-	export const inEditsOrUnified = ContextKeyExpr.or(
-		ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-		ChatContextKeys.inUnifiedChat);
-
-	export const inNonUnifiedPanel = ContextKeyExpr.and(
-		ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-		ChatContextKeys.inUnifiedChat.negate());
-
 	export const inEditingMode = ContextKeyExpr.or(
 		ChatContextKeys.chatMode.isEqualTo(ChatMode.Edit),
 		ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),

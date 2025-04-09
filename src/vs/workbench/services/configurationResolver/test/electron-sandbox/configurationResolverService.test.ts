@@ -259,6 +259,17 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
+	test('inlines an array (#245718)', async () => {
+		const configurationService: IConfigurationService = new TestConfigurationService({
+			editor: {
+				fontFamily: ['foo', 'bar']
+			},
+		});
+
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
+		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo,bar xyz');
+	});
+
 	test('substitute configuration variable with undefined workspace folder', async () => {
 		const configurationService: IConfigurationService = new TestConfigurationService({
 			editor: {
@@ -672,6 +683,43 @@ suite('Configuration Resolver Service', () => {
 		const configuration = 'echo ${env:VAR_1}${env:VAR_2}';
 		const resolvedResult = await configurationResolverService!.resolveWithEnvironment({ ...env }, undefined, configuration);
 		assert.deepStrictEqual(resolvedResult, 'echo VAL_1VAL_2');
+	});
+
+	test('substitution in object key', async () => {
+
+		const configuration = {
+			'name': 'Test',
+			'mappings': {
+				'pos1': 'value1',
+				'${workspaceFolder}/test1': '${workspaceFolder}/test2',
+				'pos3': 'value3'
+			}
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+
+			if (platform.isWindows) {
+				assert.deepStrictEqual({ ...result }, {
+					'name': 'Test',
+					'mappings': {
+						'pos1': 'value1',
+						'\\VSCode\\workspaceLocation/test1': '\\VSCode\\workspaceLocation/test2',
+						'pos3': 'value3'
+					}
+				});
+			} else {
+				assert.deepStrictEqual({ ...result }, {
+					'name': 'Test',
+					'mappings': {
+						'pos1': 'value1',
+						'/VSCode/workspaceLocation/test1': '/VSCode/workspaceLocation/test2',
+						'pos3': 'value3'
+					}
+				});
+			}
+
+			assert.strictEqual(0, mockCommandService.callCount);
+		});
 	});
 });
 

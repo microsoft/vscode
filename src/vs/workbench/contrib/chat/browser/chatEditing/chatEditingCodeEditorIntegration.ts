@@ -366,11 +366,12 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					});
 				}
 
-				if (reviewMode || diffMode) {
+				let extraLines = 0;
+				if (reviewMode && !diffMode) {
 					const domNode = document.createElement('div');
 					domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 					const result = renderLines(source, renderOptions, decorations, domNode);
-
+					extraLines = result.heightInLines;
 					if (!isCreatedContent) {
 
 						const viewZoneData: IViewZone = {
@@ -382,12 +383,14 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 						this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
 					}
+				}
 
+				if (reviewMode || diffMode) {
 
 					// Add content widget for each diff change
 					const widget = this._editor.invokeWithinContext(accessor => {
 						const instaService = accessor.get(IInstantiationService);
-						return instaService.createInstance(DiffHunkWidget, diff, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+						return instaService.createInstance(DiffHunkWidget, diff, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : extraLines);
 					});
 
 					widget.layout(diffEntry.modified.startLineNumber);
@@ -623,7 +626,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		} else {
 			// DIFF editor
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
 				original: { resource: this._entry.originalURI, options: { selection: undefined } },
 				modified: { resource: this._entry.modifiedURI, options: { selection } },
