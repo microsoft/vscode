@@ -294,7 +294,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// Since we can not call execCommand('paste') on a dom node with edit context set
 		// we added a hidden text area that receives the paste execution
 		this._textArea.focus();
-		const triggerPaste = this._clipboardService.triggerPaste();
+		const triggerPaste = this._clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 		if (!triggerPaste) {
 			this.domNode.domNode.focus();
 			this._focusTracker.resume(); // resume focus tracking
