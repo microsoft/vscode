@@ -1771,12 +1771,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			await this.hostService.focus(getWindow(this.element));
 
 			// Let editor handle confirmation if implemented
+			let handlerDidError = false;
 			if (typeof editor.closeHandler?.confirm === 'function') {
-				confirmation = await editor.closeHandler.confirm([{ editor, groupId: this.id }]);
+				try {
+					confirmation = await editor.closeHandler.confirm([{ editor, groupId: this.id }]);
+				} catch (e) {
+					this.logService.error(e);
+					handlerDidError = true;
+				}
 			}
 
-			// Show a file specific confirmation
-			else {
+			// Show a file specific confirmation if there is no handler or it errored
+			if (typeof editor.closeHandler?.confirm !== 'function' || handlerDidError) {
 				let name: string;
 				if (editor instanceof SideBySideEditorInput) {
 					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
@@ -1839,7 +1845,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private shouldConfirmClose(editor: EditorInput): boolean {
 		if (editor.closeHandler) {
-			return editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			try {
+				return editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			} catch (error) {
+				this.logService.error(error);
+			}
 		}
 
 		return editor.isDirty() && !editor.isSaving(); // editor must be dirty and not saving
