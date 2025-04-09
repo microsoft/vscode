@@ -27,20 +27,20 @@ async function main() {
     // 3. Codesign context menu appx package (insiders only)
     const codesignTask1 = sign('sign-windows', '*.dll,*.exe,*.node');
     const codesignTask2 = sign('sign-windows-appx', '*.ps1');
-    const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
-        ? sign('sign-windows-appx', '*.appx')
-        : undefined;
+    // const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
+    // 	? sign('sign-windows-appx', '*.appx')
+    // 	: undefined;
     // Codesign executables and shared libraries
     printBanner('Codesign executables and shared libraries');
     await codesignTask1.pipe(process.stdout);
     // Codesign Powershell scripts
     printBanner('Codesign Powershell scripts');
     await codesignTask2.pipe(process.stdout);
-    if (codesignTask3) {
-        // Codesign context menu appx package
-        printBanner('Codesign context menu appx package');
-        await codesignTask3.pipe(process.stdout);
-    }
+    // if (process.env['VSCODE_QUALITY'] === 'insider') {
+    // 	// Codesign context menu appx package
+    // 	printBanner('Codesign context menu appx package');
+    // 	await codesignTask3!.pipe(process.stdout);
+    // }
     // Create build artifact directory
     await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
     // Package client
