@@ -54,7 +54,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
-import { TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -302,7 +302,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
@@ -311,10 +311,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
+		this.isAuxiliary = editorGroupsContainer !== 'main';
+
+		this.contextKeyService = contextKeyService.createScoped(layoutService.getContainer(targetWindow));
+		const isAuxiliaryTitleBarContext = IsAuxiliaryTitleBarContext.bindTo(this.contextKeyService);
+		isAuxiliaryTitleBarContext.set(this.isAuxiliary);
+
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 		this.globalToolbarMenu = this._register(this.menuService.createMenu(MenuId.TitleBar, this.contextKeyService));
 
-		this.isAuxiliary = editorGroupsContainer !== 'main';
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.editorGroupsContainer = editorGroupsContainer === 'main' ? editorGroupService.mainPart : editorGroupsContainer;
 
@@ -595,7 +600,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return this.keybindingService.lookupKeybinding(action.id, editorPaneAwareContextKeyService);
 	}
 
-	private createActionToolBar() {
+	private createActionToolBar(): void {
 
 		// Creates the action tool bar. Depends on the configuration of the title bar menus
 		// Requires to be recreated whenever editor actions enablement changes
@@ -620,7 +625,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 	}
 
-	private createActionToolBarMenus(update: true | { editorActions?: boolean; layoutActions?: boolean; activityActions?: boolean } = true) {
+	private createActionToolBarMenus(update: true | { editorActions?: boolean; layoutActions?: boolean; activityActions?: boolean } = true): void {
 		if (update === true) {
 			update = { editorActions: true, layoutActions: true, activityActions: true };
 		}
@@ -775,7 +780,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get layoutControlEnabled(): boolean {
-		return !this.isAuxiliary && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS) !== false;
+		return this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS) !== false;
 	}
 
 	protected get isCommandCenterVisible() {

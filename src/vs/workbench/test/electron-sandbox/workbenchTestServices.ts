@@ -77,6 +77,7 @@ export class TestNativeHostService implements INativeHostService {
 	onDidChangePassword = Event.None;
 	onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
 	onDidChangeWindowFullScreen = Event.None;
+	onDidChangeWindowAlwaysOnTop = Event.None;
 	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
@@ -100,6 +101,8 @@ export class TestNativeHostService implements INativeHostService {
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
 	async moveWindowTop(options?: INativeHostOptions): Promise<void> { }
+	async isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean> { return false; }
+	async toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void> { }
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
