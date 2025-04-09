@@ -836,6 +836,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidChangeContentHeight.fire();
 	}
 
+	private getWidgetViewKindTag(): string {
+		if (!this.viewContext) {
+			return 'editor';
+		} else if ('viewId' in this.viewContext) {
+			return 'view';
+		} else {
+			return 'quick';
+		}
+	}
+
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal' }): void {
 		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
 			this.location,
@@ -847,6 +857,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				enableImplicitContext: this.viewOptions.enableImplicitContext,
 				renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
 				supportsChangingModes: this.viewOptions.supportsChangingModes,
+				widgetViewKindTag: this.getWidgetViewKindTag()
 			},
 			this.styles,
 			() => this.collectInputState()

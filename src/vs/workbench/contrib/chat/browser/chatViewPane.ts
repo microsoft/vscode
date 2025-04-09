@@ -143,9 +143,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private async updateModel(model?: IChatModel | undefined, viewState?: IChatViewState): Promise<void> {
 		this.modelDisposables.clear();
 
-		const hasSetDefaultMode = this.storageService.getBoolean(HasSetDefaultModeByExperimentKey, StorageScope.WORKSPACE, false);
-		const defaultMode = hasSetDefaultMode ? undefined : this.chatService.defaultModeExp;
-
 		model = model ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
 			? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
 			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
@@ -158,14 +155,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		this.viewState.sessionId = model.sessionId;
-
-		if (defaultMode && (!model || model.getRequests().length === 0)) {
-			if (!this.viewState.inputState) {
-				this.viewState.inputState = {};
-			}
-			this.viewState.inputState.chatMode = defaultMode;
-			this.storageService.store(HasSetDefaultModeByExperimentKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		}
 		this._widget.setModel(model, { ...this.viewState });
 
 		// Update the toolbar context with new sessionId
@@ -319,5 +308,3 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 }
-
-const HasSetDefaultModeByExperimentKey = 'chat.hasSetDefaultModeByExperiment.4';

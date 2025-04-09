@@ -129,19 +129,8 @@ export class ChatEditor extends EditorPane {
 	}
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
-		const hasSetDefaultMode = this.storageService.getBoolean(HasSetDefaultModeByExperimentKey, StorageScope.WORKSPACE, false);
-		const defaultMode = hasSetDefaultMode ? undefined : this.chatService.defaultModeExp;
 		this._memento = new Memento('interactive-session-editor-' + CHAT_PROVIDER_ID, this.storageService);
 		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
-
-		if (defaultMode && model.getRequests().length === 0) {
-			if (!this._viewState.inputState) {
-				this._viewState.inputState = {};
-			}
-			this._viewState.inputState.chatMode = defaultMode;
-			this.storageService.store(HasSetDefaultModeByExperimentKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		}
-
 		this.widget.setModel(model, { ...this._viewState });
 	}
 
@@ -168,5 +157,3 @@ export class ChatEditor extends EditorPane {
 		}
 	}
 }
-
-const HasSetDefaultModeByExperimentKey = 'chatEditor.hasSetDefaultModeByExperiment';

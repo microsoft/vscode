@@ -124,6 +124,7 @@ interface IChatInputPartOptions {
 	renderWorkingSet?: boolean;
 	enableImplicitContext?: boolean;
 	supportsChangingModes?: boolean;
+	widgetViewKindTag: string;
 }
 
 export interface IWorkingSetEntry {
@@ -564,6 +565,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (this.location === ChatAgentLocation.EditingSession) {
 			this.setChatMode(ChatMode.Edit);
 		}
+
+		const storageKey = this.getDefaultModeExperimentStorageKey();
+		const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
+		if (!hasSetDefaultMode) {
+			this.experimentService.getTreatment('chat.defaultMode').then(defaultModeTreatment => {
+				const defaultMode = validateChatMode(defaultModeTreatment);
+				if (defaultMode) {
+					this.setChatMode(defaultMode);
+					this.checkModelSupported();
+					this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
+			});
+		}
+	}
+
+	private getDefaultModeExperimentStorageKey(): string {
+		const tag = this.options.widgetViewKindTag;
+		return `chat.${tag}.hasSetDefaultModeByExperiment`;
 	}
 
 	logInputHistory(): void {
