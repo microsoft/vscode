@@ -395,7 +395,7 @@ steps:
     - pwsh: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/linux/codesign.js }
+        exec { npx deemon --attach -- npx zx build/azure-pipelines/linux/codesign.js }
     # - script: npx deemon --attach -- npx zx build/azure-pipelines/linux/codesign.js
       condition: succeededOrFailed()
       displayName: "✍️ Post-job: Codesign deb & rpm"
