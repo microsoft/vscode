@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise, useBash } from 'zx';
+import { $, ProcessPromise, usePwsh } from 'zx';
 
 const esrpCliDLLPath = process.env['EsrpCliDllPath'];
 
@@ -29,7 +29,7 @@ function sign(type: 'sign-pgp', folder: string, glob: string): ProcessPromise {
 }
 
 async function main() {
-	useBash();
+	usePwsh();
 
 	// Start the code sign processes in parallel
 	// 1. Codesign deb package
