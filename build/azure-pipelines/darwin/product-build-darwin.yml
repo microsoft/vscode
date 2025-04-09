@@ -1,4 +1,6 @@
 parameters:
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_QUALITY
     type: string
   - name: VSCODE_CIBUILD
@@ -308,7 +310,7 @@ steps:
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
-        ${{ if eq(variables.VSCODE_ARCH, 'arm64') }}:
+        ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
           targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
         ${{ else }}:
           targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
