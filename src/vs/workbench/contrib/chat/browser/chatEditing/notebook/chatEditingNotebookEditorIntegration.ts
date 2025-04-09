@@ -12,8 +12,11 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
@@ -296,10 +299,81 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const modifiedChanges = changes.filter(c => c.type === 'modified');
 
 			this.createDecorators();
+			this.createMarkdownPreviewToolbars(changes.filter(c => c.type === 'insert'));
 			this.insertedCellDecorator?.apply(changes);
 			this.modifiedCellDecorator?.apply(modifiedChanges);
 			this.deletedCellDecorator?.apply(changes, originalModel);
 		}));
+	}
+
+	private createMarkdownPreviewToolbars(changes: ICellDiffInfo[]) {
+		const accessibilitySignalService = this.accessibilitySignalService;
+		const editor = this.notebookEditor;
+		for (const change of changes) {
+			const cellViewModel = this.getCellViewModel(change);
+			if (!cellViewModel) {
+				continue;
+			}
+			editor.changeCellOverlays((accessor) => {
+
+				const toolbarContainer = document.createElement('div');
+				toolbarContainer.style.right = '44px';
+				const overlayId = accessor.addOverlay({
+					cell: cellViewModel,
+					domNode: toolbarContainer,
+				});
+
+				const toolbar = document.createElement('div');
+				toolbarContainer.appendChild(toolbar);
+				toolbar.className = 'chat-diff-change-content-widget';
+				toolbar.classList.add('hover'); // Show by default
+				toolbar.style.position = 'relative';
+				toolbar.style.top = '18px';
+				toolbar.style.zIndex = '10';
+
+				const removeOverlay = () => {
+					editor.changeCellOverlays(accessor => {
+						accessor.removeOverlay(overlayId);
+					});
+				};
+
+				const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.notebookEditor.scopedContextKeyService])));
+				const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, toolbar, MenuId.ChatEditingEditorHunk, {
+					telemetrySource: 'chatEditingNotebookHunk',
+					hiddenItemStrategy: HiddenItemStrategy.NoHide,
+					toolbarOptions: { primaryGroup: () => true },
+					menuOptions: {
+						renderShortTitle: true,
+						arg: (cellIndex: number) => {
+							return {
+								accept() {
+									const entry = changes.find(c => c.type === 'insert' && c.modifiedCellIndex === cellIndex);
+									accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+									removeOverlay();
+									if (entry) {
+										return entry.keep(entry.diff.get().changes[0]);
+									}
+									return Promise.resolve(true);
+								},
+								reject() {
+									const entry = changes.find(c => c.type === 'insert' && c.modifiedCellIndex === cellIndex);
+									accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+									removeOverlay();
+									if (entry) {
+										return entry.undo(entry.diff.get().changes[0]);
+									}
+									return Promise.resolve(true);
+								},
+							} satisfies IModifiedFileEntryChangeHunk;
+						},
+					},
+				});
+
+				this._store.add(toolbarWidget);
+
+
+			});
+		}
 	}
 
 	private createDecorators() {
