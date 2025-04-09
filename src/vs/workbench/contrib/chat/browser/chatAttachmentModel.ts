@@ -107,11 +107,10 @@ export class ChatAttachmentModel extends Disposable {
 		};
 	}
 
+	// Gets an image variable for a given URI, which may be a file or a web URL
 	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
-		if (uri.scheme === Schemas.file) {
-			if (await this.fileService.canHandleResource(uri)) {
-				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri);
-			}
+		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
+			return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri);
 		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
 			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
 			if (extractedImages) {
