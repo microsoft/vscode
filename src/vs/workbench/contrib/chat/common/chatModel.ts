@@ -37,6 +37,11 @@ export interface IBaseChatRequestVariableEntry {
 	icon?: ThemeIcon;
 	name: string;
 	modelDescription?: string;
+
+	/**
+	 * The offset-range in the prompt. This means this entry has been explicitly typed out
+	 * by the user.
+	 */
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];

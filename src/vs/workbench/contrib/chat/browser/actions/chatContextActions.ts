@@ -547,7 +547,6 @@ export class AttachContextAction extends Action2 {
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
 				toAttach.push({
-					range: undefined,
 					id: this._getFileContextId({ uri: pick.uri, range: pick.range.decoration }),
 					value: { uri: pick.uri, range: pick.range.decoration },
 					fullName: pick.label,

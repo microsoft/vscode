@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import * as event from '../../../../base/common/event.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -38,8 +38,8 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
 	public readonly label: IResourceLabel;
 
-	private readonly _onDidDelete: Emitter<globalThis.Event> = this._register(new Emitter<globalThis.Event>());
-	get onDidDelete(): Event<globalThis.Event> {
+	private readonly _onDidDelete: event.Emitter<Event> = this._register(new event.Emitter<Event>());
+	get onDidDelete(): event.Event<Event> {
 		return this._onDidDelete.event;
 	}
 
@@ -65,6 +65,13 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 
 	protected attachClearButton() {
+
+		if (this.attachment.range) {
+			// no clear button for attachments with ranges because range means
+			// referenced from prompt
+			return;
+		}
+
 		const clearButton = new Button(this.element, {
 			supportIcons: true,
 			hoverDelegate: this.hoverDelegate,
@@ -72,7 +79,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		});
 		clearButton.icon = Codicon.close;
 		this._register(clearButton);
-		this._register(Event.once(clearButton.onDidClick)((e) => {
+		this._register(event.Event.once(clearButton.onDidClick)((e) => {
 			this._onDidDelete.fire(e);
 		}));
 		if (this.shouldFocusClearButton) {

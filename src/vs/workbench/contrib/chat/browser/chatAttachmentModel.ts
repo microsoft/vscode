@@ -49,12 +49,8 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	get fileAttachments(): URI[] {
-		return this.attachments.reduce<URI[]>((acc, file) => {
-			if (file.isFile && URI.isUri(file.value)) {
-				acc.push(file.value);
-			}
-			return acc;
-		}, []);
+		return this.attachments.filter(file => file.isFile && URI.isUri(file.value))
+			.map(file => file.value as URI);
 	}
 
 	getAttachmentIDs() {
