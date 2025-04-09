@@ -367,7 +367,7 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - script: npx zx -- build/azure-pipelines/linux/codesign.js
+    - script: npx deemon --detach --wait -- npx zx build/azure-pipelines/linux/codesign.js
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)

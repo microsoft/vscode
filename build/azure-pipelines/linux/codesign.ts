@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, ProcessPromise } from 'zx';
-
-const esrpCliDLLPath = process.env['EsrpCliDllPath'];
+import { e } from '../common/publish';
 
 function printBanner(title: string) {
 	title = `${title} (${new Date().toISOString()})`;
@@ -17,24 +16,38 @@ function printBanner(title: string) {
 	console.log('\n');
 }
 
-function sign(type: 'sign-pgp', folder: string, glob: string): ProcessPromise {
+async function handleProcessPromise(name: string, promise: ProcessPromise): Promise<void> {
+	const result = await promise.pipe(process.stdout);
+	if (!result.ok) {
+		throw new Error(`${name} failed: ${result.stderr}`);
+	}
+}
+
+function sign(esrpCliDLLPath: string, type: 'sign-pgp', folder: string, glob: string): ProcessPromise {
 	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
 }
 
 async function main() {
+	const esrpCliDLLPath = e('EsrpCliDllPath');
+
 	// Start the code sign processes in parallel
 	// 1. Codesign deb package
 	// 2. Codesign rpm package
-	const codesignTask1 = sign('sign-pgp', '.build/linux/deb', '*.deb');
-	const codesignTask2 = sign('sign-pgp', '.build/linux/rpm', '*.rpm');
+	const codesignTask1 = sign(esrpCliDLLPath, 'sign-pgp', '.build/linux/deb', '*.deb');
+	const codesignTask2 = sign(esrpCliDLLPath, 'sign-pgp', '.build/linux/rpm', '*.rpm');
 
 	// Codesign deb package
 	printBanner('Codesign deb package');
-	await codesignTask1.pipe(process.stdout);
+	await handleProcessPromise('Codesign deb package', codesignTask1);
 
 	// Codesign rpm package
 	printBanner('Codesign rpm package');
-	await codesignTask2.pipe(process.stdout);
+	await handleProcessPromise('Codesign rpm package', codesignTask2);
 }
 
-main();
+main().then(() => {
+	process.exit(0);
+}, err => {
+	console.error(err);
+	process.exit(1);
+});
