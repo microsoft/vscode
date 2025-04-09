@@ -129,6 +129,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-native-titlebar':
 					overrides.forceNativeTitlebar = true;
 					break;
+				case 'window-always-on-top':
+					overrides.alwaysOnTop = true;
+					break;
 			}
 		}
 
