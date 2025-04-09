@@ -16,7 +16,7 @@ import { IModifiedFileEntryChangeHunk } from '../../../common/chatEditingService
 import { ICellDiffInfo } from './notebookCellChanges.js';
 
 
-export class OverlayToolbarController extends Disposable {
+export class OverlayToolbarDecorator extends Disposable {
 
 	private _timeout: any | undefined = undefined;
 	private readonly overlayDisposables = this._register(new DisposableStore());
