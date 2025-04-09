@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { YamlToken } from './yamlToken.js';
-export { YamlArray } from './yamlArray.js';
-export { YamlObject } from './yamlObject.js';
-export { YamlString } from './yamlString.js';
+export { FrontMatterToken } from './frontMatterToken.js';
+export { FrontMatterArray } from './frontMatterArray.js';
+export { FrontMatterString } from './frontMatterString.js';
+export { FrontMatterBoolean } from './frontMatterBoolean.js';
