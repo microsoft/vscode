@@ -79,7 +79,7 @@ export class GhostTextIndicator {
 		const editorObs = observableCodeEditor(editor);
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
 			if (editorObs.isFocused.read(reader)) {
-				if (model.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu) {
+				if (model.inlineCompletionState.read(reader)?.inlineCompletion?.showInlineEditMenu) {
 					return InlineEditTabAction.Accept;
 				}
 			}

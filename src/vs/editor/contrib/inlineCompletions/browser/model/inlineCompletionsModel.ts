@@ -94,7 +94,7 @@ export class InlineCompletionsModel extends Disposable {
 				lastItem = completion;
 				if (completion) {
 					const src = completion.source;
-					src.provider.handleItemDidShow?.(src.inlineSuggestions, completion.sourceInlineCompletion, completion.insertText);
+					src.provider.handleItemDidShow?.(src.inlineSuggestions, completion.getSourceCompletion(), completion.insertText);
 				}
 			}
 		}));
@@ -316,7 +316,7 @@ export class InlineCompletionsModel extends Disposable {
 			if (stopReason === 'explicitCancel') {
 				const inlineCompletion = this.state.get()?.inlineCompletion;
 				const source = inlineCompletion?.source;
-				const sourceInlineCompletion = inlineCompletion?.sourceInlineCompletion;
+				const sourceInlineCompletion = inlineCompletion?.getSourceCompletion();
 				if (sourceInlineCompletion && source?.provider.handleRejection) {
 					source.provider.handleRejection(source.inlineSuggestions, sourceInlineCompletion);
 				}
@@ -534,7 +534,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public readonly warning = derived(this, reader => {
-		return this.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.warning;
+		return this.inlineCompletionState.read(reader)?.inlineCompletion?.warning;
 	});
 
 	public readonly ghostTexts = derivedOpts({ owner: this, equalsFn: ghostTextsOrReplacementsEqual }, reader => {
@@ -809,7 +809,7 @@ export class InlineCompletionsModel extends Disposable {
 				const acceptedLength = text.length;
 				completion.source.provider.handlePartialAccept(
 					completion.source.inlineSuggestions,
-					completion.sourceInlineCompletion,
+					completion.getSourceCompletion(),
 					acceptedLength,
 					{ kind, acceptedLength: acceptedLength, }
 				);
@@ -831,7 +831,7 @@ export class InlineCompletionsModel extends Disposable {
 		const source = augmentedCompletion.completion.source;
 		source.provider.handlePartialAccept?.(
 			source.inlineSuggestions,
-			augmentedCompletion.completion.sourceInlineCompletion,
+			augmentedCompletion.completion.getSourceCompletion(),
 			itemEdit.text.length,
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
@@ -845,7 +845,7 @@ export class InlineCompletionsModel extends Disposable {
 		const item = this.state.get()?.inlineCompletion;
 		return {
 			documentValue: value,
-			inlineCompletion: item?.sourceInlineCompletion,
+			inlineCompletion: item?.getSourceCompletion(),
 		};
 	}
 
@@ -882,7 +882,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 		inlineCompletion.didShow = true;
 
-		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineSuggestions, inlineCompletion.sourceInlineCompletion, inlineCompletion.insertText);
+		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineSuggestions, inlineCompletion.getSourceCompletion(), inlineCompletion.insertText);
 
 		if (inlineCompletion.shownCommand) {
 			await this._commandService.executeCommand(inlineCompletion.shownCommand.id, ...(inlineCompletion.shownCommand.arguments || []));

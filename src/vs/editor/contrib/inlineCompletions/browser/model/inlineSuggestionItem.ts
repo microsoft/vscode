@@ -16,7 +16,7 @@ import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { InlineCompletions, InlineCompletionsProvider, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, Command } from '../../../../common/languages.js';
+import { InlineCompletions, InlineCompletionsProvider, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, Command, InlineCompletionWarning } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
@@ -31,7 +31,7 @@ abstract class InlineSuggestionItemBase {
 		 * A reference to the original inline completion this inline completion has been constructed from.
 		 * Used for event data to ensure referential equality.
 		*/
-		readonly sourceInlineCompletion: InlineCompletion,
+		protected readonly _sourceInlineCompletion: InlineCompletion,
 
 		/**
 		 * A reference to the original inline completion list this inline completion has been constructed from.
@@ -49,16 +49,18 @@ abstract class InlineSuggestionItemBase {
 
 	abstract withIdentity(identity: InlineSuggestionIdentity): InlineSuggestionItem;
 
-	public get isFromExplicitRequest() { return this._context.triggerKind === InlineCompletionTriggerKind.Explicit; }
-	public get forwardStable() { return this.source.inlineSuggestions.enableForwardStability ?? false; }
+	public get isFromExplicitRequest(): boolean { return this._context.triggerKind === InlineCompletionTriggerKind.Explicit; }
+	public get forwardStable(): boolean { return this.source.inlineSuggestions.enableForwardStability ?? false; }
 	public get range(): Range { return this.getSingleTextEdit().range; }
 	public get insertText(): string { return this.getSingleTextEdit().text; }
-	public get semanticId() { return this.hash; }
+	public get semanticId(): string { return this.hash; }
 	/** @deprecated */
-	public get shownCommand(): Command | undefined { return this.sourceInlineCompletion.shownCommand; }
+	public get shownCommand(): Command | undefined { return this._sourceInlineCompletion.shownCommand; }
 
-	get action(): Command | undefined { return this.sourceInlineCompletion.action; }
-	get command(): Command | undefined { return this.sourceInlineCompletion.command; }
+	get action(): Command | undefined { return this._sourceInlineCompletion.action; }
+	get command(): Command | undefined { return this._sourceInlineCompletion.command; }
+	get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
+	get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
 
 	public get hash() {
 		return JSON.stringify([
@@ -77,6 +79,10 @@ abstract class InlineSuggestionItemBase {
 	removeRef(): void {
 		this.identity.removeRef();
 		this.source.removeRef();
+	}
+
+	getSourceCompletion(): InlineCompletion {
+		return this._sourceInlineCompletion;
 	}
 }
 
@@ -178,7 +184,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this._originalRange,
 			this.snippetInfo,
 			this.additionalTextEdits,
-			this.sourceInlineCompletion,
+			this._sourceInlineCompletion,
 			this.source,
 			identity,
 			this._context
@@ -198,7 +204,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this._originalRange,
 			this.snippetInfo,
 			this.additionalTextEdits,
-			this.sourceInlineCompletion,
+			this._sourceInlineCompletion,
 			this.source,
 			this.identity,
 			this._context
@@ -312,7 +318,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		return new InlineEditItem(
 			this._edit,
 			this._textEdit,
-			this.sourceInlineCompletion,
+			this._sourceInlineCompletion,
 			this.source,
 			identity,
 			this._context,
@@ -363,7 +369,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		return new InlineEditItem(
 			edit,
 			textEdit,
-			this.sourceInlineCompletion,
+			this._sourceInlineCompletion,
 			this.source,
 			this.identity,
 			this._context,
