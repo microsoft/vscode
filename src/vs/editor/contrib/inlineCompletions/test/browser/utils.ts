@@ -9,10 +9,10 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { Position } from '../../../../common/core/position.js';
 import { ITextModel } from '../../../../common/model.js';
-import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -20,6 +20,10 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
 import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
+import { Range } from '../../../../common/core/range.js';
+import { TextEdit } from '../../../../common/core/textEdit.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -81,6 +85,66 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 	}
 	freeInlineCompletions() { }
 	handleItemDidShow() { }
+}
+
+export class MockSearchReplaceCompletionsProvider implements InlineCompletionsProvider {
+	private _map = new Map<string, string>();
+
+	public add(search: string, replace: string): void {
+		this._map.set(search, replace);
+	}
+
+	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
+		const text = model.getValue();
+		for (const [search, replace] of this._map) {
+			const idx = text.indexOf(search);
+			// replace idx...idx+text.length with replace
+			if (idx !== -1) {
+				const range = Range.fromPositions(model.getPositionAt(idx), model.getPositionAt(idx + search.length));
+				return {
+					items: [
+						{ range, insertText: replace, isInlineEdit: true }
+					]
+				};
+			}
+		}
+		return { items: [] };
+	}
+	freeInlineCompletions() { }
+	handleItemDidShow() { }
+}
+
+export class InlineEditContext extends Disposable {
+	public readonly prettyViewStates = new Array<string | undefined>();
+
+	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor) {
+		super();
+
+		const edit = derived(reader => {
+			const state = model.state.read(reader);
+			return state ? new TextEdit(state.edits) : undefined;
+		});
+
+		this._register(autorun(reader => {
+			/** @description update */
+			const e = edit.read(reader);
+			let view: string | undefined;
+
+			if (e) {
+				view = e.toString(this.editor.getValue());
+			} else {
+				view = undefined;
+			}
+
+			this.prettyViewStates.push(view);
+		}));
+	}
+
+	public getAndClearViewStates(): (string | undefined)[] {
+		const arr = [...this.prettyViewStates];
+		this.prettyViewStates.length = 0;
+		return arr;
+	}
 }
 
 export class GhostTextContext extends Disposable {
@@ -180,6 +244,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 			let result: T;
 			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
 				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
+				controller.testOnlyDisableUi();
 				const model = controller.model.get()!;
 				const context = new GhostTextContext(model, editor);
 				try {
@@ -200,4 +265,60 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 			disposableStore.dispose();
 		}
 	});
+}
+
+export class AnnotatedString {
+	public readonly value: string;
+	public readonly markers: { mark: string; idx: number }[];
+
+	constructor(src: string, annotations: string[] = ['↓']) {
+		const markers = findMarkers(src, annotations);
+		this.value = markers.textWithoutMarkers;
+		this.markers = markers.results;
+	}
+
+	getMarkerOffset(markerIdx = 0): number {
+		if (markerIdx >= this.markers.length) {
+			throw new BugIndicatingError(`Marker index ${markerIdx} out of bounds`);
+		}
+		return this.markers[markerIdx].idx;
+	}
+}
+
+function findMarkers(text: string, markers: string[]): {
+	results: { mark: string; idx: number }[];
+	textWithoutMarkers: string;
+} {
+	const results: { mark: string; idx: number }[] = [];
+	let textWithoutMarkers = '';
+
+	markers.sort((a, b) => b.length - a.length);
+
+	let pos = 0;
+	for (let i = 0; i < text.length;) {
+		let foundMarker = false;
+		for (const marker of markers) {
+			if (text.startsWith(marker, i)) {
+				results.push({ mark: marker, idx: pos });
+				i += marker.length;
+				foundMarker = true;
+				break;
+			}
+		}
+		if (!foundMarker) {
+			textWithoutMarkers += text[i];
+			pos++;
+			i++;
+		}
+	}
+
+	return { results, textWithoutMarkers };
+}
+
+export class AnnotatedText extends AnnotatedString {
+	private readonly _transformer = new PositionOffsetTransformer(this.value);
+
+	getMarkerPosition(markerIdx = 0): Position {
+		return this._transformer.getPosition(this.getMarkerOffset(markerIdx));
+	}
 }

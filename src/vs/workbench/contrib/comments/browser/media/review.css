@@ -172,7 +172,6 @@
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	display: none;
 	background-size: 16px;
 	font-size: 16px;
 	width: 26px;
@@ -181,11 +180,6 @@
 	background-position: center;
 	margin-top: 3px;
 	border: none;
-}
-
-.review-widget .body .review-comment .review-comment-contents:hover .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	display: inline-block;
-	background-size: 16px;
 }
 
 .review-widget .body .review-comment .comment-title .action-label {

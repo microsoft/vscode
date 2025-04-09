@@ -357,7 +357,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: `workbench.action.openChat`,
-				title: localize2('interactiveSession.open', "Open Editor"),
+				title: localize2('interactiveSession.open', "New Chat Editor"),
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled
@@ -752,31 +752,28 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			});
 
 			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
-			const chatHidden = chatEntitlementService.sentiment === ChatSentiment.Disabled;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			const setupFromDialog = configurationService.getValue('chat.setupFromDialog');
 
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
 			let primaryActionIcon = Codicon.copilot;
-			if (!chatExtensionInstalled && (!setupFromDialog || chatHidden)) {
-				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for free...");
-			} else if (chatExtensionInstalled && signedOut) {
-				primaryActionId = setupFromDialog ? CHAT_SETUP_ACTION_ID : TOGGLE_CHAT_ACTION_ID;
-				primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
-				primaryActionIcon = Codicon.copilotNotConnected;
-			} else if (chatExtensionInstalled && (chatQuotaExceeded || completionsQuotaExceeded)) {
-				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-				if (chatQuotaExceeded && !completionsQuotaExceeded) {
-					primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
-				} else {
-					primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
+			if (chatExtensionInstalled) {
+				if (signedOut) {
+					primaryActionId = CHAT_SETUP_ACTION_ID;
+					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
+					primaryActionIcon = Codicon.copilotNotConnected;
+				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
+					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
+					if (chatQuotaExceeded && !completionsQuotaExceeded) {
+						primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
+					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+						primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
+					} else {
+						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
+					}
+					primaryActionIcon = Codicon.copilotWarning;
 				}
-				primaryActionIcon = Codicon.copilotWarning;
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
 				id: primaryActionId,
@@ -786,8 +783,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		}, Event.any(
 			chatEntitlementService.onDidChangeSentiment,
 			chatEntitlementService.onDidChangeQuotaExceeded,
-			chatEntitlementService.onDidChangeEntitlement,
-			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.setupFromDialog'))
+			chatEntitlementService.onDidChangeEntitlement
 		));
 
 		// Reduces flicker a bit on reload/restart

@@ -54,7 +54,6 @@ steps:
       # Start X server
       ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
       ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
-        dbus \
         xvfb \
         libgtk-3-0 \
         libxkbfile-dev \
@@ -65,10 +64,6 @@ steps:
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
       sudo service xvfb start
-      # Start dbus session
-      sudo mkdir -p /var/run/dbus
-      DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
-      echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
     displayName: Setup system services
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY

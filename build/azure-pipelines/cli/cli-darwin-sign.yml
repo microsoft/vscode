@@ -36,12 +36,12 @@ steps:
   - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Codesign
+    displayName: ✍️ Codesign
 
   - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Notarize
+    displayName: ✍️ Notarize
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
     - script: |

@@ -11,6 +11,7 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { runAttachPromptAction } from '../../actions/reusablePromptActions/index.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -18,7 +19,6 @@ import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction/chatAttachPromptAction.js';
 
 /**
  * Command ID of the "Use Prompt" command.
@@ -55,12 +55,10 @@ const command = async (
 ): Promise<void> => {
 	const commandService = accessor.get(ICommandService);
 
-	const options: IChatAttachPromptActionOptions = {
+	await runAttachPromptAction({
 		resource: getActivePromptUri(accessor),
 		widget: getFocusedChatWidget(accessor),
-	};
-
-	await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
+	}, commandService);
 };
 
 /**
@@ -108,7 +106,7 @@ export function getActiveCodeEditor(accessor: ServicesAccessor): IActiveCodeEdit
 /**
  * Gets `URI` of a prompt file open in an active editor instance, if any.
  */
-const getActivePromptUri = (
+export const getActivePromptUri = (
 	accessor: ServicesAccessor,
 ): URI | undefined => {
 	const activeEditor = getActiveCodeEditor(accessor);

@@ -45,6 +45,7 @@ export interface IAuxiliaryWindowOpenOptions {
 
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
+	readonly alwaysOnTop?: boolean;
 
 	readonly nativeTitlebar?: boolean;
 	readonly disableFullscreen?: boolean;
@@ -339,6 +340,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			// non-standard properties
 			options?.nativeTitlebar ? 'window-native-titlebar=yes' : undefined,
 			options?.disableFullscreen ? 'window-disable-fullscreen=yes' : undefined,
+			options?.alwaysOnTop ? 'window-always-on-top=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined
 		]);

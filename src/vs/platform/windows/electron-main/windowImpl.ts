@@ -105,6 +105,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidLeaveFullScreen = this._register(new Emitter<void>());
 	readonly onDidLeaveFullScreen = this._onDidLeaveFullScreen.event;
 
+	private readonly _onDidChangeAlwaysOnTop = this._register(new Emitter<boolean>());
+	readonly onDidChangeAlwaysOnTop = this._onDidChangeAlwaysOnTop.event;
+
 	//#endregion
 
 	abstract readonly id: number;
@@ -130,6 +133,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}));
 		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
 		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
+		this._register(Event.fromNodeEventEmitter(this._win, 'always-on-top-changed', (_, alwaysOnTop) => alwaysOnTop)(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire(alwaysOnTop)));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);

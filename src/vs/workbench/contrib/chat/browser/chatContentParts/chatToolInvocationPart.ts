@@ -8,7 +8,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -404,7 +404,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId));
 		const editor = this._register(this.editorPool.get());
-		editor.object.render({
+		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
@@ -412,6 +412,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			renderOptions: codeBlockRenderOptions,
 			textModel: Promise.resolve(model)
 		}, this.currentWidthDelegate());
+		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
 		this._codeblocks.push({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codemapperUri: undefined,

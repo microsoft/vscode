@@ -268,7 +268,18 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		// The icon which will be rendered in the pill
 		const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-		const iconDocked = derived(reader => this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader) ? Codicon.check : iconNoneDocked.read(reader));
+		const iconDocked = derived(reader => {
+			if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
+				return Codicon.check;
+			}
+			if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
+				return Codicon.keyboardTab;
+			}
+			const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
+			const editStartLineNumber = s.range.read(reader).startLineNumber;
+			return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
+		});
+
 		const idealIconWidth = 22;
 		const minimalIconWidth = 16; // codicon size
 		const iconWidth = (pillRect: Rect) => {
@@ -280,7 +291,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const pillRect = pillFullyDockedRect;
 			const lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			const lineNumberRect = pillRect.withWidth(lineNumberWidth);
-			const iconRect = pillRect.withWidth(idealIconWidth).translateX(lineNumberWidth);
+			const iconWidth = Math.max(Math.min(layout.decorationsWidth, idealIconWidth), minimalIconWidth);
+			const iconRect = pillRect.withWidth(iconWidth).translateX(lineNumberWidth);
 
 			return {
 				gutterEditArea,

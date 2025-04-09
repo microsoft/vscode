@@ -77,7 +77,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		for (const replacement of expr.unresolved()) {
 			const resolvedValue = await this.evaluateSingleVariable(env, replacement, folder?.uri);
 			if (resolvedValue !== undefined) {
-				expr.resolve(replacement, resolvedValue);
+				expr.resolve(replacement, String(resolvedValue));
 			}
 		}
 
@@ -95,7 +95,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		for (const replacement of expr.unresolved()) {
 			const resolvedValue = await this.evaluateSingleVariable(environment, replacement, folder?.uri);
 			if (resolvedValue !== undefined) {
-				expr.resolve(replacement, resolvedValue);
+				expr.resolve(replacement, String(resolvedValue));
 			}
 		}
 
