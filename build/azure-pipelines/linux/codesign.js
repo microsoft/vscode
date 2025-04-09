@@ -21,10 +21,9 @@ function sign(type, folder, glob) {
     console.log(`  * Glob: ${glob}`);
     console.log(`  * ESRP CLI DLL Path: ${esrpCliDLLPath}`);
     console.log('----------------------------------------');
-    return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
+    return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
 }
 async function main() {
-    (0, zx_1.usePwsh)();
     // Start the code sign processes in parallel
     // 1. Codesign deb package
     // 2. Codesign rpm package

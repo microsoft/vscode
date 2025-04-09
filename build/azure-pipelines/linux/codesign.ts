@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise, usePwsh } from 'zx';
+import { $, ProcessPromise } from 'zx';
 
 const esrpCliDLLPath = process.env['EsrpCliDllPath'];
 
@@ -25,12 +25,10 @@ function sign(type: 'sign-pgp', folder: string, glob: string): ProcessPromise {
 	console.log(`  * ESRP CLI DLL Path: ${esrpCliDLLPath}`);
 	console.log('----------------------------------------');
 
-	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} '${glob}'`;
+	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
 }
 
 async function main() {
-	usePwsh();
-
 	// Start the code sign processes in parallel
 	// 1. Codesign deb package
 	// 2. Codesign rpm package
