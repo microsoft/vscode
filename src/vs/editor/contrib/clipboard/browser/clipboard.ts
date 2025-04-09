@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { getActiveDocument, getActiveWindow, getWindowId } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -246,12 +246,11 @@ if (PasteAction) {
 					nativeEditContext.onWillPaste();
 				}
 			}
-
 			const sw = StopWatch.create(true);
-			const triggerPaste = clipboardService.triggerPaste();
+			const targetWindowId = getWindowId(getActiveWindow());
+			const triggerPaste = clipboardService.triggerPaste(targetWindowId);
 			if (triggerPaste) {
 				return triggerPaste.then(async () => {
-
 					if (productService.quality !== 'stable') {
 						const duration = sw.elapsed();
 						type EditorAsyncPasteClassification = {
@@ -267,7 +266,6 @@ if (PasteAction) {
 							{ duration }
 						);
 					}
-
 					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 				});
 			}
@@ -301,7 +299,8 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		const triggerPaste = accessor.get(IClipboardService).triggerPaste();
+		const targetWindowId = getWindowId(getActiveWindow());
+		const triggerPaste = accessor.get(IClipboardService).triggerPaste(targetWindowId);
 		return triggerPaste ?? false;
 	});
 }
