@@ -286,9 +286,9 @@ export class BreadcrumbsControl {
 		this._widget = new BreadcrumbsWidget(
 			this.domNode,
 			BreadcrumbsControl.SCROLLBAR_SIZES[sizing],
+			BreadcrumbsControl.SCROLLBAR_VISIBILITY[visibility],
 			separatorIcon,
-			styles,
-			BreadcrumbsControl.SCROLLBAR_VISIBILITY[visibility]
+			styles
 		);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
