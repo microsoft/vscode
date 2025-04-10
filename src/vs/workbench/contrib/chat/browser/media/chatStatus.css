@@ -123,9 +123,18 @@
 .chat-status-bar-entry-tooltip .contribution .body {
 	display: flex;
 	flex-direction: row;
-	gap: 6px;
+	align-items: center;
+	gap: 5px;
 
+	.description,
 	.detail-item {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+	}
+
+	.detail-item,
+	.detail-item a {
 		margin-left: auto;
 		color: var(--vscode-descriptionForeground);
 	}

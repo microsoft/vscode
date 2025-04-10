@@ -19,7 +19,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { Color } from '../../../../base/common/color.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -288,12 +288,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			if (label || action) {
-				const header = this.element.appendChild($('div.header', undefined, label ?? ''));
-
-				if (action) {
-					const toolbar = disposables.add(new ActionBar(header));
-					toolbar.push([action], { icon: true, label: false });
-				}
+				this.renderHeader(this.element, disposables, label ?? '', action);
 			}
 
 			needsSeparator = true;
@@ -390,12 +385,29 @@ class ChatStatusDashboard extends Disposable {
 		return this.element;
 	}
 
+	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {
+		const header = container.appendChild($('div.header', undefined, label ?? ''));
+
+		if (action) {
+			const toolbar = disposables.add(new ActionBar(header, { hoverDelegate: nativeHoverDelegate }));
+			toolbar.push([action], { icon: true, label: false });
+		}
+	}
+
 	private renderContributedChatStatusItem(item: ChatStatusEntry): { element: HTMLElement; disposables: DisposableStore } {
 		const disposables = new DisposableStore();
 
 		const itemElement = $('div.contribution');
 
-		itemElement.appendChild($('div.header', undefined, item.label));
+		const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
+		const headerLink = typeof item.label === 'string' ? undefined : item.label.link;
+		this.renderHeader(itemElement, disposables, headerLabel, headerLink ? toAction({
+			id: 'workbench.action.openChatStatusItemLink',
+			label: localize('learnMore', "Learn More"),
+			tooltip: localize('learnMore', "Learn More"),
+			class: ThemeIcon.asClassName(Codicon.question),
+			run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(headerLink))),
+		}) : undefined);
 
 		const itemBody = itemElement.appendChild($('div.body'));
 

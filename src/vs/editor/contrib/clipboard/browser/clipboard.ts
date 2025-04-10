@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
@@ -246,7 +246,7 @@ if (PasteAction) {
 					}
 				}
 			} else {
-				const triggerPaste = clipboardService.triggerPaste();
+				const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 				if (triggerPaste) {
 					return triggerPaste.then(async () => {
 						return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
@@ -283,7 +283,7 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		const triggerPaste = accessor.get(IClipboardService).triggerPaste();
+		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
 		return triggerPaste ?? false;
 	});
 }

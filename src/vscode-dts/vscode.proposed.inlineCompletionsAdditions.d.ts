@@ -44,6 +44,13 @@ declare module 'vscode' {
 		showInlineEditMenu?: boolean;
 
 		action?: Command;
+
+		displayLocation?: InlineCompletionDisplayLocation;
+	}
+
+	export interface InlineCompletionDisplayLocation {
+		range: Range;
+		label: string;
 	}
 
 	export interface InlineCompletionWarning {

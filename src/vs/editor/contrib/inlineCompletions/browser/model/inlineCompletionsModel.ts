@@ -35,6 +35,7 @@ import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
+import { ITextModelChangeRecorderMetadata, TextModelChangeRecorder } from './changeRecorder.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -94,7 +95,7 @@ export class InlineCompletionsModel extends Disposable {
 				lastItem = completion;
 				if (completion) {
 					const src = completion.source;
-					src.provider.handleItemDidShow?.(src.inlineSuggestions, completion.sourceInlineCompletion, completion.insertText);
+					src.provider.handleItemDidShow?.(src.inlineSuggestions, completion.getSourceCompletion(), completion.insertText);
 				}
 			}
 		}));
@@ -316,7 +317,7 @@ export class InlineCompletionsModel extends Disposable {
 			if (stopReason === 'explicitCancel') {
 				const inlineCompletion = this.state.get()?.inlineCompletion;
 				const source = inlineCompletion?.source;
-				const sourceInlineCompletion = inlineCompletion?.sourceInlineCompletion;
+				const sourceInlineCompletion = inlineCompletion?.getSourceCompletion();
 				if (sourceInlineCompletion && source?.provider.handleRejection) {
 					source.provider.handleRejection(source.inlineSuggestions, sourceInlineCompletion);
 				}
@@ -534,7 +535,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public readonly warning = derived(this, reader => {
-		return this.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.warning;
+		return this.inlineCompletionState.read(reader)?.inlineCompletion?.warning;
 	});
 
 	public readonly ghostTexts = derivedOpts({ owner: this, equalsFn: ghostTextsOrReplacementsEqual }, reader => {
@@ -645,6 +646,14 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
+	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): ITextModelChangeRecorderMetadata {
+		return {
+			extensionId: completion.source.provider.groupId,
+			nes: completion.isInlineEdit,
+			type
+		};
+	}
+
 	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
@@ -671,23 +680,31 @@ export class InlineCompletionsModel extends Disposable {
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
-			editor.executeEdits(
-				'inlineSuggestion.accept',
-				[
-					EditOperation.replace(completion.range, ''),
-					...completion.additionalTextEdits
-				]
-			);
+			TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion), () => {
+				editor.executeEdits(
+					'inlineSuggestion.accept',
+					[
+						EditOperation.replace(completion.range, ''),
+						...completion.additionalTextEdits
+					]
+				);
+			});
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			const edits = state.edits;
 			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-			editor.executeEdits('inlineSuggestion.accept', [
-				...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
-				...completion.additionalTextEdits
-			]);
-			editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
+
+			TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion), () => {
+				editor.executeEdits('inlineSuggestion.accept', [
+					...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
+					...completion.additionalTextEdits
+				]);
+			});
+			if (completion.displayLocation === undefined) {
+				// do not move the cursor when the completion is displayed in a different location
+				editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
+			}
 
 			if (state.kind === 'inlineEdit' && !this._accessibilityService.isMotionReduced()) {
 				// we can assume that edits is sorted!
@@ -715,7 +732,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public async acceptNextWord(): Promise<void> {
-		await this._acceptNext(this._editor, (pos, text) => {
+		await this._acceptNext(this._editor, 'word', (pos, text) => {
 			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
 			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
 			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
@@ -744,7 +761,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public async acceptNextLine(): Promise<void> {
-		await this._acceptNext(this._editor, (pos, text) => {
+		await this._acceptNext(this._editor, 'line', (pos, text) => {
 			const m = text.match(/\n/);
 			if (m && m.index !== undefined) {
 				return m.index + 1;
@@ -753,7 +770,7 @@ export class InlineCompletionsModel extends Disposable {
 		}, PartialAcceptTriggerKind.Line);
 	}
 
-	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number, kind: PartialAcceptTriggerKind): Promise<void> {
+	private async _acceptNext(editor: ICodeEditor, type: 'word' | 'line', getAcceptUntilIndex: (position: Position, text: string) => number, kind: PartialAcceptTriggerKind): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -795,7 +812,9 @@ export class InlineCompletionsModel extends Disposable {
 				const primaryEdit = new SingleTextEdit(replaceRange, newText);
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion, type), () => {
+					editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				});
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Immediate);
 			} finally {
@@ -809,7 +828,7 @@ export class InlineCompletionsModel extends Disposable {
 				const acceptedLength = text.length;
 				completion.source.provider.handlePartialAccept(
 					completion.source.inlineSuggestions,
-					completion.sourceInlineCompletion,
+					completion.getSourceCompletion(),
 					acceptedLength,
 					{ kind, acceptedLength: acceptedLength, }
 				);
@@ -831,7 +850,7 @@ export class InlineCompletionsModel extends Disposable {
 		const source = augmentedCompletion.completion.source;
 		source.provider.handlePartialAccept?.(
 			source.inlineSuggestions,
-			augmentedCompletion.completion.sourceInlineCompletion,
+			augmentedCompletion.completion.getSourceCompletion(),
 			itemEdit.text.length,
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
@@ -845,7 +864,7 @@ export class InlineCompletionsModel extends Disposable {
 		const item = this.state.get()?.inlineCompletion;
 		return {
 			documentValue: value,
-			inlineCompletion: item?.sourceInlineCompletion,
+			inlineCompletion: item?.getSourceCompletion(),
 		};
 	}
 
@@ -882,7 +901,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 		inlineCompletion.didShow = true;
 
-		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineSuggestions, inlineCompletion.sourceInlineCompletion, inlineCompletion.insertText);
+		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineSuggestions, inlineCompletion.getSourceCompletion(), inlineCompletion.insertText);
 
 		if (inlineCompletion.shownCommand) {
 			await this._commandService.executeCommand(inlineCompletion.shownCommand.id, ...(inlineCompletion.shownCommand.arguments || []));
