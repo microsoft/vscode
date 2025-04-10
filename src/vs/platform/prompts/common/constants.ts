@@ -48,6 +48,15 @@ export const isPromptFile = (
 };
 
 /**
+ * Check whether provided URI belongs to an `untitled` document.
+ */
+const isUntitledDocument = (
+	fileUri: URI,
+): boolean => {
+	return fileUri.scheme === 'untitled';
+};
+
+/**
  * Gets clean prompt name without file extension.
  *
  * @throws If provided path is not a prompt file
@@ -56,6 +65,11 @@ export const isPromptFile = (
 export const getCleanPromptName = (
 	fileUri: URI,
 ): string => {
+	// if an untitled document, use it's `path` component as the name
+	if (isUntitledDocument(fileUri)) {
+		return fileUri.path;
+	}
+
 	assert(
 		isPromptFile(fileUri),
 		`Provided path '${fileUri.fsPath}' is not a prompt file.`,
