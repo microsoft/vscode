@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IChatWidget } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { runAttachPromptAction } from './chatAttachPromptAction.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { ILocalizedString, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../files/common/files.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { attachPrompt } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
+import { detachPrompt } from './dialogs/askToSelectPrompt/utils/detachPrompt.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -92,7 +95,8 @@ abstract class RunPromptBaseAction extends Action2 {
 		resource: URI | undefined,
 		inNewChat: boolean,
 		accessor: ServicesAccessor,
-	): Promise<void> {
+	): Promise<IChatWidget> {
+		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 
 		resource ||= getActivePromptUri(accessor);
@@ -101,11 +105,25 @@ abstract class RunPromptBaseAction extends Action2 {
 			'Cannot find URI resource for an active text editor.',
 		);
 
-		return await runAttachPromptAction({
+		const { widget, wasAlreadyAttached } = await attachPrompt(
 			resource,
-			inNewChat,
-			skipSelectionDialog: true,
-		}, commandService);
+			{
+				inNewChat,
+				commandService,
+				viewsService,
+			},
+		);
+
+		// submit the prompt immediately
+		await widget.acceptInput();
+
+		// detach the prompt immediately, unless was attached
+		// before the action was executed
+		if (wasAlreadyAttached === false) {
+			await detachPrompt(resource, { widget });
+		}
+
+		return widget;
 	}
 }
 
@@ -155,7 +173,7 @@ class RunCurrentPromptAction extends RunPromptBaseAction {
 	public override async run(
 		accessor: ServicesAccessor,
 		resource: URI | undefined,
-	): Promise<void> {
+	): Promise<IChatWidget> {
 		return await super.execute(
 			resource,
 			false,
@@ -195,7 +213,7 @@ class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 	public override async run(
 		accessor: ServicesAccessor,
 		resource: URI,
-	): Promise<void> {
+	): Promise<IChatWidget> {
 		return await super.execute(
 			resource,
 			true,

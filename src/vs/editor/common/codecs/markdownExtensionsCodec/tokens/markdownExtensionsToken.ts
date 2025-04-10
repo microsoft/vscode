@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
-	// Enables access to providing language model tools to agent mode
-}
+import { MarkdownToken } from '../../markdownCodec/tokens/markdownToken.js';
+
+/**
+ * Base class for all tokens produced by the `MarkdownExtensionsDecoder`.
+ */
+export abstract class MarkdownExtensionsToken extends MarkdownToken { }

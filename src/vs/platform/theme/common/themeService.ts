@@ -236,9 +236,3 @@ export interface IPartsSplash {
 		windowBorderRadius: string | undefined;
 	} | undefined;
 }
-
-export interface IPartsSplashWorkspaceOverride {
-	layoutInfo: {
-		auxiliarySideBarWidth: [number, string[] /* workspace identifier the override applies to */];
-	};
-}

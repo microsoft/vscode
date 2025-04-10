@@ -74,7 +74,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 					const candidates = suggestItems
 						.map((suggestItem, index) => {
 							const suggestItemInfo = SuggestItemInfo.fromSuggestion(suggestController, textModel, position, suggestItem, this.isShiftKeyPressed);
-							const suggestItemTextEdit = singleTextRemoveCommonPrefix(suggestItemInfo.toSingleTextEdit(), textModel);
+							const suggestItemTextEdit = singleTextRemoveCommonPrefix(suggestItemInfo.getSingleTextEdit(), textModel);
 							const valid = singleTextEditAugments(itemToPreselect, suggestItemTextEdit);
 							return { index, valid, prefixLength: suggestItemTextEdit.text.length, suggestItem };
 						})
@@ -224,7 +224,7 @@ export class SuggestItemInfo {
 		return new SelectedSuggestionInfo(this.range, this.insertText, this.completionItemKind, this.isSnippetText);
 	}
 
-	public toSingleTextEdit(): SingleTextEdit {
+	public getSingleTextEdit(): SingleTextEdit {
 		return new SingleTextEdit(this.range, this.insertText);
 	}
 }

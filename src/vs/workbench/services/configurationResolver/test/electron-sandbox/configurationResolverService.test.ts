@@ -684,6 +684,43 @@ suite('Configuration Resolver Service', () => {
 		const resolvedResult = await configurationResolverService!.resolveWithEnvironment({ ...env }, undefined, configuration);
 		assert.deepStrictEqual(resolvedResult, 'echo VAL_1VAL_2');
 	});
+
+	test('substitution in object key', async () => {
+
+		const configuration = {
+			'name': 'Test',
+			'mappings': {
+				'pos1': 'value1',
+				'${workspaceFolder}/test1': '${workspaceFolder}/test2',
+				'pos3': 'value3'
+			}
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+
+			if (platform.isWindows) {
+				assert.deepStrictEqual({ ...result }, {
+					'name': 'Test',
+					'mappings': {
+						'pos1': 'value1',
+						'\\VSCode\\workspaceLocation/test1': '\\VSCode\\workspaceLocation/test2',
+						'pos3': 'value3'
+					}
+				});
+			} else {
+				assert.deepStrictEqual({ ...result }, {
+					'name': 'Test',
+					'mappings': {
+						'pos1': 'value1',
+						'/VSCode/workspaceLocation/test1': '/VSCode/workspaceLocation/test2',
+						'pos3': 'value3'
+					}
+				});
+			}
+
+			assert.strictEqual(0, mockCommandService.callCount);
+		});
+	});
 });
 
 

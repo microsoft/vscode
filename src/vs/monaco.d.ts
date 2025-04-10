@@ -7307,11 +7307,17 @@ declare namespace monaco.languages {
 		readonly showInlineEditMenu?: boolean;
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
+		readonly displayLocation?: InlineCompletionDisplayLocation;
 	}
 
 	export interface InlineCompletionWarning {
 		message: IMarkdownString | string;
 		icon?: IconPath;
+	}
+
+	export interface InlineCompletionDisplayLocation {
+		range: IRange;
+		label: string;
 	}
 
 	/**
@@ -7346,7 +7352,15 @@ declare namespace monaco.languages {
 		 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 		 */
 		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
+		/**
+		 * @deprecated Use `handleEndOfLifetime` instead.
+		*/
 		handleRejection?(completions: T, item: T['items'][number]): void;
+		/**
+		 * Is called when an inline completion item is no longer being used.
+		 * Provides a reason of why it is not used anymore.
+		*/
+		handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
@@ -7365,6 +7379,22 @@ declare namespace monaco.languages {
 		debounceDelayMs?: number;
 		toString?(): string;
 	}
+
+	export enum InlineCompletionEndOfLifeReasonKind {
+		Accepted = 0,
+		Rejected = 1,
+		Ignored = 2
+	}
+
+	export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
+		kind: InlineCompletionEndOfLifeReasonKind.Accepted;
+	} | {
+		kind: InlineCompletionEndOfLifeReasonKind.Rejected;
+	} | {
+		kind: InlineCompletionEndOfLifeReasonKind.Ignored;
+		supersededBy?: TInlineCompletion;
+		userTypingDisagreed: boolean;
+	};
 
 	export interface CodeAction {
 		title: string;

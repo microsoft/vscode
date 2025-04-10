@@ -109,7 +109,7 @@ export class AuxiliaryEditorPart {
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label, { minimal: Boolean(options?.minimal) }));
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
 
@@ -118,7 +118,7 @@ export class AuxiliaryEditorPart {
 		let titlebarVisible = false;
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
-			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart, { minimal: Boolean(options?.minimal) }));
 			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined);
 
 			const handleTitleBarVisibilityEvent = () => {
@@ -146,10 +146,10 @@ export class AuxiliaryEditorPart {
 
 		// Statusbar
 		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
-		let statusbarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+		let statusbarVisible = !options?.minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY)) {
-				statusbarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+				statusbarVisible = !options?.minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 
 				updateStatusbarVisibility(true);
 			}
@@ -226,6 +226,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		editorPartsView: IEditorPartsView,
 		private readonly state: IEditorPartUIState | undefined,
 		groupsLabel: string,
+		auxiliaryOptions: { minimal: boolean } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -236,6 +237,12 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+
+		if (auxiliaryOptions?.minimal) {
+			this._register(this.enforcePartOptions({
+				showTabs: 'none'
+			}));
+		}
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
@@ -266,7 +273,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			}
 		}
 
-		this.doClose(false /* do not merge any groups to main part */);
+		this.doClose(false /* do not merge any confirming editors to main part */);
 	}
 
 	protected override loadState(): IEditorPartUIState | undefined {
@@ -278,12 +285,19 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	}
 
 	close(): boolean {
-		return this.doClose(true /* merge all groups to main part */);
+		return this.doClose(true /* merge all confirming editors to main part */);
 	}
 
-	private doClose(mergeGroupsToMainPart: boolean): boolean {
+	private doClose(mergeConfirmingEditorsToMainPart: boolean): boolean {
 		let result = true;
-		if (mergeGroupsToMainPart) {
+		if (mergeConfirmingEditorsToMainPart) {
+
+			// First close all editors that are non-confirming
+			for (const group of this.groups) {
+				group.closeAllEditors({ excludeConfirming: true });
+			}
+
+			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();
 		}
 

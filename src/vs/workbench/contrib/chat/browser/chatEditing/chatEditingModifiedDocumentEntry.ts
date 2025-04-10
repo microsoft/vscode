@@ -27,6 +27,7 @@ import { IEditorWorkerService } from '../../../../../editor/common/services/edit
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { TextModelChangeRecorder } from '../../../../../editor/contrib/inlineCompletions/browser/model/changeRecorder.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -375,9 +376,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._isEditFromUs = true;
 		try {
 			let result: ISingleEditOperation[] = [];
-			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
-				result = undoEdits;
-				return null;
+			TextModelChangeRecorder.editWithMetadata({ source: 'Chat.applyEdits' }, () => {
+				this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
+					result = undoEdits;
+					return null;
+				});
 			});
 			return result;
 		} finally {

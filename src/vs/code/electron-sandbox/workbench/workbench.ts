@@ -165,8 +165,8 @@
 				}
 			}
 
-			// part: side bar (only when opening workspace/folder)
-			if (configuration.workspace && layoutInfo.sideBarWidth > 0) {
+			// part: side bar
+			if (layoutInfo.sideBarWidth > 0) {
 				const sideDiv = document.createElement('div');
 				sideDiv.style.position = 'absolute';
 				sideDiv.style.width = `${layoutInfo.sideBarWidth}px`;

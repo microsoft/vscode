@@ -194,7 +194,11 @@ export class TextEdit {
 		return equals(this.edits, other.edits, (a, b) => a.equals(b));
 	}
 
-	toString(text: AbstractText | string): string {
+	toString(text: AbstractText | string | undefined): string {
+		if (text === undefined) {
+			return this.edits.map(edit => edit.toString()).join('\n');
+		}
+
 		if (typeof text === 'string') {
 			return this.toString(new StringText(text));
 		}

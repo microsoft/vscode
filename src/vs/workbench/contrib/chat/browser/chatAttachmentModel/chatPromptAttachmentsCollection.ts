@@ -52,9 +52,7 @@ export const toChatVariable = (
 		id,
 		name: uri.fsPath,
 		value: uri,
-		isSelection: false,
-		enabled: true,
-		isFile: true,
+		kind: 'file',
 	};
 };
 
@@ -169,11 +167,13 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	/**
 	 * Add a prompt instruction attachment instance with the provided `URI`.
 	 * @param uri URI of the prompt instruction attachment to add.
+	 *
+	 * @returns `true` if the attachment already exists, `false` otherwise.
 	 */
-	public add(uri: URI): this {
+	public add(uri: URI): boolean {
 		// if already exists, nothing to do
 		if (this.attachments.has(uri.path)) {
-			return this;
+			return true;
 		}
 
 		const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
@@ -191,7 +191,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 		this._onAdd.fire(instruction);
 		this._onUpdate.fire();
 
-		return this;
+		return false;
 	}
 
 	/**

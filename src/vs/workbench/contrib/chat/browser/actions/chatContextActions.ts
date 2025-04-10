@@ -16,7 +16,7 @@ import { WithUriValue } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { Command } from '../../../../../editor/common/languages.js';
+import { Command, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -54,7 +54,6 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
@@ -302,13 +301,16 @@ class AttachFileToChatAction extends AttachResourceAction {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
+		const viewsService = accessor.get(IViewsService);
 		const files = this.getResources(accessor, ...args);
-
-		if (files.length) {
-			(await showChatView(accessor.get(IViewsService)))?.focusInput();
+		if (!files.length) {
+			return;
+		}
+		const widget = await showChatView(viewsService);
+		if (widget) {
+			widget.focusInput();
 			for (const file of files) {
-				variablesService.attachContext('file', file, ChatAgentLocation.Panel);
+				widget.attachmentModel.addFile(file);
 			}
 		}
 	}
@@ -328,13 +330,17 @@ class AttachFolderToChatAction extends AttachResourceAction {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
-		const folders = this.getResources(accessor, ...args);
+		const viewsService = accessor.get(IViewsService);
 
-		if (folders.length) {
-			(await showChatView(accessor.get(IViewsService)))?.focusInput();
+		const folders = this.getResources(accessor, ...args);
+		if (!folders.length) {
+			return;
+		}
+		const widget = await showChatView(viewsService);
+		if (widget) {
+			widget.focusInput();
 			for (const folder of folders) {
-				variablesService.attachContext('folder', folder, ChatAgentLocation.Panel);
+				widget.attachmentModel.addFolder(folder);
 			}
 		}
 	}
@@ -354,8 +360,14 @@ class AttachSelectionToChatAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
 		const editorService = accessor.get(IEditorService);
+		const viewsService = accessor.get(IViewsService);
+
+		const widget = await showChatView(viewsService);
+		if (!widget) {
+			return;
+		}
+
 		const [_, matches] = args;
 		// If we have search matches, it means this is coming from the search widget
 		if (matches && matches.length > 0) {
@@ -369,7 +381,7 @@ class AttachSelectionToChatAction extends Action2 {
 					if (!range ||
 						range.startLineNumber !== context.range.startLineNumber && range.endLineNumber !== context.range.endLineNumber) {
 						uris.set(context.uri, context.range);
-						variablesService.attachContext('file', context, ChatAgentLocation.Panel);
+						widget.attachmentModel.addFile(context.uri, context.range);
 					}
 				}
 			}
@@ -377,7 +389,7 @@ class AttachSelectionToChatAction extends Action2 {
 			for (const uri of uris) {
 				const [resource, range] = uri;
 				if (!range) {
-					variablesService.attachContext('file', { uri: resource }, ChatAgentLocation.Panel);
+					widget.attachmentModel.addFile(resource);
 				}
 			}
 		} else {
@@ -388,7 +400,7 @@ class AttachSelectionToChatAction extends Action2 {
 				if (selection) {
 					(await showChatView(accessor.get(IViewsService)))?.focusInput();
 					const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
-					variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.Panel);
+					widget.attachmentModel.addFile(activeUri, range);
 				}
 			}
 		}
@@ -491,17 +503,18 @@ export class AttachContextAction extends Action2 {
 					id: this._getFileContextId(pick.symbol.location),
 					value: pick.symbol.location,
 					symbolKind: pick.symbol.kind,
+					icon: SymbolKinds.toIcon(pick.symbol.kind),
 					fullName: pick.label,
 					name: pick.symbol.name,
 				});
 			} else if (isIFolderSearchResultQuickPickItem(pick)) {
 				const folder = pick.resource;
 				toAttach.push({
+					kind: 'directory',
 					id: pick.id,
 					value: folder,
 					name: basename(folder),
-					isFile: false,
-					isDirectory: true,
+
 				});
 			} else if (isIDiagnosticsQuickPickItemWithFilter(pick)) {
 				toAttach.push({
@@ -537,16 +550,16 @@ export class AttachContextAction extends Action2 {
 					}
 
 					toAttach.push({
+						kind: 'file',
 						id: this._getFileContextId({ resource: pick.resource }),
 						value: pick.resource,
 						name: pick.label,
-						isFile: true,
 						omittedState
 					});
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
 				toAttach.push({
-					range: undefined,
+					kind: 'generic',
 					id: this._getFileContextId({ uri: pick.uri, range: pick.range.decoration }),
 					value: { uri: pick.uri, range: pick.range.decoration },
 					fullName: pick.label,
@@ -557,10 +570,10 @@ export class AttachContextAction extends Action2 {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
 						toAttach.push({
+							kind: 'file',
 							id: this._getFileContextId({ resource: uri }),
 							value: uri,
 							name: labelService.getUriBasenameLabel(uri),
-							isFile: true,
 						});
 					}
 				}
@@ -568,10 +581,10 @@ export class AttachContextAction extends Action2 {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
 					toAttach.push({
+						kind: 'file',
 						id: this._getFileContextId({ resource: result.resource }),
 						value: result.resource,
 						name: labelService.getUriBasenameLabel(result.resource),
-						isFile: true,
 					});
 				}
 			} else if (isRelatedFileQuickPickItem(pick)) {
@@ -603,10 +616,10 @@ export class AttachContextAction extends Action2 {
 				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
 				for (const file of selectedFiles ?? []) {
 					toAttach.push({
+						kind: 'file',
 						id: this._getFileContextId({ resource: file.value }),
 						value: file.value,
 						name: file.label,
-						isFile: true,
 						omittedState: OmittedState.NotOmitted
 					});
 				}
@@ -641,7 +654,7 @@ export class AttachContextAction extends Action2 {
 						fullName: attachmentPick.label,
 						value: undefined,
 						icon: attachmentPick.icon,
-						isTool: true
+						kind: 'tool'
 					});
 				} else if (attachmentPick.kind === 'image') {
 					const fileBuffer = await clipboardService.readImage();

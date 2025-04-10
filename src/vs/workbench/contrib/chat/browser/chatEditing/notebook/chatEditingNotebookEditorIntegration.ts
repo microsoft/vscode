@@ -31,6 +31,7 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditingCodeEditorIntegration.js';
 import { ChatEditingModifiedNotebookEntry } from '../chatEditingModifiedNotebookEntry.js';
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';
+import { OverlayToolbarDecorator } from './overlayToolbarDecorator.js';
 
 export class ChatEditingNotebookEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
 	private integration: ChatEditingNotebookEditorWidgetIntegration;
@@ -99,6 +100,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	private deletedCellDecorator: NotebookDeletedCellDecorator | undefined;
 	private insertedCellDecorator: NotebookInsertedCellDecorator | undefined;
 	private modifiedCellDecorator: NotebookModifiedCellDecorator | undefined;
+	private overlayToolbarDecorator: OverlayToolbarDecorator | undefined;
 
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
 
@@ -301,6 +303,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			this.insertedCellDecorator?.apply(changes);
 			this.modifiedCellDecorator?.apply(modifiedChanges);
 			this.deletedCellDecorator?.apply(changes, originalModel);
+			this.overlayToolbarDecorator?.decorate(changes.filter(c => c.type === 'insert' || c.type === 'modified'));
 		}));
 	}
 
@@ -310,6 +313,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 		this.insertedCellDecorator ??= this._register(this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor));
 		this.modifiedCellDecorator ??= this._register(this.instantiationService.createInstance(NotebookModifiedCellDecorator, this.notebookEditor));
+		this.overlayToolbarDecorator ??= this._register(this.instantiationService.createInstance(OverlayToolbarDecorator, this.notebookEditor, this.notebookModel));
 
 		if (this.deletedCellDecorator) {
 			this._store.delete(this.deletedCellDecorator);

@@ -141,7 +141,7 @@ export type CommentThreadChanges<T = IRange> = Partial<{
 	contextValue: string | null;
 	comments: CommentChanges[];
 	collapseState: languages.CommentThreadCollapsibleState;
-	canReply: boolean;
+	canReply: boolean | languages.CommentAuthorInformation;
 	state: languages.CommentThreadState;
 	applicability: languages.CommentThreadApplicability;
 	isTemplate: boolean;
@@ -2336,6 +2336,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void;
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void;
+	$handleInlineCompletionEndOfLifetime(handle: number, pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void;
 	$handleInlineCompletionRejection(handle: number, pid: number, idx: number): void;
 	$freeInlineCompletionsList(handle: number, pid: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: languages.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
@@ -3062,7 +3063,7 @@ export interface MainThreadTestingShape {
 
 export type ChatStatusItemDto = {
 	id: string;
-	title: string;
+	title: string | { label: string; link: string };
 	description: string;
 	detail: string | undefined;
 };

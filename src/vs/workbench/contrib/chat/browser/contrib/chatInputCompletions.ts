@@ -46,7 +46,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertFileAction, SelectAndInsertFolderAction, SelectAndInsertProblemAction, SelectAndInsertSymAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, SelectAndInsertProblemAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -476,22 +476,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		// File completions
 		this.registerVariableCompletions('file', async ({ widget, range, position, model }, token) => {
 			if (!widget.supportsFileReferences) {
-				return null;
+				return;
 			}
 
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}file`,
-				insertText: `${chatVariableLeader}file:`,
-				documentation: localize('pickFileLabel', "Pick a file"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
-				sortText: 'z'
-			});
-
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
 				await this.addFileEntries(widget, result, range2, token);
@@ -503,22 +491,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		// Folder completions
 		this.registerVariableCompletions('folder', async ({ widget, range, position, model }, token) => {
 			if (!widget.supportsFileReferences) {
-				return null;
+				return;
 			}
 
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#folder:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}folder`,
-				insertText: `${chatVariableLeader}folder:`,
-				documentation: localize('pickFolderLabel', "Pick a folder"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertFolderAction.ID, title: SelectAndInsertFolderAction.ID, arguments: [{ widget, range: afterRange }] },
-				sortText: 'z'
-			});
-
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
 				await this.addFolderEntries(widget, result, range2, token);
@@ -564,7 +540,6 @@ class BuiltinDynamicCompletions extends Disposable {
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.selection',
-						prefix: 'file',
 						isFile: true,
 						range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
 						data: { range: currentSelection, uri: currentResource } satisfies Location
@@ -581,18 +556,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRangeSym = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#sym:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}sym`,
-				insertText: `${chatVariableLeader}sym:`,
-				documentation: localize('pickSymbolLabel', "Pick a symbol"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertSymAction.ID, title: SelectAndInsertSymAction.ID, arguments: [{ widget, range: afterRangeSym }] },
-				sortText: 'z'
-			});
-
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
 				this.addSymbolEntries(widget, result, range2, token);
@@ -673,8 +636,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.file',
-						prefix: 'file',
+						id: resource.toString(),
 						isFile: true,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
@@ -780,7 +742,6 @@ class BuiltinDynamicCompletions extends Disposable {
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.folder',
-						prefix: 'folder',
 						isFile: false,
 						isDirectory: true,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
@@ -842,11 +803,11 @@ class BuiltinDynamicCompletions extends Disposable {
 				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.symbol',
-						prefix: 'sym',
+						id: `vscode.symbol/${JSON.stringify(symbolItem.location)}`,
 						fullName: symbolItem.name,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
-						data: symbolItem.location
+						data: symbolItem.location,
+						icon: SymbolKinds.toIcon(symbolItem.kind)
 					})]
 				}
 			};
@@ -859,29 +820,13 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		const symbolsToAdd: { symbol: DocumentSymbol; uri: URI }[] = [];
 		for (const outlineModel of this.outlineService.getCachedModels()) {
-			if (pattern) {
-				symbolsToAdd.push(...outlineModel.asListOfDocumentSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
-			} else {
-				symbolsToAdd.push(...outlineModel.getTopLevelSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
+			const symbols = outlineModel.asListOfDocumentSymbols();
+			for (const symbol of symbols) {
+				symbolsToAdd.push({ symbol, uri: outlineModel.uri });
 			}
 		}
 
-		const symbolsToAddFiltered = symbolsToAdd.filter(fileSymbol => {
-			switch (fileSymbol.symbol.kind) {
-				case SymbolKind.Enum:
-				case SymbolKind.Class:
-				case SymbolKind.Method:
-				case SymbolKind.Function:
-				case SymbolKind.Namespace:
-				case SymbolKind.Module:
-				case SymbolKind.Interface:
-					return true;
-				default:
-					return false;
-			}
-		});
-
-		for (const symbol of symbolsToAddFiltered) {
+		for (const symbol of symbolsToAdd) {
 			result.suggestions.push(makeSymbolCompletionItem({ ...symbol.symbol, location: { uri: symbol.uri, range: symbol.symbol.range } }, pattern ?? ''));
 		}
 
