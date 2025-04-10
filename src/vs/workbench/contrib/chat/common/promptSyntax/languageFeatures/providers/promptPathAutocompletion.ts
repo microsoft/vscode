@@ -29,6 +29,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../../editor/common/languages.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 
 /**
  * Type for a filesystem completion item - the one that has its {@link CompletionItem.kind kind} set
@@ -98,10 +99,37 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 		@IFileService private readonly fileService: IFileService,
 		@IPromptsService private readonly promptSyntaxService: IPromptsService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+
 	) {
 		super();
 
 		this._register(this.languageService.completionProvider.register(LANGUAGE_SELECTOR, this));
+	}
+
+	/**
+	 * Get the root folder URI to start the suggestions list from.
+	 * For instance, if provided URI points to a file on a disk,
+	 * this function will return the folder URI that contains that file,
+	 * but if the URI points to an `untitled` document, will try to
+	 * use a different folder URI based on the workspace state.
+	 */
+	private getFirstFolderUri(
+		modelUri: URI,
+	): URI | null {
+		if (modelUri.scheme === 'file') {
+			return dirname(modelUri);
+		}
+
+		const { folders } = this.workspaceService.getWorkspace();
+
+		// single-root workspace, use root folder URI
+		if (folders.length === 1) {
+			return folders[0].uri;
+		}
+
+		// multi-root workspace, or no workspace at all
+		return null;
 	}
 
 	/**
@@ -155,7 +183,13 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return undefined;
 		}
 
-		const modelDirname = dirname(model.uri);
+		const modelDirnameUri = this.getFirstFolderUri(model.uri);
+
+		// if didn't find a folder URI to start the suggestions from,
+		// don't provide any suggestions
+		if (modelDirnameUri === null) {
+			return undefined;
+		}
 
 		// in the case of the '.' trigger character, we must check if this is the first
 		// dot in the link path, otherwise the dot could be a part of a folder name
@@ -163,7 +197,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return {
 				suggestions: await this.getFirstFolderSuggestions(
 					triggerCharacter,
-					modelDirname,
+					modelDirnameUri,
 					fileReference,
 				),
 			};
@@ -173,7 +207,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return {
 				suggestions: await this.getNonFirstFolderSuggestions(
 					triggerCharacter,
-					modelDirname,
+					modelDirnameUri,
 					fileReference,
 				),
 			};
