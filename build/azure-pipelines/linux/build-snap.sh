@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+echo "ARCH: $VSCODE_ARCH"
+
 # Get snapcraft version
 snapcraft --version
 
