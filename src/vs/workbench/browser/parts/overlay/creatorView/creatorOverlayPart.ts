@@ -277,6 +277,11 @@ export class CreatorOverlayPart extends Part {
 		this.openInProgress = true;
 
 		try {
+			// Removing any other iframes from the overlay container
+			// This is a workaround for the issue where multiple iframes are created - works for now
+			[...this.overlayContainer?.children || []].forEach((child) => {
+				child.remove();
+			});
 			// If webview needs reinitialization, do that first
 			if (this.needsReinit) {
 				console.log("Reinitializing webview before opening");
@@ -491,7 +496,7 @@ export class CreatorOverlayPart extends Part {
 				try {
 					this.webviewElement.postMessage({
 						messageType: "overlayAnimation",
-						direction: direction,
+						data: { direction },
 					});
 				} catch (e) {
 					console.warn("Failed to post animation message to webview:", e);
