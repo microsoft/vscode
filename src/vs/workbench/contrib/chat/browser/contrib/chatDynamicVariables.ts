@@ -5,7 +5,6 @@
 
 import { coalesce, groupBy } from '../../../../../base/common/arrays.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -18,8 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
-import { Command, isLocation, SymbolKinds } from '../../../../../editor/common/languages.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { Command, isLocation } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -34,7 +32,6 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
-import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 import { IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { IChatWidget } from '../chat.js';
@@ -253,140 +250,6 @@ function isSelectAndInsertActionContext(context: any): context is SelectAndInser
 	return 'widget' in context && 'range' in context;
 }
 
-export class SelectAndInsertFileAction extends Action2 {
-	static readonly Name = 'files';
-	static readonly Item = {
-		label: localize('allFiles', 'All Files'),
-		description: localize('allFilesDescription', 'Search for relevant files in the workspace and provide context from them'),
-	};
-	static readonly ID = 'workbench.action.chat.selectAndInsertFile';
-
-	constructor() {
-		super({
-			id: SelectAndInsertFileAction.ID,
-			title: '' // not displayed
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const textModelService = accessor.get(ITextModelService);
-		const logService = accessor.get(ILogService);
-		const quickInputService = accessor.get(IQuickInputService);
-
-		const context = args[0];
-		if (!isSelectAndInsertActionContext(context)) {
-			return;
-		}
-
-		const doCleanup = () => {
-			// Failed, remove the dangling `file`
-			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
-		};
-
-		// TODO: have dedicated UX for this instead of using the quick access picker
-		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
-		const picks = await quickInputService.quickAccess.pick('');
-		if (!picks?.length) {
-			logService.trace('SelectAndInsertFileAction: no file selected');
-			doCleanup();
-			return;
-		}
-
-		const editor = context.widget.inputEditor;
-		const range = context.range;
-
-		// Handle the special case of selecting all files
-		if (picks[0] === SelectAndInsertFileAction.Item) {
-			const text = `#${SelectAndInsertFileAction.Name}`;
-			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
-			if (!success) {
-				logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
-				doCleanup();
-			}
-			return;
-		}
-
-		// Handle the case of selecting a specific file
-		const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
-		if (!textModelService.canHandleResource(resource)) {
-			logService.trace('SelectAndInsertFileAction: non-text resource selected');
-			doCleanup();
-			return;
-		}
-
-		const fileName = basename(resource);
-		const text = `#file:${fileName}`;
-		const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
-		if (!success) {
-			logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
-			doCleanup();
-			return;
-		}
-
-		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: 'vscode.file',
-			isFile: true,
-			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: resource
-		});
-	}
-}
-registerAction2(SelectAndInsertFileAction);
-
-export class SelectAndInsertFolderAction extends Action2 {
-	static readonly Name = 'folder';
-	static readonly ID = 'workbench.action.chat.selectAndInsertFolder';
-
-	constructor() {
-		super({
-			id: SelectAndInsertFolderAction.ID,
-			title: '' // not displayed
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const logService = accessor.get(ILogService);
-
-		const context = args[0];
-		if (!isSelectAndInsertActionContext(context)) {
-			return;
-		}
-
-		const doCleanup = () => {
-			// Failed, remove the dangling `folder`
-			context.widget.inputEditor.executeEdits('chatInsertFolder', [{ range: context.range, text: `` }]);
-		};
-
-		const folder = await createFolderQuickPick(accessor);
-		if (!folder) {
-			logService.trace('SelectAndInsertFolderAction: no folder selected');
-			doCleanup();
-			return;
-		}
-
-		const editor = context.widget.inputEditor;
-		const range = context.range;
-
-		const folderName = basename(folder);
-		const text = `#folder:${folderName}`;
-		const success = editor.executeEdits('chatInsertFolder', [{ range, text: text + ' ' }]);
-		if (!success) {
-			logService.trace(`SelectAndInsertFolderAction: failed to insert "${text}"`);
-			doCleanup();
-			return;
-		}
-
-		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: 'vscode.folder',
-			isFile: false,
-			isDirectory: true,
-			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: folder
-		});
-	}
-
-}
-registerAction2(SelectAndInsertFolderAction);
 
 export async function createFolderQuickPick(accessor: ServicesAccessor): Promise<URI | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
@@ -578,69 +441,6 @@ function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMa
 	return matchingFolders;
 }
 
-export class SelectAndInsertSymAction extends Action2 {
-	static readonly Name = 'symbols';
-	static readonly ID = 'workbench.action.chat.selectAndInsertSym';
-
-	constructor() {
-		super({
-			id: SelectAndInsertSymAction.ID,
-			title: '' // not displayed
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const textModelService = accessor.get(ITextModelService);
-		const logService = accessor.get(ILogService);
-		const quickInputService = accessor.get(IQuickInputService);
-
-		const context = args[0];
-		if (!isSelectAndInsertActionContext(context)) {
-			return;
-		}
-
-		const doCleanup = () => {
-			// Failed, remove the dangling `sym`
-			context.widget.inputEditor.executeEdits('chatInsertSym', [{ range: context.range, text: `` }]);
-		};
-
-		// TODO: have dedicated UX for this instead of using the quick access picker
-		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
-		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'] });
-		if (!picks?.length) {
-			logService.trace('SelectAndInsertSymAction: no symbol selected');
-			doCleanup();
-			return;
-		}
-
-		const editor = context.widget.inputEditor;
-		const range = context.range;
-
-		// Handle the case of selecting a specific file
-		const symbol = (picks[0] as ISymbolQuickPickItem).symbol;
-		if (!symbol || !textModelService.canHandleResource(symbol.location.uri)) {
-			logService.trace('SelectAndInsertSymAction: non-text resource selected');
-			doCleanup();
-			return;
-		}
-
-		const text = `#sym:${symbol.name}`;
-		const success = editor.executeEdits('chatInsertSym', [{ range, text: text + ' ' }]);
-		if (!success) {
-			logService.trace(`SelectAndInsertSymAction: failed to insert "${text}"`);
-			doCleanup();
-			return;
-		}
-
-		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: `vscode.symbol/${JSON.stringify(symbol.location)}`,
-			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: symbol.location,
-			icon: SymbolKinds.toIcon(symbol.kind)
-		});
-	}
-}
-registerAction2(SelectAndInsertSymAction);
 
 export interface IAddDynamicVariableContext {
 	id: string;
