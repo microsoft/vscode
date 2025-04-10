@@ -52,7 +52,7 @@ export class InlineEditModel implements IInlineEditModel {
 	}
 
 	handleInlineEditShown() {
-		this._model.handleInlineEditShown(this.inlineEdit.inlineCompletion);
+		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion);
 	}
 }
 

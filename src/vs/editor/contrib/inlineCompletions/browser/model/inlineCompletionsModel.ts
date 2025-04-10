@@ -26,7 +26,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
+import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -86,17 +86,12 @@ export class InlineCompletionsModel extends Disposable {
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
-		let lastItem: InlineCompletionItem | undefined = undefined;
 		this._register(autorun(reader => {
 			/** @description call handleItemDidShow */
 			const item = this.inlineCompletionState.read(reader);
 			const completion = item?.inlineCompletion;
-			if (completion?.semanticId !== lastItem?.semanticId) {
-				lastItem = completion;
-				if (completion) {
-					const src = completion.source;
-					src.provider.handleItemDidShow?.(src.inlineSuggestions, completion.getSourceCompletion(), completion.insertText);
-				}
+			if (completion) {
+				this.handleInlineSuggestionShown(completion);
 			}
 		}));
 
@@ -316,10 +311,8 @@ export class InlineCompletionsModel extends Disposable {
 		subtransaction(tx, tx => {
 			if (stopReason === 'explicitCancel') {
 				const inlineCompletion = this.state.get()?.inlineCompletion;
-				const source = inlineCompletion?.source;
-				const sourceInlineCompletion = inlineCompletion?.getSourceCompletion();
-				if (sourceInlineCompletion && source?.provider.handleRejection) {
-					source.provider.handleRejection(source.inlineSuggestions, sourceInlineCompletion);
+				if (inlineCompletion) {
+					inlineCompletion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Rejected });
 				}
 			}
 
@@ -673,6 +666,8 @@ export class InlineCompletionsModel extends Disposable {
 			return;
 		}
 
+		completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+
 		if (completion.command) {
 			// Make sure the completion list will not be disposed.
 			completion.source.addRef();
@@ -821,18 +816,12 @@ export class InlineCompletionsModel extends Disposable {
 				this._isAcceptingPartially = false;
 			}
 
-			if (completion.source.provider.handlePartialAccept) {
-				const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), TextLength.ofText(partialGhostTextVal).addToPosition(ghostTextPos));
-				// This assumes that the inline completion and the model use the same EOL style.
-				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
-				const acceptedLength = text.length;
-				completion.source.provider.handlePartialAccept(
-					completion.source.inlineSuggestions,
-					completion.getSourceCompletion(),
-					acceptedLength,
-					{ kind, acceptedLength: acceptedLength, }
-				);
-			}
+			const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), TextLength.ofText(partialGhostTextVal).addToPosition(ghostTextPos));
+			// This assumes that the inline completion and the model use the same EOL style.
+			const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
+			const acceptedLength = text.length;
+			completion.reportPartialAccept(acceptedLength, { kind, acceptedLength: acceptedLength });
+
 		} finally {
 			completion.source.removeRef();
 		}
@@ -847,16 +836,10 @@ export class InlineCompletionsModel extends Disposable {
 		const alreadyAcceptedLength = this.textModel.getValueInRange(augmentedCompletion.completion.range, EndOfLinePreference.LF).length;
 		const acceptedLength = alreadyAcceptedLength + itemEdit.text.length;
 
-		const source = augmentedCompletion.completion.source;
-		source.provider.handlePartialAccept?.(
-			source.inlineSuggestions,
-			augmentedCompletion.completion.getSourceCompletion(),
-			itemEdit.text.length,
-			{
-				kind: PartialAcceptTriggerKind.Suggest,
-				acceptedLength,
-			}
-		);
+		augmentedCompletion.completion.reportPartialAccept(itemEdit.text.length, {
+			kind: PartialAcceptTriggerKind.Suggest,
+			acceptedLength,
+		});
 	}
 
 	public extractReproSample(): Repro {
@@ -895,17 +878,8 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public async handleInlineEditShown(inlineCompletion: InlineSuggestionItem): Promise<void> {
-		if (inlineCompletion.didShow) {
-			return;
-		}
-		inlineCompletion.didShow = true;
-
-		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineSuggestions, inlineCompletion.getSourceCompletion(), inlineCompletion.insertText);
-
-		if (inlineCompletion.shownCommand) {
-			await this._commandService.executeCommand(inlineCompletion.shownCommand.id, ...(inlineCompletion.shownCommand.arguments || []));
-		}
+	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem): Promise<void> {
+		await inlineCompletion.reportInlineEditShown(this._commandService);
 	}
 }
 
