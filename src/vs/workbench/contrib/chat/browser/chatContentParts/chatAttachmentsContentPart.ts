@@ -92,7 +92,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			let ariaLabel: string | undefined;
 
-			if (resource && (attachment.isFile || attachment.isDirectory)) {
+			if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				const fileBasename = basename(resource.path);
 				const fileDirname = dirname(resource.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
@@ -112,7 +112,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 						hidePath: true,
 						title: correspondingContentReference?.options?.status?.description
 					};
-					label.setFile(resource, attachment.isFile ? {
+					label.setFile(resource, attachment.kind === 'file' ? {
 						...fileOptions,
 						fileKind: FileKind.FILE,
 						range,
@@ -220,7 +220,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(dom.addDisposableListener(widget, dom.EventType.CLICK, async (e: MouseEvent) => {
 						dom.EventHelper.stop(e, true);
-						if (attachment.isDirectory) {
+						if (attachment.kind === 'directory') {
 							this.openResource(resource, true);
 						} else {
 							this.openResource(resource, false, range);

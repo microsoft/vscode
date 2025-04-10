@@ -92,11 +92,10 @@ export async function resolveResourceAttachContext(resource: URI, isDirectory: b
 	}
 
 	return {
+		kind: isDirectory ? 'directory' : 'file',
 		value: resource,
 		id: resource.toString(),
 		name: basename(resource),
-		isFile: !isDirectory,
-		isDirectory,
 		omittedState
 	};
 }
