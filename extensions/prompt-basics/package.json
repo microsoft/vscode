@@ -12,7 +12,7 @@
   "contributes": {
     "languages": [
       {
-        "id": "prompt.md",
+        "id": "prompt",
         "aliases": [
           "Prompt",
           "prompt"
@@ -26,7 +26,7 @@
     ],
     "grammars": [
       {
-        "language": "prompt.md",
+        "language": "prompt",
         "path": "./syntaxes/prompt.tmLanguage.json",
         "scopeName": "text.html.markdown.prompt",
         "unbalancedBracketScopes": [
@@ -36,7 +36,7 @@
       }
     ],
     "configurationDefaults": {
-      "[prompt.md]": {
+      "[prompt]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false
