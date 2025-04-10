@@ -62,7 +62,7 @@ import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
+import { ChatViewId, IChatWidgetService, showChatView, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import './media/chatSetup.css';
 
@@ -535,6 +535,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
@@ -557,22 +558,25 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const updateRegistration = () => {
 			const disabled = context.state.hidden;
 			if (!disabled && !registration.value) {
-				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Ask, context, controller);
+				const registrations = [
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Edit, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Agent, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Ask, context, controller)
+				];
 				registration.value = combinedDisposable(
-					panelDisposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Edit, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Agent, context, controller).disposable,
-					panelAgent.onUnresolvableError(() => {
+					...registrations.map(r => r.disposable),
+					Event.any(...registrations.map(r => r.agent.onUnresolvableError))(() => {
 						// An unresolvable error from our agent registrations means that
 						// Copilot is unhealthy for some reason. We clear our panel
 						// registration to give Copilot a chance to show a custom message
 						// to the user from the views and stop pretending as if there was
 						// a functional agent.
 						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-						panelDisposable.dispose();
+						registration.clear();
+						showChatView(this.viewsService);
 					})
 				);
 			} else if (disabled && registration.value) {
