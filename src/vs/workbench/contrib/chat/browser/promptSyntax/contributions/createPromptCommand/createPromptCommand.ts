@@ -45,7 +45,7 @@ const command = async (
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
 
-	const fileName = await askForPromptName(storage, quickInputService);
+	const fileName = await askForPromptName(type, quickInputService);
 	if (!fileName) {
 		return;
 	}
