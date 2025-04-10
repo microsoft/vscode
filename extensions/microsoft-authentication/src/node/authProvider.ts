@@ -354,6 +354,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				} catch (e) {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
+					this._telemetryReporter.sendTelemetryErrorEvent(e);
 					continue;
 				}
 			}

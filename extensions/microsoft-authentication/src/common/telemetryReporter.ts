@@ -66,6 +66,24 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		*/
 		this._telemetryReporter.sendTelemetryEvent('logoutFailed');
 	}
+
+	sendTelemetryErrorEvent(error: unknown): void {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorStack = error instanceof Error ? error.stack : undefined;
+		const errorName = error instanceof Error ? error.name : undefined;
+
+		/* __GDPR__
+			"msalError" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users run into issues with the login flow.",
+				"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error message from the exception." },
+				"errorStack": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The stack trace from the exception." },
+				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the error." }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryErrorEvent('msalError', { errorMessage, errorStack, errorName });
+	}
+
 	/**
 	 * Sends an event for an account type available at startup.
 	 * @param scopes The scopes for the session
