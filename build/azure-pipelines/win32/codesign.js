@@ -17,7 +17,7 @@ function printBanner(title) {
     console.log('\n\n');
 }
 function sign(type, glob) {
-    return (0, zx_1.$)({ detached: true, verbose: true }) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
+    return (0, zx_1.$)({ verbose: true }) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
 }
 async function main() {
     (0, zx_1.usePwsh)();
@@ -30,17 +30,29 @@ async function main() {
     const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
         ? sign('sign-windows-appx', '*.appx')
         : undefined;
+    console.log('task1: ', codesignTask1.isHalted(), codesignTask1.stage);
+    console.log('task2: ', codesignTask2.isHalted(), codesignTask2.stage);
+    console.log('task3: ', codesignTask3?.isHalted(), codesignTask3?.stage);
     // Codesign executables and shared libraries
     printBanner('Codesign executables and shared libraries');
     await codesignTask1.pipe(process.stdout);
+    console.log('task1: ', codesignTask1.isHalted(), codesignTask1.stage);
+    console.log('task2: ', codesignTask2.isHalted(), codesignTask2.stage);
+    console.log('task3: ', codesignTask3?.isHalted(), codesignTask3?.stage);
     // Codesign Powershell scripts
     printBanner('Codesign Powershell scripts');
     await codesignTask2.pipe(process.stdout);
+    console.log('task1: ', codesignTask1.isHalted(), codesignTask1.stage);
+    console.log('task2: ', codesignTask2.isHalted(), codesignTask2.stage);
+    console.log('task3: ', codesignTask3?.isHalted(), codesignTask3?.stage);
     if (process.env['VSCODE_QUALITY'] === 'insider') {
         // Codesign context menu appx package
         printBanner('Codesign context menu appx package');
         await codesignTask3.pipe(process.stdout);
     }
+    console.log('task1: ', codesignTask1.isHalted(), codesignTask1.stage);
+    console.log('task2: ', codesignTask2.isHalted(), codesignTask2.stage);
+    console.log('task3: ', codesignTask3?.isHalted(), codesignTask3?.stage);
     // Create build artifact directory
     await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
     // Package client
