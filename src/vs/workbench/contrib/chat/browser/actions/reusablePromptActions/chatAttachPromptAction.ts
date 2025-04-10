@@ -25,10 +25,10 @@ import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPr
 /**
  * Action ID for the `Attach Prompt` action.
  */
-const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
+const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
 
 /**
- * Options for the {@link AttachPromptAction} action.
+ * Options for the {@link AttachInstructionsAction} action.
  */
 export interface IChatAttachPromptActionOptions extends Pick<
 	ISelectPromptOptions, 'resource' | 'widget'
@@ -51,11 +51,11 @@ export interface IChatAttachPromptActionOptions extends Pick<
 /**
  * Action to attach a prompt to a chat widget input.
  */
-class AttachPromptAction extends Action2 {
+class AttachInstructionsAction extends Action2 {
 	constructor() {
 		super({
-			id: ATTACH_PROMPT_ACTION_ID,
-			title: localize2('workbench.action.chat.attach.prompt.label', "Use Prompt"),
+			id: ATTACH_INSTRUCTIONS_ACTION_ID,
+			title: localize2('workbench.action.chat.attach.instructions.label', "Attach Instructions"),
 			f1: false,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,
@@ -100,10 +100,11 @@ class AttachPromptAction extends Action2 {
 		}
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles();
+		const promptFiles = await promptsService.listPromptFiles('instructions');
 
 		await askToSelectPrompt({
 			...options,
+			type: 'instructions',
 			promptFiles,
 			fileService,
 			viewsService,
@@ -118,7 +119,7 @@ class AttachPromptAction extends Action2 {
 
 /**
  * Runs the `Attach Prompt` action with provided options. We export this
- * function instead of {@link ATTACH_PROMPT_ACTION_ID} directly to
+ * function instead of {@link ATTACH_INSTRUCTIONS_ACTION_ID} directly to
  * encapsulate/enforce the correct options to be passed to the action.
  */
 export const runAttachPromptAction = async (
@@ -126,7 +127,7 @@ export const runAttachPromptAction = async (
 	commandService: ICommandService,
 ): Promise<void> => {
 	return await commandService.executeCommand(
-		ATTACH_PROMPT_ACTION_ID,
+		ATTACH_INSTRUCTIONS_ACTION_ID,
 		options,
 	);
 };
@@ -135,5 +136,5 @@ export const runAttachPromptAction = async (
  * Helper to register the `Attach Prompt` action.
  */
 export const registerAttachPromptActions = () => {
-	registerAction2(AttachPromptAction);
+	registerAction2(AttachInstructionsAction);
 };
