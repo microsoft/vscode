@@ -21,7 +21,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { DEFAULT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_MINIMAL_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
 import { BaseWindow } from '../../../browser/window.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -42,9 +42,11 @@ export enum AuxiliaryWindowMode {
 
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
+	readonly minimal?: boolean;
 
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
+	readonly alwaysOnTop?: boolean;
 
 	readonly nativeTitlebar?: boolean;
 	readonly disableFullscreen?: boolean;
@@ -108,6 +110,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		readonly window: CodeWindow,
 		readonly container: HTMLElement,
 		stylesHaveLoaded: Barrier,
+		private readonly options: IAuxiliaryWindowOpenOptions | undefined,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
@@ -208,7 +211,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				width: this.window.outerWidth,
 				height: this.window.outerHeight
 			},
-			zoomLevel: getZoomLevel(this.window)
+			zoomLevel: getZoomLevel(this.window),
+			minimal: this.options?.minimal
 		};
 	}
 
@@ -226,8 +230,6 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 export class BrowserAuxiliaryWindowService extends Disposable implements IAuxiliaryWindowService {
 
 	declare readonly _serviceBrand: undefined;
-
-	private static readonly DEFAULT_SIZE = DEFAULT_AUX_WINDOW_SIZE;
 
 	private static WINDOW_IDS = getWindowId(mainWindow) + 1; // start from the main window ID + 1
 
@@ -262,7 +264,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const containerDisposables = new DisposableStore();
 		const { container, stylesLoaded } = this.createContainer(targetWindow, containerDisposables, options);
 
-		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded);
+		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded, options);
 
 		const registryDisposables = new DisposableStore();
 		this.windows.set(targetWindow.vscodeWindowId, auxiliaryWindow);
@@ -296,8 +298,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow;
 	}
 
-	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService);
+	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier, options?: IAuxiliaryWindowOpenOptions): AuxiliaryWindow {
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, options, this.configurationService, this.hostService, this.environmentService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
@@ -309,8 +311,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			height: activeWindow.outerHeight
 		};
 
-		const width = Math.max(options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width, WindowMinimumSize.WIDTH);
-		const height = Math.max(options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height, WindowMinimumSize.HEIGHT);
+		const defaultSize = options?.minimal ? DEFAULT_MINIMAL_AUX_WINDOW_SIZE : DEFAULT_AUX_WINDOW_SIZE;
+
+		const width = Math.max(options?.bounds?.width ?? defaultSize.width, WindowMinimumSize.WIDTH);
+		const height = Math.max(options?.bounds?.height ?? defaultSize.height, WindowMinimumSize.HEIGHT);
 
 		let newWindowBounds: IRectangle = {
 			x: options?.bounds?.x ?? Math.max(activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2, 0),
@@ -339,6 +343,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			// non-standard properties
 			options?.nativeTitlebar ? 'window-native-titlebar=yes' : undefined,
 			options?.disableFullscreen ? 'window-disable-fullscreen=yes' : undefined,
+			options?.alwaysOnTop ? 'window-always-on-top=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined
 		]);

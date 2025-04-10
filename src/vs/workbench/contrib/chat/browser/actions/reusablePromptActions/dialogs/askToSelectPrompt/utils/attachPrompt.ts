@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChatWidget, showChatView } from '../../../../../chat.js';
+import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
+import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
-import { assertDefined, WithUriValue } from '../../../../../../../../../base/common/types.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
 /**
- * Options for the {@link attachPrompts} function.
+ * Options for the {@link attachPrompt} function.
  */
 export interface IAttachPromptOptions {
 	/**
@@ -29,22 +30,28 @@ export interface IAttachPromptOptions {
 }
 
 /**
+ * Return value of the {@link attachPrompt} function.
+ */
+interface IAttachResult {
+	readonly widget: IChatWidget;
+	readonly wasAlreadyAttached: boolean;
+}
+
+/**
  * Attaches provided prompts to a chat input.
  */
-export const attachPrompts = async (
-	files: readonly WithUriValue<Object>[],
+export const attachPrompt = async (
+	file: URI,
 	options: IAttachPromptOptions,
-): Promise<IChatWidget> => {
+): Promise<IAttachResult> => {
 	const widget = await getChatWidgetObject(options);
 
-	for (const file of files) {
-		widget
-			.attachmentModel
-			.promptInstructions
-			.add(file.value);
-	}
+	const wasAlreadyAttached = widget
+		.attachmentModel
+		.promptInstructions
+		.add(file);
 
-	return widget;
+	return { widget, wasAlreadyAttached };
 };
 
 /**

@@ -2879,8 +2879,8 @@ export namespace ChatResponsePart {
 
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: vscode.LanguageModelToolInformation[] | undefined): vscode.ChatRequest {
-		const toolReferences = request.variables.variables.filter(v => v.isTool);
-		const variableReferences = request.variables.variables.filter(v => !v.isTool);
+		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
+		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
 		const requestWithoutId = {
 			prompt: request.message,
 			command: request.command,
@@ -3154,6 +3154,26 @@ export namespace PartialAcceptTriggerKind {
 			default:
 				return types.PartialAcceptTriggerKind.Unknown;
 		}
+	}
+}
+
+export namespace InlineCompletionEndOfLifeReason {
+	export function to<T>(reason: languages.InlineCompletionEndOfLifeReason<T>, convertFn: (item: T) => vscode.InlineCompletionItem | undefined): vscode.InlineCompletionEndOfLifeReason {
+		if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
+			const supersededBy = reason.supersededBy ? convertFn(reason.supersededBy) : undefined;
+			return {
+				kind: types.InlineCompletionEndOfLifeReasonKind.Ignored,
+				supersededBy: supersededBy,
+				userTypingDisagreed: reason.userTypingDisagreed,
+			};
+		} else if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
+			return {
+				kind: types.InlineCompletionEndOfLifeReasonKind.Accepted,
+			};
+		}
+		return {
+			kind: types.InlineCompletionEndOfLifeReasonKind.Rejected,
+		};
 	}
 }
 

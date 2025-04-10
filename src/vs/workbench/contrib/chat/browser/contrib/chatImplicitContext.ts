@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -19,7 +19,7 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
@@ -62,6 +62,21 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 				const notebookEditor = this.findActiveNotebookEditor();
 				if (notebookEditor) {
+					const activeCellDisposables = activeEditorDisposables.add(new DisposableStore());
+					activeEditorDisposables.add(notebookEditor.onDidChangeActiveCell(() => {
+						activeCellDisposables.clear();
+						const codeEditor = this.codeEditorService.getActiveCodeEditor();
+						if (codeEditor && codeEditor.getModel()?.uri.scheme === Schemas.vscodeNotebookCell) {
+							activeCellDisposables.add(Event.debounce(
+								Event.any(
+									codeEditor.onDidChangeModel,
+									codeEditor.onDidChangeCursorSelection,
+									codeEditor.onDidScrollChange),
+								() => undefined,
+								500)(() => this.updateImplicitContext()));
+						}
+					}));
+
 					activeEditorDisposables.add(Event.debounce(
 						Event.any(
 							notebookEditor.onDidChangeModel,
@@ -162,7 +177,24 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		if (notebookEditor) {
 			const activeCell = notebookEditor.getActiveCell();
 			if (activeCell) {
+				const codeEditor = this.codeEditorService.getActiveCodeEditor();
+				const selection = codeEditor?.getSelection();
+				const visibleRanges = codeEditor?.getVisibleRanges() || [];
 				newValue = activeCell.uri;
+				if (isEqual(codeEditor?.getModel()?.uri, activeCell.uri)) {
+					if (selection && !selection.isEmpty()) {
+						newValue = { uri: activeCell.uri, range: selection } satisfies Location;
+						isSelection = true;
+					} else if (visibleRanges.length > 0) {
+						// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
+						// Something like a Location with an array of Ranges?
+						let range = visibleRanges[0];
+						visibleRanges.slice(1).forEach(r => {
+							range = range.plusRange(r);
+						});
+						newValue = { uri: activeCell.uri, range } satisfies Location;
+					}
+				}
 			} else {
 				newValue = notebookEditor.textModel?.uri;
 			}
@@ -268,12 +300,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	toBaseEntry(): IBaseChatRequestVariableEntry {
+	toBaseEntry(): IChatRequestFileEntry {
 		return {
+			kind: 'file',
 			id: this.id,
 			name: this.name,
 			value: this.value,
-			isFile: true,
 			modelDescription: this.modelDescription
 		};
 	}

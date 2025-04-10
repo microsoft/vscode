@@ -54,6 +54,7 @@ import { ChatMode, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
+import { ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -118,11 +119,16 @@ export function registerChatActions() {
 						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
 					}
 				},
-				menu: {
+				menu: [{
 					id: MenuId.ChatTitleBarMenu,
 					group: 'a_open',
 					order: 1
-				}
+				}, {
+					id: MenuId.ChatEditingEditorContent,
+					when: ContextKeyExpr.and(ctxHasRequestInProgress, ctxIsGlobalEditingSession),
+					group: 'navigate',
+					order: 4,
+				}]
 			});
 		}
 
@@ -169,7 +175,7 @@ export function registerChatActions() {
 							fullName: tool.displayName,
 							value: undefined,
 							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
-							isTool: true
+							kind: 'tool'
 						});
 					}
 				}

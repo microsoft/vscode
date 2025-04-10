@@ -81,7 +81,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const inlineCompletion = state.inlineCompletion;
 		if (!inlineCompletion) { return undefined; }
 
-		if (!inlineCompletion.sourceInlineCompletion.showInlineEditMenu) {
+		if (!inlineCompletion.showInlineEditMenu) {
 			return undefined;
 		}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import * as event from '../../../../base/common/event.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -38,8 +38,8 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
 	public readonly label: IResourceLabel;
 
-	private readonly _onDidDelete: Emitter<globalThis.Event> = this._register(new Emitter<globalThis.Event>());
-	get onDidDelete(): Event<globalThis.Event> {
+	private readonly _onDidDelete: event.Emitter<Event> = this._register(new event.Emitter<Event>());
+	get onDidDelete(): event.Event<Event> {
 		return this._onDidDelete.event;
 	}
 
@@ -65,6 +65,13 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 
 	protected attachClearButton() {
+
+		if (this.attachment.range) {
+			// no clear button for attachments with ranges because range means
+			// referenced from prompt
+			return;
+		}
+
 		const clearButton = new Button(this.element, {
 			supportIcons: true,
 			hoverDelegate: this.hoverDelegate,
@@ -72,7 +79,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		});
 		clearButton.icon = Codicon.close;
 		this._register(clearButton);
-		this._register(Event.once(clearButton.onDidClick)((e) => {
+		this._register(event.Event.once(clearButton.onDidClick)((e) => {
 			this._onDidDelete.fire(e);
 		}));
 		if (this.shouldFocusClearButton) {
@@ -84,7 +91,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		this.element.style.cursor = 'pointer';
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
-			if (this.attachment.isDirectory) {
+			if (this.attachment.kind === 'directory') {
 				this.openResource(resource, true);
 			} else {
 				this.openResource(resource, false, range);
@@ -95,7 +102,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				dom.EventHelper.stop(e, true);
-				if (this.attachment.isDirectory) {
+				if (this.attachment.kind === 'directory') {
 					this.openResource(resource, true);
 				} else {
 					this.openResource(resource, false, range);
@@ -153,7 +160,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 			this.renderOmittedWarning(friendlyName, ariaLabel, hoverDelegate);
 		} else {
 			const fileOptions: IFileLabelOptions = { hidePath: true };
-			this.label.setFile(resource, attachment.isFile ? {
+			this.label.setFile(resource, attachment.kind === 'file' ? {
 				...fileOptions,
 				fileKind: FileKind.FILE,
 				range,
@@ -359,7 +366,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const copiedFromResource = attachment.copiedFrom?.uri;
 		if (copiedFromResource) {
-			this._register(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, copiedFromResource)));
+			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
 		}
 
@@ -403,7 +410,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		if (attachment.kind === 'symbol') {
 			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
-			this._register(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, this.element, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext)));
+			this._register(this.instantiationService.invokeFunction(hookUpSymbolAttachmentDragAndContextMenu, this.element, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext));
 		}
 
 		if (resource) {

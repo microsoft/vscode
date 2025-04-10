@@ -241,7 +241,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		this._isEditFromUs = true;
 		try {
-			if (!this._diffInfo.get().changes.includes(change)) {
+			if (!this._diffInfo.get().changes.filter(c => c.modified.equals(change.modified) && c.original.equals(change.original)).length) {
 				// diffInfo should have model version ids and check them (instead of the caller doing that)
 				return false;
 			}
