@@ -123,8 +123,12 @@ const isPromptFileEditor = (
 		return false;
 	}
 
-	if (model.getLanguageId() === PROMPT_LANGUAGE_ID) {
-		return true;
+	if (model.isDisposed()) {
+		return false;
+	}
+
+	if (model.getLanguageId() !== PROMPT_LANGUAGE_ID) {
+		return false;
 	}
 
 	// override the `getModel()` method to align with the `IPromptFileEditor` interface
