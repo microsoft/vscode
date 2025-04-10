@@ -54,7 +54,7 @@ import { ChatMode, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
-import { ctxHasRequestInProgress } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -125,7 +125,7 @@ export function registerChatActions() {
 					order: 1
 				}, {
 					id: MenuId.ChatEditingEditorContent,
-					when: ctxHasRequestInProgress,
+					when: ContextKeyExpr.and(ctxHasRequestInProgress, ctxIsGlobalEditingSession),
 					group: 'navigate',
 					order: 4,
 				}]
