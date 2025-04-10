@@ -5,7 +5,7 @@
 
 import { DOCS_OPTION } from './constants.js';
 import { IChatWidget } from '../../../../chat.js';
-import { attachPrompts } from './utils/attachPrompts.js';
+import { attachPrompt } from './utils/attachPrompt.js';
 import { handleButtonClick } from './utils/handleButtonClick.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
@@ -174,13 +174,14 @@ export const askToSelectPrompt = async (
 			}
 
 			// otherwise attach the selected prompt to a chat input
-			lastActiveWidget = await attachPrompts(
-				selectedItems,
+			const attachResult = await attachPrompt(
+				selectedOption.value,
 				{
 					...options,
 					inNewChat: keyMods.ctrlCmd,
 				},
 			);
+			lastActiveWidget = attachResult.widget;
 
 			// if user submitted their selection, close the dialog
 			if (!event.inBackground) {

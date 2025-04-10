@@ -7307,11 +7307,17 @@ declare namespace monaco.languages {
 		readonly showInlineEditMenu?: boolean;
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
+		readonly displayLocation?: InlineCompletionDisplayLocation;
 	}
 
 	export interface InlineCompletionWarning {
 		message: IMarkdownString | string;
 		icon?: IconPath;
+	}
+
+	export interface InlineCompletionDisplayLocation {
+		range: IRange;
+		label: string;
 	}
 
 	/**

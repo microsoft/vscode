@@ -11,11 +11,13 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
 import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
@@ -41,7 +43,7 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
+import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatRequestVariableEntry, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
@@ -55,6 +57,9 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -80,12 +85,13 @@ export abstract class InlineChatRunOptions {
 	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
+	attachments?: URI[];
 	autoSend?: boolean;
 	existingSession?: Session;
 	position?: IPosition;
 
 	static isInlineChatRunOptions(options: any): options is InlineChatRunOptions {
-		const { initialSelection, initialRange, message, autoSend, position, existingSession } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments: attachments } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -93,6 +99,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof initialSelection !== 'undefined' && !Selection.isISelection(initialSelection)
 			|| typeof position !== 'undefined' && !Position.isIPosition(position)
 			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
+			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 		) {
 			return false;
 		}
@@ -200,6 +207,8 @@ export class InlineChatController1 implements IEditorContribution {
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxEditing = CTX_INLINE_CHAT_EDITING.bindTo(contextKeyService);
@@ -575,6 +584,12 @@ export class InlineChatController1 implements IEditorContribution {
 			barrier.open();
 		}));
 
+		if (options.attachments) {
+			await Promise.all(options.attachments.map(async attachment => {
+				await this._ui.value.widget.chatWidget.attachmentModel.addFile(attachment);
+			}));
+			delete options.attachments;
+		}
 		if (options.autoSend) {
 			delete options.autoSend;
 			this._showWidget(this._session.headless, false);
@@ -1167,6 +1182,21 @@ export class InlineChatController1 implements IEditorContribution {
 	get isActive() {
 		return Boolean(this._currentRun);
 	}
+
+	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
+		if (attachment.scheme === Schemas.file) {
+			if (await this._fileService.canHandleResource(attachment)) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
+			}
+		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
+			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
+			if (extractedImages) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+			}
+		}
+
+		return undefined;
+	}
 }
 
 export class InlineChatController2 implements IEditorContribution {
@@ -1199,6 +1229,9 @@ export class InlineChatController2 implements IEditorContribution {
 		@IInlineChatSessionService private readonly _inlineChatSessions: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
+		@IFileService private readonly _fileService: IFileService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
@@ -1394,6 +1427,12 @@ export class InlineChatController2 implements IEditorContribution {
 			if (arg.initialSelection) {
 				this._editor.setSelection(arg.initialSelection);
 			}
+			if (arg.attachments) {
+				await Promise.all(arg.attachments.map(async attachment => {
+					await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
+				}));
+				delete arg.attachments;
+			}
 			if (arg.message) {
 				this._zone.value.widget.chatWidget.setInput(arg.message);
 				if (arg.autoSend) {
@@ -1411,6 +1450,24 @@ export class InlineChatController2 implements IEditorContribution {
 	acceptSession() {
 		const value = this._currentSession.get();
 		value?.editingSession.accept();
+	}
+
+	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
+		const value = this._currentSession.get();
+		if (!value) {
+			return undefined;
+		}
+		if (attachment.scheme === Schemas.file) {
+			if (await this._fileService.canHandleResource(attachment)) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
+			}
+		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
+			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
+			if (extractedImages) {
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+			}
+		}
+		return undefined;
 	}
 }
 
