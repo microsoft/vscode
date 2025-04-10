@@ -44,7 +44,6 @@ import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MarshalledCommentThread } from '../../../common/comments.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
