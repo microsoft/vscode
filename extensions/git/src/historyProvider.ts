@@ -6,7 +6,7 @@
 
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, getCommitShortHash } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, getCommitShortHash, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
@@ -305,7 +305,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 				const newLineIndex = message.indexOf('\n');
 				const subject = newLineIndex !== -1
-					? `${message.substring(0, newLineIndex)}\u2026`
+					? `${truncate(message, newLineIndex)}`
 					: message;
 
 				const avatarUrl = commitAvatars?.get(commit.hash);
