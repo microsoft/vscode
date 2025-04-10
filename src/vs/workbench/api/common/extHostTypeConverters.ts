@@ -3157,6 +3157,26 @@ export namespace PartialAcceptTriggerKind {
 	}
 }
 
+export namespace InlineCompletionEndOfLifeReason {
+	export function to<T>(reason: languages.InlineCompletionEndOfLifeReason<T>, convertFn: (item: T) => vscode.InlineCompletionItem | undefined): vscode.InlineCompletionEndOfLifeReason {
+		if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
+			const supersededBy = reason.supersededBy ? convertFn(reason.supersededBy) : undefined;
+			return {
+				kind: types.InlineCompletionEndOfLifeReasonKind.Ignored,
+				supersededBy: supersededBy,
+				userTypingDisagreed: reason.userTypingDisagreed,
+			};
+		} else if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
+			return {
+				kind: types.InlineCompletionEndOfLifeReasonKind.Accepted,
+			};
+		}
+		return {
+			kind: types.InlineCompletionEndOfLifeReasonKind.Rejected,
+		};
+	}
+}
+
 export namespace DebugTreeItem {
 	export function from(item: vscode.DebugTreeItem, id: number): IDebugVisualizationTreeItem {
 		return {
