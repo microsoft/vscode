@@ -5,9 +5,15 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { assertDefined } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 import { FilePromptParser } from '../../common/promptSyntax/parsers/filePromptParser.js';
+import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TextModelContentsProvider } from '../../common/promptSyntax/contentProviders/textModelContentsProvider.js';
+import { FilePromptContentProvider } from '../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 
 /**
  * Model for a single chat prompt instructions attachment.
@@ -17,7 +23,8 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
 	 */
-	private readonly _reference: FilePromptParser;
+	// TODO: @legomushroom - any!
+	private readonly _reference: BasePromptParser<any>;
 	/**
 	 * Get the prompt instructions reference instance.
 	 */
@@ -97,14 +104,40 @@ export class ChatPromptAttachmentModel extends Disposable {
 	}
 
 	constructor(
-		uri: URI,
+		public readonly uri: URI,
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@IModelService private readonly textModelService: IModelService,
 	) {
 		super();
 
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this._reference = this._register(this.initService.createInstance(FilePromptParser, uri, []))
-			.onUpdate(this._onUpdate.fire);
+		this._reference = this._register(this.initService.createInstance(
+			BasePromptParser,
+			this.getContentsProvider(uri),
+			[],
+		));
+
+		this._reference.onUpdate(this._onUpdate.fire);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private getContentsProvider(
+		uri: URI,
+	): IPromptContentsProvider {
+		if (uri.scheme === 'untitled') {
+			const model = this.textModelService.getModel(uri);
+
+			assertDefined(
+				model,
+				`Cannot find model of untitled document '${uri.path}'.`,
+			);
+
+			return this.initService.createInstance(TextModelContentsProvider, model);
+		}
+
+		return this._register(this.initService.createInstance(FilePromptContentProvider, uri));
 	}
 
 	/**

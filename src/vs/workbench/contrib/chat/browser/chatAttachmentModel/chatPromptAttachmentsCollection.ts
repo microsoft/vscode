@@ -28,14 +28,15 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
+	isPromptAttachment?: boolean,
 ): IChatRequestVariableEntry => {
-	const { uri, isPromptFile: isPromptFile } = reference;
+	const { uri, isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
 
 	// for prompt files, we add a prefix to the `id`
-	if (isPromptFile) {
+	if (isPromptAttachment || isPromptFile) {
 		// the default prefix that is used for all prompt files
 		let prefix = 'vscode.prompt.instructions';
 		// if the reference is the root object, add the `.root` suffix
@@ -93,7 +94,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 			const { reference } = attachment;
 
 			// the usual URIs list of prompt instructions is `bottom-up`, therefore
-			// we do the same herfe - first add all child references of the model
+			// we do the same here - first add all child references of the model
 			result.push(
 				...reference.allValidReferences.map((link) => {
 					return toChatVariable(link, false);
@@ -102,7 +103,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 
 			// then add the root reference of the model itself
 			result.push(
-				toChatVariable(reference, true),
+				toChatVariable(reference, true, true),
 			);
 		}
 

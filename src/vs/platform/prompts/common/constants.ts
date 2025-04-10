@@ -56,6 +56,11 @@ export const isPromptFile = (
 export const getCleanPromptName = (
 	fileUri: URI,
 ): string => {
+	// TODO: @legomushroom
+	if (fileUri.scheme === 'untitled') {
+		return fileUri.path;
+	}
+
 	assert(
 		isPromptFile(fileUri),
 		`Provided path '${fileUri.fsPath}' is not a prompt file.`,
