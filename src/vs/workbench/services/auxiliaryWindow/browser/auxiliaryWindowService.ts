@@ -42,6 +42,7 @@ export enum AuxiliaryWindowMode {
 
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
+	readonly minimal?: boolean;
 
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
@@ -109,6 +110,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		readonly window: CodeWindow,
 		readonly container: HTMLElement,
 		stylesHaveLoaded: Barrier,
+		private readonly options: IAuxiliaryWindowOpenOptions | undefined,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
@@ -209,7 +211,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				width: this.window.outerWidth,
 				height: this.window.outerHeight
 			},
-			zoomLevel: getZoomLevel(this.window)
+			zoomLevel: getZoomLevel(this.window),
+			minimal: this.options?.minimal
 		};
 	}
 
@@ -263,7 +266,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const containerDisposables = new DisposableStore();
 		const { container, stylesLoaded } = this.createContainer(targetWindow, containerDisposables, options);
 
-		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded);
+		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded, options);
 
 		const registryDisposables = new DisposableStore();
 		this.windows.set(targetWindow.vscodeWindowId, auxiliaryWindow);
@@ -297,8 +300,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow;
 	}
 
-	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService);
+	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier, options?: IAuxiliaryWindowOpenOptions): AuxiliaryWindow {
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, options, this.configurationService, this.hostService, this.environmentService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
