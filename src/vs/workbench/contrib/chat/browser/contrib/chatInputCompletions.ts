@@ -46,7 +46,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertFileAction, SelectAndInsertFolderAction, SelectAndInsertProblemAction, SelectAndInsertSymAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, SelectAndInsertProblemAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -476,22 +476,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		// File completions
 		this.registerVariableCompletions('file', async ({ widget, range, position, model }, token) => {
 			if (!widget.supportsFileReferences) {
-				return null;
+				return;
 			}
 
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}file`,
-				insertText: `${chatVariableLeader}file:`,
-				documentation: localize('pickFileLabel', "Pick a file"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
-				sortText: 'z'
-			});
-
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
 				await this.addFileEntries(widget, result, range2, token);
@@ -503,22 +491,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		// Folder completions
 		this.registerVariableCompletions('folder', async ({ widget, range, position, model }, token) => {
 			if (!widget.supportsFileReferences) {
-				return null;
+				return;
 			}
 
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#folder:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}folder`,
-				insertText: `${chatVariableLeader}folder:`,
-				documentation: localize('pickFolderLabel', "Pick a folder"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertFolderAction.ID, title: SelectAndInsertFolderAction.ID, arguments: [{ widget, range: afterRange }] },
-				sortText: 'z'
-			});
-
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
 				await this.addFolderEntries(widget, result, range2, token);
@@ -581,18 +557,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRangeSym = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#sym:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}sym`,
-				insertText: `${chatVariableLeader}sym:`,
-				documentation: localize('pickSymbolLabel', "Pick a symbol"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertSymAction.ID, title: SelectAndInsertSymAction.ID, arguments: [{ widget, range: afterRangeSym }] },
-				sortText: 'z'
-			});
-
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
 				this.addSymbolEntries(widget, result, range2, token);
