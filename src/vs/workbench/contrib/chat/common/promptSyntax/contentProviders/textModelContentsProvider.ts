@@ -55,11 +55,21 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		cancellationToken?: CancellationToken,
 	): Promise<ReadableStream<VSBuffer>> {
 		const stream = newWriteableStream<VSBuffer>(null);
-		const linesCount = this.model.getLineCount();
+
+		// the `getLineCount`method throws is model is already disposed
+		// hence to be extra safe, we check the model state before getting
+		// the number of available lines in the text model
+		if (this.model.isDisposed()) {
+			stream.end();
+			stream.destroy();
+
+			return stream;
+		}
 
 		// provide the changed lines to the stream incrementally and asynchronously
 		// to avoid blocking the main thread and save system resources used
 		let i = 1;
+		const linesCount = this.model.getLineCount();
 		const interval = setInterval(() => {
 			// if we have written all lines or lines count is zero,
 			// end the stream and stop the interval timer
