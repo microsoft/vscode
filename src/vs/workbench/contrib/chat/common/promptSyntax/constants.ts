@@ -13,7 +13,7 @@ export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 /**
  * Language ID for the reusable prompt syntax.
  */
-export const PROMPT_LANGUAGE_ID = 'prompt.md';
+export const PROMPT_LANGUAGE_ID = 'prompt';
 
 /**
  * Prompt files language selector.
