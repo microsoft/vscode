@@ -31,11 +31,11 @@ import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineCha
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
 import { rcut } from '../../../../../base/common/strings.js';
+import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
 
 class ChatEditorOverlayWidget {
 
 	private readonly _domNode: HTMLElement;
-	// private readonly _progressNode: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
 
 	private readonly _showStore = new DisposableStore();
@@ -168,7 +168,7 @@ class ChatEditorOverlayWidget {
 					};
 				}
 
-				if (action.id === 'inlineChat2.reveal' || action.id === 'workbench.action.chat.openEditSession') {
+				if (action.id === 'inlineChat2.reveal' || action.id === CHAT_OPEN_ACTION_ID) {
 					return new class extends ActionViewItem {
 
 						private _requestMessage: IObservable<{ message: string; paused?: boolean } | undefined>;
@@ -247,10 +247,6 @@ class ChatEditorOverlayWidget {
 								this.label.classList.toggle('busy', busy);
 
 							}));
-						}
-
-						protected override getTooltip(): string | undefined {
-							return this._requestMessage.get()?.message || super.getTooltip();
 						}
 					};
 				}

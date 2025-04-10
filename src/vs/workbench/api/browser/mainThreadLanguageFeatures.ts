@@ -632,6 +632,22 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters, info);
 				}
 			},
+			handleEndOfLifetime: async (completions, item, reason) => {
+
+				function mapReason<T1, T2>(reason: languages.InlineCompletionEndOfLifeReason<T1>, f: (reason: T1) => T2): languages.InlineCompletionEndOfLifeReason<T2> {
+					if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
+						return {
+							...reason,
+							supersededBy: reason.supersededBy ? f(reason.supersededBy) : undefined,
+						};
+					}
+					return reason;
+				}
+
+				if (supportsHandleEvents) {
+					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
+				}
+			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
 			},

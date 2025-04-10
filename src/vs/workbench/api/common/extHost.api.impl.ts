@@ -1037,9 +1037,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				let uriPromise: Thenable<URI>;
 
 				options = (options ?? uriOrFileNameOrOptions) as ({ language?: string; content?: string; encoding?: string } | undefined);
-				if (typeof options?.encoding === 'string') {
-					checkProposedApiEnabled(extension, 'textDocumentEncoding');
-				}
 
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
@@ -1241,13 +1238,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'canonicalUriProvider');
 				return extHostWorkspace.provideCanonicalUri(uri, options, token);
 			},
-			decode(content: Uint8Array, uri: vscode.Uri | undefined, options?: { encoding: string }) {
-				checkProposedApiEnabled(extension, 'textDocumentEncoding');
-				return extHostWorkspace.decode(content, uri, options);
+			decode(content: Uint8Array, options: { uri?: vscode.Uri; encoding?: string }) {
+				return extHostWorkspace.decode(content, options);
 			},
-			encode(content: string, uri: vscode.Uri | undefined, options?: { encoding: string }) {
-				checkProposedApiEnabled(extension, 'textDocumentEncoding');
-				return extHostWorkspace.encode(content, uri, options);
+			encode(content: string, options: { uri?: vscode.Uri; encoding?: string }) {
+				return extHostWorkspace.encode(content, options);
 			}
 		};
 
@@ -1784,6 +1779,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
 			TextToSpeechStatus: extHostTypes.TextToSpeechStatus,
 			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
+			InlineCompletionEndOfLifeReasonKind: extHostTypes.InlineCompletionEndOfLifeReasonKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,

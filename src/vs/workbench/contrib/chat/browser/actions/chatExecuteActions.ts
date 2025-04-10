@@ -419,7 +419,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			fullName: codebaseTool.displayName ?? '',
 			value: undefined,
 			icon: ThemeIcon.isThemeIcon(codebaseTool.icon) ? codebaseTool.icon : undefined,
-			isTool: true
+			kind: 'tool'
 		});
 		widget.acceptInput();
 	}

@@ -7,6 +7,7 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { observableSignal, IObservable } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
@@ -16,81 +17,106 @@ import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { InlineCompletions, InlineCompletionsProvider, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, Command, InlineCompletionWarning, InlineCompletionDisplayLocation } from '../../../../common/languages.js';
+import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, InlineCompletionDisplayLocation, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
+import { InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
 
+export namespace InlineSuggestionItem {
+	export function create(
+		data: InlineSuggestData,
+		textModel: ITextModel,
+	): InlineSuggestionItem {
+		if (!data.isInlineEdit) {
+			return InlineCompletionItem.create(data, textModel);
+		} else {
+			return InlineEditItem.create(data, textModel);
+		}
+	}
+}
+
 abstract class InlineSuggestionItemBase {
-	public didShow = false;
-
 	constructor(
-		/**
-		 * A reference to the original inline completion this inline completion has been constructed from.
-		 * Used for event data to ensure referential equality.
-		*/
-		protected readonly _sourceInlineCompletion: InlineCompletion,
-
-		/**
-		 * A reference to the original inline completion list this inline completion has been constructed from.
-		 * Used for event data to ensure referential equality.
-		*/
-		readonly source: InlineSuggestionList,
-
+		protected readonly _data: InlineSuggestData,
 		public readonly identity: InlineSuggestionIdentity,
-		protected readonly _context: InlineCompletionContext,
 	) { }
 
-	abstract getSingleTextEdit(): SingleTextEdit;
+	/**
+	 * A reference to the original inline completion list this inline completion has been constructed from.
+	 * Used for event data to ensure referential equality.
+	*/
+	public get source(): InlineSuggestionList { return this._data.source; }
 
-	abstract withEdit(userEdit: OffsetEdit, textModel: ITextModel): InlineSuggestionItem | undefined;
-
-	abstract withIdentity(identity: InlineSuggestionIdentity): InlineSuggestionItem;
-
-	public get isFromExplicitRequest(): boolean { return this._context.triggerKind === InlineCompletionTriggerKind.Explicit; }
+	public get isFromExplicitRequest(): boolean { return this._data.context.triggerKind === InlineCompletionTriggerKind.Explicit; }
 	public get forwardStable(): boolean { return this.source.inlineSuggestions.enableForwardStability ?? false; }
 	public get range(): Range { return this.getSingleTextEdit().range; }
 	public get insertText(): string { return this.getSingleTextEdit().text; }
 	public get semanticId(): string { return this.hash; }
-	/** @deprecated */
-	public get shownCommand(): Command | undefined { return this._sourceInlineCompletion.shownCommand; }
-
-	get action(): Command | undefined { return this._sourceInlineCompletion.action; }
-	get command(): Command | undefined { return this._sourceInlineCompletion.command; }
-	get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
-	get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
-	get displayLocation(): InlineCompletionDisplayLocation | undefined { return this._sourceInlineCompletion.displayLocation; }
-
+	public get action(): Command | undefined { return this._sourceInlineCompletion.action; }
+	public get command(): Command | undefined { return this._sourceInlineCompletion.command; }
+	public get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
+	public get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
+	public get displayLocation(): InlineCompletionDisplayLocation | undefined { return this._sourceInlineCompletion.displayLocation; }
 	public get hash() {
 		return JSON.stringify([
 			this.getSingleTextEdit().text,
 			this.getSingleTextEdit().range.getStartPosition().toString()
 		]);
 	}
+	/** @deprecated */
+	public get shownCommand(): Command | undefined { return this._sourceInlineCompletion.shownCommand; }
 
+
+	/**
+	 * A reference to the original inline completion this inline completion has been constructed from.
+	 * Used for event data to ensure referential equality.
+	*/
+	private get _sourceInlineCompletion(): InlineCompletion { return this._data.sourceInlineCompletion; }
+
+
+	public abstract getSingleTextEdit(): SingleTextEdit;
+
+	public abstract withEdit(userEdit: OffsetEdit, textModel: ITextModel): InlineSuggestionItem | undefined;
+
+	public abstract withIdentity(identity: InlineSuggestionIdentity): InlineSuggestionItem;
 	public abstract canBeReused(model: ITextModel, position: Position): boolean;
 
-	addRef(): void {
+
+	public addRef(): void {
 		this.identity.addRef();
 		this.source.addRef();
 	}
 
-	removeRef(): void {
+	public removeRef(): void {
 		this.identity.removeRef();
 		this.source.removeRef();
 	}
 
-	getSourceCompletion(): InlineCompletion {
+	public reportInlineEditShown(commandService: ICommandService) {
+		this._data.reportInlineEditShown(commandService, this.insertText);
+	}
+
+	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
+		this._data.reportPartialAccept(acceptedCharacters, info);
+	}
+
+	public reportEndOfLife(reason: InlineCompletionEndOfLifeReason): void {
+		this._data.reportEndOfLife(reason);
+	}
+
+	public setEndOfLifeReason(reason: InlineCompletionEndOfLifeReason): void {
+		this._data.setEndOfLifeReason(reason);
+	}
+
+	/**
+	 * Avoid using this method. Instead introduce getters for the needed properties.
+	*/
+	public getSourceCompletion(): InlineCompletion {
 		return this._sourceInlineCompletion;
 	}
-}
-
-export interface SnippetInfo {
-	snippet: string;
-	/* Could be different than the main range */
-	range: Range;
 }
 
 export class InlineSuggestionIdentity {
@@ -113,47 +139,16 @@ export class InlineSuggestionIdentity {
 	}
 }
 
-/**
- * A ref counted pointer to the computed `InlineCompletions` and the `InlineCompletionsProvider` that
- * computed them.
- */
-export class InlineSuggestionList {
-	private refCount = 1;
-	constructor(
-		public readonly inlineSuggestions: InlineCompletions,
-		public readonly provider: InlineCompletionsProvider
-	) { }
-
-	addRef(): void {
-		this.refCount++;
-	}
-
-	removeRef(): void {
-		this.refCount--;
-		if (this.refCount === 0) {
-			this.provider.freeInlineCompletions(this.inlineSuggestions);
-		}
-	}
-}
-
 export class InlineCompletionItem extends InlineSuggestionItemBase {
 	public static create(
-		range: Range,
-		insertText: string,
-		snippetInfo: SnippetInfo | undefined,
-		additionalTextEdits: readonly ISingleEditOperation[],
-
-		sourceInlineCompletion: InlineCompletion,
-		source: InlineSuggestionList,
-
-		context: InlineCompletionContext,
+		data: InlineSuggestData,
 		textModel: ITextModel,
 	): InlineCompletionItem {
 		const identity = new InlineSuggestionIdentity();
-		const textEdit = new SingleTextEdit(range, insertText);
+		const textEdit = new SingleTextEdit(data.range, data.insertText);
 		const edit = getPositionOffsetTransformerFromTextModel(textModel).getSingleOffsetEdit(textEdit);
 
-		return new InlineCompletionItem(edit, textEdit, range, snippetInfo, additionalTextEdits, sourceInlineCompletion, source, identity, context);
+		return new InlineCompletionItem(edit, textEdit, data.range, data.snippetInfo, data.additionalTextEdits, data, identity);
 	}
 
 	public readonly isInlineEdit = false;
@@ -165,15 +160,10 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		public readonly snippetInfo: SnippetInfo | undefined,
 		public readonly additionalTextEdits: readonly ISingleEditOperation[],
 
-
-		sourceInlineCompletion: InlineCompletion,
-
-		source: InlineSuggestionList,
-
+		data: InlineSuggestData,
 		identity: InlineSuggestionIdentity,
-		_context: InlineCompletionContext
 	) {
-		super(sourceInlineCompletion, source, identity, _context);
+		super(data, identity);
 	}
 
 	override getSingleTextEdit(): SingleTextEdit { return this._textEdit; }
@@ -185,10 +175,8 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this._originalRange,
 			this.snippetInfo,
 			this.additionalTextEdits,
-			this._sourceInlineCompletion,
-			this.source,
+			this._data,
 			identity,
-			this._context
 		);
 	}
 
@@ -205,10 +193,8 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this._originalRange,
 			this.snippetInfo,
 			this.additionalTextEdits,
-			this._sourceInlineCompletion,
-			this.source,
+			this._data,
 			this.identity,
-			this._context
 		);
 	}
 
@@ -264,16 +250,10 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 
 export class InlineEditItem extends InlineSuggestionItemBase {
 	public static create(
-		range: Range,
-		insertText: string,
-
-		sourceInlineCompletion: InlineCompletion,
-		source: InlineSuggestionList,
-
-		context: InlineCompletionContext,
+		data: InlineSuggestData,
 		textModel: ITextModel,
 	): InlineEditItem {
-		const offsetEdit = getOffsetEdit(textModel, range, insertText);
+		const offsetEdit = getOffsetEdit(textModel, data.range, data.insertText);
 		const text = new TextModelText(textModel);
 		const textEdit = TextEdit.fromOffsetEdit(offsetEdit, text);
 		const singleTextEdit = textEdit.toSingle(text);
@@ -284,7 +264,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			const replacedText = textModel.getValueInRange(replacedRange);
 			return SingleUpdatedNextEdit.create(edit, replacedText);
 		});
-		return new InlineEditItem(offsetEdit, singleTextEdit, sourceInlineCompletion, source, identity, context, edits, false, textModel.getVersionId());
+		return new InlineEditItem(offsetEdit, singleTextEdit, data, identity, edits, false, textModel.getVersionId());
 	}
 
 	public readonly snippetInfo: SnippetInfo | undefined = undefined;
@@ -295,17 +275,14 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		private readonly _edit: OffsetEdit,
 		private readonly _textEdit: SingleTextEdit,
 
-		sourceInlineCompletion: InlineCompletion,
-
-		source: InlineSuggestionList,
+		data: InlineSuggestData,
 
 		identity: InlineSuggestionIdentity,
-		_context: InlineCompletionContext,
 		private readonly _edits: readonly SingleUpdatedNextEdit[],
 		private readonly _lastChangePartOfInlineEdit = false,
 		private readonly _inlineEditModelVersion: number,
 	) {
-		super(sourceInlineCompletion, source, identity, _context);
+		super(data, identity);
 	}
 
 	public get updatedEditModelVersion(): number { return this._inlineEditModelVersion; }
@@ -319,13 +296,11 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		return new InlineEditItem(
 			this._edit,
 			this._textEdit,
-			this._sourceInlineCompletion,
-			this.source,
+			this._data,
 			identity,
-			this._context,
 			this._edits,
 			this._lastChangePartOfInlineEdit,
-			this._inlineEditModelVersion
+			this._inlineEditModelVersion,
 		);
 	}
 
@@ -370,10 +345,8 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		return new InlineEditItem(
 			edit,
 			textEdit,
-			this._sourceInlineCompletion,
-			this.source,
+			this._data,
 			this.identity,
-			this._context,
 			edits,
 			lastChangePartOfInlineEdit,
 			inlineEditModelVersion,

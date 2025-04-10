@@ -93,9 +93,9 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	private readonly _onDidChangeCanReply = new Emitter<boolean>();
 	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
-	set canReply(state: boolean) {
+	set canReply(state: boolean | languages.CommentAuthorInformation) {
 		this._canReply = state;
-		this._onDidChangeCanReply.fire(this._canReply);
+		this._onDidChangeCanReply.fire(!!this._canReply);
 	}
 
 	get canReply() {
@@ -182,7 +182,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		public resource: string,
 		private _range: T | undefined,
 		comments: languages.Comment[] | undefined,
-		private _canReply: boolean,
+		private _canReply: boolean | languages.CommentAuthorInformation,
 		private _isTemplate: boolean,
 		public editorId?: string
 	) {

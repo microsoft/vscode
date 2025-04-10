@@ -13,7 +13,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { Counter } from '../../../base/common/numbers.js';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from '../../../base/common/resources.js';
 import { compare } from '../../../base/common/strings.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderCapabilities } from '../../../platform/files/common/files.js';
@@ -945,7 +945,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- encodings ---
 
-	async decode(content: Uint8Array, uri: UriComponents | undefined, opts?: { encoding: string }): Promise<string> {
+	async decode(content: Uint8Array, args: { uri?: vscode.Uri; encoding?: string }): Promise<string> {
+		const [uri, opts] = this.toEncodeDecodeParameters(args);
 		const options = await this._proxy.$resolveDecoding(uri, opts);
 
 		const stream = (await toDecodeStream(bufferToStream(VSBuffer.wrap(content)), {
@@ -966,7 +967,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return consumeStream(stream, chunks => chunks.join(''));
 	}
 
-	async encode(content: string, uri: UriComponents | undefined, options?: { encoding: string }): Promise<Uint8Array> {
+	async encode(content: string, args: { uri?: vscode.Uri; encoding?: string }): Promise<Uint8Array> {
+		const [uri, options] = this.toEncodeDecodeParameters(args);
 		const { encoding, addBOM } = await this._proxy.$resolveEncoding(uri, options);
 
 		// when encoding is standard skip encoding step
@@ -977,6 +979,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		// otherwise create encoded readable
 		const res = await toEncodeReadable(stringToSnapshot(content), encoding, { addBOM });
 		return readableToBuffer(res).buffer;
+	}
+
+	private toEncodeDecodeParameters(opts: { uri?: vscode.Uri; encoding?: string }): [UriComponents | undefined, { encoding: string } | undefined] {
+		const uri = isUriComponents(opts.uri) ? opts.uri : undefined;
+		const encoding = typeof opts.encoding === 'string' ? opts.encoding : undefined;
+
+		return [uri, encoding ? { encoding } : undefined];
 	}
 }
 

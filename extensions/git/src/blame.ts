@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, languages, HoverProvider, CancellationToken, Hover, TextDocument } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, getCommitShortHash, IDisposable } from './util';
+import { dispose, fromNow, getCommitShortHash, IDisposable, truncate } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation, Commit } from './git';
@@ -186,14 +186,10 @@ export class GitBlameController {
 	}
 
 	formatBlameInformationMessage(documentUri: Uri, template: string, blameInformation: BlameInformation): string {
-		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
-			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
-			: blameInformation.subject;
-
 		const templateTokens = {
 			hash: blameInformation.hash,
 			hashShort: getCommitShortHash(documentUri, blameInformation.hash),
-			subject: emojify(subject ?? ''),
+			subject: emojify(truncate(blameInformation.subject ?? '', this._subjectMaxLength)),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
 			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
