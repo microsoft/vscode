@@ -8,7 +8,7 @@ import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
-	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, FILE_PROTOCOL
+	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, FILE_PROTOCOL, DocumentUri
 } from './languageModes';
 import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
@@ -109,6 +109,8 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS);
 	const globalSettings: Settings = {};
+
+	const libParentUri = `${FILE_PROTOCOL}://${languageId}/libs/`;
 
 	function updateHostSettings(settings: Settings) {
 		const hostSettings = host.getCompilationSettings();
@@ -315,7 +317,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 							range: convertRange(jsDocument, d.textSpan)
 						};
 					} else {
-						const libUri = `${FILE_PROTOCOL}://${languageId}/${d.fileName}`;
+						const libUri = libParentUri + d.fileName;
 						const content = await host.loadLibrary(d.fileName);
 						if (!content) {
 							return undefined;
@@ -421,8 +423,11 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		getSemanticTokenLegend(): { types: string[]; modifiers: string[] } {
 			return getSemanticTokenLegend();
 		},
-		getTextDocumentContent(name: string): Promise<string> {
-			return host.loadLibrary(name);
+		async getTextDocumentContent(documentUri: DocumentUri): Promise<string | undefined> {
+			if (documentUri.startsWith(libParentUri)) {
+				return host.loadLibrary(documentUri.substring(libParentUri.length));
+			}
+			return undefined;
 		},
 		dispose() {
 			host.dispose();

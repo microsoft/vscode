@@ -590,14 +590,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	connection.onRequest(TextDocumentContentRequest.type, (params, token) => {
 		return runSafe(runtime, async () => {
-			const url = new URL(params.uri);
-			if (url.protocol.slice(0, -1) !== FILE_PROTOCOL) {
-				return null;
-			}
-			const languageMode = languageModes.getMode(url.hostname);
-			if (languageMode && languageMode.getTextDocumentContent) {
-				const content = await languageMode.getTextDocumentContent(url.pathname.slice(1));
-				return { text: content };
+			for (const languageMode of languageModes.getAllModes()) {
+				const content = await languageMode.getTextDocumentContent?.(params.uri);
+				if (content) {
+					return { text: content };
+				}
 			}
 			return null;
 		}, null, `Error while computing text document content for ${params.uri}`, token);
