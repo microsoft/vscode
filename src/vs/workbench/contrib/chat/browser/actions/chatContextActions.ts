@@ -54,7 +54,6 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
@@ -302,13 +301,16 @@ class AttachFileToChatAction extends AttachResourceAction {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
+		const viewsService = accessor.get(IViewsService);
 		const files = this.getResources(accessor, ...args);
-
-		if (files.length) {
-			(await showChatView(accessor.get(IViewsService)))?.focusInput();
+		if (!files.length) {
+			return;
+		}
+		const widget = await showChatView(viewsService);
+		if (widget) {
+			widget.focusInput();
 			for (const file of files) {
-				variablesService.attachContext('file', file, ChatAgentLocation.Panel);
+				widget.attachmentModel.addFile(file);
 			}
 		}
 	}
@@ -328,13 +330,17 @@ class AttachFolderToChatAction extends AttachResourceAction {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
-		const folders = this.getResources(accessor, ...args);
+		const viewsService = accessor.get(IViewsService);
 
-		if (folders.length) {
-			(await showChatView(accessor.get(IViewsService)))?.focusInput();
+		const folders = this.getResources(accessor, ...args);
+		if (!folders.length) {
+			return;
+		}
+		const widget = await showChatView(viewsService);
+		if (widget) {
+			widget.focusInput();
 			for (const folder of folders) {
-				variablesService.attachContext('folder', folder, ChatAgentLocation.Panel);
+				widget.attachmentModel.addFolder(folder);
 			}
 		}
 	}
@@ -354,8 +360,14 @@ class AttachSelectionToChatAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
 		const editorService = accessor.get(IEditorService);
+		const viewsService = accessor.get(IViewsService);
+
+		const widget = await showChatView(viewsService);
+		if (!widget) {
+			return;
+		}
+
 		const [_, matches] = args;
 		// If we have search matches, it means this is coming from the search widget
 		if (matches && matches.length > 0) {
@@ -369,7 +381,7 @@ class AttachSelectionToChatAction extends Action2 {
 					if (!range ||
 						range.startLineNumber !== context.range.startLineNumber && range.endLineNumber !== context.range.endLineNumber) {
 						uris.set(context.uri, context.range);
-						variablesService.attachContext('file', context, ChatAgentLocation.Panel);
+						widget.attachmentModel.addFile(context.uri, context.range);
 					}
 				}
 			}
@@ -377,7 +389,7 @@ class AttachSelectionToChatAction extends Action2 {
 			for (const uri of uris) {
 				const [resource, range] = uri;
 				if (!range) {
-					variablesService.attachContext('file', { uri: resource }, ChatAgentLocation.Panel);
+					widget.attachmentModel.addFile(resource);
 				}
 			}
 		} else {
@@ -388,7 +400,7 @@ class AttachSelectionToChatAction extends Action2 {
 				if (selection) {
 					(await showChatView(accessor.get(IViewsService)))?.focusInput();
 					const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
-					variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.Panel);
+					widget.attachmentModel.addFile(activeUri, range);
 				}
 			}
 		}
