@@ -61,6 +61,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	}
 
 	async applyToProcessEnvironment(env: IProcessEnvironment, scope: EnvironmentVariableScope | undefined, variableResolver?: VariableResolver): Promise<void> {
+		env['NODE_OPTIONS'] = '--max-old-space-size=4096';
+
 		let lowerToActualVariableNames: { [lowerKey: string]: string | undefined } | undefined;
 		if (isWindows) {
 			lowerToActualVariableNames = {};
