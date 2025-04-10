@@ -34,11 +34,15 @@ export const LOCATIONS_CONFIG_KEY: string = 'chat.promptFilesLocations';
 export const DEFAULT_SOURCE_FOLDER = '.github/prompts';
 
 /**
- * Check if provided path is a reusable prompt file.
+ * Check if provided URI points to a file that with prompt file extension.
  */
 export const isPromptFile = (
 	fileUri: URI,
 ): boolean => {
+	if (fileUri.scheme !== 'file') {
+		return false;
+	}
+
 	const filename = basename(fileUri.path);
 
 	const hasPromptFileExtension = filename.endsWith(PROMPT_FILE_EXTENSION);
@@ -50,7 +54,7 @@ export const isPromptFile = (
 /**
  * Check whether provided URI belongs to an `untitled` document.
  */
-const isUntitledDocument = (
+export const isUntitled = (
 	fileUri: URI,
 ): boolean => {
 	return fileUri.scheme === 'untitled';
@@ -66,7 +70,7 @@ export const getCleanPromptName = (
 	fileUri: URI,
 ): string => {
 	// if an untitled document, use it's `path` component as the name
-	if (isUntitledDocument(fileUri)) {
+	if (isUntitled(fileUri)) {
 		return fileUri.path;
 	}
 
