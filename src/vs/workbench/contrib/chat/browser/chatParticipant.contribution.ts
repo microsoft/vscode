@@ -335,9 +335,9 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 			() => {
 				const notification = extensionsWorkbenchService.getExtensionsNotification();
 				const chatExtension = notification?.extensions.find(ext => ExtensionIdentifier.equals(ext.identifier.id, this.productService.defaultChatAgent?.chatExtensionId));
+				isInvalid.set(true);
+				this.registerWelcomeView(chatExtension);
 				if (chatExtension) {
-					isInvalid.set(true);
-					this.registerWelcomeView(chatExtension);
 				} else {
 					isInvalid.set(false);
 				}
@@ -345,7 +345,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		));
 	}
 
-	private registerWelcomeView(chatExtension: IExtension) {
+	private registerWelcomeView(chatExtension: IExtension | undefined) {
 		if (this.registeredWelcomeView) {
 			return;
 		}
@@ -354,7 +354,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		const showExtensionLabel = localize('showExtension', "Show Extension");
 		const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the Copilot Chat extension is not compatible with this version of {0}. Please ensure that the Copilot Chat extension is up to date.", this.productService.nameLong);
 		const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([[this.productService.defaultChatAgent?.chatExtensionId]]))})`;
-		const versionMessage = `Copilot Chat version: ${chatExtension.version}`;
+		const versionMessage = `Copilot Chat version: ${chatExtension?.version}`;
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		this._register(viewsRegistry.registerViewWelcomeContent(ChatViewId, {
 			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
