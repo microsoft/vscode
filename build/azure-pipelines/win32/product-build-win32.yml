@@ -224,7 +224,7 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
+          exec { npx deemon --detach --wait -- node build/azure-pipelines/win32/codesign.js }
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: ✍️ Codesign
@@ -246,7 +246,7 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
+          exec { npx deemon --attach -- node build/azure-pipelines/win32/codesign.js }
         condition: succeededOrFailed()
         displayName: "✍️ Post-job: Codesign"
 
