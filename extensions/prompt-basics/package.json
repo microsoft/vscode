@@ -1,0 +1,48 @@
+{
+  "name": "prompt",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.1.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.20.0"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "prompt.md",
+        "aliases": [
+          "Prompt",
+          "prompt"
+        ],
+        "extensions": [
+          ".prompt.md",
+          "copilot-instructions.md"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "prompt.md",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt"
+      }
+    ],
+
+    "configurationDefaults": {
+      "[prompt.md]": {
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false
+      }
+    }
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}
