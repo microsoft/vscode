@@ -57,10 +57,6 @@ export class ChatFileReference extends FilePromptParser implements IDynamicVaria
 		return this.uri;
 	}
 
-	public get prefix() {
-		return this.reference.prefix;
-	}
-
 	public get isFile() {
 		return this.reference.isFile;
 	}

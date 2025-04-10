@@ -40,6 +40,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		window: CodeWindow,
 		container: HTMLElement,
 		stylesHaveLoaded: Barrier,
+		options: IAuxiliaryWindowOpenOptions | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -47,7 +48,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
+		super(window, container, stylesHaveLoaded, options, configurationService, hostService, environmentService);
 
 		if (!isMacintosh) {
 			// For now, limit this to platforms that have clear maximised
@@ -171,8 +172,8 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		return super.createContainer(auxiliaryWindow, disposables);
 	}
 
-	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier,): AuxiliaryWindow {
-		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService);
+	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier, options?: IAuxiliaryWindowOpenOptions): AuxiliaryWindow {
+		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, options, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService);
 	}
 }
 

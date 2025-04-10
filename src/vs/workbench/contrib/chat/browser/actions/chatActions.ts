@@ -169,7 +169,7 @@ export function registerChatActions() {
 							fullName: tool.displayName,
 							value: undefined,
 							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
-							isTool: true
+							kind: 'tool'
 						});
 					}
 				}

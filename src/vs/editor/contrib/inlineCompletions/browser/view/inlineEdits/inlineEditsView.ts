@@ -107,7 +107,6 @@ export class InlineEditsView extends Disposable {
 		edit: InlineEditWithChanges;
 		newText: string;
 		newTextLineCount: number;
-		originalDisplayRange: LineRange;
 	} | undefined>(this, reader => {
 		const model = this._model.read(reader);
 		if (!model || !this._constructorDone.read(reader)) {
@@ -121,13 +120,7 @@ export class InlineEditsView extends Disposable {
 		let newText = inlineEdit.edit.apply(inlineEdit.originalText);
 		let diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, new StringText(newText));
 
-		const originalDisplayRange = inlineEdit.originalText.lineRange.intersect(
-			inlineEdit.originalLineRange.join(
-				LineRange.ofLength(inlineEdit.originalLineRange.startLineNumber, inlineEdit.lineEdit.newLines.length)
-			)
-		)!;
-
-		let state = this.determineRenderState(model, reader, diff, new StringText(newText), originalDisplayRange);
+		let state = this.determineRenderState(model, reader, diff, new StringText(newText));
 		if (!state) {
 			model.abort(`unable to determine view: tried to render ${this._previousView?.view}`);
 			return undefined;
@@ -159,7 +152,6 @@ export class InlineEditsView extends Disposable {
 			edit: inlineEdit,
 			newText,
 			newTextLineCount: inlineEdit.modifiedLineRange.length,
-			originalDisplayRange: originalDisplayRange,
 		};
 	});
 
@@ -185,10 +177,21 @@ export class InlineEditsView extends Disposable {
 			}
 
 			const state = this._uiState.read(reader);
-			if (state?.state?.kind === 'insertionMultiLine') {
+			if (!state) { return undefined; }
+
+			if (state.state?.kind === 'custom') {
+				const range = state.state.displayLocation?.range;
+				if (!range) {
+					throw new BugIndicatingError('custom view should have a range');
+				}
+				return new LineRange(range.startLineNumber, range.endLineNumber);
+			}
+
+			if (state.state?.kind === 'insertionMultiLine') {
 				return this._insertion.originalLines.read(reader);
 			}
-			return state?.originalDisplayRange;
+
+			return state.edit.displayRange;
 		});
 
 		const modelWithGhostTextSupport = derived<InlineEditModel | undefined>(this, reader => {
@@ -240,7 +243,6 @@ export class InlineEditsView extends Disposable {
 		this._previewTextModel,
 		this._uiState.map(s => s && s.state?.kind === 'sideBySide' ? ({
 			newTextLineCount: s.newTextLineCount,
-			originalDisplayRange: s.originalDisplayRange,
 		}) : undefined),
 		this._tabAction,
 	));
@@ -311,7 +313,7 @@ export class InlineEditsView extends Disposable {
 		return model.inlineEdit.inlineCompletion.identity.id;
 	}
 
-	private determineView(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {
+	private determineView(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText): string {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
 		const inlineEdit = model.inlineEdit;
 		const canUseCache = this._previousView?.id === this.getCacheId(model);
@@ -363,7 +365,7 @@ export class InlineEditsView extends Disposable {
 			}
 		}
 		if (numOriginalLines > 0 && numModifiedLines > 0) {
-			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideView.fitsInsideViewport(this._editor, this._previewTextModel, inlineEdit, originalDisplayRange, reader)) {
+			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideView.fitsInsideViewport(this._editor, this._previewTextModel, inlineEdit, reader)) {
 				return 'sideBySide';
 			}
 
@@ -373,15 +375,15 @@ export class InlineEditsView extends Disposable {
 		return 'sideBySide';
 	}
 
-	private determineRenderState(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange) {
+	private determineRenderState(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText) {
 		const inlineEdit = model.inlineEdit;
 
-		const view = this.determineView(model, reader, diff, newText, originalDisplayRange);
+		const view = this.determineView(model, reader, diff, newText);
 
 		this._previousView = { id: this.getCacheId(model), view, editorWidth: this._editor.getLayoutInfo().width, timestamp: Date.now() };
 
 		switch (view) {
-			case 'custom': return { kind: 'custom' as const };
+			case 'custom': return { kind: 'custom' as const, displayLocation: model.displayLocation };
 			case 'insertionInline': return { kind: 'insertionInline' as const };
 			case 'sideBySide': return { kind: 'sideBySide' as const };
 			case 'collapsed': return { kind: 'collapsed' as const };

@@ -11,14 +11,14 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import * as glob from '../../../../../base/common/glob.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, isDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { basename, dirname, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
-import { Command, isLocation } from '../../../../../editor/common/languages.js';
+import { Command, isLocation, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -43,20 +43,6 @@ import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
-function changeIsBeforeVariable(changeRange: IRange, variableRange: IRange): boolean {
-	return (
-		changeRange.endLineNumber < variableRange.startLineNumber ||
-		(changeRange.endLineNumber === variableRange.startLineNumber && changeRange.endColumn <= variableRange.startColumn)
-	);
-}
-
-function changeIsAfterVariable(changeRange: IRange, variableRange: IRange): boolean {
-	return (
-		changeRange.startLineNumber > variableRange.endLineNumber ||
-		(changeRange.startLineNumber === variableRange.endLineNumber && changeRange.startColumn >= variableRange.endColumn)
-	);
-}
-
 /**
  * Type of dynamic variables. Can be either a file reference or
  * another dynamic variable (e.g., a `#sym`, `#kb`, etc.).
@@ -75,6 +61,8 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
+	private decorationData: { id: string; text: string }[] = [];
+
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
@@ -84,91 +72,62 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		super();
 
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
-			e.changes.forEach(c => {
-				// Don't mutate entries in _variables, since they will be returned from the getter
-				this._variables = coalesce(this._variables.map((ref): TDynamicVariable | null => {
-					const intersection = Range.intersectRanges(ref.range, c.range);
-					if (intersection && !intersection.isEmpty()) {
-						// The reference text was changed, it's broken.
-						// But if the whole reference range was deleted (eg history navigation) then don't try to change the editor.
-						if (!Range.containsRange(c.range, ref.range)) {
-							const rangeToDelete = new Range(ref.range.startLineNumber, ref.range.startColumn, ref.range.endLineNumber, ref.range.endColumn - 1);
-							this.widget.inputEditor.executeEdits(this.id, [{
-								range: rangeToDelete,
-								text: '',
-							}]);
-							this.widget.refreshParsedInput();
-						}
 
-						// dispose the reference if possible before dropping it off
-						if ('dispose' in ref && typeof ref.dispose === 'function') {
-							ref.dispose();
-						}
+			const removed: TDynamicVariable[] = [];
+			let didChange = false;
 
-						return null;
-					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
-						// Determine if the change is before, after, or overlaps with the variable range.
-						if (changeIsBeforeVariable(c.range, ref.range)) {
+			// Don't mutate entries in _variables, since they will be returned from the getter
+			this._variables = coalesce(this._variables.map((ref, idx): TDynamicVariable | null => {
+				const model = widget.inputEditor.getModel();
 
-							// Calculate line delta
-							const linesInserted = c.text.split('\n').length - 1;
-							const linesRemoved = c.range.endLineNumber - c.range.startLineNumber;
-							const lineDelta = linesInserted - linesRemoved;
+				if (!model) {
+					removed.push(ref);
+					return null;
+				}
 
-							// Initialize column delta
-							let columnDelta = 0;
+				const data = this.decorationData[idx];
+				const newRange = model.getDecorationRange(data.id);
 
-							// Check if change is on the same line as the variable start
-							if (c.range.endLineNumber === ref.range.startLineNumber) {
-								// Change is on the same line
-								if (c.range.endColumn <= ref.range.startColumn) {
-									// Change occurs before the variable start column
-									if (linesInserted === 0) {
-										// Single-line change
-										const charsInserted = c.text.length;
-										const charsRemoved = c.rangeLength;
-										columnDelta = charsInserted - charsRemoved;
-									} else {
-										// Multi-line change (newline inserted)
-										columnDelta = - (c.range.endColumn - 1);
-										// The variable column should be adjusted to account for the reset after newline
-									}
-								} else {
-									// Change occurs after the variable start column
-									columnDelta = 0;
-								}
-							} else if (c.range.endLineNumber < ref.range.startLineNumber) {
-								// Change is on lines before the variable line
-								columnDelta = 0;
-							}
+				if (!newRange) {
+					// gone
+					removed.push(ref);
+					return null;
+				}
 
-							const newRange = {
-								startLineNumber: ref.range.startLineNumber + lineDelta,
-								startColumn: ref.range.startColumn + columnDelta,
-								endLineNumber: ref.range.endLineNumber + lineDelta,
-								endColumn: ref.range.endColumn + columnDelta
-							};
-							if (ref instanceof ChatFileReference) {
-								ref.range = newRange;
-								return ref;
-							} else {
-								return {
-									...ref,
-									range: newRange
-								};
-							}
-						} else if (changeIsAfterVariable(c.range, ref.range)) {
-							// Change is after the variable no adjustment needed.
-							return ref;
-						} else {
-							// Change overlaps with the variable the variable is broken.
-							return null;
-						}
-					}
+				const newText = model.getValueInRange(newRange);
+				if (newText !== data.text) {
 
+					this.widget.inputEditor.executeEdits(this.id, [{
+						range: newRange,
+						text: '',
+					}]);
+					this.widget.refreshParsedInput();
+
+					removed.push(ref);
+					return null;
+				}
+
+				if (newRange.equalsRange(ref.range)) {
+					// all good
 					return ref;
-				}));
-			});
+				}
+
+				didChange = true;
+
+				if (ref instanceof ChatFileReference) {
+					ref.range = newRange;
+					return ref;
+				} else {
+					return { ...ref, range: newRange };
+				}
+			}));
+
+			// cleanup disposable variables
+			dispose(removed.filter(isDisposable));
+
+			if (didChange || removed.length > 0) {
+				this.widget.refreshParsedInput();
+			}
 
 			this.updateDecorations();
 		}));
@@ -227,10 +186,20 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private updateDecorations(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
+
+		const decorations = this._variables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
-		})));
+		}));
+		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, decorations);
+
+		this.decorationData = [];
+		for (let i = 0; i < decorationIds.length; i++) {
+			this.decorationData.push({
+				id: decorationIds[i],
+				text: this.widget.inputEditor.getModel()!.getValueInRange(this._variables[i].range)
+			});
+		}
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
@@ -251,7 +220,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	 */
 	private disposeVariables(): void {
 		for (const variable of this._variables) {
-			if ('dispose' in variable && typeof variable.dispose === 'function') {
+			if (isDisposable(variable)) {
 				variable.dispose();
 			}
 		}
@@ -357,7 +326,6 @@ export class SelectAndInsertFileAction extends Action2 {
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			id: 'vscode.file',
 			isFile: true,
-			prefix: 'file',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: resource
 		});
@@ -412,7 +380,6 @@ export class SelectAndInsertFolderAction extends Action2 {
 			id: 'vscode.folder',
 			isFile: false,
 			isDirectory: true,
-			prefix: 'folder',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: folder
 		});
@@ -666,10 +633,10 @@ export class SelectAndInsertSymAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: 'vscode.symbol',
-			prefix: 'symbol',
+			id: `vscode.symbol/${JSON.stringify(symbol.location)}`,
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: symbol.location
+			data: symbol.location,
+			icon: SymbolKinds.toIcon(symbol.kind)
 		});
 	}
 }
@@ -739,7 +706,6 @@ export class AddDynamicVariableAction extends Action2 {
 			id: context.id,
 			range: range,
 			isFile: true,
-			prefix: 'file',
 			data: variableData
 		});
 	}
@@ -868,7 +834,6 @@ export class SelectAndInsertProblemAction extends Action2 {
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			id: 'vscode.problems',
-			prefix: SelectAndInsertProblemAction.Name,
 			range: varRange,
 			data: { id: 'vscode.problems', filter: pick } satisfies IChatRequestProblemsVariable,
 		});

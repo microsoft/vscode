@@ -12,7 +12,6 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
-import { ChatAgentLocation } from './constants.js';
 
 export interface IChatVariableData {
 	id: string;
@@ -47,7 +46,6 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
-	attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation): void;
 
 	/**
 	 * Resolves all variables that occur in `prompt`
@@ -60,7 +58,6 @@ export interface IDynamicVariable {
 	id: string;
 	fullName?: string;
 	icon?: ThemeIcon;
-	prefix?: string;
 	modelDescription?: string;
 	isFile?: boolean;
 	isDirectory?: boolean;
