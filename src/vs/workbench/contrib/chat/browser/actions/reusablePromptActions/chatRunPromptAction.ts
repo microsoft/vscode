@@ -11,8 +11,9 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { ILocalizedString, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { TEXT_FILE_EDITOR_ID } from '../../../../files/common/files.js';
+import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { attachPrompt } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
 import { detachPrompt } from './dialogs/askToSelectPrompt/utils/detachPrompt.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
@@ -23,7 +24,6 @@ import { EditorContextKeys } from '../../../../../../editor/common/editorContext
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getActivePromptUri } from '../../promptSyntax/contributions/usePromptCommand.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 
@@ -133,11 +133,7 @@ abstract class RunPromptBaseAction extends Action2 {
 const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
 	ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 	ResourceContextKey.HasResource,
-	ContextKeyExpr.regex(
-		ResourceContextKey.Filename.key,
-		/\.prompt\.md|copilot-instructions\.md$/,
-	),
-	ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+	ResourceContextKey.LangId.isEqualTo(PROMPT_LANGUAGE_ID),
 );
 
 /**
