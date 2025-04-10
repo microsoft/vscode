@@ -26,6 +26,7 @@ import { editorSelectionBackground } from '../../../../../../platform/theme/comm
 import { CellEditState } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
+import { CellKind } from '../../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/chatModel.js';
 import { pendingRewriteMinimap } from '../chatEditingModifiedFileEntry.js';
@@ -229,6 +230,21 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		this._editDecorationClear.schedule();
 	}
 
+	revertMarkdownPreviewState(): void {
+		if (this.cell.cellKind !== CellKind.Markup) {
+			return;
+		}
+
+		const notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(this.notebookUri)?.value;
+		if (notebookEditor) {
+			const vm = notebookEditor.getCellByHandle(this.cell.handle);
+			if (vm?.getEditState() === CellEditState.Editing &&
+				(vm.editStateSource === 'chatEdit' || vm.editStateSource === 'chatEditNavigation')) {
+				vm?.updateEditState(CellEditState.Preview, 'chatEdit');
+			}
+		}
+	}
+
 	protected _resetEditsState(tx: ITransaction): void {
 		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 		this._maxModifiedLineNumber.set(0, tx);
@@ -257,6 +273,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		}
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
+			this.revertMarkdownPreviewState();
 			this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
 		}
 		return true;
@@ -283,6 +300,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		}
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
+			this.revertMarkdownPreviewState();
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 		}
 		return true;
