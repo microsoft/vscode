@@ -118,6 +118,7 @@ function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: Fo
 		}
 
 		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
+		// Here need to add the actual correct line decoration class names so that we correctly read the data
 		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
@@ -126,6 +127,8 @@ function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: Fo
 		allVisibleColumns[i] = tmp[1];
 	}
 	const html = sb.build();
+	console.log('createLineBreaks html', html);
+
 	const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 	containerDomNode.innerHTML = trustedhtml as string;
 
@@ -140,6 +143,7 @@ function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: Fo
 		containerDomNode.style.wordBreak = 'inherit';
 		containerDomNode.style.overflowWrap = 'break-word';
 	}
+	console.log('containerDomNode', containerDomNode);
 	targetWindow.document.body.appendChild(containerDomNode);
 
 	const range = document.createRange();

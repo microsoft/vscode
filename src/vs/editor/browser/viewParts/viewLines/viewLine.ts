@@ -190,6 +190,8 @@ export class ViewLine implements IVisibleLine {
 
 		sb.appendString('</div>');
 
+		console.log('renderViewLine sb : ', sb.build());
+
 		let renderedViewLine: IRenderedViewLine | null = null;
 		const fontDecorationsExistOnLine = viewContext.viewModel.hasFontDecorations(lineNumber);
 		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {

@@ -68,7 +68,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private _validModelVersionId: number;
 
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
+	// private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
 	private readonly _customFontsManager: CustomFontsManager;
 
 	private fontInfo: FontInfo;
@@ -103,7 +103,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.model = model;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		// this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
 		this.wrappingStrategy = wrappingStrategy;
@@ -151,6 +151,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
+		// This should be modified so we use the domLineBreaksComputer on lines that have custom fonts, otherwise we use the other one
+		// Can just check whether there are special fonts on the current line from the text model and then use a different rendering strategy.
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
@@ -330,7 +332,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const lineBreaksComputerFactory = (
 			this.wrappingStrategy === 'advanced'
 				? this._domLineBreaksComputerFactory
-				: this._monospaceLineBreaksComputerFactory
+				: this._domLineBreaksComputerFactory
 		);
 		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
 	}
