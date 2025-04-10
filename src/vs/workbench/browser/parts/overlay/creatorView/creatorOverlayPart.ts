@@ -244,7 +244,7 @@ export class CreatorOverlayPart extends Part {
 		this.overlayContainer.style.left = "0";
 		this.overlayContainer.style.width = "100vw";
 		this.overlayContainer.style.height = "100vh";
-		this.overlayContainer.style.zIndex = "9999997"; // High z-index
+		this.overlayContainer.style.zIndex = "-10";
 		this.overlayContainer.style.display = "none"; // Hidden by default
 		this.overlayContainer.classList.add("pearcreatoroverlay-part-container");
 		this.overlayContainer.style.backgroundColor = 'transparent';
@@ -268,26 +268,24 @@ export class CreatorOverlayPart extends Part {
 
 		try {
 			// Make sure initialization is complete before opening
-			if (this.state === "loading") {
-				console.log("Overlay not initialized yet, initializing...");
-				await this.initialize();
-				//@ts-expect-error t
-				if (this.state === "open") {
-					this.openInProgress = false;
-					return;
-				}
-			}
 
-			// If webview is enabled but not initialized, initialize it now
-			if (this._webviewEnabled && !this.initializedWebview) {
-				await this.initializeWebview();
-			}
+
+			await this.initialize();
+			await this.initializeWebview();
 
 			if(!this.webviewElement) {
 				throw new Error("webviewElement is not initialized");
 			}
 
-			await this.handleSlideAnimation("down");
+			// Create animation elements if they don't exist
+			const topOfBodyElement = this.getTopOfBodyElement();
+			const blurryElement = this.getBlurOverlayElement();
+
+			// Before animation, ensure the elements are visible but at starting position
+			topOfBodyElement.style.display = "block";
+			topOfBodyElement.style.height = "0";
+			blurryElement.style.display = "block";
+			blurryElement.style.opacity = "0";
 
 			if (this.state === "open" || !this.overlayContainer) {
 				this.openInProgress = false;
@@ -299,6 +297,7 @@ export class CreatorOverlayPart extends Part {
 
 			// Show our overlay container
 			this.overlayContainer.style.display = "block";
+			this.overlayContainer.style.zIndex = "998"; // Match existing CSS
 
 			// Mount the webview to our overlay container - this is the key
 			console.log("Mounting webview to overlay container");
@@ -325,6 +324,10 @@ export class CreatorOverlayPart extends Part {
 			}
 
 			this.focus();
+
+			// Run slide-down animation
+			await this.handleSlideAnimation("down");
+
 		} finally {
 			this.openInProgress = false;
 		}
@@ -343,9 +346,15 @@ export class CreatorOverlayPart extends Part {
 
 			// Hide our overlay container (which hides the webview)
 			this.overlayContainer!.style.display = "none";
+			this.overlayContainer!.style.zIndex = "-10"; // Reset to original value
+
+			// Hide animation elements
+			const topOfBodyElement = this.getTopOfBodyElement();
+			topOfBodyElement.style.height = "0";
 
 			// Focus the active editor
 			this._editorGroupsService.activeGroup.focus();
+
 		});
 	}
 
@@ -402,7 +411,7 @@ export class CreatorOverlayPart extends Part {
 		}
 		// Create the container element for slide-down animation
 		const topOfBodyElement = document.createElement("div");
-		topOfBodyElement.style.position = "relative"; // Use fixed positioning
+		topOfBodyElement.style.position = "relative";
 		topOfBodyElement.style.top = "0";
 		topOfBodyElement.style.left = "0";
 		topOfBodyElement.style.width = "100%";
@@ -411,7 +420,7 @@ export class CreatorOverlayPart extends Part {
 		topOfBodyElement.style.overflow = "hidden";
 		topOfBodyElement.style.transition =
 			"height 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
-		topOfBodyElement.style.zIndex = "20"; // Very high z-index
+		topOfBodyElement.style.zIndex = "20";
 		topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
 
 		// Add to body as direct child
@@ -433,21 +442,18 @@ export class CreatorOverlayPart extends Part {
 		blurOverlayElement.style.height = "90vh";
 		blurOverlayElement.style.display = "block";
 		blurOverlayElement.style.overflow = "hidden";
-		blurOverlayElement.style.zIndex = "20"; // Higher than top body
+		blurOverlayElement.style.zIndex = "20";
 		blurOverlayElement.style.transition =
 			"opacity 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
 		blurOverlayElement.style.backdropFilter = "blur(8px)";
 		blurOverlayElement.style.pointerEvents = "none";
-		blurOverlayElement.style.position = "relative"; // Fixed position
-		blurOverlayElement.style.top = "0";
-		blurOverlayElement.style.left = "0";
+		blurOverlayElement.style.position = "absolute";
 		blurOverlayElement.style.opacity = "1";
 
 		const blurGradient = document.createElement("div");
-
 		blurGradient.style.width = "100%";
 		blurGradient.style.height = "10vh";
-		blurGradient.style.zIndex = "10000002"; // Higher than blur element
+		blurGradient.style.zIndex = "30";
 		blurGradient.style.background =
 			"linear-gradient(to bottom, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.9) 20%, rgba(255, 255, 255, 0.7) 30%, rgba(255, 255, 255, 0.3) 80%, rgba(255, 255, 255, 0) 100%)";
 		blurGradient.style.position = "absolute";
@@ -457,7 +463,6 @@ export class CreatorOverlayPart extends Part {
 		blurOverlayElement.appendChild(blurGradient);
 
 		const topOfBodyElement = this.getTopOfBodyElement();
-
 		topOfBodyElement.after(blurOverlayElement);
 
 		return blurOverlayElement;
@@ -465,6 +470,12 @@ export class CreatorOverlayPart extends Part {
 
 	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
 		return new Promise((resolve) => {
+
+			this.webviewElement!.postMessage({
+				messageType: "overlayAnimation",
+				direction: direction,
+			})
+
 			// Create the container element for slide-down animation
 			const topOfBodyElement = this.getTopOfBodyElement();
 			const blurryElement = this.getBlurOverlayElement();
@@ -484,7 +495,7 @@ export class CreatorOverlayPart extends Part {
 
 				topOfBodyElement.style.height =
 					direction === "up" ? "0" : MAX_OVERLAY_HEIGHT;
-				blurryElement.style.opacity = direction === "up" ? "0" : "1"; // Fade in/out the blurry element
+				blurryElement.style.opacity = direction === "up" ? "0" : "1"; // Fade in/out
 
 				console.log(
 					"Animation started - height change to:",
