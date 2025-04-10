@@ -133,7 +133,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Same as {@linkcode settled} but also waits for all possible
+	 * Same as {@link settled} but also waits for all possible
 	 * nested child prompt references and their children to be settled.
 	 */
 	public async allSettled(): Promise<this> {
@@ -333,7 +333,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Private attribute to track if the {@linkcode start}
+	 * Private attribute to track if the {@link start}
 	 * method has been already called at least once.
 	 */
 	private started: boolean = false;
