@@ -134,6 +134,28 @@ export class NativeEditContext extends AbstractEditContext {
 				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
+		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
+			e.preventDefault();
+			if (!e.clipboardData) {
+				return;
+			}
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			if (!text) {
+				return;
+			}
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+			let pasteOnNewLine = false;
+			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
+			if (metadata) {
+				const options = this._context.configuration.options;
+				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
+				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
+				mode = metadata.mode;
+			}
+			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
+		}));
 
 		// Edit context events
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
