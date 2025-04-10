@@ -12,6 +12,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { CellEditState, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
+import { CellKind } from '../../../../notebook/common/notebookCommon.js';
 import { IModifiedFileEntryChangeHunk } from '../../../common/chatEditingService.js';
 import { ICellDiffInfo } from './notebookCellChanges.js';
 
@@ -47,7 +48,8 @@ export class OverlayToolbarDecorator extends Disposable {
 		const editor = this.notebookEditor;
 		for (const change of changes) {
 			const cellViewModel = this.getCellViewModel(change);
-			if (!cellViewModel) {
+
+			if (!cellViewModel || cellViewModel.cellKind !== CellKind.Markup) {
 				continue;
 			}
 			const toolbarContainer = document.createElement('div');
@@ -98,17 +100,23 @@ export class OverlayToolbarDecorator extends Disposable {
 				menuOptions: {
 					renderShortTitle: true,
 					arg: {
-						accept() {
+						async accept() {
 							accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 							removeOverlay();
 							toolbarWidget.dispose();
-							return change.keep(change.diff.get().changes[0]);
+							for (const singleChange of change.diff.get().changes) {
+								await change.keep(singleChange);
+							}
+							return true;
 						},
-						reject() {
+						async reject() {
 							accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 							removeOverlay();
 							toolbarWidget.dispose();
-							return change.undo(change.diff.get().changes[0]);
+							for (const singleChange of change.diff.get().changes) {
+								await change.undo(singleChange);
+							}
+							return true;
 						}
 					} satisfies IModifiedFileEntryChangeHunk,
 				},
