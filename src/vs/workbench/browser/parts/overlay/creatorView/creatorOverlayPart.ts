@@ -343,10 +343,16 @@ export class CreatorOverlayPart extends Part {
 			}
 
 			this.focus();
-
-			// Run slide-down animation
-			await this.handleSlideAnimation("down");
-
+			await new Promise<void>((resolve) => {
+				setTimeout(() => {
+					console.error("Timeout on webview, didn't load in time");
+					resolve();
+				}, 1500);
+				this.webviewElement!.onMessage(async () => {
+					await this.handleSlideAnimation("down");
+					resolve();
+				})
+			})
 		} finally {
 			this.openInProgress = false;
 		}
@@ -440,7 +446,7 @@ export class CreatorOverlayPart extends Part {
 		topOfBodyElement.style.display = "block";
 		topOfBodyElement.style.overflow = "hidden";
 		topOfBodyElement.style.transition =
-			"height 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
+			"height 500ms cubic-bezier(0.4, 0, 0.2, 1)";
 		topOfBodyElement.style.zIndex = "20";
 		topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
 
@@ -465,7 +471,7 @@ export class CreatorOverlayPart extends Part {
 		blurOverlayElement.style.overflow = "hidden";
 		blurOverlayElement.style.zIndex = "20";
 		blurOverlayElement.style.transition =
-			"opacity 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
+			"opacity 500ms cubic-bezier(0.4, 0, 0.2, 1)";
 		blurOverlayElement.style.backdropFilter = "blur(8px)";
 		blurOverlayElement.style.pointerEvents = "none";
 		blurOverlayElement.style.position = "absolute";
@@ -514,24 +520,23 @@ export class CreatorOverlayPart extends Part {
 			void topOfBodyElement.offsetWidth;
 
 			// Start animation - expand to full height
-			requestAnimationFrame(() => {
-				if (!topOfBodyElement || !topOfBodyElement.parentNode) {
-					console.warn("topOfBodyElement not found in request animation frame");
-					return resolve();
-				}
 
-				topOfBodyElement.style.height =
-					direction === "up" ? "0" : MAX_OVERLAY_HEIGHT;
-				blurryElement.style.opacity = direction === "up" ? "0" : "1"; // Fade in/out
+			if (!topOfBodyElement || !topOfBodyElement.parentNode) {
+				console.warn("topOfBodyElement not found in request animation frame");
+				return resolve();
+			}
 
-				console.log(
-					"Animation started - height change to:",
-					direction === "up" ? "0" : MAX_OVERLAY_HEIGHT,
-				);
+			topOfBodyElement.style.height =
+				direction === "up" ? "0" : MAX_OVERLAY_HEIGHT;
+			blurryElement.style.opacity = direction === "up" ? "0" : "1"; // Fade in/out
 
-				// Set a single timeout for animation completion
-				setTimeout(() => resolve(), 500); // Match the transition duration
-			});
+			console.log(
+				"Animation started - height change to:",
+				direction === "up" ? "0" : MAX_OVERLAY_HEIGHT,
+			);
+
+			// Set a single timeout for animation completion
+			setTimeout(() => resolve(), 500); // Match the transition duration
 		});
 	}
 
