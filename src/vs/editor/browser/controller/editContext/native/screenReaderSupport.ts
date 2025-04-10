@@ -89,9 +89,6 @@ export class ScreenReaderSupport {
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
-
-		// currently not correct because line breaks are not correctly computed.
-		// first fix line breaks then this.
 		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
 		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
 		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);

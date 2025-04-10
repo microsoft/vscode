@@ -224,13 +224,6 @@ export class ViewLine implements IVisibleLine {
 		}
 	}
 
-	// private _setMaximumFontSize(height: number): void {
-	// 	if (!this._renderedViewLine || !this._renderedViewLine.domNode) {
-	// 		return;
-	// 	}
-	// 	this._renderedViewLine.domNode.domNode.style.setProperty(ViewLine.MAX_FONT_SIZE_VARIABLE_NAME, `${height}px`);
-	// }
-
 	// --- end IVisibleLineData
 
 	public getWidth(context: DomReadingContext | null): number {

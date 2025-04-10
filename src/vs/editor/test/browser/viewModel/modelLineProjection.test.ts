@@ -992,7 +992,7 @@ function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleCo
 	for (let i = 0; i < breakingLengths.length; i++) {
 		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
 	}
-	return new ModelLineProjectionData(null, null, sums, sums, breakingOffsetsVisibleColumn, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
+	return new ModelLineProjectionData(null, null, sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
 }
 
 function createModel(text: string): ISimpleModel {

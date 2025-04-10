@@ -8,7 +8,7 @@ import { WrappingIndent } from './config/editorOptions.js';
 import { FontInfo } from './config/fontInfo.js';
 import { Position } from './core/position.js';
 import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
-import { LineFontSegment, LineInjectedText } from './textModelEvents.js';
+import { LineInjectedText } from './textModelEvents.js';
 
 /**
  * *input*:
@@ -47,12 +47,10 @@ export class ModelLineProjectionData {
 		 * The last break offset indicates the length of the source after applying injections.
 		 */
 		public breakOffsets: number[],
-		public breakWidths: number[],
 		/**
 		 * Refers to offsets after applying injections
 		 */
 		public breakOffsetsVisibleColumn: number[],
-		public breakOffsetsVisibleWidths: number[],
 		public wrappedTextIndentLength: number
 	) {
 	}
@@ -338,6 +336,6 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(fromLineNumber: number, toLineNumber: number, lineText: string, fontSegments: LineFontSegment[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

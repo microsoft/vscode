@@ -34,7 +34,7 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, ICustomFontChangeAccessor, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
@@ -88,8 +88,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
-			const options = this._configuration.options;
-			this._lines = new ViewModelLinesFromModelAsIs(this.model, options.get(EditorOption.fontInfo));
+			this._lines = new ViewModelLinesFromModelAsIs(this.model, this._configuration.options.get(EditorOption.fontInfo));
 
 		} else {
 			const options = this._configuration.options;
@@ -305,8 +304,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								const fontSegments = this._lines.getFontSegmentsForLine(change.fromLineNumber);
-								lineBreaksComputer.addRequest(change.fromLineNumber, change.toLineNumber, line, fontSegments, injectedText, null);
+								lineBreaksComputer.addRequest(line, injectedText, null);
 							}
 							break;
 						}
@@ -315,8 +313,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							const fontSegments = this._lines.getFontSegmentsForLine(change.lineNumber);
-							lineBreaksComputer.addRequest(change.lineNumber, change.lineNumber, change.detail, fontSegments, injectedText, null);
+							lineBreaksComputer.addRequest(change.detail, injectedText, null);
 							break;
 						}
 					}
@@ -445,76 +442,6 @@ export class ViewModel extends Disposable implements IViewModel {
 					}
 				}
 			});
-		}));
-		this._register(this.model.onDidChangeFonts((e) => {
-			console.log('ViewModel.onDidChangeFonts', e);
-			try {
-				e.changes.forEach((change) => {
-					if (change.ownerId !== this._editorId && change.ownerId !== 0) {
-						return;
-					}
-					const decorationId = change.decorationId;
-					const lineNumber = change.lineNumber;
-					const fontDecoration = change.fontDecoration;
-					if (fontDecoration) {
-						this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
-							accessor.insertOrChangeCustomFont(decorationId, fontDecoration);
-						});
-					} else {
-						this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
-							accessor.removeCustomFonts(decorationId);
-						});
-					}
-					const lineBreaksComputer = this._lines.createLineBreaksComputer();
-					const line = this.model.getLineContent(lineNumber);
-					const fontSegments = this._lines.getFontSegmentsForLine(lineNumber);
-					console.log('ViewModel.onDidChangeFonts', lineNumber, line, fontSegments);
-					lineBreaksComputer.addRequest(lineNumber, lineNumber, line, fontSegments, [], null);
-					const lineBreaks = lineBreaksComputer.finalize();
-					const lineBreakQueue = new ArrayQueue(lineBreaks);
-					const changedLineBreakData = lineBreakQueue.dequeue()!;
-					const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-					const [_bool, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this._lines.onModelLineChanged(change.versionId, change.lineNumber, changedLineBreakData);
-					if (linesChangedEvent) {
-						eventsCollector.emitViewEvent(linesChangedEvent);
-					}
-					if (linesInsertedEvent) {
-						eventsCollector.emitViewEvent(linesInsertedEvent);
-						this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
-					}
-					if (linesDeletedEvent) {
-						eventsCollector.emitViewEvent(linesDeletedEvent);
-						this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
-					}
-					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-					this._cursor.onLineMappingChanged(eventsCollector);
-					this._decorations.onLineMappingChanged();
-				});
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
-			const viewportStartWasValid = this._viewportStart.isValid;
-			this._viewportStart.invalidate();
-			this._configuration.setModelLineCount(this.model.getLineCount());
-			this._updateConfigurationViewLineCountNow();
-			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && viewportStartWasValid) {
-				const modelRange = this.model._getTrackedRange(this._viewportStart.modelTrackedRange);
-				if (modelRange) {
-					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
-					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStart.startLineDelta }, ScrollType.Immediate);
-				}
-			}
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				if (e instanceof textModelEvents.InternalModelContentChangeEvent) {
-					eventsCollector.emitOutgoingEvent(new ModelContentChangedEvent(e.contentChangedEvent));
-				}
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
-			this._handleVisibleLinesChanged();
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
