@@ -26,7 +26,7 @@ import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatIn
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
-import { IGenericChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
+import { INotebookOutputVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
@@ -38,6 +38,9 @@ import { CellUri } from '../../../common/notebookCommon.js';
 import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { normalizeDriveLetter } from '../../../../../../base/common/labels.js';
+import { basenameOrAuthority } from '../../../../../../base/common/resources.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
 const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/html',
@@ -326,45 +329,39 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 			// get the cell index
 			const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;
+			const notebookModel = notebookEditor.textModel;
 			const cell: ICellViewModel | undefined = notebookEditor.getCellByHandle(cellFromViewModelHandle);
-			if (!cell) {
+			if (!cell || cell.outputsViewModels.length === 0 || !notebookModel) {
 				return;
 			}
 			// uri of the cell
+			const notebookUri = notebookModel.uri;
 			const cellUri = cell.uri;
+			const cellIndex = notebookModel.cells.indexOf(cell.model);
 
 			// get the output index
 			const outputId = outputViewModel?.model.outputId;
 			let outputIndex: number = 0;
 			if (outputId !== undefined) {
 				// find the output index
-
 				outputIndex = cell.outputsViewModels.findIndex(output => {
 					return output.model.outputId === outputId;
 				});
+			}
 
 
-			}
-			// get URI of notebook
-			let notebookUri = notebookEditor.textModel?.uri;
-			if (!notebookUri) {
-				// if the notebook is not found, try to parse the cell uri
-				const parsedCellUri = CellUri.parse(cellUri);
-				notebookUri = parsedCellUri?.notebook;
-				if (!notebookUri) {
-					return;
-				}
-			}
 			// construct the URI using the cell uri and output index
 			const outputCellUri = CellUri.generateCellOutputUriWithIndex(notebookUri, cellUri, outputIndex);
+			const fileName = normalizeDriveLetter(basenameOrAuthority(notebookUri));
 
-
-
-			const l: IGenericChatRequestVariableEntry = {
-				kind: 'generic',
+			const l: INotebookOutputVariableEntry = {
 				value: outputCellUri,
 				id: outputCellUri.toString(),
-				name: outputCellUri.toString(),
+				name: localize('notebookOutputCellLabel', "{0} • Cell {1} • Output {2}", fileName, `${cellIndex + 1}`, `${outputIndex + 1}`),
+				icon: mimeType === 'application/vnd.code.notebook.error' ? ThemeIcon.fromId('error') : undefined,
+				kind: 'notebookOutput',
+				outputIndex,
+				mimeType
 			};
 			widget.attachmentModel.addContext(l);
 			(await showChatView(viewService))?.focusInput();
