@@ -108,8 +108,6 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	private markupCellListeners = new Map<number, IDisposable>();
 
-	private editingPreview: ICellDiffInfo | undefined = undefined;
-
 	constructor(
 		private readonly _entry: ChatEditingModifiedNotebookEntry,
 		private readonly notebookEditor: INotebookEditor,
@@ -421,10 +419,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	private async revealChangeInView(cell: ICellViewModel, lines: LineRange | undefined, change: ICellDiffInfo): Promise<void> {
 		const targetLines = lines ?? new LineRange(0, 0);
 		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
-			this.editingPreview = change;
 			cell.updateEditState(CellEditState.Editing, 'chatEditNavigation');
-		} else {
-			this.editingPreview = undefined;
 		}
 
 		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: targetLines.startLineNumber });
@@ -436,7 +431,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			return;
 		}
 		const cellViewModel = this.getCellViewModel(change);
-		if (cellViewModel?.cellKind === CellKind.Markup && cellViewModel.getEditState() === CellEditState.Editing && this.editingPreview === change) {
+		if (cellViewModel?.cellKind === CellKind.Markup && cellViewModel.getEditState() === CellEditState.Editing && cellViewModel.editStateSource === 'chatEditNavigation') {
 			cellViewModel.updateEditState(CellEditState.Preview, 'chatEditNavigation');
 		}
 	}
@@ -467,7 +462,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						}
 					}
 
-					const isLastChangeInCell = currentChange.index === lastChangeIndex(currentChange.change);
+					const isLastChangeInCell = currentChange.index >= lastChangeIndex(currentChange.change);
 					const index = isLastChangeInCell ? 0 : currentChange.index + 1;
 					const change = isLastChangeInCell ? changes[changes.indexOf(currentChange.change) + 1] : currentChange.change;
 
@@ -527,7 +522,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						}
 					}
 
-					const isFirstChangeInCell = currentChange.index === 0;
+					const isFirstChangeInCell = currentChange.index <= 0;
 					const change = isFirstChangeInCell ? changes[changes.indexOf(currentChange.change) - 1] : currentChange.change;
 
 					if (change) {
