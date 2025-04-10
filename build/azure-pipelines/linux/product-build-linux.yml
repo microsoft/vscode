@@ -339,6 +339,7 @@ steps:
     - script: |
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+        export VSCODE_ARCH=$(VSCODE_ARCH)
         sudo docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
         SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
