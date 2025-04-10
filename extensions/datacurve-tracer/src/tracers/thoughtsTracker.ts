@@ -28,7 +28,6 @@ export const COUNTABLE_ACTIONS = [
 	// User-initiated actions
 	'idea',
 	'search',
-	'thoughts.newThought',
 ];
 
 export interface Thought {
@@ -56,6 +55,8 @@ export class ThoughtsTracker {
 
 	// base action threshold
 	private baseActionThreshold: number = 50;
+
+	private _processingThoughtSave: boolean = false;
 
 	public readonly onThoughtsChanged = this._onThoughtsChanged.event;
 
@@ -285,6 +286,10 @@ Documenting your thoughts helps track your coding process and decision making.
 			const closeListener = vscode.window.onDidChangeVisibleTextEditors(
 				async (editors: readonly vscode.TextEditor[]) => {
 					// Check if our document is no longer visible in any editor
+					if (this._processingThoughtSave) {
+						return;
+					}
+					this._processingThoughtSave = true;
 					const isStillVisible = editors.some(editor => editor.document === document);
 					if (!isStillVisible && this.thoughtEditorDocument === document) {
 						const content = document.getText();
@@ -302,20 +307,19 @@ Documenting your thoughts helps track your coding process and decision making.
 								this.addThought(content);
 								vscode.window.showInformationMessage('Thought saved successfully!');
 							}
+							closeListener.dispose();
+							// Clean up the listener and references
+							this.thoughtEditorDocument = null;
+							// Clean up - delete the temporary file
+							try {
+								await vscode.workspace.fs.delete(fileUri);
+							} catch (error) {
+								console.error('Failed to delete temporary thought file:', error);
+							}
 						}
-
-						// Clean up - delete the temporary file
-						try {
-							await vscode.workspace.fs.delete(fileUri);
-						} catch (error) {
-							console.error('Failed to delete temporary thought file:', error);
-						}
-
-						// Clean up the listener and references
-						closeListener.dispose();
-						this.thoughtEditorDocument = null;
-						console.log('Temporary thought file deleted:', filePath);
 					}
+
+					this._processingThoughtSave = false;
 				}
 			);
 

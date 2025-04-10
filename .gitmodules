@@ -1,0 +1,3 @@
+[submodule "trace-datamodel"]
+	path = trace-datamodel
+	url = https://github.com/datacurve-ai/trace-datamodel

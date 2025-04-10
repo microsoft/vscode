@@ -39,7 +39,8 @@ export function createFileChangeTextDocumentAction(event: vscode.TextDocumentCha
 		action_id: 'fileDidChangeTextDocument',
 		timestamp: Date.now(),
 		event: {
-			basicEvent: event
+			basicEvent: event,
+			content: event.document.getText()
 		}
 	};
 }
@@ -72,7 +73,7 @@ export function createFileRenameFilesAction(event: vscode.FileRenameEvent): File
 		action_id: 'fileDidRenameFiles',
 		timestamp: Date.now(),
 		event: {
-			basicEvent: event
+			basicEvent: event,
 		}
 	};
 }
@@ -84,7 +85,8 @@ export function createFileOpenTextDocumentAction(document: vscode.TextDocument):
 		action_id: 'fileDidOpenTextDocument',
 		timestamp: Date.now(),
 		event: {
-			basicEvent: document
+			basicEvent: document,
+			content: document.getText()
 		}
 	};
 }
@@ -96,7 +98,8 @@ export function createFileCloseTextDocumentAction(document: vscode.TextDocument)
 		action_id: 'fileDidCloseTextDocument',
 		timestamp: Date.now(),
 		event: {
-			basicEvent: document
+			basicEvent: document,
+			content: document.getText()
 		}
 	};
 }
@@ -282,7 +285,7 @@ export function createClipboardCopyAction(text: string): ClipboardCopyAction {
 // Thoughts tracer actions
 export function createThoughtNewThoughtAction(thought: Thought): ThoughtNewThoughtAction {
 	return {
-		action_id: 'thoughts.newThought',
+		action_id: 'idea',
 		timestamp: Date.now(),
 		event: {
 			thought

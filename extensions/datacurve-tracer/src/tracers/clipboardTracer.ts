@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { IRecorder } from '../types';
 import { Tracer } from './tracer';
 import { ThoughtsTracker } from './thoughtsTracker';
+import { createClipboardCopyAction } from '../utils/typedTracers';
 
 /**
  * ClipboardTracer class is responsible for recording clipboard related events.
@@ -74,10 +75,9 @@ export class ClipboardTracer extends Tracer {
 			vscode.env.clipboard.readText().then((text) => {
 				if (text && text !== this.previousClipboardText) {
 					this.previousClipboardText = text;
-					this.traceRecorder.record({
-						action_id: 'clipboardChanged',
-						event: { text },
-					});
+					// Use the createClipboardCopyAction helper to create a properly typed action
+					const action = createClipboardCopyAction(text);
+					this.traceRecorder.record(action);
 				}
 				setTimeout(() => this.pollClipboard(), this.pollInterval);
 			});

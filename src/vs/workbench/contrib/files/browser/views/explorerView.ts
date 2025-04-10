@@ -1245,16 +1245,19 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 						console.log('[ExplorerView] tree changed, recording trace');
 						// Different tree, record it
 						const _trace = {
-							type: 'explorer-file-tree',
+							action_id: 'explorer-file-tree',
 							timestamp: this.lastFileTreeTimestamp || new Date().toISOString(),
-							fileTree: currentFileTree,
-							explorerVisible: this.isBodyVisible(),
-							triggerType: forceRefresh ? 'explicitRefresh' : 'regularCheck'
+							event: {
+								fileTree: currentFileTree,
+								explorerVisible: this.isBodyVisible(),
+								triggerType: forceRefresh ? 'explicitRefresh' : 'regularCheck'
+							}
 						};
 
 						// Record the trace
 						try {
-							await this.tracingService.recordTrace(_trace);
+							await this.tracingService.recordTrace(
+								_trace);
 							console.log('[ExplorerView] trace recorded successfully');
 							// Update the hash of the last recorded tree
 							this.lastRecordedFileTreeHash = currentHash;

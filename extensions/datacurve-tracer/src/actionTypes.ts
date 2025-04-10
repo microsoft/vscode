@@ -19,6 +19,7 @@ export interface FileChangeTextDocumentAction extends BaseAction {
 	action_id: 'fileDidChangeTextDocument';
 	event: {
 		basicEvent: vscode.TextDocumentChangeEvent;
+		content: string;
 	};
 }
 
@@ -47,6 +48,7 @@ export interface FileOpenTextDocumentAction extends BaseAction {
 	action_id: 'fileDidOpenTextDocument';
 	event: {
 		basicEvent: vscode.TextDocument;
+		content: string;
 	};
 }
 
@@ -54,6 +56,7 @@ export interface FileCloseTextDocumentAction extends BaseAction {
 	action_id: 'fileDidCloseTextDocument';
 	event: {
 		basicEvent: vscode.TextDocument;
+		content: string;
 	};
 }
 
@@ -190,7 +193,7 @@ export interface ClipboardCopyAction extends BaseAction {
  */
 
 export interface ThoughtNewThoughtAction extends BaseAction {
-	action_id: 'thoughts.newThought';
+	action_id: 'idea';
 	event: {
 		thought: Thought;
 	};

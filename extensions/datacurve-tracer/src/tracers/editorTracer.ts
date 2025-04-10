@@ -4,6 +4,13 @@ import { Tracer } from './tracer';
 import { fileExplorer } from '../fileExplorer';
 import { clipRangeToLimits } from '../utils/limits';
 import { ThoughtsTracker } from './thoughtsTracker';
+import {
+	createEditorChangeActiveTextEditorAction,
+	createEditorChangeTextEditorSelectionAction,
+	createEditorChangeTextEditorVisibleRangesAction,
+	createEditorChangeTextEditorViewColumnAction,
+	createEditorChangeVisibleTextEditorsAction,
+} from '../utils/typedTracers';
 
 /**
  * Traces editor actions and sends them to the recorder.
@@ -62,7 +69,9 @@ export class EditorTracer extends Tracer {
 		super(context, traceRecorder, thoughtsTracker);
 
 		// Load configuration settings
-		const config = vscode.workspace.getConfiguration('datacurve-tracer.editor');
+		const config = vscode.workspace.getConfiguration(
+			'datacurve-tracer.editor',
+		);
 		this.selectionDebounceInterval = config.get(
 			'selectionDebounceInterval',
 			250,
@@ -88,7 +97,10 @@ export class EditorTracer extends Tracer {
 						'visibleRangesDebounceInterval',
 						100,
 					);
-					this.maxTextLength = newConfig.get('maxTextLength', 1024 * 1024);
+					this.maxTextLength = newConfig.get(
+						'maxTextLength',
+						1024 * 1024,
+					);
 				}
 			},
 			null,
@@ -132,11 +144,7 @@ export class EditorTracer extends Tracer {
 		}
 
 		// Record the action
-		const actionId = 'editorDidChangeActiveTextEditor';
-		this.traceRecorder.record({
-			action_id: actionId,
-			event: { editor: editor },
-		});
+		createEditorChangeActiveTextEditorAction(editor);
 	}
 
 	/**
@@ -199,7 +207,8 @@ export class EditorTracer extends Tracer {
 					const remainingSpace = this.maxTextLength - totalLength;
 					if (remainingSpace > 0) {
 						selectedTexts.push(
-							text.substring(0, remainingSpace) + '... [truncated]',
+							text.substring(0, remainingSpace) +
+							'... [truncated]',
 						);
 					}
 					break; // Stop processing more selections
@@ -207,14 +216,11 @@ export class EditorTracer extends Tracer {
 			}
 			if (totalLength > 0) {
 				const actionId = 'editorDidChangeTextEditorSelection';
-				this.traceRecorder.record({
-					action_id: actionId,
-					event: {
-						event: event,
-						selection: selections,
-						selectedText: selectedTexts,
-					},
-				});
+				createEditorChangeTextEditorSelectionAction(
+					event,
+					selections,
+					selectedTexts,
+				);
 				// Signal to the ThoughtsTracker
 				this.signalAction(actionId, document);
 			}
@@ -278,24 +284,20 @@ export class EditorTracer extends Tracer {
 			visibleRangesState[filePath] = {
 				start: {
 					line: event.textEditor.visibleRanges[0].start.line,
-					character: event.textEditor.visibleRanges[0].start.character,
+					character:
+						event.textEditor.visibleRanges[0].start.character,
 				},
 				end: {
 					line: event.textEditor.visibleRanges[0].end.line,
 					character: event.textEditor.visibleRanges[0].end.character,
 				},
 			};
-			this.context.workspaceState.update('visibleRanges', visibleRangesState);
+			this.context.workspaceState.update(
+				'visibleRanges',
+				visibleRangesState,
+			);
 
-			const actionId = 'editorDidChangeTextEditorVisibleRanges';
-			this.traceRecorder.record({
-				action_id: actionId,
-				event: {
-					event: event,
-					visibleRange: visibleText,
-					//workspace: fileExplorer.getState(),
-				},
-			});
+			createEditorChangeTextEditorVisibleRangesAction(event, visibleText);
 
 			// Clear the pending event after processing
 			this.pendingVisibleRangesEvent = null;
@@ -314,10 +316,7 @@ export class EditorTracer extends Tracer {
 		event: vscode.TextEditorViewColumnChangeEvent,
 	): void {
 		const actionId = 'editorDidChangeTextEditorViewColumn';
-		this.traceRecorder.record({
-			action_id: actionId,
-			event: { event: event },
-		});
+		createEditorChangeTextEditorViewColumnAction(event);
 	}
 
 	/**
@@ -329,10 +328,7 @@ export class EditorTracer extends Tracer {
 		editors: readonly vscode.TextEditor[],
 	): void {
 		const actionId = 'editorDidChangeVisibleTextEditors';
-		this.traceRecorder.record({
-			action_id: actionId,
-			event: { editors: editors },
-		});
+		createEditorChangeVisibleTextEditorsAction(editors);
 	}
 
 	/**

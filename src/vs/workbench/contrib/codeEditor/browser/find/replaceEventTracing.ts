@@ -42,20 +42,22 @@ class ReplaceEventTracingContribution extends Disposable implements IEditorContr
 
 			// Log the replace event before performing the operation
 			this.tracingService.recordTrace({
-				type: 'replace',
+				action_id: 'replace',
 				timestamp: new Date().toISOString(),
-				file: fileName,
-				selection: selection ? {
-					startLineNumber: selection.startLineNumber,
-					startColumn: selection.startColumn,
-					endLineNumber: selection.endLineNumber,
-					endColumn: selection.endColumn
-				} : undefined,
-				searchString: findController.getState().searchString,
-				replaceString: findController.getState().replaceString,
-				matchCase: findController.getState().matchCase,
-				wholeWord: findController.getState().wholeWord,
-				isRegex: findController.getState().isRegex
+				event: {
+					file: fileName,
+					selection: selection ? {
+						startLineNumber: selection.startLineNumber,
+						startColumn: selection.startColumn,
+						endLineNumber: selection.endLineNumber,
+						endColumn: selection.endColumn
+					} : undefined,
+					searchString: findController.getState().searchString,
+					replaceString: findController.getState().replaceString,
+					matchCase: findController.getState().matchCase,
+					wholeWord: findController.getState().wholeWord,
+					isRegex: findController.getState().isRegex
+				}
 			});
 
 			// Call the original method
@@ -68,15 +70,17 @@ class ReplaceEventTracingContribution extends Disposable implements IEditorContr
 
 			// Log the replaceAll event before performing the operation
 			this.tracingService.recordTrace({
-				type: 'replaceAll',
+				action_id: 'replaceAll',
 				timestamp: new Date().toISOString(),
-				file: fileName,
-				searchString: findController.getState().searchString,
-				replaceString: findController.getState().replaceString,
-				matchCase: findController.getState().matchCase,
-				wholeWord: findController.getState().wholeWord,
-				isRegex: findController.getState().isRegex,
-				matchCount: findController.getState().matchesCount
+				event: {
+					file: fileName,
+					searchString: findController.getState().searchString,
+					replaceString: findController.getState().replaceString,
+					matchCase: findController.getState().matchCase,
+					wholeWord: findController.getState().wholeWord,
+					isRegex: findController.getState().isRegex,
+					matchCount: findController.getState().matchesCount
+				}
 			});
 
 			// Call the original method

@@ -27,9 +27,12 @@ CommandsRegistry.registerCommand(
 		const tracingService = accessor.get(ITracingService);
 		console.log('Recording replace operation:', data);
 		return tracingService.recordTrace({
-			type: 'replace_operation',
+			action_id: 'replace_operation',
 			timestamp: new Date().toISOString(),
-			...data
+			event: {
+				...data
+			}
 		});
+
 	}
 );

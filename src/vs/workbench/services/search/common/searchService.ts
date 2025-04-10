@@ -181,18 +181,20 @@ export class SearchService extends Disposable implements ISearchService {
 
 		// Record search in tracing service
 		this.tracingService.recordTrace({
-			type: 'search-executed',
+			action_id: 'search-executed',
 			timestamp: new Date().toISOString(),
-			searchType: this.getSearchTypeString(query.type),
-			pattern: query.type === QueryType.Text || query.type === QueryType.aiText
-				? (query as ITextQuery).contentPattern?.pattern
-				: undefined,
-			includePattern: query.includePattern,
-			excludePattern: query.excludePattern,
-			folderCount: query.folderQueries.length,
-			isRegex: query.type === QueryType.Text ? !!(query as ITextQuery).contentPattern?.isRegExp : undefined,
-			isCaseSensitive: query.type === QueryType.Text ? !!(query as ITextQuery).contentPattern?.isCaseSensitive : undefined,
-			reason: query._reason
+			event: {
+				searchType: this.getSearchTypeString(query.type),
+				pattern: query.type === QueryType.Text || query.type === QueryType.aiText
+					? (query as ITextQuery).contentPattern?.pattern
+					: undefined,
+				includePattern: query.includePattern,
+				excludePattern: query.excludePattern,
+				folderCount: query.folderQueries.length,
+				isRegex: query.type === QueryType.Text ? !!(query as ITextQuery).contentPattern?.isRegExp : undefined,
+				isCaseSensitive: query.type === QueryType.Text ? !!(query as ITextQuery).contentPattern?.isCaseSensitive : undefined,
+				reason: query._reason
+			}
 		});
 
 		const schemesInQuery = this.getSchemesInQuery(query);
@@ -352,14 +354,16 @@ export class SearchService extends Disposable implements ISearchService {
 
 			// Record search results in tracing
 			this.tracingService.recordTrace({
-				type: 'search-completed',
+				action_id: 'search-completed',
 				timestamp: new Date().toISOString(),
-				searchType: this.getSearchTypeString(query.type),
-				duration: endToEndTime,
-				resultCount: completes.reduce((count, complete) =>
-					count + (complete?.results?.length || 0), 0),
-				limitHit: completes.some(c => c?.limitHit),
-				reason: query._reason
+				event: {
+					searchType: this.getSearchTypeString(query.type),
+					duration: endToEndTime,
+					resultCount: completes.reduce((count, complete) =>
+						count + (complete?.results?.length || 0), 0),
+					limitHit: completes.some(c => c?.limitHit),
+					reason: query._reason
+				}
 			});
 
 			completes.forEach(complete => {
@@ -372,13 +376,15 @@ export class SearchService extends Disposable implements ISearchService {
 
 			// Record search error in tracing
 			this.tracingService.recordTrace({
-				type: 'search-error',
+				action_id: 'search-error',
 				timestamp: new Date().toISOString(),
-				searchType: this.getSearchTypeString(query.type),
-				duration: endToEndTime,
-				errorCode: err.code || 'unknown',
-				errorMessage: err.message,
-				reason: query._reason
+				event: {
+					searchType: this.getSearchTypeString(query.type),
+					duration: endToEndTime,
+					errorCode: err.code || 'unknown',
+					errorMessage: err.message,
+					reason: query._reason
+				}
 			});
 
 			const searchError = deserializeSearchError(err);
@@ -614,10 +620,12 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 
 		this.tracingService.recordTrace({
-			type: 'openEditorResults',
+			action_id: 'openEditorResults',
 			timestamp: new Date().toISOString(),
-			results: openEditorResults,
-			limitHit
+			event: {
+				results: openEditorResults,
+				limitHit
+			}
 		});
 
 		return {
