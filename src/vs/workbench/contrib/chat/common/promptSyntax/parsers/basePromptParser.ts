@@ -16,13 +16,14 @@ import { IPromptReference, IResolveError, ITopError } from './types.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
-import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
@@ -152,6 +153,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		private readonly promptContentsProvider: TContentsProvider,
 		seenReferences: string[] = [],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
@@ -280,7 +282,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		token: FileReference | MarkdownLink,
 		seenReferences: string[],
 	): this {
-		const referenceUri = extUri.resolvePath(this.dirname, token.path);
+		const { parentFolder } = this;
+
+		const referenceUri = (parentFolder !== null)
+			? extUri.resolvePath(parentFolder, token.path)
+			: URI.file(token.path);
+
 		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
 
 		const reference = this.instantiationService
@@ -367,10 +374,26 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Get the parent folder of the file reference.
+	 * Get the parent folder URI of the prompt.
+	 * For instance, if prompt URI points to a file on a disk, this
+	 * function will return the folder URI that contains that file,
+	 * but if the URI points to an `untitled` document, will try to
+	 * use a different folder URI based on the workspace state.
 	 */
-	public get dirname() {
-		return URI.joinPath(this.uri, '..');
+	public get parentFolder(): URI | null {
+		if (this.uri.scheme === 'file') {
+			return dirname(this.uri);
+		}
+
+		const { folders } = this.workspaceService.getWorkspace();
+
+		// single-root workspace, use root folder URI
+		if (folders.length === 1) {
+			return folders[0].uri;
+		}
+
+		// if a multi-root workspace, or no workspace at all
+		return null;
 	}
 
 	/**
