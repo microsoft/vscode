@@ -20,7 +20,7 @@ function printBanner(title: string) {
 }
 
 function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): ProcessPromise {
-	return $({ detached: true })`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
+	return $({ detached: true, verbose: true })`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
 }
 
 async function main() {

@@ -17,7 +17,7 @@ function printBanner(title) {
     console.log('\n\n');
 }
 function sign(type, glob) {
-    return (0, zx_1.$)({ detached: true }) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
+    return (0, zx_1.$)({ detached: true, verbose: true }) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
 }
 async function main() {
     (0, zx_1.usePwsh)();
