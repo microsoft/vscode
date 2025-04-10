@@ -1357,6 +1357,16 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	setBoundarySashes(sashes: IBoundarySashes): void;
 
 	/**
+	 * Get the amount of diffs
+	*/
+	getAmountOfDiffs(): number
+	
+	/**
+	 * Get the index of the currently revealed diff
+	 */
+	getIndexOfCurrentlyRevealedDiff(): number
+
+	/**
 	 * Jumps to the next or previous diff.
 	 */
 	goToDiff(target: 'next' | 'previous'): void;
