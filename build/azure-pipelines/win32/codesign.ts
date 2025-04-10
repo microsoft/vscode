@@ -20,7 +20,7 @@ function printBanner(title: string) {
 }
 
 function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): ProcessPromise {
-	return $({ verbose: true })`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
+	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
 }
 
 async function main() {
@@ -36,33 +36,33 @@ async function main() {
 		? sign('sign-windows-appx', '*.appx')
 		: undefined;
 
-	console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.isHalted()}, ${codesignTask1.stage}`);
-	console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.isHalted()}, ${codesignTask2.stage}`);
-	console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.isHalted()}, ${codesignTask3?.stage}`);
+	console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.stage}`);
+	console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.stage}`);
+	console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.stage}`);
 
 	// Codesign executables and shared libraries
 	printBanner('Codesign executables and shared libraries');
 	const result1 = await codesignTask1.pipe(process.stdout);
 
-	console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.isHalted()}, ${codesignTask1.stage}, ${result1.duration}`);
-	console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.isHalted()}, ${codesignTask2.stage}`);
-	console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.isHalted()}, ${codesignTask3?.stage}`);
+	console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.stage}, ${result1.duration}`);
+	console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.stage}`);
+	console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.stage}`);
 
 	// Codesign Powershell scripts
 	printBanner('Codesign Powershell scripts');
 	const result2 = await codesignTask2.pipe(process.stdout);
-	console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.isHalted()}, ${codesignTask1.stage}, ${result1.duration}`);
-	console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.isHalted()}, ${codesignTask2.stage}, ${result2.duration}`);
-	console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.isHalted()}, ${codesignTask3?.stage}`);
+	console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.stage}, ${result1.duration}`);
+	console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.stage}, ${result2.duration}`);
+	console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.stage}`);
 
 	if (process.env['VSCODE_QUALITY'] === 'insider') {
 		// Codesign context menu appx package
 		printBanner('Codesign context menu appx package');
 		const result3 = await codesignTask3!.pipe(process.stdout);
 
-		console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.isHalted()}, ${codesignTask1.stage}, ${result1.duration}`);
-		console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.isHalted()}, ${codesignTask2.stage}, ${result2.duration}`);
-		console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.isHalted()}, ${codesignTask3!.stage}, ${result3.duration}`);
+		console.log(`[${new Date().toISOString()}] task1: ${codesignTask1.stage}, ${result1.duration}`);
+		console.log(`[${new Date().toISOString()}] task2: ${codesignTask2.stage}, ${result2.duration}`);
+		console.log(`[${new Date().toISOString()}] task3: ${codesignTask3?.stage}, ${result3.duration}`);
 	}
 
 	// Create build artifact directory
