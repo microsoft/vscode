@@ -141,7 +141,7 @@ export type CommentThreadChanges<T = IRange> = Partial<{
 	contextValue: string | null;
 	comments: CommentChanges[];
 	collapseState: languages.CommentThreadCollapsibleState;
-	canReply: boolean;
+	canReply: boolean | languages.CommentAuthorInformation;
 	state: languages.CommentThreadState;
 	applicability: languages.CommentThreadApplicability;
 	isTemplate: boolean;
