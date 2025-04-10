@@ -9,8 +9,8 @@ import { PromptPathAutocompletion } from './promptPathAutocompletion.js';
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
 import { PromptLinkDiagnosticsInstanceManager } from './promptLinkDiagnosticsProvider.js';
-import { PromptDecorationsProviderInstanceManager } from './decorationsProvider/promptDecorationsProvider.js';
 import { BrandedService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptDecorationsProviderInstanceManager } from './decorationsProvider/promptDecorationsProvider.js';
 import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } from '../../../../../../common/contributions.js';
 
 /**
