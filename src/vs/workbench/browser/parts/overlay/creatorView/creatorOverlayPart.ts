@@ -11,8 +11,7 @@ import { IStorageService } from "../../../../../platform/storage/common/storage.
 import { getActiveWindow } from "../../../../../base/browser/dom.js";
 import { CancellationTokenSource } from "../../../../../base/common/cancellation.js";
 import { IInstantiationService } from "../../../../../platform/instantiation/common/instantiation.js";
-import { WebviewExtensionDescription } from "../../../../../workbench/contrib/webview/browser/webview.js";
-
+import { IWebviewElement, WebviewExtensionDescription } from "../../../../../workbench/contrib/webview/browser/webview.js";
 import {
 	IWebviewViewService,
 	WebviewView,
@@ -21,6 +20,7 @@ import { WebviewService } from "../../../../../workbench/contrib/webview/browser
 import { URI } from "../../../../../base/common/uri.js";
 import { ExtensionIdentifier } from "../../../../../platform/extensions/common/extensions.js";
 import { IEditorGroupsService } from "../../../../../workbench/services/editor/common/editorGroupsService.js";
+import { Emitter } from "../../../../../base/common/event.js";
 
 const CREATOR_VIEW_ID = "pearai.creatorView";
 const CREATOR_OVERLAY_TITLE = "pearai.creatorOverlayView";
@@ -36,6 +36,7 @@ export class CreatorOverlayPart extends Part {
 	readonly maximumHeight: number = 600;
 
 	private overlayContainer: HTMLElement | undefined;
+	private webviewElement: IWebviewElement | undefined;
 	private webviewView: WebviewView | undefined;
 	private _webviewService: WebviewService | undefined;
 	private closeHandler: ((event: MouseEvent) => void) | undefined;
@@ -155,8 +156,8 @@ export class CreatorOverlayPart extends Part {
 				location: URI.parse(""),
 			};
 
-			// Create the webview overlay
-			const webview = this._webviewService!.createWebviewOverlay({
+			// Create a regular webview element
+			this.webviewElement = this._webviewService!.createWebviewElement({
 				title: CREATOR_OVERLAY_TITLE,
 				options: {
 					enableFindWidget: false,
@@ -168,39 +169,21 @@ export class CreatorOverlayPart extends Part {
 				extension: extensionDescription,
 			});
 
-			// moving the webview container to the overlay container
-			if (!this.overlayContainer) {
-				throw new Error("Overlay container is not initialized");
-			}
+			console.log("Created webview element:", this.webviewElement);
 
-			console.log("WEBVIEW CONTAINER:::");
-			console.dir(webview.container);
+			// Create visibility change emitter
+			const onDidChangeVisibilityEmitter = new Emitter<boolean>();
 
-			// TODO: find out why this shizz isn't working!
-			webview.container.remove();
-			this.overlayContainer.appendChild(webview.container);
+			// Create dispose emitter
+			const onDisposeEmitter = new Emitter<void>();
 
-			// Set initial visibility - important for initial state
-			webview.container.style.display = "none";
-			// webview.container.style.transition = "opacity 0.3s ease-in";
-			webview.container.style.height = "100vh";
-			webview.container.style.width = "100vw";
-
-			// webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
-			webview.container.setAttribute("id", "creator-overlay-webview");
-
-			// Claim the webview
-			webview.claim(this, getActiveWindow(), undefined);
-
-			// Initialize webviewView
+			// Create WebviewView wrapper
 			this.webviewView = {
-				webview,
-				onDidChangeVisibility: () => {
-					return { dispose: () => {} };
-				},
-				onDispose: () => {
-					return { dispose: () => {} };
-				},
+				// Use the webviewElement as if it were an overlay webview
+				// This is a hack but it works since we're just passing it to resolve
+				webview: this.webviewElement as any,
+				onDidChangeVisibility: onDidChangeVisibilityEmitter.event,
+				onDispose: onDisposeEmitter.event,
 
 				get title(): string | undefined {
 					return CREATOR_OVERLAY_TITLE;
@@ -217,19 +200,23 @@ export class CreatorOverlayPart extends Part {
 				},
 				set badge(badge) {},
 
-				dispose: () => {},
+				dispose: () => {
+					onDisposeEmitter.fire();
+				},
 
-				show: (preserveFocus) => {},
-			} satisfies WebviewView;
+				show: (preserveFocus) => {
+					onDidChangeVisibilityEmitter.fire(true);
+				},
+			};
 
-			// Connect webviewView to the provider - only try once
+			// Connect webviewView to the provider
 			const source = new CancellationTokenSource();
 			try {
 				console.log("RESOLVING CreatorOverlayPart WEBVIEW SERVICE....");
 
 				await this._webviewViewService.resolve(
 					CREATOR_VIEW_ID,
-					this.webviewView!,
+					this.webviewView,
 					source.token,
 				);
 
@@ -240,13 +227,6 @@ export class CreatorOverlayPart extends Part {
 			} finally {
 				// Always mark as initialized when we're done trying
 				this.initializedWebview = true;
-
-				// Set up layout if everything is ready
-				if (this.overlayContainer && this.webviewView) {
-					this.webviewView.webview.layoutWebviewOverElement(
-						this.overlayContainer,
-					);
-				}
 			}
 		} catch (error) {
 			console.error("Error initializing webview:", error);
@@ -256,59 +236,23 @@ export class CreatorOverlayPart extends Part {
 
 	protected override createContentArea(element: HTMLElement): HTMLElement {
 		this.element = element;
-		// Create a container for the PearCreatorOverlayPart
 
+		// Create a container for the PearCreatorOverlayPart that covers the entire screen
 		this.overlayContainer = document.createElement("div");
 		this.overlayContainer.style.position = "fixed";
 		this.overlayContainer.style.top = "0";
 		this.overlayContainer.style.left = "0";
-		this.overlayContainer.style.zIndex = "-10";
-		this.overlayContainer.style.display = "block";
+		this.overlayContainer.style.width = "100vw";
+		this.overlayContainer.style.height = "100vh";
+		this.overlayContainer.style.zIndex = "9999997"; // High z-index
+		this.overlayContainer.style.display = "none"; // Hidden by default
 		this.overlayContainer.classList.add("pearcreatoroverlay-part-container");
 		this.overlayContainer.style.backgroundColor = 'transparent';
 
+		// The container must be at the top level of the document
 		document.body.appendChild(this.overlayContainer);
 
-		// Set up overlay container styles
-		// this.element.style.position = "fixed";
-		// this.element.style.top = "0";
-		// this.element.style.left = "0";
-		// this.element.style.right = "0";
-		// this.element.style.bottom = "0";
-		// this.element.style.display = "none";
-		// this.element.style.alignItems = "center";
-		// this.element.style.justifyContent = "center";
-		// this.element.style.backgroundColor = "#FFFFFF";
-		// this.element.style.opacity = "0";
-		// this.element.style.transition = "opacity 0.3s ease-in-out";
-		// this.element.style.width = "100vw";
-		// this.element.style.height = "100vh";
-		// this.element.style.zIndex = "-20";
-
-		// Add the overlay container to the main element
-		// this.element.appendChild(this.element);
-
-		// Set up webview layout only if webview is enabled and initialized
-		if (this._webviewEnabled && this.overlayContainer && this.webviewView) {
-			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
-		}
-
 		return this.overlayContainer;
-	}
-
-	override layout(
-		width: number,
-		height: number,
-		top: number,
-		left: number,
-	): void {
-		super.layout(width, height, 0, 0);
-
-		// Layout webview only if enabled
-		if (this._webviewEnabled && this.webviewView && this.overlayContainer) {
-			// Always layout the webview over the element
-			// this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
-		}
 	}
 
 	private openInProgress = false;
@@ -323,12 +267,11 @@ export class CreatorOverlayPart extends Part {
 		this.openInProgress = true;
 
 		try {
-			// // Make sure initialization is complete before opening
+			// Make sure initialization is complete before opening
 			if (this.state === "loading") {
 				console.log("Overlay not initialized yet, initializing...");
 				await this.initialize();
-				// If we're already open after initialization somehow, don't continue
-				// @ts-expect-error yeet
+				//@ts-expect-error t
 				if (this.state === "open") {
 					this.openInProgress = false;
 					return;
@@ -340,8 +283,8 @@ export class CreatorOverlayPart extends Part {
 				await this.initializeWebview();
 			}
 
-			if(!this.webviewView) {
-				throw new Error("wevbviewView is not initialized");
+			if(!this.webviewElement) {
+				throw new Error("webviewElement is not initialized");
 			}
 
 			await this.handleSlideAnimation("down");
@@ -353,15 +296,13 @@ export class CreatorOverlayPart extends Part {
 
 			console.log("Opening overlay view");
 			this.state = "open";
-			const { container } = this.webviewView.webview;
-			container.style.display = "block";
-			container.style.zIndex = "999";
-			container.style.opacity = "1";
-			container.style.width = "100vw";
-			container.style.height = "100vh";
-			container.style.top = "0";
-			container.style.left = "0";
-			container.style.position = "fixed";
+
+			// Show our overlay container
+			this.overlayContainer.style.display = "block";
+
+			// Mount the webview to our overlay container - this is the key
+			console.log("Mounting webview to overlay container");
+			this.webviewElement.mountTo(this.overlayContainer, getActiveWindow());
 
 			// Remove previous click handler if exists
 			if (this.closeHandler) {
@@ -378,28 +319,9 @@ export class CreatorOverlayPart extends Part {
 
 			this.overlayContainer.addEventListener("click", this.closeHandler);
 
-			// Always update layout when opening (if webview is enabled)
-			if (this._webviewEnabled && this.webviewView && this.overlayContainer) {
-				setTimeout(() => {
-					if (this.webviewView && this.overlayContainer) {
-							this.webviewView.webview.layoutWebviewOverElement(
-									this.overlayContainer
-							);
-
-							// Reapply fixed positioning to ensure it sticks
-							requestAnimationFrame(() => {
-									if(!this.webviewView) {
-										throw new Error("webviewView is not initialized in request animation frame");
-									}
-									const { container } = this.webviewView.webview;
-									if (container) {
-											container.style.position = "fixed";
-											container.style.top = "0";
-											container.style.left = "0";
-									}
-							});
-					}
-			}, 50);
+			// Notify that the view is now visible
+			if (this.webviewView) {
+				this.webviewView.show(false);
 			}
 
 			this.focus();
@@ -419,10 +341,8 @@ export class CreatorOverlayPart extends Part {
 		this.handleSlideAnimation("up").then(() => {
 			this.state = "closed";
 
-			if (this.overlayContainer) {
-				this.overlayContainer.style.display = "none";
-				this.overlayContainer.style.zIndex = "-20";
-			}
+			// Hide our overlay container (which hides the webview)
+			this.overlayContainer!.style.display = "none";
 
 			// Focus the active editor
 			this._editorGroupsService.activeGroup.focus();
@@ -434,8 +354,8 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	focus(): void {
-		if (this._webviewEnabled && this.webviewView) {
-			this.webviewView.webview.focus();
+		if (this._webviewEnabled && this.webviewElement) {
+			this.webviewElement.focus();
 		}
 	}
 
@@ -482,7 +402,7 @@ export class CreatorOverlayPart extends Part {
 		}
 		// Create the container element for slide-down animation
 		const topOfBodyElement = document.createElement("div");
-		topOfBodyElement.style.position = "relative"; // Changed back to relative as requested
+		topOfBodyElement.style.position = "relative"; // Use fixed positioning
 		topOfBodyElement.style.top = "0";
 		topOfBodyElement.style.left = "0";
 		topOfBodyElement.style.width = "100%";
@@ -491,10 +411,10 @@ export class CreatorOverlayPart extends Part {
 		topOfBodyElement.style.overflow = "hidden";
 		topOfBodyElement.style.transition =
 			"height 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
-		topOfBodyElement.style.zIndex = "20";
+		topOfBodyElement.style.zIndex = "20"; // Very high z-index
 		topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
 
-		// Add to body
+		// Add to body as direct child
 		document.body.insertBefore(topOfBodyElement, document.body.firstChild);
 
 		return topOfBodyElement;
@@ -513,19 +433,21 @@ export class CreatorOverlayPart extends Part {
 		blurOverlayElement.style.height = "90vh";
 		blurOverlayElement.style.display = "block";
 		blurOverlayElement.style.overflow = "hidden";
-		blurOverlayElement.style.zIndex = "20";
+		blurOverlayElement.style.zIndex = "20"; // Higher than top body
 		blurOverlayElement.style.transition =
 			"opacity 500ms cubic-bezier(0.25, 0.1, 0.25, 1.5)";
 		blurOverlayElement.style.backdropFilter = "blur(8px)";
 		blurOverlayElement.style.pointerEvents = "none";
-		blurOverlayElement.style.position = "absolute";
+		blurOverlayElement.style.position = "relative"; // Fixed position
+		blurOverlayElement.style.top = "0";
+		blurOverlayElement.style.left = "0";
 		blurOverlayElement.style.opacity = "1";
 
 		const blurGradient = document.createElement("div");
 
 		blurGradient.style.width = "100%";
 		blurGradient.style.height = "10vh";
-		blurGradient.style.zIndex = "30";
+		blurGradient.style.zIndex = "10000002"; // Higher than blur element
 		blurGradient.style.background =
 			"linear-gradient(to bottom, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.9) 20%, rgba(255, 255, 255, 0.7) 30%, rgba(255, 255, 255, 0.3) 80%, rgba(255, 255, 255, 0) 100%)";
 		blurGradient.style.position = "absolute";
@@ -533,6 +455,7 @@ export class CreatorOverlayPart extends Part {
 		blurGradient.style.left = "0";
 
 		blurOverlayElement.appendChild(blurGradient);
+
 		const topOfBodyElement = this.getTopOfBodyElement();
 
 		topOfBodyElement.after(blurOverlayElement);
@@ -554,7 +477,6 @@ export class CreatorOverlayPart extends Part {
 
 			// Start animation - expand to full height
 			requestAnimationFrame(() => {
-				1;
 				if (!topOfBodyElement || !topOfBodyElement.parentNode) {
 					console.warn("topOfBodyElement not found in request animation frame");
 					return resolve();
