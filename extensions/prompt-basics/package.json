@@ -2,7 +2,7 @@
   "name": "prompt",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -28,10 +28,13 @@
       {
         "language": "prompt.md",
         "path": "./syntaxes/prompt.tmLanguage.json",
-        "scopeName": "text.html.markdown.prompt"
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
       }
     ],
-
     "configurationDefaults": {
       "[prompt.md]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
