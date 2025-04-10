@@ -45,6 +45,9 @@ export class CreatorOverlayPart extends Part {
 	private _isLocked: boolean = false;
 	private initializedWebview: boolean = false;
 
+	// Track if webview needs re-initialization after close
+	private needsReinit: boolean = false;
+
 	// Flag to enable/disable webview functionality
 	private _webviewEnabled: boolean = true;
 
@@ -98,19 +101,25 @@ export class CreatorOverlayPart extends Part {
 	/**
 	 * Initialize the overlay part - can be called with or without webview functionality
 	 */
-	private async initialize() {
-		// If already initialized and we don't need webview, don't do anything
-		if (this.initializedWebview && this._webviewEnabled) {
+	private async initialize(forceReinit = false) {
+		// If already initialized and we don't need webview or reinit, don't do anything
+		if (this.initializedWebview && this._webviewEnabled && !forceReinit) {
 			console.log("Webview already initialized, skipping initialization");
 			return;
 		}
 
 		// If we're already in the process of initializing, return the existing promise
-		if (this.initializingPromise) {
+		if (this.initializingPromise && !forceReinit) {
 			console.log(
 				"Initialization already in progress, waiting for it to complete",
 			);
 			return this.initializingPromise;
+		}
+
+		// Reset initialization flag if we're forcing reinit
+		if (forceReinit) {
+			this.initializedWebview = false;
+			this.needsReinit = false;
 		}
 
 		// Create a new initialization promise
@@ -227,6 +236,7 @@ export class CreatorOverlayPart extends Part {
 			} finally {
 				// Always mark as initialized when we're done trying
 				this.initializedWebview = true;
+				this.needsReinit = false;
 			}
 		} catch (error) {
 			console.error("Error initializing webview:", error);
@@ -267,13 +277,17 @@ export class CreatorOverlayPart extends Part {
 		this.openInProgress = true;
 
 		try {
-			// Make sure initialization is complete before opening
+			// If webview needs reinitialization, do that first
+			if (this.needsReinit) {
+				console.log("Reinitializing webview before opening");
+				await this.initialize(true);
+			} else {
+				// Otherwise just make sure initialization is complete
+				await this.initialize();
+				await this.initializeWebview();
+			}
 
-
-			await this.initialize();
-			await this.initializeWebview();
-
-			if(!this.webviewElement) {
+			if (!this.webviewElement) {
 				throw new Error("webviewElement is not initialized");
 			}
 
@@ -355,6 +369,8 @@ export class CreatorOverlayPart extends Part {
 			// Focus the active editor
 			this._editorGroupsService.activeGroup.focus();
 
+			// Mark webview as needing reinitialization before next open
+			this.needsReinit = true;
 		});
 	}
 
@@ -470,11 +486,17 @@ export class CreatorOverlayPart extends Part {
 
 	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
 		return new Promise((resolve) => {
-
-			this.webviewElement!.postMessage({
-				messageType: "overlayAnimation",
-				direction: direction,
-			})
+			// Post message to webview for animation
+			if (this.webviewElement) {
+				try {
+					this.webviewElement.postMessage({
+						messageType: "overlayAnimation",
+						direction: direction,
+					});
+				} catch (e) {
+					console.warn("Failed to post animation message to webview:", e);
+				}
+			}
 
 			// Create the container element for slide-down animation
 			const topOfBodyElement = this.getTopOfBodyElement();
