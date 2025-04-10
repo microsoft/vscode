@@ -350,6 +350,8 @@ steps:
 
         echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$SNAP_EXTRACTED_PATH"
         echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
+      env:
+        VSCODE_ARCH: $(VSCODE_ARCH)
       displayName: Build snap package
 
     - task: UseDotNet@2
