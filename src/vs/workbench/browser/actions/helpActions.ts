@@ -281,7 +281,7 @@ class OpenLicenseUrlAction extends Action2 {
 class OpenPrivacyStatementUrlAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openPrivacyStatementUrl';
-	static readonly AVAILABE = !!product.privacyStatementUrl;
+	static readonly AVAILABLE = !!product.privacyStatementUrl;
 
 	constructor() {
 		super({
@@ -336,7 +336,6 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 class GetStartedWithCopilot extends Action2 {
 
 	static readonly ID = 'workbench.action.getStartedWithCopilot';
-	static readonly AVAILABE = !!product.defaultChatAgent?.documentationUrl;
 
 	constructor() {
 		super({
@@ -344,11 +343,7 @@ class GetStartedWithCopilot extends Action2 {
 			title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
 			category: Categories.Help,
 			f1: true,
-			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '1_welcome',
-				order: 7
-			}
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, false), !!product.defaultChatAgent?.documentationUrl ? ContextKeyExpr.true() : ContextKeyExpr.false())
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -357,9 +352,18 @@ class GetStartedWithCopilot extends Action2 {
 	}
 }
 
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	command: {
+		id: GetStartedWithCopilot.ID,
+		title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
+	},
+	order: 7,
+	group: '1_welcome',
+	when: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, false), !!product.defaultChatAgent?.documentationUrl ? ContextKeyExpr.true() : ContextKeyExpr.false())
+});
+
 class AskVSCodeCopilot extends Action2 {
 	static readonly ID = 'workbench.action.askVScode';
-	static readonly AVAILABE = !!product.defaultChatAgent?.chatExtensionId;
 
 	//  add check for enablement
 	constructor() {
@@ -380,7 +384,7 @@ class AskVSCodeCopilot extends Action2 {
 			placeHolder: localize('askVscodePlaceholder', "@vscode can help you with settings, commands, or how to do something in VS Code.")
 		});
 		if (input) {
-			commandService.executeCommand('workbench.action.chat.open', { query: `@vscode ${input}` });
+			commandService.executeCommand('workbench.action.chat.open', { mode: 'ask', query: `@vscode ${input}` });
 		}
 	}
 }
@@ -390,7 +394,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		id: AskVSCodeCopilot.ID,
 		title: localize2('askVScode', 'Ask @vscode'),
 	},
-	order: 8,
+	order: 7,
 	group: '1_welcome',
 	when: ContextKeyExpr.equals(`chatIsEnabled`, true),
 });
@@ -429,14 +433,12 @@ if (OpenLicenseUrlAction.AVAILABLE) {
 	registerAction2(OpenLicenseUrlAction);
 }
 
-if (OpenPrivacyStatementUrlAction.AVAILABE) {
+if (OpenPrivacyStatementUrlAction.AVAILABLE) {
 	registerAction2(OpenPrivacyStatementUrlAction);
 }
 
 registerAction2(GetStartedWithAccessibilityFeatures);
 
-if (GetStartedWithCopilot.AVAILABE) {
-	registerAction2(GetStartedWithCopilot);
-}
+registerAction2(GetStartedWithCopilot);
 
 registerAction2(AskVSCodeCopilot);
