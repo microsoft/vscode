@@ -12,9 +12,6 @@ sudo apt-get install -y curl apt-transport-https ca-certificates
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
 
-# Unpack snap tarball artifact, in order to preserve file perms
-(cd .build/linux && tar -xzf snap-tarball/snap-$VSCODE_ARCH.tar.gz)
-
 # Create snap package
 BUILD_VERSION="$(date +%s)"
 SNAP_FILENAME="code-$VSCODE_QUALITY-$VSCODE_ARCH-$BUILD_VERSION.snap"
