@@ -894,8 +894,9 @@ export interface IEditorGroup {
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
 	 * there are dirty editors and thus returns a promise as value.
 	 *
-	 * @returns a promise when all editors are closed.
+	 * @returns a promise if confirmation is needed when all editors are closed.
 	 */
+	closeAllEditors(options: { excludeConfirming: true }): boolean;
 	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**

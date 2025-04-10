@@ -273,7 +273,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			}
 		}
 
-		this.doClose(false /* do not merge any groups to main part */);
+		this.doClose(false /* do not merge any confirming editors to main part */);
 	}
 
 	protected override loadState(): IEditorPartUIState | undefined {
@@ -285,12 +285,19 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	}
 
 	close(): boolean {
-		return this.doClose(true /* merge all groups to main part */);
+		return this.doClose(true /* merge all confirming editors to main part */);
 	}
 
-	private doClose(mergeGroupsToMainPart: boolean): boolean {
+	private doClose(mergeConfirmingEditorsToMainPart: boolean): boolean {
 		let result = true;
-		if (mergeGroupsToMainPart) {
+		if (mergeConfirmingEditorsToMainPart) {
+
+			// First close all editors that are non-confirming
+			for (const group of this.groups) {
+				group.closeAllEditors({ excludeConfirming: true });
+			}
+
+			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();
 		}
 

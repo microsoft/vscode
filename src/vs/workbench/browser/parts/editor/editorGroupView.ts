@@ -1935,7 +1935,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeAllEditors()
 
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> {
+	closeAllEditors(options: { excludeConfirming: true }): boolean;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): boolean | Promise<boolean> {
 		if (this.isEmpty) {
 
 			// If the group is empty and the request is to close all editors, we still close
@@ -1948,22 +1950,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return true;
 		}
 
-		// Apply the `excludeConfirming` filter if present
-		let editors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options);
+		// We can go ahead and close "sync" when we exclude confirming editors
 		if (options?.excludeConfirming) {
-			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+			this.doCloseAllEditors(options);
+			return true;
 		}
 
-		// Check for confirmation and veto
-		const veto = await this.handleCloseConfirmation(editors);
-		if (veto) {
-			return false;
-		}
+		// Otherwise go through potential confirmation "async"
+		return this.handleCloseConfirmation(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options)).then(veto => {
+			if (veto) {
+				return false;
+			}
 
-		// Do close
-		this.doCloseAllEditors(options);
-
-		return true;
+			this.doCloseAllEditors(options);
+			return true;
+		});
 	}
 
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
