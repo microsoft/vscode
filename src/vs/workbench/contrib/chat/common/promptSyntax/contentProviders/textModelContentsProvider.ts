@@ -15,6 +15,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.
@@ -30,6 +31,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	constructor(
 		private readonly model: ITextModel,
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -90,7 +92,13 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 					);
 				}
 			} catch (error) {
-				console.log(this.uri, i, error);
+				this.logService.error(
+					[
+						'[text model contents provider]: ',
+						`Failed to write line #${i} of text model '${this.uri.path}' to stream: `,
+					].join(''),
+					error,
+				);
 			}
 
 			// use the next line in the next iteration
