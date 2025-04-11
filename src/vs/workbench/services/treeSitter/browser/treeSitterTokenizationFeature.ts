@@ -9,7 +9,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../.
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, QueryCapture, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, RangeChange, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, RangeWithOffsets, ITextModelTreeSitter } from '../../../../editor/common/services/treeSitterParserService.js';
+import { EDITOR_PREFER_TREESITTER, ITreeSitterParserService, RangeChange, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, RangeWithOffsets, ITextModelTreeSitter } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -76,14 +76,14 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 
 		this._handleGrammarsExtPoint();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {
+			if (e.affectsConfiguration(EDITOR_PREFER_TREESITTER)) {
 				this._handleGrammarsExtPoint();
 			}
 		}));
 	}
 
 	private _getSetting(languageId: string): boolean {
-		return this._configurationService.getValue<boolean>(`${EDITOR_EXPERIMENTAL_PREFER_TREESITTER}.${languageId}`);
+		return this._configurationService.getValue<boolean>(`${EDITOR_PREFER_TREESITTER}.${languageId}`);
 	}
 
 	private _handleGrammarsExtPoint(): void {
