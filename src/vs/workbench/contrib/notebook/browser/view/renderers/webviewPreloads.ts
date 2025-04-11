@@ -8,6 +8,7 @@ import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type * as webviewMessages from './webviewMessages.js';
 import type { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 import type * as rendererApi from 'vscode-notebook-renderer';
+import type { NotebookCellOutputTransferData } from '../../../../../../platform/dnd/browser/dnd.js';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -2924,14 +2925,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 					return;
 				}
 
-				const outputData = {
-					type: 'notebook-cell-output',
+				const outputData: NotebookCellOutputTransferData = {
 					outputId: this.outputId,
-					cellId: this.cellId,
 				};
 
 				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
-				e.dataTransfer.effectAllowed = 'copy';
 			});
 		}
 

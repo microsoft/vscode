@@ -418,9 +418,7 @@ export interface DocumentSymbolTransferData {
 }
 
 export interface NotebookCellOutputTransferData {
-	type: 'notebook-cell-output';
 	outputId: string;
-	cellId: string;
 }
 
 function setDataAsJSON(e: DragEvent, kind: string, data: unknown) {
