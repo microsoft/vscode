@@ -23,7 +23,7 @@ import { attachPrompt, IAttachPromptOptions } from './dialogs/askToSelectPrompt/
 import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
- * Action ID for the `Attach Prompt` action.
+ * Action ID for the `Attach Instruction` action.
  */
 const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
 
