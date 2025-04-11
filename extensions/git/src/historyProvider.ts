@@ -6,7 +6,7 @@
 
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, getCommitShortHash, truncate } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
@@ -298,7 +298,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					author: commit.authorName,
 					authorEmail: commit.authorEmail,
 					authorIcon: avatarUrl ? Uri.parse(avatarUrl) : new ThemeIcon('account'),
-					displayId: getCommitShortHash(Uri.file(this.repository.root), commit.hash),
+					displayId: truncate(commit.hash, this.commitShortHashLength, false),
 					timestamp: commit.authorDate?.getTime(),
 					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
 					references: references.length !== 0 ? references : undefined
