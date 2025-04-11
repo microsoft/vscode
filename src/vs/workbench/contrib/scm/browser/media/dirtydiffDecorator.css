@@ -30,6 +30,13 @@
 	border-left-style: solid;
 }
 
+.monaco-editor .dirty-diff-added.dirty-diff-secondary,
+.monaco-editor .dirty-diff-added.dirty-diff-secondary:before,
+.monaco-editor .dirty-diff-modified.dirty-diff-secondary,
+.monaco-editor .dirty-diff-modified.dirty-diff-secondary:before {
+	opacity: 0.5;
+}
+
 .monaco-editor .dirty-diff-added:before {
 	background: var(--vscode-editorGutter-addedBackground);
 }

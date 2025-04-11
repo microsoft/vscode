@@ -13,7 +13,7 @@ import { ModelDecorationOptions } from '../../../../editor/common/model/textMode
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
-import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition } from '../../../../editor/common/model.js';
+import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition, IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChangeType, getChangeType, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../common/quickDiff.js';
@@ -123,44 +123,87 @@ class QuickDiffDecorator extends Disposable {
 			return;
 		}
 
-		const visibleQuickDiffs = this.quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
-		const decorations = this.quickDiffModelRef.object.changes
-			.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label))
-			.map((labeledChange) => {
-				const change = labeledChange.change;
-				const changeType = getChangeType(change);
-				const startLineNumber = change.modifiedStartLineNumber;
-				const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
+		const scmQuickDiffs = this.quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.isSCM);
+		const scmQuickDiffChanges = this.quickDiffModelRef.object.changes
+			.filter(labeledChange => scmQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label));
 
-				switch (changeType) {
-					case ChangeType.Add:
-						return {
-							range: {
-								startLineNumber: startLineNumber, startColumn: 1,
-								endLineNumber: endLineNumber, endColumn: 1
-							},
-							options: pattern.added ? this.addedPatternOptions : this.addedOptions
-						};
-					case ChangeType.Delete:
-						return {
-							range: {
-								startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
-								endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
-							},
-							options: this.deletedOptions
-						};
-					case ChangeType.Modify:
-						return {
-							range: {
-								startLineNumber: startLineNumber, startColumn: 1,
-								endLineNumber: endLineNumber, endColumn: 1
-							},
-							options: pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
-						};
+		const decorations: IModelDeltaDecoration[] = [];
+		for (const change of this.quickDiffModelRef.object.changes) {
+			const quickDiff = this.quickDiffModelRef.object.quickDiffs
+				.find(quickDiff => quickDiff.label === change.label);
+
+			if (!quickDiff?.visible) {
+				// Not visible
+				continue;
+			}
+
+			if (!quickDiff.isSCM && scmQuickDiffChanges.some(c => c.change2.modified.overlapOrTouch(change.change2.modified))) {
+				// Overlap with SCM changes
+				continue;
+			}
+
+			const changeType = getChangeType(change.change);
+			const startLineNumber = change.change.modifiedStartLineNumber;
+			const endLineNumber = change.change.modifiedEndLineNumber || startLineNumber;
+
+			switch (changeType) {
+				case ChangeType.Add: {
+					const options = quickDiff.isSCM
+						? pattern.added ? this.addedPatternOptions : this.addedOptions
+						: pattern.added
+							? {
+								...this.addedPatternOptions,
+								linesDecorationsClassName: `${this.addedPatternOptions.linesDecorationsClassName} dirty-diff-secondary`,
+							}
+							: {
+								...this.addedOptions,
+								linesDecorationsClassName: `${this.addedOptions.linesDecorationsClassName} dirty-diff-secondary`,
+							};
+
+					decorations.push({
+						range: {
+							startLineNumber: startLineNumber, startColumn: 1,
+							endLineNumber: endLineNumber, endColumn: 1
+						},
+						options
+					});
+					break;
 				}
-			});
+				case ChangeType.Delete:
+					decorations.push({
+						range: {
+							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
+							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
+						},
+						options: this.deletedOptions
+					});
+					break;
+				case ChangeType.Modify: {
+					const options = quickDiff.isSCM
+						? pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
+						: pattern.modified
+							? {
+								...this.modifiedPatternOptions,
+								linesDecorationsClassName: `${this.modifiedPatternOptions.linesDecorationsClassName} dirty-diff-secondary`,
+							}
+							: {
+								...this.modifiedOptions,
+								linesDecorationsClassName: `${this.modifiedOptions.linesDecorationsClassName} dirty-diff-secondary`,
+							};
+
+					decorations.push({
+						range: {
+							startLineNumber: startLineNumber, startColumn: 1,
+							endLineNumber: endLineNumber, endColumn: 1
+						},
+						options
+					});
+					break;
+				}
+			}
+		}
 
 		if (!this.decorationsCollection) {
 			this.decorationsCollection = this.codeEditor.createDecorationsCollection(decorations);
