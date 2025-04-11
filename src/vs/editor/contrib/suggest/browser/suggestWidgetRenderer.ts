@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from '../../../common/languages.js';
-import { getIconClasses } from '../../../common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../common/services/getIconClasses.js';
 import { IModelService } from '../../../common/services/model.js';
 import { ILanguageService } from '../../../common/languages/language.js';
 import * as nls from '../../../../nls.js';
@@ -184,6 +184,9 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			const labelClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
 			const detailClasses = getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
 			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
+			const labelAttributes = getIconAttributes(URI.from({ scheme: 'fake', path: element.textLabel }));
+			const detailAttributes = getIconAttributes(URI.from({ scheme: 'fake', path: completion.detail }));
+			labelOptions.extraAttributes = Object.assign(detailAttributes, labelAttributes);
 
 		} else if (completion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
@@ -193,6 +196,10 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
 			].flat();
+			labelOptions.extraAttributes = Object.assign(
+				getIconAttributes(URI.from({ scheme: 'fake', path: element.textLabel })),
+				getIconAttributes(URI.from({ scheme: 'fake', path: completion.detail }))
+			);
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';
