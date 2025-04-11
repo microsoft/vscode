@@ -18,7 +18,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { Range } from '../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
 import * as editorCommon from '../../../../editor/common/editorCommon.js';
 import { Command, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../editor/common/model.js';
@@ -31,13 +31,13 @@ import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../comm
 import { NotebookTextModel } from './model/notebookTextModel.js';
 import { ICellExecutionError } from './notebookExecutionStateService.js';
 import { INotebookTextModelLike } from './notebookKernelService.js';
-import { ICellRange } from './notebookRange.js';
+import { ICellRange, INotebookRange2 } from './notebookRange.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { generateMetadataUri, generate as generateUri, extractCellOutputDetails, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
-export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
+export const NOTEBOOK_EDITOR_ID = 'workbench.editor.noteook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 export const NOTEBOOK_MULTI_DIFF_EDITOR_ID = 'workbench.editor.notebookMultiTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
@@ -300,7 +300,7 @@ export interface INotebookTextModel extends INotebookTextModelLike {
 	readonly versionId: number;
 	readonly length: number;
 	readonly cells: readonly ICell[];
-	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void;
+	reset(data: NotebookData, transientOptions: TransientOptions): void;
 	createSnapshot(options: INotebookSnapshotOptions): NotebookData;
 	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void;
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
@@ -583,9 +583,15 @@ export interface IWorkspaceNotebookCellEditDto {
 	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
 }
 
+export interface NotebookMapper {
+	toNotebookRange(range: IRange): Promise<INotebookRange2 | undefined>;
+	dispose(): Promise<void>;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
+	readonly mapper?: NotebookMapper;
 }
 
 

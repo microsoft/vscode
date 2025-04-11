@@ -10,11 +10,13 @@ import { DisposableStore, dispose, IDisposable } from '../../../base/common/life
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { assertType } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { IRange } from '../../../editor/common/core/range.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { INotebookCellStatusBarService } from '../../contrib/notebook/common/notebookCellStatusBarService.js';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, TransientOptions } from '../../contrib/notebook/common/notebookCommon.js';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, NotebookMapper, TransientOptions } from '../../contrib/notebook/common/notebookCommon.js';
+import { INotebookRange2 } from '../../contrib/notebook/common/notebookRange.js';
 import { INotebookService, SimpleNotebookProviderInfo } from '../../contrib/notebook/common/notebookService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -61,7 +63,20 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					result = NotebookDto.fromNotebookDataDto({ cells: [], metadata: {} });
 				} else {
 					const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
-					result = NotebookDto.fromNotebookDataDto(dto.value);
+					let mapper: NotebookMapper | undefined = undefined;
+					if (dto.value.mapperHandle) {
+						const { mapperHandle } = dto.value;
+						mapper = {
+							toNotebookRange: (range: IRange): Promise<INotebookRange2 | undefined> => {
+								return this._proxy.$toNotebookRange(mapperHandle, range);
+
+							},
+							dispose: async () => {
+								await this._proxy.$disposeNotebookMapper(mapperHandle);
+							}
+						};
+					}
+					result = NotebookDto.fromNotebookDataDto(dto.value, mapper);
 				}
 				this._logService.trace(`[NotebookSerializer] dataToNotebook DONE after ${sw.elapsed()}ms`, {
 					viewType,
@@ -122,7 +137,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					};
 				});
 				return { results: revivedResults, limitHit: searchComplete.limitHit };
-			}
+			},
+			disposeNotebookMapper: async (handle: number) => {
+				this._proxy.$disposeNotebookMapper(handle);
+			},
 		}));
 
 		if (data) {
