@@ -104,7 +104,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
 
-	private readonly mdCellEditorAttached = observableValue<number>(this, -1);
+	private readonly markdownEditState = observableValue<string>(this, '');
 
 	private markupCellListeners = new Map<number, IDisposable>();
 
@@ -190,7 +190,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				});
 				return;
 			}
-			this.mdCellEditorAttached.read(r);
+			this.markdownEditState.read(r);
 
 			const validCells = new Set<NotebookCellTextModel>();
 			changes.forEach((change) => {
@@ -204,20 +204,18 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				if (!cell || !originalModel || !modifiedModel) {
 					return;
 				}
-				if (!editor) {
-					if (!this.markupCellListeners.has(cell.handle) && cell.cellKind === CellKind.Markup) {
-						const cellModel = this.notebookEditor.getViewModel()?.viewCells.find(c => c.handle === cell.handle);
-						if (cellModel) {
-							const listener = cellModel.onDidChangeEditorAttachState(() => {
-								if (cellModel.editorAttached) {
-									this.mdCellEditorAttached.set(cell.handle, undefined);
-									listener.dispose();
-									this.markupCellListeners.delete(cell.handle);
-								}
-							});
-							this.markupCellListeners.set(cell.handle, listener);
-						}
+				if (cell.cellKind === CellKind.Markup && !this.markupCellListeners.has(cell.handle)) {
+					const cellModel = this.notebookEditor.getViewModel()?.viewCells.find(c => c.handle === cell.handle);
+					if (cellModel) {
+						const listener = cellModel.onDidChangeState((e) => {
+							if (e.editStateChanged) {
+								setTimeout(() => this.markdownEditState.set(cellModel.handle + '-' + cellModel.getEditState(), undefined), 0);
+							}
+						});
+						this.markupCellListeners.set(cell.handle, listener);
 					}
+				}
+				if (!editor) {
 					return;
 				}
 				const diff = {
