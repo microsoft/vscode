@@ -332,7 +332,7 @@ class CellOutputElement extends Disposable {
 		if (mimeTypes[index]) {
 			cellOutputMimetype.set(currentMimeType.mimeType);
 		}
-		this.toolbarDisposables.add(autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); }));
+		this.toolbarDisposables.add(autorun((r) => { hasHiddenOutputs.set(this.cellOutputContainer.hasHiddenOutputs.read(r)); }));
 		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 
 		const updateMenuToolbar = () => {
@@ -492,7 +492,7 @@ export class CellOutputContainer extends CellContentPart {
 
 	hasHiddenOutputs = observableValue<boolean>('hasHiddenOutputs', false);
 	checkForHiddenOutputs() {
-		if (this._outputEntries.find(entry => { return entry.model.visible; })) {
+		if (this._outputEntries.find(entry => { return !entry.model.visible.get(); })) {
 			this.hasHiddenOutputs.set(true, undefined);
 		} else {
 			this.hasHiddenOutputs.set(false, undefined);
