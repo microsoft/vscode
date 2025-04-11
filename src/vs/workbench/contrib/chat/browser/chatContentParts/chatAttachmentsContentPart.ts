@@ -11,6 +11,7 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -95,7 +96,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			let ariaLabel: string | undefined;
 
-			const renderFileAttachment = (ariaLabel: string, friendlyName: string, resource: URI,) => {
+			const renderFileAttachment = (ariaLabel: string, friendlyName: string, resource: URI, icon?: ThemeIcon) => {
 
 				if (attachment.omittedState === OmittedState.Full) {
 					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, isAttachmentOmitted);
@@ -111,7 +112,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 					} : {
 						...fileOptions,
 						fileKind: FileKind.FOLDER,
-						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
+						icon: icon || (!this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined)
 					});
 				}
 
@@ -178,7 +179,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 						break;
 					}
 					default: {
-						renderFileAttachment(ariaLabel, attachment.name, resource);
+						renderFileAttachment(ariaLabel, attachment.name, resource, ThemeIcon.fromId('output'));
 					}
 				}
 

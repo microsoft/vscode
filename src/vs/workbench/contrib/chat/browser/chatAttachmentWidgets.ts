@@ -35,6 +35,7 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -500,7 +501,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 	}
 	private renderGenericOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
 		this.element.ariaLabel = this.getAriaLabel(attachment);
-		this.label.setFile(resource, { hidePath: true, fileKind: FileKind.FILE, });
+		this.label.setFile(resource, { hidePath: true, icon: ThemeIcon.fromId('output') });
 	}
 	private renderImageOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
 		let ariaLabel: string;
