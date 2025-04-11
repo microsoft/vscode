@@ -25,12 +25,21 @@ const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackg
 	dark: '#1B81A8', light: '#2090D3', hcDark: '#1B81A8', hcLight: '#2090D3'
 }, nls.localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
 
+registerColor('editorGutter.modifiedSecondaryBackground',
+	transparent(editorGutterModifiedBackground, 0.5), nls.localize('editorGutterModifiedSecondaryBackground', "Editor gutter secondary background color for lines that are modified."));
+
 const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
 	dark: '#487E02', light: '#48985D', hcDark: '#487E02', hcLight: '#48985D'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
+registerColor('editorGutter.addedSecondaryBackground',
+	transparent(editorGutterAddedBackground, 0.5), nls.localize('editorGutterAddedSecondaryBackground', "Editor gutter secondary background color for lines that are added."));
+
 const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground',
 	editorErrorForeground, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+
+registerColor('editorGutter.deletedSecondaryBackground',
+	transparent(editorGutterDeletedBackground, 0.5), nls.localize('editorGutterDeletedSecondaryBackground', "Editor gutter secondary background color for lines that are deleted."));
 
 export const minimapGutterModifiedBackground = registerColor('minimapGutter.modifiedBackground',
 	editorGutterModifiedBackground, nls.localize('minimapGutterModifiedBackground', "Minimap gutter background color for lines that are modified."));

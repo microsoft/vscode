@@ -58,10 +58,15 @@ class QuickDiffDecorator extends Disposable {
 	}
 
 	private addedOptions: ModelDecorationOptions;
+	private addedSecondaryOptions: ModelDecorationOptions;
 	private addedPatternOptions: ModelDecorationOptions;
+	private addedSecondaryPatternOptions: ModelDecorationOptions;
 	private modifiedOptions: ModelDecorationOptions;
+	private modifiedSecondaryOptions: ModelDecorationOptions;
 	private modifiedPatternOptions: ModelDecorationOptions;
+	private modifiedSecondaryPatternOptions: ModelDecorationOptions;
 	private deletedOptions: ModelDecorationOptions;
+	private deletedSecondaryOptions: ModelDecorationOptions;
 	private decorationsCollection: IEditorDecorationsCollection | undefined;
 
 	constructor(
@@ -83,7 +88,19 @@ class QuickDiffDecorator extends Disposable {
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
 		});
+		this.addedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-added-secondary', diffAdded, {
+			gutter,
+			overview: { active: overview, color: overviewRulerAddedForeground },
+			minimap: { active: minimap, color: minimapGutterAddedBackground },
+			isWholeLine: true
+		});
 		this.addedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added-pattern', diffAdded, {
+			gutter,
+			overview: { active: overview, color: overviewRulerAddedForeground },
+			minimap: { active: minimap, color: minimapGutterAddedBackground },
+			isWholeLine: true
+		});
+		this.addedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added-secondary-pattern', diffAdded, {
 			gutter,
 			overview: { active: overview, color: overviewRulerAddedForeground },
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
@@ -96,13 +113,31 @@ class QuickDiffDecorator extends Disposable {
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
 		});
+		this.modifiedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified-secondary', diffModified, {
+			gutter,
+			overview: { active: overview, color: overviewRulerModifiedForeground },
+			minimap: { active: minimap, color: minimapGutterModifiedBackground },
+			isWholeLine: true
+		});
 		this.modifiedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified-pattern', diffModified, {
 			gutter,
 			overview: { active: overview, color: overviewRulerModifiedForeground },
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
 		});
+		this.modifiedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified-secondary-pattern', diffModified, {
+			gutter,
+			overview: { active: overview, color: overviewRulerModifiedForeground },
+			minimap: { active: minimap, color: minimapGutterModifiedBackground },
+			isWholeLine: true
+		});
 		this.deletedOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted', nls.localize('diffDeleted', 'Removed lines'), {
+			gutter,
+			overview: { active: overview, color: overviewRulerDeletedForeground },
+			minimap: { active: minimap, color: minimapGutterDeletedBackground },
+			isWholeLine: false
+		});
+		this.deletedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted-secondary', nls.localize('diffDeleted', 'Removed lines'), {
 			gutter,
 			overview: { active: overview, color: overviewRulerDeletedForeground },
 			minimap: { active: minimap, color: minimapGutterDeletedBackground },
@@ -149,59 +184,37 @@ class QuickDiffDecorator extends Disposable {
 			const endLineNumber = change.change.modifiedEndLineNumber || startLineNumber;
 
 			switch (changeType) {
-				case ChangeType.Add: {
-					const options = quickDiff.isSCM
-						? pattern.added ? this.addedPatternOptions : this.addedOptions
-						: pattern.added
-							? {
-								...this.addedPatternOptions,
-								linesDecorationsClassName: `${this.addedPatternOptions.linesDecorationsClassName} dirty-diff-secondary`,
-							}
-							: {
-								...this.addedOptions,
-								linesDecorationsClassName: `${this.addedOptions.linesDecorationsClassName} dirty-diff-secondary`,
-							};
-
+				case ChangeType.Add:
 					decorations.push({
 						range: {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options
+						options: quickDiff.isSCM
+							? pattern.added ? this.addedPatternOptions : this.addedOptions
+							: pattern.added ? this.addedSecondaryPatternOptions : this.addedSecondaryOptions
 					});
 					break;
-				}
 				case ChangeType.Delete:
 					decorations.push({
 						range: {
 							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
 							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
 						},
-						options: this.deletedOptions
+						options: quickDiff.isSCM ? this.deletedOptions : this.deletedSecondaryOptions
 					});
 					break;
-				case ChangeType.Modify: {
-					const options = quickDiff.isSCM
-						? pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
-						: pattern.modified
-							? {
-								...this.modifiedPatternOptions,
-								linesDecorationsClassName: `${this.modifiedPatternOptions.linesDecorationsClassName} dirty-diff-secondary`,
-							}
-							: {
-								...this.modifiedOptions,
-								linesDecorationsClassName: `${this.modifiedOptions.linesDecorationsClassName} dirty-diff-secondary`,
-							};
-
+				case ChangeType.Modify:
 					decorations.push({
 						range: {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options
+						options: quickDiff.isSCM
+							? pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
+							: pattern.modified ? this.modifiedSecondaryPatternOptions : this.modifiedSecondaryOptions
 					});
 					break;
-				}
 			}
 		}
 
@@ -297,7 +310,9 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		this.viewState = state;
 		this.stylesheet.textContent = `
 			.monaco-editor .dirty-diff-added,
-			.monaco-editor .dirty-diff-modified {
+			.monaco-editor .dirty-diff-added-secondary,
+			.monaco-editor .dirty-diff-modified,
+			.monaco-editor .dirty-diff-modified-secondary {
 				border-left-width:${state.width}px;
 			}
 			.monaco-editor .dirty-diff-added-pattern,
@@ -307,8 +322,10 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 				background-size: ${state.width}px ${state.width}px;
 			}
 			.monaco-editor .dirty-diff-added,
+			.monaco-editor .dirty-diff-added-secondary,
 			.monaco-editor .dirty-diff-added-pattern,
 			.monaco-editor .dirty-diff-modified,
+			.monaco-editor .dirty-diff-modified-secondary,
 			.monaco-editor .dirty-diff-modified-pattern,
 			.monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};

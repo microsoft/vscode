@@ -30,15 +30,17 @@
 	border-left-style: solid;
 }
 
-.monaco-editor .dirty-diff-added.dirty-diff-secondary,
-.monaco-editor .dirty-diff-added.dirty-diff-secondary:before,
-.monaco-editor .dirty-diff-modified.dirty-diff-secondary,
-.monaco-editor .dirty-diff-modified.dirty-diff-secondary:before {
-	opacity: 0.5;
-}
-
 .monaco-editor .dirty-diff-added:before {
 	background: var(--vscode-editorGutter-addedBackground);
+}
+
+.monaco-editor .dirty-diff-added-secondary {
+	border-left-color: var(--vscode-editorGutter-addedSecondaryBackground);
+	border-left-style: solid;
+}
+
+.monaco-editor .dirty-diff-added-secondary:before {
+	background: var(--vscode-editorGutter-addedSecondaryBackground);
 }
 
 .monaco-editor .dirty-diff-added-pattern {
@@ -60,6 +62,15 @@
 	background: var(--vscode-editorGutter-modifiedBackground);
 }
 
+.monaco-editor .dirty-diff-modified-secondary {
+	border-left-color: var(--vscode-editorGutter-modifiedSecondaryBackground);
+	border-left-style: solid;
+}
+
+.monaco-editor .dirty-diff-modified-secondary:before {
+	background: var(--vscode-editorGutter-modifiedSecondaryBackground);
+}
+
 .monaco-editor .dirty-diff-modified-pattern {
 	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-modifiedBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedBackground) 50%, var(--vscode-editorGutter-modifiedBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 	background-repeat: repeat-y;
@@ -79,7 +90,9 @@
 
 .monaco-editor .margin:hover .dirty-diff-added,
 .monaco-editor .margin:hover .dirty-diff-added-pattern,
+.monaco-editor .margin:hover .dirty-diff-added-secondary,
 .monaco-editor .margin:hover .dirty-diff-modified,
+.monaco-editor .margin:hover .dirty-diff-modified-secondary,
 .monaco-editor .margin:hover .dirty-diff-modified-pattern {
 	opacity: 1;
 }
@@ -98,7 +111,22 @@
 	pointer-events: none;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:after {
+.monaco-editor .dirty-diff-deleted-secondary:after {
+	content: '';
+	position: absolute;
+	bottom: -4px;
+	box-sizing: border-box;
+	width: 4px;
+	height: 0;
+	z-index: 9;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	border-left: 4px solid var(--vscode-editorGutter-deletedSecondaryBackground);
+	pointer-events: none;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:after,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted-secondary:after {
 	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, opacity 0.5s;
 }
 
@@ -109,7 +137,15 @@
 	bottom: 0;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:before {
+.monaco-editor .dirty-diff-deleted-secondary:before {
+	background: var(--vscode-editorGutter-deletedSecondaryBackground);
+	margin-left: 3px;
+	height: 0;
+	bottom: 0;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:before,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted-secondary:before {
 	transition: height 80ms linear;
 }
 
