@@ -39,10 +39,6 @@ export const DEFAULT_SOURCE_FOLDER = '.github/prompts';
 export const isPromptFile = (
 	fileUri: URI,
 ): boolean => {
-	if (fileUri.scheme !== 'file') {
-		return false;
-	}
-
 	const filename = basename(fileUri.path);
 
 	const hasPromptFileExtension = filename.endsWith(PROMPT_FILE_EXTENSION);
