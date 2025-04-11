@@ -194,7 +194,7 @@ class CellOutputElement extends Disposable {
 		const notebookTextModel = this.notebookEditor.textModel;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
-
+		const currentMimeType = mimeTypes[pick];
 		if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#noMimeType');
 			return undefined;
@@ -208,12 +208,12 @@ class CellOutputElement extends Disposable {
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
 		if (index === 0 || this.output.visible.get()) {
-			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
 		} else {
 			this._register(autorun((reader) => {
 				const visible = reader.readObservable(this.output.visible);
 				if (visible && !this.toolbarAttached) {
-					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
 				} else if (!visible) {
 					this.toolbarDisposables.clear();
 				}
@@ -292,7 +292,7 @@ class CellOutputElement extends Disposable {
 		return true;
 	}
 
-	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
+	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, currentMimeType: IOrderedMimeType, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1;
 		const isCopyEnabled = this.shouldEnableCopy(mimeTypes);
 		if (index > 0 && !hasMultipleMimeTypes && !isCopyEnabled) {
@@ -330,7 +330,7 @@ class CellOutputElement extends Disposable {
 		const cellOutputMimetype = NOTEBOOK_CELL_OUTPUT_MIMETYPE.bindTo(menuContextKeyService);
 		isFirstCellOutput.set(index === 0);
 		if (mimeTypes[index]) {
-			cellOutputMimetype.set(mimeTypes[index].mimeType);
+			cellOutputMimetype.set(currentMimeType.mimeType);
 		}
 		this.toolbarDisposables.add(autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); }));
 		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
