@@ -83,6 +83,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		this._register(this._editorObs.editor.onMouseMove((e: IEditorMouseEvent) => {
 			const el = this._iconRef.element;
+			if (el === undefined) { return; }
+
 			const rect = el.getBoundingClientRect();
 			const rectangularArea = Rect.fromLeftTopWidthHeight(rect.left, rect.top, rect.width, rect.height);
 			const point = new Point(e.event.posx, e.event.posy);
