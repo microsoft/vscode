@@ -41,7 +41,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -53,7 +53,7 @@ enum ConfigureItem {
 	CUSTOM_TOP_ENTRY = 'customTopEntry'
 }
 
-class MarketplaceThemesPicker {
+class MarketplaceThemesPicker implements IDisposable {
 	private readonly _installedExtensions: Promise<Set<string>>;
 	private readonly _marketplaceExtensions: Set<string> = new Set();
 	private readonly _marketplaceThemes: ThemeItem[] = [];
@@ -275,6 +275,7 @@ class MarketplaceThemesPicker {
 		this._queryDelayer.dispose();
 		this._marketplaceExtensions.clear();
 		this._marketplaceThemes.length = 0;
+		this._onDidChange.dispose();
 	}
 }
 

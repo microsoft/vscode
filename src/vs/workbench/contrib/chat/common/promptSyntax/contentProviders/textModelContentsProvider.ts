@@ -131,6 +131,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		return this.initService.createInstance(
 			FilePromptContentProvider,
 			promptContentsSource.uri,
+			{},
 		);
 	}
 
