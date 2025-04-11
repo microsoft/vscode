@@ -9,9 +9,10 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { IDiffEditor, IEditor } from '../../../../../../../editor/common/editorCommon.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { IDiffEditor, IEditor, IEditorModel } from '../../../../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
@@ -38,6 +39,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	protected abstract get InstanceClass(): new (editor: ITextModel, ...args: any[]) => TInstance;
 
 	constructor(
+		@IModelService modelService: IModelService,
 		@IEditorService editorService: IEditorService,
 		@IInstantiationService initService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
@@ -88,36 +90,55 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 		editorService
 			.visibleTextEditorControls
 			.forEach(this.handleNewEditor.bind(this));
+
+		// subscribe to "language change" events for all models
+		this._register(
+			modelService.onModelLanguageChanged((event) => {
+				const { model, oldLanguageId } = event;
+
+				// if language is set to `prompt` language, handle that model
+				if (isPromptFileModel(model)) {
+					this.instances.get(model);
+					return;
+				}
+
+				// if the language is changed away from `prompt`,
+				// remove and dispose provider for this model
+				if (oldLanguageId === PROMPT_LANGUAGE_ID) {
+					this.instances.remove(model, true);
+					return;
+				}
+			}),
+		);
 	}
 
 	/**
 	 * Initialize a new {@link TInstance} for the given editor.
 	 */
 	private handleNewEditor(editor: IEditor | IDiffEditor): this {
-		if (isPromptFileEditor(editor) === false) {
+		const model = editor.getModel();
+		if (model === null) {
+			return this;
+		}
+
+		if (isPromptFileModel(model) === false) {
 			return this;
 		}
 
 		// note! calling `get` also creates a provider if it does not exist;
 		// 		and the provider is auto-removed when the editor is disposed
-		this.instances.get(editor.getModel());
+		this.instances.get(model);
 
 		return this;
 	}
 }
 
 /**
- * Check if a provided editor is a text editor that is used for reusable
- * prompt files.
+ * Check if a provided model is used for prompt files.
  */
-const isPromptFileEditor = (
-	editor: IEditor | IDiffEditor,
-): editor is IPromptFileEditor => {
-	const model = editor.getModel();
-	if (model === null) {
-		return false;
-	}
-
+const isPromptFileModel = (
+	model: IEditorModel,
+): model is ITextModel => {
 	// we support only `text editors` for now so filter out `diff` ones
 	if ('modified' in model || 'model' in model) {
 		return false;
