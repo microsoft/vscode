@@ -501,7 +501,11 @@ export class CreatorOverlayPart extends Part {
 		topOfBodyElement.style.top = "0";
 		topOfBodyElement.style.left = "0";
 		topOfBodyElement.style.width = "100%";
-		topOfBodyElement.style.backgroundColor = "#FFFFFF";
+		const backgroundColor = this.themeService
+			.getColorTheme()
+			.getColor("editor.background");
+		topOfBodyElement.style.backgroundColor =
+			backgroundColor?.toString() || "#1E1E1E";
 		topOfBodyElement.style.display = "block";
 		topOfBodyElement.style.overflow = "hidden";
 		topOfBodyElement.style.transition =
@@ -540,8 +544,16 @@ export class CreatorOverlayPart extends Part {
 		blurGradient.style.width = "100%";
 		blurGradient.style.height = "10vh";
 		blurGradient.style.zIndex = "30";
-		blurGradient.style.background =
-			"linear-gradient(to bottom, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.9) 20%, rgba(255, 255, 255, 0.7) 30%, rgba(255, 255, 255, 0.3) 80%, rgba(255, 255, 255, 0) 100%)";
+		const bgColor = this.themeService
+			.getColorTheme()
+			.getColor("editor.background");
+		const bgColorStr = bgColor?.toString() || "#1E1E1E";
+		blurGradient.style.background = `linear-gradient(to bottom,
+				${bgColorStr} 0%,
+				${bgColor?.transparent(0.9).toString() || "rgba(30, 30, 30, 0.5)"} 20%,
+				${bgColor?.transparent(0.7).toString() || "rgba(30, 30, 30, 0.8)"} 30%,
+				${bgColor?.transparent(0.3).toString() || "rgba(30, 30, 30, 0.9)"} 80%,
+				${bgColor?.transparent(0).toString() || "rgba(30, 30, 30, 1)"} 100%)`;
 		blurGradient.style.position = "absolute";
 		blurGradient.style.top = "0";
 		blurGradient.style.left = "0";
