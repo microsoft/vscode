@@ -45,6 +45,7 @@ export const discoverySourceLabel: Record<DiscoverySource, string> = {
 
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
+export const mcpEnabledSection = 'chat.mcp.enabled';
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {
@@ -124,7 +125,8 @@ export const mcpServerSchema: IJSONSchema = {
 							format: 'uri',
 							description: localize('app.mcp.json.url', "The URL of the server-sent-event (SSE) server.")
 						},
-						env: {
+						headers: {
+							type: 'object',
 							description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
 							additionalProperties: { type: 'string' },
 						},

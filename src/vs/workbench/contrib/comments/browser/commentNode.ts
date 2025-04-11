@@ -223,7 +223,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private updateCommentUserIcon(userIconPath: UriComponents | undefined) {
 		this._avatar.textContent = '';
 		if (userIconPath) {
-			const img = <HTMLImageElement>dom.append(this._avatar, dom.$('img.avatar'));
+			const img = dom.append(this._avatar, dom.$('img.avatar')) as HTMLImageElement;
 			img.src = FileAccess.uriToBrowserUri(URI.revive(userIconPath)).toString(true);
 			img.onerror = _ => img.remove();
 		}

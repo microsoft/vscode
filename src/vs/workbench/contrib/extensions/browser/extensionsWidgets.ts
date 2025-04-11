@@ -109,10 +109,6 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (!this.small && !this.extension.url) {
-			return;
-		}
-
 		const parent = this.small ? this.container : append(this.container, $('span.install', { tabIndex: 0 }));
 		append(parent, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
 		const count = append(parent, $('span.count'));
@@ -126,7 +122,7 @@ export class InstallCountWidget extends ExtensionWidget {
 	static getInstallLabel(extension: IExtension, small: boolean): string | undefined {
 		const installCount = extension.installCount;
 
-		if (installCount === undefined) {
+		if (!installCount) {
 			return undefined;
 		}
 

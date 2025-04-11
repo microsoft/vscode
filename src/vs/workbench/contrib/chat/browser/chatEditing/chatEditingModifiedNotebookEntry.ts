@@ -43,7 +43,7 @@ import { INotebookEditorModelResolverService } from '../../../notebook/common/no
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../../notebook/common/services/notebookWorkerService.js';
-import { ChatEditKind, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
@@ -115,7 +115,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
 			if (initialContent) {
-				restoreSnapshot(originalRef.object.notebook, initialContent);
+				try {
+					restoreSnapshot(originalRef.object.notebook, initialContent);
+				} catch (ex) {
+					console.error(`Error restoring snapshot: ${initialContent}`, ex);
+					initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
+				}
 			} else {
 				initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
 				// Both models are the same, ensure the cell ids are the same, this way we get a perfect diffing.
@@ -253,12 +258,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// const didResetToOriginalContent = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService) === this.initialContent;
 		let didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
 		const currentState = this._stateObs.get();
-		if (currentState === WorkingSetEntryState.Rejected) {
+		if (currentState === ModifiedFileEntryState.Rejected) {
 			return;
 		}
-		if (currentState === WorkingSetEntryState.Modified && didResetToOriginalContent) {
-			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
+			this.initializeModelsFromDiff();
 			return;
 		}
 
@@ -394,14 +400,16 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
-		if (currentState === WorkingSetEntryState.Modified && didResetToOriginalContent) {
-			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
+			this.initializeModelsFromDiff();
 			return;
 		}
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
+		this.revertMarkdownPreviewStates();
 		this.updateCellDiffInfo([], tx);
 		const snapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		restoreSnapshot(this.originalModel, snapshot);
@@ -423,6 +431,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 			});
 		}
+	}
+
+	private revertMarkdownPreviewStates() {
+		this.cellEntryMap.forEach(entry => !entry.disposed && entry.revertMarkdownPreviewState());
 	}
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {
@@ -476,6 +488,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// create a snapshot of the current state of the model, before the next set of edits
 		let initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
 		let last = '';
+		let redoState = ModifiedFileEntryState.Rejected;
 
 		return {
 			type: UndoRedoElementType.Resource,
@@ -485,11 +498,30 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			confirmBeforeUndo: false,
 			undo: async () => {
 				last = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
-				restoreSnapshot(this.modifiedModel, initial);
+				this._isEditFromUs = true;
+				try {
+					restoreSnapshot(this.modifiedModel, initial);
+					restoreSnapshot(this.originalModel, initial);
+				} finally {
+					this._isEditFromUs = false;
+				}
+				redoState = this._stateObs.get() === ModifiedFileEntryState.Accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
+				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
+				this.updateCellDiffInfo([], undefined);
+				this.initializeModelsFromDiff();
 			},
 			redo: async () => {
 				initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
-				restoreSnapshot(this.modifiedModel, last);
+				this._isEditFromUs = true;
+				try {
+					restoreSnapshot(this.modifiedModel, last);
+					restoreSnapshot(this.originalModel, last);
+				} finally {
+					this._isEditFromUs = false;
+				}
+				this._stateObs.set(redoState, undefined);
+				this.updateCellDiffInfo([], undefined);
+				this.initializeModelsFromDiff();
 			}
 		};
 	}
@@ -573,7 +605,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		transaction((tx) => {
 			if (!isLastEdits) {
-				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
 				this._rewriteRatioObs.set(Math.min(1, newRewriteRation), tx);
@@ -650,7 +682,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private computeStateAfterAcceptingRejectingChanges(accepted: boolean) {
 		const currentSnapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		if (new SnapshotComparer(currentSnapshot).isEqual(this.originalModel)) {
-			const state = accepted ? WorkingSetEntryState.Accepted : WorkingSetEntryState.Rejected;
+			const state = accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
 			this._stateObs.set(state, undefined);
 		}
 	}
@@ -987,9 +1019,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 
 			const cellState = cellEntry.state.read(r);
-			if (cellState === WorkingSetEntryState.Accepted) {
+			if (cellState === ModifiedFileEntryState.Accepted) {
 				this.computeStateAfterAcceptingRejectingChanges(true);
-			} else if (cellState === WorkingSetEntryState.Rejected) {
+			} else if (cellState === ModifiedFileEntryState.Rejected) {
 				this.computeStateAfterAcceptingRejectingChanges(false);
 			}
 		}));

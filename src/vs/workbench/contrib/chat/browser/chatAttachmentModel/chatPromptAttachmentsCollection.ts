@@ -29,7 +29,7 @@ export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
 ): IChatRequestVariableEntry => {
-	const { uri, isPromptFile: isPromptFile } = reference;
+	const { uri, isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
@@ -52,9 +52,7 @@ export const toChatVariable = (
 		id,
 		name: uri.fsPath,
 		value: uri,
-		isSelection: false,
-		enabled: true,
-		isFile: true,
+		kind: 'file',
 	};
 };
 
@@ -95,7 +93,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 			const { reference } = attachment;
 
 			// the usual URIs list of prompt instructions is `bottom-up`, therefore
-			// we do the same herfe - first add all child references of the model
+			// we do the same here - first add all child references of the model
 			result.push(
 				...reference.allValidReferences.map((link) => {
 					return toChatVariable(link, false);
@@ -104,7 +102,13 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 
 			// then add the root reference of the model itself
 			result.push(
-				toChatVariable(reference, true),
+				toChatVariable({
+					uri: reference.uri,
+					// the attached file must have been a prompt file therefore
+					// we force that assumption here; this makes sure that prompts
+					// in untitled documents can be also attached to the chat input
+					isPromptFile: true,
+				}, true),
 			);
 		}
 
@@ -169,11 +173,13 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	/**
 	 * Add a prompt instruction attachment instance with the provided `URI`.
 	 * @param uri URI of the prompt instruction attachment to add.
+	 *
+	 * @returns `true` if the attachment already exists, `false` otherwise.
 	 */
-	public add(uri: URI): this {
+	public add(uri: URI): boolean {
 		// if already exists, nothing to do
 		if (this.attachments.has(uri.path)) {
-			return this;
+			return true;
 		}
 
 		const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
@@ -191,7 +197,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 		this._onAdd.fire(instruction);
 		this._onUpdate.fire();
 
-		return this;
+		return false;
 	}
 
 	/**

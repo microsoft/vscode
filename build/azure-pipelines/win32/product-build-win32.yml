@@ -5,12 +5,18 @@ parameters:
     type: string
   - name: VSCODE_CIBUILD
     type: boolean
-  - name: VSCODE_RUN_UNIT_TESTS
+  - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
-  - name: VSCODE_RUN_INTEGRATION_TESTS
+    default: false
+  - name: VSCODE_RUN_BROWSER_TESTS
     type: boolean
-  - name: VSCODE_RUN_SMOKE_TESTS
+    default: false
+  - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
+    default: false
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
+    default: ""
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -57,7 +63,7 @@ steps:
 
   - pwsh: |
       mkdir .build -ea 0
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/packagelockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -171,17 +177,6 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - template: product-build-win32-test.yml@self
-      parameters:
-        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-        VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
-        VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
-        VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
-
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: DownloadPipelineArtifact@2
@@ -226,87 +221,59 @@ steps:
           echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
         displayName: Find ESRP CLI
 
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Codesign executables and shared libraries
+        displayName: ✍️ Codesign
 
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.ps1'
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Codesign Powershell scripts
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: product-build-win32-test.yml@self
+      parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+        VSCODE_TEST_ARTIFACT_NAME: ${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.appx'
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Codesign context menu appx package
-
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
+          exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
+        condition: succeededOrFailed()
+        displayName: "✍️ Post-job: Codesign"
+
+      - powershell: |
+          $ErrorActionPreference = "Stop"
+
           $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
           $Version = $PackageJson.version
-          echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
-        condition: succeededOrFailed()
-        displayName: Get product version
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $ArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip"
-          New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\VSCode-win32-$(VSCODE_ARCH)\* "-xr!CodeSignSummary*.md" }
-          echo "##vso[task.setvariable variable=CLIENT_PATH]$ArchivePath"
+          $ClientArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$Version.zip"
+          $ServerArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
+          $WebArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
 
-          echo "Listing archive contents"
-          7z.exe l $ArchivePath
-        condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
-        displayName: Package client
-
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
-          New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) }
-          echo "##vso[task.setvariable variable=SERVER_PATH]$ArchivePath"
-
-          echo "Listing archive contents"
-          7z.exe l $ArchivePath
-        condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER'], 'true'))
-        displayName: Package server
-
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
-          New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web }
-          echo "##vso[task.setvariable variable=WEB_PATH]$ArchivePath"
-
-          echo "Listing archive contents"
-          7z.exe l $ArchivePath
-        condition: and(succeededOrFailed(), eq(variables['BUILT_WEB'], 'true'))
-        displayName: Package server (web)
-
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { npm exec -- npm-run-all -lp "gulp vscode-win32-$(VSCODE_ARCH)-system-setup -- --sign" "gulp vscode-win32-$(VSCODE_ARCH)-user-setup -- --sign"  }
-
-          $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
-          $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+          $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe"
+          $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe"
 
           mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SystemSetupPath
           mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $UserSetupPath
 
+          echo "##vso[task.setvariable variable=CLIENT_PATH]$ClientArchivePath"
+          echo "##vso[task.setvariable variable=SERVER_PATH]$ServerArchivePath"
+          echo "##vso[task.setvariable variable=WEB_PATH]$WebArchivePath"
+
           echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Build setup packages (system, user)
+        condition: succeededOrFailed()
+        displayName: Move setup packages
 
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))

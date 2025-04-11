@@ -492,7 +492,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		let priority = notification.priority ?? NotificationPriority.DEFAULT;
-		if (priority === NotificationPriority.DEFAULT && severity !== Severity.Error) {
+		if ((priority === NotificationPriority.DEFAULT || priority === NotificationPriority.OPTIONAL) && severity !== Severity.Error) {
 			if (filter.global === NotificationsFilter.ERROR) {
 				priority = NotificationPriority.SILENT; // filtered globally
 			} else if (isNotificationSource(notification.source) && filter.sources.get(notification.source.id) === NotificationsFilter.ERROR) {

@@ -88,7 +88,7 @@ export class ChatRequestToolPart implements IParsedChatRequestPart {
 	}
 
 	toVariableEntry(): IChatRequestVariableEntry {
-		return { id: this.toolId, name: this.toolName, range: this.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(this.icon) ? this.icon : undefined, fullName: this.displayName };
+		return { kind: 'tool', id: this.toolId, name: this.toolName, range: this.range, value: undefined, icon: ThemeIcon.isThemeIcon(this.icon) ? this.icon : undefined, fullName: this.displayName };
 	}
 }
 
@@ -164,7 +164,7 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 			return IDiagnosticVariableEntryFilterData.toEntry((this.data as IChatRequestProblemsVariable).filter);
 		}
 
-		return { id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon, isFile: this.isFile, isDirectory: this.isDirectory };
+		return { kind: this.isDirectory ? 'directory' : this.isFile ? 'file' : 'generic', id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon };
 	}
 }
 

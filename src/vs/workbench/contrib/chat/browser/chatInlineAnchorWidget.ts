@@ -39,7 +39,6 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
@@ -228,14 +227,12 @@ registerAction2(class AddFileToChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const variablesService = accessor.get(IChatVariablesService);
 
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
-		}
+		if (widget) {
+			widget.attachmentModel.addFile(resource);
 
-		variablesService.attachContext('file', resource, widget.location);
+		}
 	}
 });
 
@@ -365,11 +362,12 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		await openEditorWithSelection(editorService, location);
 
 		const action = new DefinitionAction({ openToSide: false, openInPeek: false, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
-		return action.run(accessor);
+		return instantiationService.invokeFunction(accessor => action.run(accessor));
 	}
 });
 

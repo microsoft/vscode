@@ -8,22 +8,23 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { LeftBracket } from '../simpleCodec/tokens/brackets.js';
 import { PartialMarkdownImage } from './parsers/markdownImage.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
+import { TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
 import { LeftAngleBracket } from '../simpleCodec/tokens/angleBrackets.js';
 import { ExclamationMark } from '../simpleCodec/tokens/exclamationMark.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
 import { MarkdownCommentStart, PartialMarkdownCommentStart } from './parsers/markdownComment.js';
+import { MarkdownExtensionsDecoder } from '../markdownExtensionsCodec/markdownExtensionsDecoder.js';
 import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } from './parsers/markdownLink.js';
 
 /**
- * Tokens handled by this decoder.
+ * Tokens produced by this decoder.
  */
-export type TMarkdownToken = MarkdownToken | TSimpleToken;
+export type TMarkdownToken = MarkdownToken | TSimpleDecoderToken;
 
 /**
  * Decoder capable of parsing markdown entities (e.g., links) from a sequence of simple tokens.
  */
-export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
+export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderToken> {
 	/**
 	 * Current parser object that is responsible for parsing a sequence of tokens into
 	 * some markdown entity. Set to `undefined` when no parsing is in progress at the moment.
@@ -36,10 +37,10 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 	constructor(
 		stream: ReadableStream<VSBuffer>,
 	) {
-		super(new SimpleDecoder(stream));
+		super(new MarkdownExtensionsDecoder(stream));
 	}
 
-	protected override onStreamData(token: TSimpleToken): void {
+	protected override onStreamData(token: TSimpleDecoderToken): void {
 		// `markdown links` start with `[` character, so here we can
 		// initiate the process of parsing a markdown link
 		if (token instanceof LeftBracket && !this.current) {
@@ -92,8 +93,9 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 			// then reset the current parser object
 			for (const token of this.current.tokens) {
 				this._onData.fire(token);
-				delete this.current;
 			}
+
+			delete this.current;
 		}
 
 		// if token was not consumed by the parser, call `onStreamData` again
@@ -119,11 +121,12 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 
 			// in all other cases, re-emit existing parser tokens
 			const { tokens } = this.current;
-			delete this.current;
 
 			for (const token of [...tokens]) {
 				this._onData.fire(token);
 			}
+
+			delete this.current;
 		}
 
 		super.onStreamEnd();

@@ -5,9 +5,20 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { assertDefined } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { FilePromptParser } from '../../common/promptSyntax/parsers/filePromptParser.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { isUntitled } from '../../../../../platform/prompts/common/constants.js';
+import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
+import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TextModelContentsProvider } from '../../common/promptSyntax/contentProviders/textModelContentsProvider.js';
+import { FilePromptContentProvider } from '../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
+
+/**
+ * Type for a generic prompt parser object.
+ */
+type TPromptParser = BasePromptParser<IPromptContentsProvider>;
 
 /**
  * Model for a single chat prompt instructions attachment.
@@ -17,11 +28,12 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
 	 */
-	private readonly _reference: FilePromptParser;
+	private readonly _reference: TPromptParser;
+
 	/**
 	 * Get the prompt instructions reference instance.
 	 */
-	public get reference(): FilePromptParser {
+	public get reference(): TPromptParser {
 		return this._reference;
 	}
 
@@ -51,7 +63,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 * Promise that resolves when the prompt is fully parsed,
 	 * including all its possible nested child references.
 	 */
-	public get allSettled(): Promise<FilePromptParser> {
+	public get allSettled(): Promise<TPromptParser> {
 		return this.reference.allSettled();
 	}
 
@@ -97,14 +109,46 @@ export class ChatPromptAttachmentModel extends Disposable {
 	}
 
 	constructor(
-		uri: URI,
+		public readonly uri: URI,
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@IModelService private readonly textModelService: IModelService,
 	) {
 		super();
 
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this._reference = this._register(this.initService.createInstance(FilePromptParser, uri, []))
-			.onUpdate(this._onUpdate.fire);
+		this._reference = this._register(this.initService.createInstance(
+			BasePromptParser,
+			this.getContentsProvider(uri),
+			[],
+		));
+
+		this._reference.onUpdate(this._onUpdate.fire);
+	}
+
+	/**
+	 * Get prompt contents provider object based on the prompt type.
+	 */
+	private getContentsProvider(
+		uri: URI,
+	): IPromptContentsProvider {
+		// use text model contents provider for `untitled` documents
+		if (isUntitled(uri)) {
+			const model = this.textModelService.getModel(uri);
+
+			assertDefined(
+				model,
+				`Cannot find model of untitled document '${uri.path}'.`,
+			);
+
+			return this.initService.createInstance(TextModelContentsProvider, model);
+		}
+
+		// use file contents provider for all other file documents
+		if (uri.scheme === 'file') {
+			return this._register(this.initService.createInstance(FilePromptContentProvider, uri));
+		}
+
+		throw new Error(`Cannot create prompt contents provider for URI scheme '${uri.scheme}'.`);
 	}
 
 	/**

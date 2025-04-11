@@ -515,16 +515,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// redraw of tabs.
 
 		const activeEditorChanged = this.didActiveEditorChange();
-		const oldActiveTabLabel = this.activeTabLabel;
-		const oldTabLabelsLength = this.tabLabels.length;
+		const oldTabLabels = this.tabLabels;
 		this.computeTabLabels();
 
 		// Redraw and update in these cases
 		let didChange = false;
 		if (
-			activeEditorChanged ||													// active editor changed
-			oldTabLabelsLength !== this.tabLabels.length ||							// number of tabs changed
-			!this.equalsEditorInputLabel(oldActiveTabLabel, this.activeTabLabel)	// active editor label changed
+			activeEditorChanged ||																				// active editor changed
+			oldTabLabels.length !== this.tabLabels.length ||													// number of tabs changed
+			oldTabLabels.some((label, index) => !this.equalsEditorInputLabel(label, this.tabLabels.at(index))) 	// editor labels changed
 		) {
 			this.redraw({ forceRevealActiveTab: true });
 			didChange = true;

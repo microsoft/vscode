@@ -33,11 +33,10 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit.read(reader);
+		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit;
 		if (!editOffset) { return undefined; }
 
-		const offsetEdits = model.inPartialAcceptFlow.read(reader) ? [editOffset.edits[0]] : editOffset.edits;
-		const edits = offsetEdits.map(e => {
+		const edits = editOffset.edits.map(e => {
 			const innerEditRange = Range.fromPositions(
 				textModel.getPositionAt(e.replaceRange.start),
 				textModel.getPositionAt(e.replaceRange.endExclusive)
@@ -82,7 +81,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const inlineCompletion = state.inlineCompletion;
 		if (!inlineCompletion) { return undefined; }
 
-		if (!inlineCompletion.sourceInlineCompletion.showInlineEditMenu) {
+		if (!inlineCompletion.showInlineEditMenu) {
 			return undefined;
 		}
 

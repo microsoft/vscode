@@ -124,10 +124,22 @@ function Global:Prompt() {
 	return $Result
 }
 
+# Report prompt type
+if ($env:STARSHIP_SESSION_KEY) {
+	[Console]::Write("$([char]0x1b)]633;P;PromptType=starship`a")
+}
+elseif ($env:POSH_SESSION_ID) {
+	[Console]::Write("$([char]0x1b)]633;P;PromptType=oh-my-posh`a")
+}
+elseif ($Global:GitPromptSettings) {
+	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
+}
+
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
 if (Get-Module -Name PSReadLine) {
 	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
+
 	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
 		$CommandLine = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()

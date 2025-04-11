@@ -1026,6 +1026,8 @@ export class Repository implements Disposable {
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
+		this.logger.trace(`[Repository][provideOriginalResource] Resource: ${uri.toString()}`);
+
 		if (uri.scheme !== 'file') {
 			return;
 		}
@@ -1063,7 +1065,10 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
-		return toGitUri(uri, '', { replaceFileExtension: true });
+		const originalResource = toGitUri(uri, '', { replaceFileExtension: true });
+		this.logger.trace(`[Repository][provideOriginalResource] Original resource: ${originalResource.toString()}`);
+
+		return originalResource;
 	}
 
 	async getInputTemplate(): Promise<string> {
@@ -1222,7 +1227,7 @@ export class Repository implements Disposable {
 
 	async stage(resource: Uri, contents: string, encoding: string): Promise<void> {
 		await this.run(Operation.Stage, async () => {
-			const data = await workspace.encode(contents, resource, { encoding });
+			const data = await workspace.encode(contents, { encoding });
 			await this.repository.stage(resource.fsPath, data);
 
 			this._onDidChangeOriginalResource.fire(resource);
@@ -1974,12 +1979,12 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Show, async () => {
 			try {
 				const content = await this.repository.buffer(ref, filePath);
-				return await workspace.decode(content, Uri.file(filePath));
+				return await workspace.decode(content, { uri: Uri.file(filePath) });
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
 					const gitFilePath = await this.repository.getGitFilePath(ref, filePath);
 					const content = await this.repository.buffer(ref, gitFilePath);
-					return await workspace.decode(content, Uri.file(filePath));
+					return await workspace.decode(content, { uri: Uri.file(filePath) });
 				}
 
 				throw err;
@@ -2802,23 +2807,32 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 
 	private _disposables: IDisposable[] = [];
 
-	constructor(private readonly _repositoryResolver: IRepositoryResolver) {
+	constructor(
+		private readonly _repositoryResolver: IRepositoryResolver,
+		private readonly logger: LogOutputChannel
+	) {
 		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (working tree + index)')));
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
+		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource: ${uri.toString()}`);
+
 		// Ignore resources outside a repository
 		const repository = this._repositoryResolver.getRepository(uri);
 		if (!repository) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
 			return undefined;
 		}
 
 		// Ignore resources that are not in the index group
 		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
 			return undefined;
 		}
 
-		return toGitUri(uri, 'HEAD', { replaceFileExtension: true });
+		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
+		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
+		return originalResource;
 	}
 
 	dispose() {

@@ -27,13 +27,14 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, isImageVariableEntry, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
+import { IChatTransferService } from './chatTransferService.js';
 import { IChatVariablesService } from './chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
@@ -132,11 +133,6 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatSessionStore: ChatSessionStore;
 
 	@memoize
-	public get unifiedViewEnabled(): boolean {
-		return !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
-	}
-
-	@memoize
 	private get useFileStorage(): boolean {
 		return this.configurationService.getValue(ChatConfiguration.UseFileStorage);
 	}
@@ -158,6 +154,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
+		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 	) {
 		super();
 
@@ -201,7 +198,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
-			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.EditingSession);
+			.filter(session => session.initialLocation === ChatAgentLocation.Panel);
 
 		if (this.useFileStorage) {
 			this._chatSessionStore.storeSessions(liveChats);
@@ -215,23 +212,6 @@ export class ChatService extends Disposable implements IChatService {
 						.filter(session => !this._sessionModels.has(session.sessionId))
 						.filter(session => session.requests.length));
 				allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
-
-				// Only keep one persisted edit session, the latest one. This would be the current one if it's live.
-				// No way to know whether it's currently live or if it has been cleared and there is no current session.
-				// But ensure that we don't store multiple edit sessions.
-				let hasPersistedEditSession = false;
-				allSessions = allSessions.filter(s => {
-					if (s.initialLocation === ChatAgentLocation.EditingSession) {
-						if (hasPersistedEditSession) {
-							return false;
-						} else {
-							hasPersistedEditSession = true;
-							return true;
-						}
-					}
-
-					return true;
-				});
 
 				allSessions = allSessions.slice(0, maxPersistedSessions);
 
@@ -395,7 +375,7 @@ export class ChatService extends Disposable implements IChatService {
 	async getHistory(): Promise<IChatDetail[]> {
 		if (this.useFileStorage) {
 			const liveSessionItems = Array.from(this._sessionModels.values())
-				.filter(session => !session.isImported && (session.initialLocation !== ChatAgentLocation.EditingSession || this.unifiedViewEnabled))
+				.filter(session => !session.isImported)
 				.map(session => {
 					const title = session.title || localize('newChat', "New Chat");
 					return {
@@ -421,7 +401,7 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(session => !this._sessionModels.has(session.sessionId));
 
 		const persistedSessionItems = persistedSessions
-			.filter(session => !session.isImported && session.initialLocation !== ChatAgentLocation.EditingSession)
+			.filter(session => !session.isImported)
 			.map(session => {
 				const title = session.customTitle ?? ChatModel.getDefaultTitle(session.requests);
 				return {
@@ -432,7 +412,7 @@ export class ChatService extends Disposable implements IChatService {
 				} satisfies IChatDetail;
 			});
 		const liveSessionItems = Array.from(this._sessionModels.values())
-			.filter(session => !session.isImported && session.initialLocation !== ChatAgentLocation.EditingSession)
+			.filter(session => !session.isImported)
 			.map(session => {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
@@ -476,7 +456,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
-		if (location === ChatAgentLocation.EditingSession || (this.unifiedViewEnabled && location === ChatAgentLocation.Panel)) {
+		if (location === ChatAgentLocation.Panel) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
 
@@ -490,16 +470,10 @@ export class ChatService extends Disposable implements IChatService {
 			this.trace('initializeSession', `Initialize session ${model.sessionId}`);
 			model.startInitialize();
 
-			await this.extensionService.whenInstalledExtensionsRegistered();
-			const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(model.initialLocation) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
-			if (!defaultAgentData) {
-				throw new ErrorNoTelemetry('No default agent contributed');
-			}
-
 			// Activate the default extension provided agent but do not wait
 			// for it to be ready so that the session can be used immediately
 			// without having to wait for the agent to be ready.
-			this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+			this.activateDefaultAgent(model.initialLocation).catch(e => this.logService.error(e));
 
 			model.initialize();
 		} catch (err) {
@@ -507,6 +481,23 @@ export class ChatService extends Disposable implements IChatService {
 			model.setInitializationError(err);
 			this._sessionModels.deleteAndDispose(model.sessionId);
 			this._onDidDisposeSession.fire({ sessionId: model.sessionId, reason: 'initializationFailed' });
+		}
+	}
+
+	async activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(location) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
+		if (!defaultAgentData) {
+			throw new ErrorNoTelemetry('No default agent contributed');
+		}
+
+		// No setup participant to fall back on- wait for extension activation
+		await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+
+		const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
+		if (!defaultAgent) {
+			throw new ErrorNoTelemetry('No default agent registered');
 		}
 	}
 
@@ -924,7 +915,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async checkAgentAllowed(agent: IChatAgentData): Promise<void> {
-		if (agent.isToolsAgent) {
+		if (agent.modes.includes(ChatMode.Agent)) {
 			const enabled = await this.experimentService.getTreatment<boolean>('chatAgentEnabled');
 			if (enabled === false) {
 				throw new Error('Agent is currently disabled');
@@ -939,7 +930,7 @@ export class ChatService extends Disposable implements IChatService {
 				return 'implicit';
 			} else if (v.range) {
 				// 'range' is range within the prompt text
-				if (v.isTool) {
+				if (v.kind === 'tool') {
 					return 'toolInPrompt';
 				} else {
 					return 'fileInPrompt';
@@ -948,11 +939,11 @@ export class ChatService extends Disposable implements IChatService {
 				return 'command';
 			} else if (v.kind === 'symbol') {
 				return 'symbol';
-			} else if (v.isImage) {
+			} else if (isImageVariableEntry(v)) {
 				return 'image';
-			} else if (v.isDirectory) {
+			} else if (v.kind === 'directory') {
 				return 'directory';
-			} else if (v.isTool) {
+			} else if (v.kind === 'tool') {
 				return 'tool';
 			} else {
 				if (URI.isUri(v.value)) {
@@ -1128,11 +1119,8 @@ export class ChatService extends Disposable implements IChatService {
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.chatTransferService.addWorkspaceToTransferred(toWorkspace);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
-	}
-
-	isEditingLocation(location: ChatAgentLocation): boolean {
-		return location === ChatAgentLocation.EditingSession || this.unifiedViewEnabled;
 	}
 
 	getChatStorageFolder(): URI {

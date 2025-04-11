@@ -7,9 +7,12 @@ import assert from 'assert';
 import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore } from '../../common/lifecycle.js';
-import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
-import { BaseObservable, IObservableWithChange } from '../../common/observableInternal/base.js';
+import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState } from '../../common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { BaseObservable } from '../../common/observableInternal/base.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { observableReducer } from '../../common/observableInternal/reducer.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -312,15 +315,17 @@ suite('observables', () => {
 			const signal = observableSignal<{ msg: string }>('signal');
 
 			const disposable = autorunHandleChanges({
-				// The change summary is used to collect the changes
-				createEmptyChangeSummary: () => ({ msgs: [] as string[] }),
-				handleChange(context, changeSummary) {
-					if (context.didChange(signal)) {
-						// We just push the changes into an array
-						changeSummary.msgs.push(context.change.msg);
-					}
-					return true; // We want to handle the change
-				},
+				changeTracker: {
+					// The change summary is used to collect the changes
+					createChangeSummary: () => ({ msgs: [] as string[] }),
+					handleChange(context, changeSummary) {
+						if (context.didChange(signal)) {
+							// We just push the changes into an array
+							changeSummary.msgs.push(context.change.msg);
+						}
+						return true; // We want to handle the change
+					},
+				}
 			}, (reader, changeSummary) => {
 				// When handling the change, make sure to read the signal!
 				signal.read(reader);
@@ -1525,6 +1530,87 @@ suite('observables', () => {
 			]));
 
 			disp.dispose();
+		});
+	});
+
+	suite('observableReducer', () => {
+		test('main', () => {
+			const store = new DisposableStore();
+			const log = new Log();
+
+			const myObservable1 = observableValue<number, number>('myObservable1', 5);
+			const myObservable2 = observableValue<number, number>('myObservable2', 9);
+
+			const sum = observableReducer(this, {
+				initial: () => {
+					log.log('createInitial');
+					return myObservable1.get() + myObservable2.get();
+				},
+				disposeFinal: (values) => {
+					log.log(`disposeFinal ${values}`);
+				},
+				changeTracker: recordChanges({ myObservable1, myObservable2 }),
+				update: (reader: IDerivedReader<number>, previousValue, changes) => {
+					log.log(`update ${JSON.stringify(changes)}`);
+					let delta = 0;
+					for (const change of changes.changes) {
+						delta += change.change;
+					}
+
+					reader.reportChange(delta);
+					const resultValue = previousValue + delta;
+					log.log(`update -> ${resultValue}`);
+					return resultValue;
+				}
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+			store.add(autorunWithStoreHandleChanges({
+				changeTracker: recordChanges({ sum })
+			}, (_reader, changes) => {
+				log.log(`autorun ${JSON.stringify(changes)}`);
+			}));
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"createInitial",
+				'update {"changes":[],"myObservable1":5,"myObservable2":9}',
+				"update -> 14",
+				'autorun {"changes":[],"sum":14}',
+			]);
+
+			transaction(tx => {
+				myObservable1.set(myObservable1.get() + 1, tx, 1);
+				myObservable2.set(myObservable2.get() + 3, tx, 3);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"update {\"changes\":[{\"key\":\"myObservable1\",\"change\":1},{\"key\":\"myObservable2\",\"change\":3}],\"myObservable1\":6,\"myObservable2\":12}",
+				"update -> 18",
+				"autorun {\"changes\":[{\"key\":\"sum\",\"change\":4}],\"sum\":18}"
+			]));
+
+			transaction(tx => {
+				myObservable1.set(myObservable1.get() + 1, tx, 1);
+				const s = sum.get();
+				log.log(`sum.get() ${s}`);
+				myObservable2.set(myObservable2.get() + 3, tx, 3);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"update {\"changes\":[{\"key\":\"myObservable1\",\"change\":1}],\"myObservable1\":7,\"myObservable2\":12}",
+				"update -> 19",
+				"sum.get() 19",
+				"update {\"changes\":[{\"key\":\"myObservable2\",\"change\":3}],\"myObservable1\":7,\"myObservable2\":15}",
+				"update -> 22",
+				"autorun {\"changes\":[{\"key\":\"sum\",\"change\":1}],\"sum\":22}"
+			]));
+
+			store.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"disposeFinal 22"
+			]));
 		});
 	});
 });

@@ -5,24 +5,28 @@
 
 import { TopError } from './topError.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { PromptToken } from '../codecs/tokens/promptToken.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
-import { IRange } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { IPromptReference, IResolveError, ITopError } from './types.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
-import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 
 /**
@@ -35,6 +39,17 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
 export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
+	/**
+	 * List of all tokens that were parsed from the prompt contents so far.
+	 */
+	public get tokens(): readonly BaseToken[] {
+		return [...this.receivedTokens];
+	}
+	/**
+	 * Private field behind the readonly {@link tokens} property.
+	 */
+	private receivedTokens: BaseToken[] = [];
+
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
@@ -119,7 +134,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Same as {@linkcode settled} but also waits for all possible
+	 * Same as {@link settled} but also waits for all possible
 	 * nested child prompt references and their children to be settled.
 	 */
 	public async allSettled(): Promise<this> {
@@ -138,6 +153,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		private readonly promptContentsProvider: TContentsProvider,
 		seenReferences: string[] = [],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
@@ -203,6 +219,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		this.stream?.dispose();
 		delete this.stream;
 		delete this._errorCondition;
+		this.receivedTokens = [];
 
 		// dispose all currently existing references
 		this.disposeReferences();
@@ -224,6 +241,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// when some tokens received, process and store the references
 		this.stream.on('data', (token) => {
+			// store all markdown and prompt token references
+			if ((token instanceof MarkdownToken) || (token instanceof PromptToken)) {
+				this.receivedTokens.push(token);
+			}
+
+			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
 					this.onReference(FileReference.from(token), [...seenReferences]);
@@ -259,8 +282,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		token: FileReference | MarkdownLink,
 		seenReferences: string[],
 	): this {
+		const { parentFolder } = this;
 
-		const referenceUri = extUri.resolvePath(this.dirname, token.path);
+		const referenceUri = (parentFolder !== null)
+			? extUri.resolvePath(parentFolder, token.path)
+			: URI.file(token.path);
+
 		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
 
 		const reference = this.instantiationService
@@ -313,7 +340,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Private attribute to track if the {@linkcode start}
+	 * Private attribute to track if the {@link start}
 	 * method has been already called at least once.
 	 */
 	private started: boolean = false;
@@ -347,10 +374,26 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Get the parent folder of the file reference.
+	 * Get the parent folder URI of the prompt.
+	 * For instance, if prompt URI points to a file on a disk, this
+	 * function will return the folder URI that contains that file,
+	 * but if the URI points to an `untitled` document, will try to
+	 * use a different folder URI based on the workspace state.
 	 */
-	public get dirname() {
-		return URI.joinPath(this.uri, '..');
+	public get parentFolder(): URI | null {
+		if (this.uri.scheme === 'file') {
+			return dirname(this.uri);
+		}
+
+		const { folders } = this.workspaceService.getWorkspace();
+
+		// single-root workspace, use root folder URI
+		if (folders.length === 1) {
+			return folders[0].uri;
+		}
+
+		// if a multi-root workspace, or no workspace at all
+		return null;
 	}
 
 	/**
@@ -542,10 +585,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
  * a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
 export class PromptReference extends ObservableDisposable implements IPromptReference {
-	public readonly range = this.token.range;
-	public readonly path: string = this.token.path;
-	public readonly text: string = this.token.text;
-
 	/**
 	 * Instance of underlying prompt parser object.
 	 */
@@ -638,6 +677,18 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		this.parser.onUpdate(callback);
 
 		return this;
+	}
+
+	public get range(): Range {
+		return this.token.range;
+	}
+
+	public get path(): string {
+		return this.token.path;
+	}
+
+	public get text(): string {
+		return this.token.text;
 	}
 
 	public get resolveFailed(): boolean | undefined {

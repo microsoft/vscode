@@ -275,7 +275,7 @@ export abstract class BaseDecoder<
 	}
 
 	/**
-	 * Removes a priorly-registered event listener for a specified event.
+	 * Removes a previously-registered event listener for a specified event.
 	 *
 	 * Note!
 	 *  - the callback function must be the same as the one that was used when
@@ -283,7 +283,7 @@ export abstract class BaseDecoder<
 	 *    remove the listener
 	 *  - this method is idempotent and results in no-op if the listener is
 	 *    not found, therefore passing incorrect `callback` function may
-	 *    result in silent unexpected behaviour
+	 *    result in silent unexpected behavior
 	 */
 	public removeListener(event: string, callback: Function): void {
 		for (const [nameName, listeners] of this._listeners.entries()) {

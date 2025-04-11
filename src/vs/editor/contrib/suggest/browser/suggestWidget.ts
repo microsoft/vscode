@@ -231,7 +231,7 @@ export class SuggestWidget implements IDisposable {
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'option',
+				getRole: () => 'listitem',
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: CompletionItem) => {

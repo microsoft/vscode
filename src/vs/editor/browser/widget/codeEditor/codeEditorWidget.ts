@@ -501,8 +501,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const hasTextFocus = this.hasTextFocus();
 			const detachedModel = this._detachModel();
 			this._attachModel(model);
-			if (hasTextFocus && this.hasModel()) {
-				this.focus();
+			if (this.hasModel()) {
+				// we have a new model (with a new view)!
+				if (hasTextFocus) {
+					this.focus();
+				}
+			} else {
+				// we have no model (and no view) anymore
+				// make sure the outside world knows we are not focused
+				this._editorTextFocus.setValue(false);
+				this._editorWidgetFocus.setValue(false);
 			}
 
 			this._removeDecorationTypes();
@@ -1317,7 +1325,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
-	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): readonly string[] {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1357,6 +1365,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		return this._decorationTypeKeysToIds[decorationTypeKey] || [];
 	}
 
 	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {

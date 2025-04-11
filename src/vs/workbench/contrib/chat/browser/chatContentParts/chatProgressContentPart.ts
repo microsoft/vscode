@@ -108,7 +108,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			kind: 'progressMessage',
 			content: workingProgress.isPaused ?
 				new MarkdownString().appendText(localize('pausedMessage', "Paused")) :
-				new MarkdownString().appendText(localize('workingMessage', "Working"))
+				new MarkdownString().appendText(localize('workingMessage', "Working..."))
 		};
 		super(progressMessage, renderer, context, undefined, undefined, workingProgress.isPaused ? Codicon.debugPause : undefined, instantiationService, chatMarkdownAnchorService);
 	}

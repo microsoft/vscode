@@ -7,6 +7,7 @@ import { BasePromptParser } from './basePromptParser.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -18,10 +19,11 @@ export class FilePromptParser extends BasePromptParser<FilePromptContentProvider
 		uri: URI,
 		seenReferences: string[] = [],
 		@IInstantiationService initService: IInstantiationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
 		const contentsProvider = initService.createInstance(FilePromptContentProvider, uri);
-		super(contentsProvider, seenReferences, initService, logService);
+		super(contentsProvider, seenReferences, initService, workspaceService, logService);
 
 		this._register(contentsProvider);
 	}

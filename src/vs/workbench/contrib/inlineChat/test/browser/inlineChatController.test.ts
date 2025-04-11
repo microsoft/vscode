@@ -71,7 +71,7 @@ import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputIn
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
-import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
 
 suite('InlineChatController', function () {
 
@@ -84,6 +84,7 @@ suite('InlineChatController', function () {
 		name: 'testEditorAgent',
 		isDefault: true,
 		locations: [ChatAgentLocation.Editor],
+		modes: [ChatMode.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],

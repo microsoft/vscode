@@ -23,10 +23,12 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
+import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
@@ -109,6 +111,7 @@ export class McpAddConfigurationCommand {
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -322,9 +325,11 @@ export class McpAddConfigurationCommand {
 		const store = new DisposableStore();
 		store.add(autorun(reader => {
 			const colls = this._mcpRegistry.collections.read(reader);
+			const servers = this._mcpService.servers.read(reader);
 			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
 				server => server.label === name ? { server, collection } : undefined));
-			if (match) {
+			const server = match && servers.find(s => s.definition.id === match.server.id);
+			if (match && server) {
 				if (match.collection.presentation?.origin) {
 					this._openerService.openEditor({
 						resource: match.collection.presentation.origin,
@@ -337,6 +342,12 @@ export class McpAddConfigurationCommand {
 					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
 				}
 
+				server.start(true).then(state => {
+					if (state.state === McpConnectionState.Kind.Error) {
+						server.showOutput();
+					}
+				});
+
 				store.dispose();
 			}
 		}));
@@ -344,9 +355,12 @@ export class McpAddConfigurationCommand {
 		store.add(disposableTimeout(() => store.dispose(), 5000));
 	}
 
-	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget) {
+	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget, inputs?: ConfiguredInput[]) {
 		const settings: IMcpConfiguration = { ...getConfigValueInTarget(this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection), target) };
 		settings.servers = { ...settings.servers, [name]: config };
+		if (inputs) {
+			settings.inputs = [...(settings.inputs || []), ...inputs];
+		}
 		return this._configurationService.updateValue(mcpConfigurationSection, settings, target);
 	}
 
@@ -453,8 +467,8 @@ export class McpAddConfigurationCommand {
 				await this._editorService.save(getEditors());
 				try {
 					const contents = await this._fileService.readFile(resource);
-					const config: McpConfigurationServer = parseJsonc(contents.value.toString());
-					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL);
+					const { inputs, ...config }: McpConfigurationServer & { inputs?: ConfiguredInput[] } = parseJsonc(contents.value.toString());
+					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL, inputs);
 					this._editorService.closeEditors(getEditors());
 					this.showOnceDiscovered(name);
 				} catch (e) {

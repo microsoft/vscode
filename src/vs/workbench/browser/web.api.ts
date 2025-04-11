@@ -357,11 +357,6 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
 
-	/**
-	 *  Welcome dialog. Can be dismissed by the user.
-	 */
-	readonly welcomeDialog?: IWelcomeDialog;
-
 	//#endregion
 
 
@@ -655,40 +650,6 @@ export interface IInitialColorTheme {
 	 * A list of workbench colors to apply initially.
 	 */
 	readonly colors?: { [colorId: string]: string };
-}
-
-export interface IWelcomeDialog {
-
-	/**
-	 * Unique identifier of the welcome dialog. The identifier will be used to determine
-	 * if the dialog has been previously displayed.
-	 */
-	id: string;
-
-	/**
-	 * Title of the welcome dialog.
-	 */
-	title: string;
-
-	/**
-	 * Button text of the welcome dialog.
-	 */
-	buttonText: string;
-
-	/**
-	 * Button command to execute from the welcome dialog.
-	 */
-	buttonCommand: string;
-
-	/**
-	 * Message text for the welcome dialog.
-	 */
-	message: string;
-
-	/**
-	 * Media to include in the welcome dialog.
-	 */
-	media: { altText: string; path: string };
 }
 
 export interface IDefaultView {
