@@ -90,7 +90,7 @@ class TestPromptFileReference extends Disposable {
 			this.initService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
-				[],
+				{},
 			),
 		).start();
 
