@@ -16,11 +16,14 @@ function printBanner(title: string) {
 	console.log('\n');
 }
 
-async function handleProcessPromise(name: string, promise: ProcessPromise): Promise<void> {
+async function streamTaskOutputAndCheckResult(name: string, promise: ProcessPromise): Promise<void> {
 	const result = await promise.pipe(process.stdout);
-	if (!result.ok) {
-		throw new Error(`${name} failed: ${result.stderr}`);
+	if (result.ok) {
+		console.log(`\n${name} completed successfully. Duration: ${result.duration} ms`);
+		return;
 	}
+
+	throw new Error(`${name} failed: ${result.stderr}`);
 }
 
 function sign(esrpCliDLLPath: string, type: 'sign-pgp', folder: string, glob: string): ProcessPromise {
@@ -38,16 +41,16 @@ async function main() {
 
 	// Codesign deb package
 	printBanner('Codesign deb package');
-	await handleProcessPromise('Codesign deb package', codesignTask1);
+	await streamTaskOutputAndCheckResult('Codesign deb package', codesignTask1);
 
 	// Codesign rpm package
 	printBanner('Codesign rpm package');
-	await handleProcessPromise('Codesign rpm package', codesignTask2);
+	await streamTaskOutputAndCheckResult('Codesign rpm package', codesignTask2);
 }
 
 main().then(() => {
 	process.exit(0);
 }, err => {
-	console.error(err);
+	console.error(`ERROR: ${err}`);
 	process.exit(1);
 });
