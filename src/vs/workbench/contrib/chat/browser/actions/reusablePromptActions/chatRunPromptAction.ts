@@ -131,6 +131,7 @@ abstract class RunPromptBaseAction extends Action2 {
 			resource,
 			{
 				inNewChat,
+				skipIfImplicitlyAttached: true,
 				commandService,
 				viewsService,
 			},
