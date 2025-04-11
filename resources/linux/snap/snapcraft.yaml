@@ -19,6 +19,9 @@ parts:
   code:
     plugin: dump
     source: .
+    override-build: |
+      snapcraftctl build
+      chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
     stage-packages:
       - ca-certificates
       - libasound2
