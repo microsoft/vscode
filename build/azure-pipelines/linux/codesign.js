@@ -14,11 +14,13 @@ function printBanner(title) {
     console.log('#'.repeat(75));
     console.log('\n');
 }
-async function handleProcessPromise(name, promise) {
+async function streamTaskOutputAndCheckResult(name, promise) {
     const result = await promise.pipe(process.stdout);
-    if (!result.ok) {
-        throw new Error(`${name} failed: ${result.stderr}`);
+    if (result.ok) {
+        console.log(`\n${name} completed successfully. Duration: ${result.duration} ms`);
+        return;
     }
+    throw new Error(`${name} failed: ${result.stderr}`);
 }
 function sign(esrpCliDLLPath, type, folder, glob) {
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
@@ -32,15 +34,15 @@ async function main() {
     const codesignTask2 = sign(esrpCliDLLPath, 'sign-pgp', '.build/linux/rpm', '*.rpm');
     // Codesign deb package
     printBanner('Codesign deb package');
-    await handleProcessPromise('Codesign deb package', codesignTask1);
+    await streamTaskOutputAndCheckResult('Codesign deb package', codesignTask1);
     // Codesign rpm package
     printBanner('Codesign rpm package');
-    await handleProcessPromise('Codesign rpm package', codesignTask2);
+    await streamTaskOutputAndCheckResult('Codesign rpm package', codesignTask2);
 }
 main().then(() => {
     process.exit(0);
 }, err => {
-    console.error(err);
+    console.error(`ERROR: ${err}`);
     process.exit(1);
 });
 //# sourceMappingURL=codesign.js.map
