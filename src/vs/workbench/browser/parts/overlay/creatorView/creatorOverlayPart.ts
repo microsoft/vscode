@@ -78,6 +78,17 @@ export class CreatorOverlayPart extends Part {
 		this._webviewService =
 			this._instantiationService.createInstance(WebviewService);
 
+		// Listen for theme changes
+		this._register(
+			this.themeService.onDidColorThemeChange(
+				(() => {
+					if (this.webviewElement && this.state !== "closed") {
+						this.sendThemeColorsToWebview();
+					}
+				}).bind(this),
+			),
+		);
+
 		this.initialize();
 	}
 
@@ -249,6 +260,32 @@ export class CreatorOverlayPart extends Part {
 		}
 	}
 
+	private sendThemeColorsToWebview() {
+		const theme = this.themeService.getColorTheme();
+		const colors = {
+			background: theme.getColor("editor.background")?.toString(),
+			foreground: theme.getColor("editor.foreground")?.toString(),
+			buttonBackground: theme.getColor("button.background")?.toString(),
+			buttonForeground: theme.getColor("button.foreground")?.toString(),
+			buttonHoverBackground: theme
+				.getColor("button.hoverBackground")
+				?.toString(),
+			linkForeground: theme.getColor("textLink.foreground")?.toString(),
+			linkActiveForeground: theme
+				.getColor("textLink.activeForeground")
+				?.toString(),
+			errorForeground: theme.getColor("errorForeground")?.toString(),
+			focusBorder: theme.getColor("focusBorder")?.toString(),
+			widgetBackground: theme.getColor("editorWidget.background")?.toString(),
+			widgetForeground: theme.getColor("editorWidget.foreground")?.toString(),
+		};
+
+		this.webviewElement?.postMessage({
+			messageType: "themeColors",
+			colors,
+		});
+	}
+
 	protected override createContentArea(element: HTMLElement): HTMLElement {
 		this.element = element;
 
@@ -354,6 +391,7 @@ export class CreatorOverlayPart extends Part {
 				setTimeout(() => {
 					if (!resolved) {
 						console.error("Timeout on webview, didn't load in time");
+						this.sendThemeColorsToWebview();
 						resolve();
 					}
 				}, 1500);
@@ -363,6 +401,7 @@ export class CreatorOverlayPart extends Part {
 						e.message.messageType === "loaded" ||
 						e.message.messageType === "pong"
 					) {
+						this.sendThemeColorsToWebview();
 						resolved = true;
 						resolve();
 					}
