@@ -84,6 +84,9 @@ export class CreatorOverlayPart extends Part {
 				(() => {
 					if (this.webviewElement && this.state !== "closed") {
 						this.sendThemeColorsToWebview();
+						// Refreshing the colours here to keep the webview in sync
+						this.getTopOfBodyElement();
+						this.getBlurOverlayElement();
 					}
 				}).bind(this),
 			),
@@ -278,23 +281,6 @@ export class CreatorOverlayPart extends Part {
 			focusBorder: theme.getColor("focusBorder")?.toString(),
 			widgetBackground: theme.getColor("editorWidget.background")?.toString(),
 			widgetForeground: theme.getColor("editorWidget.foreground")?.toString(),
-			// Additional text-related colors
-			descriptionForeground: theme
-				.getColor("descriptionForeground")
-				?.toString(),
-			textPreformatForeground: theme
-				.getColor("textPreformat.foreground")
-				?.toString(),
-			textSeparatorForeground: theme
-				.getColor("textSeparator.foreground")
-				?.toString(),
-			textBlockQuoteForeground: theme
-				.getColor("textBlockQuote.foreground")
-				?.toString(),
-			textMutedForeground: theme.getColor("textMuted.foreground")?.toString(),
-			textCodeBlockForeground: theme
-				.getColor("textCodeBlock.foreground")
-				?.toString(),
 		};
 
 		this.webviewElement?.postMessage({
@@ -545,83 +531,110 @@ export class CreatorOverlayPart extends Part {
 	public hideOverlayLoadingMessage(): void {}
 
 	private getTopOfBodyElement(): HTMLElement {
-		const existingElement = document.getElementById(
+		let topOfBodyElement = document.getElementById(
 			"top-of-body-injected-container",
-		);
-		if (existingElement) {
-			return existingElement;
+		) as HTMLElement;
+
+		// Create the element if it doesn't exist yet
+		if (!topOfBodyElement) {
+			topOfBodyElement = document.createElement("div");
+			topOfBodyElement.style.position = "relative";
+			topOfBodyElement.style.top = "0";
+			topOfBodyElement.style.left = "0";
+			topOfBodyElement.style.width = "100%";
+			topOfBodyElement.style.display = "block";
+			topOfBodyElement.style.overflow = "hidden";
+			topOfBodyElement.style.transition =
+				"height 500ms cubic-bezier(0.4, 0, 0.2, 1)";
+			topOfBodyElement.style.zIndex = "20";
+			topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
+
+			// Add to body as direct child
+			document.body.insertBefore(topOfBodyElement, document.body.firstChild);
 		}
-		// Create the container element for slide-down animation
-		const topOfBodyElement = document.createElement("div");
-		topOfBodyElement.style.position = "relative";
-		topOfBodyElement.style.top = "0";
-		topOfBodyElement.style.left = "0";
-		topOfBodyElement.style.width = "100%";
+
+		// Always update the background color to ensure it matches current theme
 		const backgroundColor = this.themeService
 			.getColorTheme()
 			.getColor("editor.background");
 		topOfBodyElement.style.backgroundColor =
 			backgroundColor?.toString() || "#1E1E1E";
-		topOfBodyElement.style.display = "block";
-		topOfBodyElement.style.overflow = "hidden";
-		topOfBodyElement.style.transition =
-			"height 500ms cubic-bezier(0.4, 0, 0.2, 1)";
-		topOfBodyElement.style.zIndex = "20";
-		topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
-
-		// Add to body as direct child
-		document.body.insertBefore(topOfBodyElement, document.body.firstChild);
 
 		return topOfBodyElement;
 	}
 
-	private getBlurOverlayElement(): HTMLElement {
-		const existingElement = document.getElementById("blurred-container");
-		if (existingElement) {
-			return existingElement;
+	private getBlurGradientElement(parentElement?: HTMLElement): HTMLElement {
+		// Try to find existing gradient element if parent is provided
+		let blurGradient: HTMLElement | null = null;
+		if (parentElement) {
+			blurGradient = parentElement.querySelector(
+				"#blur-gradient",
+			) as HTMLElement;
 		}
 
-		// Create the blurred container element
-		const blurOverlayElement = document.createElement("div");
-		blurOverlayElement.id = "blurred-container";
-		blurOverlayElement.style.width = "100%";
-		blurOverlayElement.style.height = "90vh";
-		blurOverlayElement.style.display = "block";
-		blurOverlayElement.style.overflow = "hidden";
-		blurOverlayElement.style.zIndex = "20";
-		blurOverlayElement.style.transition =
-			"opacity 500ms cubic-bezier(0.4, 0, 0.2, 1)";
-		blurOverlayElement.style.backdropFilter = "blur(8px)";
-		blurOverlayElement.style.pointerEvents = "none";
-		blurOverlayElement.style.position = "absolute";
-		blurOverlayElement.style.opacity = "1";
+		// Create it if it doesn't exist
+		if (!blurGradient) {
+			blurGradient = document.createElement("div");
+			blurGradient.id = "blur-gradient";
+			blurGradient.style.width = "100%";
+			blurGradient.style.height = "10vh";
+			blurGradient.style.zIndex = "30";
+			blurGradient.style.position = "absolute";
+			blurGradient.style.top = "0";
+			blurGradient.style.left = "0";
 
-		const blurGradient = document.createElement("div");
-		blurGradient.style.width = "100%";
-		blurGradient.style.height = "10vh";
-		blurGradient.style.zIndex = "30";
+			// Append to parent if provided
+			if (parentElement) {
+				parentElement.appendChild(blurGradient);
+			}
+		}
+
+		// Always update the gradient colors to match current theme
 		const bgColor = this.themeService
 			.getColorTheme()
 			.getColor("editor.background");
 		const bgColorStr = bgColor?.toString() || "#1E1E1E";
 		blurGradient.style.background = `linear-gradient(to bottom,
-				${bgColorStr} 0%,
-				${bgColor?.transparent(0.9).toString() || "rgba(30, 30, 30, 0.5)"} 20%,
-				${bgColor?.transparent(0.7).toString() || "rgba(30, 30, 30, 0.8)"} 30%,
-				${bgColor?.transparent(0.3).toString() || "rgba(30, 30, 30, 0.9)"} 80%,
-				${bgColor?.transparent(0).toString() || "rgba(30, 30, 30, 1)"} 100%)`;
-		blurGradient.style.position = "absolute";
-		blurGradient.style.top = "0";
-		blurGradient.style.left = "0";
+			${bgColorStr} 0%,
+			${bgColor?.transparent(0.9).toString() || "rgba(30, 30, 30, 0.5)"} 20%,
+			${bgColor?.transparent(0.7).toString() || "rgba(30, 30, 30, 0.8)"} 30%,
+			${bgColor?.transparent(0.3).toString() || "rgba(30, 30, 30, 0.9)"} 80%,
+			${bgColor?.transparent(0).toString() || "rgba(30, 30, 30, 1)"} 100%)`;
 
-		blurOverlayElement.appendChild(blurGradient);
+		return blurGradient;
+	}
 
-		const topOfBodyElement = this.getTopOfBodyElement();
-		topOfBodyElement.after(blurOverlayElement);
+	private getBlurOverlayElement(): HTMLElement {
+		let blurOverlayElement = document.getElementById(
+			"blurred-container",
+		) as HTMLElement;
+
+		// Create the element if it doesn't exist yet
+		if (!blurOverlayElement) {
+			// Create the blurred container element
+			blurOverlayElement = document.createElement("div");
+			blurOverlayElement.id = "blurred-container";
+			blurOverlayElement.style.width = "100%";
+			blurOverlayElement.style.height = "90vh";
+			blurOverlayElement.style.display = "none";
+			blurOverlayElement.style.overflow = "hidden";
+			blurOverlayElement.style.zIndex = "20";
+			blurOverlayElement.style.transition =
+				"opacity 500ms cubic-bezier(0.4, 0, 0.2, 1)";
+			blurOverlayElement.style.backdropFilter = "blur(8px)";
+			blurOverlayElement.style.pointerEvents = "none";
+			blurOverlayElement.style.position = "absolute";
+			blurOverlayElement.style.opacity = "0";
+
+			const topOfBodyElement = this.getTopOfBodyElement();
+			topOfBodyElement.after(blurOverlayElement);
+		}
+
+		// Get or create and update the blur gradient
+		this.getBlurGradientElement(blurOverlayElement);
 
 		return blurOverlayElement;
 	}
-
 	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
 		return new Promise((resolve) => {
 			// Post message to webview for animation
