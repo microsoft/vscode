@@ -575,7 +575,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb);
+				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb); // renderLine
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -606,7 +606,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb);
+				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb); // renderLine
 				if (!renderResult) {
 					// line does not need rendering
 					continue;

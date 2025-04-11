@@ -98,11 +98,19 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 
+			// const viewportData = new ViewportData(
+			// 	this._selections,
+			// 	partialViewportData,
+			// 	this._context.viewLayout.getWhitespaceViewportData(),
+			// 	this._context.viewModel
+			// );
+
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
+				this._configuration,
 				fontInfo,
 				this.model.getOptions().tabSize,
 				wrappingStrategy,
@@ -304,7 +312,9 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								lineBreaksComputer.addRequest(line, injectedText, null);
+								// Goes from line number to line number so how to get the relevant data?
+								const inlineDecorations = this._lines.getInlineDecorationsOnLine(change.fromLineNumber);
+								lineBreaksComputer.addRequest(change.fromLineNumber, line, injectedText, inlineDecorations, null);
 							}
 							break;
 						}
@@ -313,7 +323,8 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, null);
+							const inlineDecorations = this._lines.getInlineDecorationsOnLine(change.lineNumber);
+							lineBreaksComputer.addRequest(change.lineNumber, change.detail, injectedText, inlineDecorations, null);
 							break;
 						}
 					}

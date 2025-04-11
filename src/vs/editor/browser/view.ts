@@ -117,6 +117,7 @@ export class View extends ViewEventHandler {
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
 	private _ownerID: string;
+	// private _viewPortData: ViewportData | undefined;
 
 	constructor(
 		editorContainer: HTMLElement,
@@ -579,7 +580,7 @@ export class View extends ViewEventHandler {
 				const partialViewportData = this._context.viewLayout.getLinesViewportData();
 				this._context.viewModel.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-				const viewportData = new ViewportData(
+				const viewportData = new ViewportData( // this._viewPortData
 					this._selections,
 					partialViewportData,
 					this._context.viewLayout.getWhitespaceViewportData(),
