@@ -5,8 +5,7 @@
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { normalizeDriveLetter } from '../../../../base/common/labels.js';
-import { basename, basenameOrAuthority } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -22,10 +21,10 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
+import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../notebook/browser/contrib/chat/notebookChatUtils.js';
 import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
-import { getNotebookEditorFromEditorPane, ICellViewModel } from '../../notebook/browser/notebookBrowser.js';
-import { CellUri } from '../../notebook/common/notebookCommon.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, INotebookOutputVariableEntry, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
+import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
 
@@ -239,20 +238,6 @@ function symbolId(resource: URI, range?: IRange): string {
 
 // --- NOTEBOOKS ---
 
-const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = [
-	'text/plain',
-	'text/html',
-	'application/vnd.code.notebook.error',
-	'application/vnd.code.notebook.stdout',
-	'application/x.notebook.stdout',
-	'application/x.notebook.stream',
-	'application/vnd.code.notebook.stderr',
-	'application/x.notebook.stderr',
-	'image/png',
-	'image/jpeg',
-	'image/svg',
-];
-
 export function resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData, editorService: IEditorService): IChatRequestVariableEntry[] {
 	const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 	if (!notebookEditor) {
@@ -267,41 +252,10 @@ export function resolveNotebookOutputAttachContext(data: NotebookCellOutputTrans
 	const mimeType = outputViewModel.pickedMimeType?.mimeType;
 	if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
 
-		// get the cell index
-		const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;
-		const notebookModel = notebookEditor.textModel;
-		const cell: ICellViewModel | undefined = notebookEditor.getCellByHandle(cellFromViewModelHandle);
-		if (!cell || cell.outputsViewModels.length === 0 || !notebookModel) {
+		const entry = createNotebookOutputVariableEntry(outputViewModel, mimeType, notebookEditor);
+		if (!entry) {
 			return [];
 		}
-		// uri of the cell
-		const notebookUri = notebookModel.uri;
-		const cellUri = cell.uri;
-		const cellIndex = notebookModel.cells.indexOf(cell.model);
-
-		// get the output index
-		const outputId = outputViewModel?.model.outputId;
-		let outputIndex: number = 0;
-		if (outputId !== undefined) {
-			// find the output index
-			outputIndex = cell.outputsViewModels.findIndex(output => {
-				return output.model.outputId === outputId;
-			});
-		}
-
-		// construct the URI using the cell uri and output index
-		const outputCellUri = CellUri.generateCellOutputUriWithIndex(notebookUri, cellUri, outputIndex);
-		const fileName = normalizeDriveLetter(basenameOrAuthority(notebookUri));
-
-		const entry: INotebookOutputVariableEntry = {
-			value: outputCellUri,
-			id: outputCellUri.toString(),
-			name: localize('notebookOutputCellLabel', "{0} • Cell {1} • Output {2}", fileName, `${cellIndex + 1}`, `${outputIndex + 1}`),
-			icon: mimeType === 'application/vnd.code.notebook.error' ? ThemeIcon.fromId('error') : undefined,
-			kind: 'notebookOutput',
-			outputIndex,
-			mimeType
-		};
 
 		return [entry];
 	}
