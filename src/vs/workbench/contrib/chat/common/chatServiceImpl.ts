@@ -286,6 +286,12 @@ export class ChatService extends Disposable implements IChatService {
 	notifyUserAction(action: IChatUserActionEvent): void {
 		this._chatServiceTelemetry.notifyUserAction(action);
 		this._onDidPerformUserAction.fire(action);
+		if (action.action.kind === 'chatEditingSessionAction') {
+			const model = this._sessionModels.get(action.sessionId);
+			if (model) {
+				model.notifyEditingAction(action.action);
+			}
+		}
 	}
 
 	async setChatSessionTitle(sessionId: string, title: string): Promise<void> {
@@ -765,7 +771,8 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
-							userSelectedTools: options?.userSelectedTools
+							userSelectedTools: options?.userSelectedTools,
+							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;
 					};
 
@@ -979,7 +986,8 @@ export class ChatService extends Disposable implements IChatService {
 				message: promptTextResult.message,
 				command: request.response.slashCommand?.name,
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-				location: ChatAgentLocation.Panel
+				location: ChatAgentLocation.Panel,
+				editedFileEvents: request.editedFileEvents,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}
