@@ -9,6 +9,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { assertDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -25,6 +26,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { createPromptVariableId } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -234,6 +236,21 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
 	get id() {
+		// IDs for prompt files need to start with a special prefix
+		// that is used by the copilot extension to identify them
+		if (this.isPrompt) {
+			assertDefined(
+				this.value,
+				'Implicit prompt attachments must have a value.',
+			);
+
+			if (URI.isUri(this.value)) {
+				return createPromptVariableId(this.value, true);
+			}
+
+			return createPromptVariableId(this.value.uri, true);
+		}
+
 		if (URI.isUri(this.value)) {
 			return 'vscode.implicit.file';
 		} else if (this.value) {
