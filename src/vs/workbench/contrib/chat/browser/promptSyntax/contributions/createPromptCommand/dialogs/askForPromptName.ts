@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
+import { getFileExtension } from '../../../../../../../../platform/prompts/common/constants.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
+import { TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 
 /**
  * Asks the user for a prompt name.
  */
 export const askForPromptName = async (
-	_type: 'local' | 'user',
+	type: TPromptsType,
 	quickInputService: IQuickInputService,
 ): Promise<string | undefined> => {
+	const fileExtension = getFileExtension(type);
+
 	const result = await quickInputService.input(
 		{
 			placeHolder: localize(
 				'commands.prompts.create.ask-name.placeholder',
-				"Provide a prompt name",
-				PROMPT_FILE_EXTENSION,
+				"Provide a prompt name"
 			),
 		});
 
@@ -32,9 +34,9 @@ export const askForPromptName = async (
 		return undefined;
 	}
 
-	const cleanName = (trimmedName.endsWith(PROMPT_FILE_EXTENSION))
+	const cleanName = (trimmedName.endsWith(fileExtension))
 		? trimmedName
-		: `${trimmedName}${PROMPT_FILE_EXTENSION}`;
+		: `${trimmedName}${fileExtension}`;
 
 	return cleanName;
 };

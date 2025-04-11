@@ -22,19 +22,19 @@ import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../..
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 /**
- * Command ID of the "Use Prompt" command.
+ * Command ID of the "Use Instructions" command.
  */
-export const COMMAND_ID = 'workbench.command.prompts.use';
+export const COMMAND_ID = 'workbench.command.instructions.use';
 
 /**
- * Keybinding of the "Use Prompt" command.
+ * Keybinding of the "Use Instructions" command.
  * The `cmd + /` is the current keybinding for 'attachment', so we use
- * the `alt` key modifier to convey the "prompt attachment" action.
+ * the `alt` key modifier to convey the "instructions attachment" action.
  */
 const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
 
 /**
- * Implementation of the "Use Prompt" command. The command works in the following way.
+ * Implementation of the "Use Instructions" command. The command works in the following way.
  *
  * When executed, it tries to see if a `prompt file` was open in the active code editor
  * (see {@link IChatAttachPromptActionOptions.resource resource}), and if a chat input
@@ -139,12 +139,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 /**
- * Register the "Use Prompt" command in the `command palette`.
+ * Register the "Use Instructions" command in the `command palette`.
  */
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: COMMAND_ID,
-		title: localize('commands.prompts.use.title', "Use Prompt"),
+		title: localize('commands.prompts.use.title', "Use Instructions"),
 		category: CHAT_CATEGORY
 	},
 	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)

@@ -8,7 +8,8 @@ import { LanguageFilter } from '../../../../../editor/common/languageSelector.js
 /**
  * Documentation link for the reusable prompts feature.
  */
-export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const INSTRUCTIONS_DOCUMENTATION_URL = PROMPT_DOCUMENTATION_URL; // TODO: instructions specific link
 
 /**
  * Language ID for the reusable prompt syntax.

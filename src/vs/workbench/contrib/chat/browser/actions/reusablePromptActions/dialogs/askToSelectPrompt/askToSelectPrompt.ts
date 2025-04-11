@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DOCS_OPTION } from './constants.js';
+import { PROMPT_DOCS_OPTION } from './constants.js';
 import { IChatWidget } from '../../../../chat.js';
 import { attachPrompt } from './utils/attachPrompt.js';
 import { handleButtonClick } from './utils/handleButtonClick.js';
@@ -13,7 +13,7 @@ import { createPromptPickItem } from './utils/createPromptPickItem.js';
 import { createPlaceholderText } from './utils/createPlaceholderText.js';
 import { extUri } from '../../../../../../../../base/common/resources.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
-import { IPromptPath } from '../../../../../common/promptSyntax/service/types.js';
+import { IPromptPath, TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
@@ -48,6 +48,11 @@ export interface ISelectPromptOptions {
 	 */
 	readonly promptFiles: readonly IPromptPath[];
 
+	/**
+	 * Type of the prompt files to select.
+	 */
+	readonly type: TPromptsType;
+
 	readonly fileService: IFileService;
 	readonly labelService: ILabelService;
 	readonly viewsService: IViewsService;
@@ -66,7 +71,7 @@ export interface ISelectPromptOptions {
 export const askToSelectPrompt = async (
 	options: ISelectPromptOptions,
 ): Promise<void> => {
-	const { promptFiles, resource, quickInputService, labelService } = options;
+	const { promptFiles, resource, quickInputService, labelService, type } = options;
 
 	const fileOptions = promptFiles.map((promptFile) => {
 		return createPromptPickItem(promptFile, labelService);
@@ -75,7 +80,7 @@ export const askToSelectPrompt = async (
 	/**
 	 * Add a link to the documentation to the end of prompts list.
 	 */
-	fileOptions.push(DOCS_OPTION);
+	fileOptions.push(PROMPT_DOCS_OPTION);
 
 	// if a resource is provided, create an `activeItem` for it to pre-select
 	// it in the UI, and sort the list so the active item appears at the top
@@ -94,7 +99,8 @@ export const askToSelectPrompt = async (
 				uri: resource,
 				// "user" prompts are always registered in the prompts list, hence it
 				// should be safe to assume that `resource` is not "user" prompt here
-				type: 'local',
+				storage: 'local',
+				type,
 			}, labelService);
 			fileOptions.push(activeItem);
 		}
@@ -164,7 +170,7 @@ export const askToSelectPrompt = async (
 			const selectedOption = selectedItems[0];
 
 			// whether user selected the docs link option
-			const docsSelected = (selectedOption === DOCS_OPTION);
+			const docsSelected = (selectedOption === PROMPT_DOCS_OPTION);
 
 			// if documentation item was selected, open its link in a browser
 			if (docsSelected) {

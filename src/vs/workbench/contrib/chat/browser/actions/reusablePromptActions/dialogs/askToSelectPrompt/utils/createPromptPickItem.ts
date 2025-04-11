@@ -19,19 +19,19 @@ export const createPromptPickItem = (
 	promptFile: IPromptPath,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
-	const { uri, type } = promptFile;
+	const { uri, storage } = promptFile;
 	const fileWithoutExtension = getCleanPromptName(uri);
 
 	// if a "user" prompt, don't show its filesystem path in
 	// the user interface, but do that for all the "local" ones
-	const description = (type === 'user')
+	const description = (storage === 'user')
 		? localize(
 			'user-prompt.capitalized',
 			'User prompt',
 		)
 		: labelService.getUriLabel(dirname(uri), { relative: true });
 
-	const tooltip = (type === 'user')
+	const tooltip = (storage === 'user')
 		? description
 		: uri.fsPath;
 
