@@ -60,6 +60,7 @@ import { safeIntl } from '../../../../base/common/date.js';
 import { CONTEXT_UPDATE_STATE } from '../../../contrib/update/browser/update.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { CommandEmitter } from '../../../../platform/commands/browser/commandEmitter.js';
+import { getLogOutSVG } from '../overlay/creatorView/misc/index.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -781,24 +782,50 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private createCreatorModeButton() {
 		// Adding the creator mode button to the action toolbar so there's always space for it
-    const creatorModeButton = append(this.actionToolBarElement, $('.creator-mode-button'));
+		const creatorModeButton = append(
+			this.actionToolBarElement,
+			$(".creator-mode-button"),
+		);
 
-    creatorModeButton.style.backgroundColor = '#000000';
-    creatorModeButton.style.color = '#ffffff';
-    creatorModeButton.style.padding = '8px 8px';
-		creatorModeButton.style.margin = '8px';
-    creatorModeButton.style.borderRadius = '8px';
-    creatorModeButton.style.border = 'none';
-    creatorModeButton.style.cursor = 'pointer';
-    creatorModeButton.style.fontSize = '14px';
-    creatorModeButton.style.display = 'inline-flex';
-    creatorModeButton.style.alignItems = 'center';
-    creatorModeButton.style.justifyContent = 'center';
-		creatorModeButton.style.height = "8px";
-    creatorModeButton.innerText = "Enter Creator";
+		creatorModeButton.style.backgroundColor = "#000000";
+		creatorModeButton.style.color = "#ffffff";
+		creatorModeButton.style.padding = "4px 6px";
+		creatorModeButton.style.margin = "6px";
+		creatorModeButton.style.borderRadius = "8px";
+		creatorModeButton.style.border = "none";
+		creatorModeButton.style.cursor = "pointer";
+		creatorModeButton.style.fontSize = "14px";
+		creatorModeButton.style.display = "inline-flex";
+		creatorModeButton.style.alignItems = "center";
+		creatorModeButton.style.justifyContent = "center";
+		creatorModeButton.style.whiteSpace = "nowrap";
+		creatorModeButton.style.transition =
+			"opacity 500ms ease-out, width 500ms ease-out";
+		creatorModeButton.style.width = "110px";
+
+		// Create content wrapper for animation
+		const textSpan = document.createElement("span");
+		textSpan.innerText = "Enter Creator";
+		textSpan.style.transition = "opacity 300ms ease-out";
+		textSpan.style.textAlign = "center";
+		textSpan.style.whiteSpace = "nowrap";
+
+		const iconContainer = document.createElement("span");
+		iconContainer.style.position = "absolute";
+		iconContainer.style.left = "6px"; // Initial left position
+		iconContainer.style.opacity = "0";
+		iconContainer.style.transition =
+			"opacity 500ms ease-out, left 500ms ease-out, transform 500ms ease-out"; // Added left and transform transitions
+
+		iconContainer.appendChild(getLogOutSVG());
+
+		creatorModeButton.appendChild(textSpan);
+		creatorModeButton.appendChild(iconContainer);
 
 		// Cloning the creator mode button so we can make it fixed and add it to the body, so it's always visible
-		const visibleCreatorModeButton = creatorModeButton.cloneNode(true) as HTMLDivElement;
+		const visibleCreatorModeButton = creatorModeButton.cloneNode(
+			true,
+		) as HTMLDivElement;
 		document.body.appendChild(visibleCreatorModeButton);
 
 		// Setting the opacity of the original button to 0 so we don't see it but it still makes space
@@ -809,9 +836,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		visibleCreatorModeButton.style.zIndex = "110";
 		visibleCreatorModeButton.style.cursor = "pointer";
 
+		// Add CSS transition properties for animation
+		visibleCreatorModeButton.style.transition =
+			"width 500ms ease-out, padding 500ms ease-out";
+		visibleCreatorModeButton.style.overflow = "hidden"; // Ensure content doesn't overflow during width change
+		visibleCreatorModeButton.setAttribute("id", "creator-mode-visible-button");
+
 		visibleCreatorModeButton.onclick = () => {
 			CommandEmitter.emit("workbench.action.toggleCreatorView");
-		}
+		};
 	}
 
 

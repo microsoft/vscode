@@ -11,7 +11,10 @@ import { IStorageService } from "../../../../../platform/storage/common/storage.
 import { getActiveWindow } from "../../../../../base/browser/dom.js";
 import { CancellationTokenSource } from "../../../../../base/common/cancellation.js";
 import { IInstantiationService } from "../../../../../platform/instantiation/common/instantiation.js";
-import { IWebviewElement, WebviewExtensionDescription } from "../../../../../workbench/contrib/webview/browser/webview.js";
+import {
+	IWebviewElement,
+	WebviewExtensionDescription,
+} from "../../../../../workbench/contrib/webview/browser/webview.js";
 import {
 	IWebviewViewService,
 	WebviewView,
@@ -26,6 +29,8 @@ const CREATOR_VIEW_ID = "pearai.creatorView";
 const CREATOR_OVERLAY_TITLE = "pearai.creatorOverlayView";
 
 const MAX_OVERLAY_HEIGHT = "90vh";
+
+const ENTER_CREATOR_MODE_BTN_IDENTIFIER = ".creator-mode-button";
 
 export class CreatorOverlayPart extends Part {
 	static readonly ID = "workbench.parts.pearcreatoroverlay";
@@ -257,7 +262,7 @@ export class CreatorOverlayPart extends Part {
 		this.overlayContainer.style.zIndex = "-10";
 		this.overlayContainer.style.display = "none"; // Hidden by default
 		this.overlayContainer.classList.add("pearcreatoroverlay-part-container");
-		this.overlayContainer.style.backgroundColor = 'transparent';
+		this.overlayContainer.style.backgroundColor = "transparent";
 
 		// The container must be at the top level of the document
 		document.body.appendChild(this.overlayContainer);
@@ -279,7 +284,7 @@ export class CreatorOverlayPart extends Part {
 		try {
 			// Removing any other iframes from the overlay container
 			// This is a workaround for the issue where multiple iframes are created - works for now
-			[...this.overlayContainer?.children || []].forEach((child) => {
+			[...(this.overlayContainer?.children || [])].forEach((child) => {
 				child.remove();
 			});
 			// If webview needs reinitialization, do that first
@@ -343,16 +348,27 @@ export class CreatorOverlayPart extends Part {
 			}
 
 			this.focus();
+
 			await new Promise<void>((resolve) => {
+				let resolved = false;
 				setTimeout(() => {
-					console.error("Timeout on webview, didn't load in time");
-					resolve();
+					if (!resolved) {
+						console.error("Timeout on webview, didn't load in time");
+						resolve();
+					}
 				}, 1500);
-				this.webviewElement!.onMessage(async () => {
-					await this.handleSlideAnimation("down");
-					resolve();
-				})
-			})
+				this.webviewElement!.postMessage({ messageType: "ping" });
+				this.webviewElement!.onMessage(async (e) => {
+					if (
+						e.message.messageType === "loaded" ||
+						e.message.messageType === "pong"
+					) {
+						resolved = true;
+						resolve();
+					}
+				});
+			});
+			await this.handleSlideAnimation("down");
 		} finally {
 			this.openInProgress = false;
 		}
@@ -385,8 +401,51 @@ export class CreatorOverlayPart extends Part {
 		});
 	}
 
-	private toggleOpenClose() {
-		this.state === "open" ? this.close() : this.open();
+	private updateEnterCreatorButton(direction: "up" | "down") {
+		const enterCreatorButton = document.querySelector(
+			ENTER_CREATOR_MODE_BTN_IDENTIFIER,
+		) as HTMLElement;
+		if (!enterCreatorButton) {
+			console.warn(
+				`Enter Creator button not found (${ENTER_CREATOR_MODE_BTN_IDENTIFIER})`,
+			);
+			return;
+		}
+
+		// Find the text and icon elements within the button
+		const textElement = enterCreatorButton.querySelector(
+			'span:not([style*="position: absolute"])',
+		) as HTMLElement;
+		const iconElement = enterCreatorButton.querySelector(
+			'span[style*="position: absolute"]',
+		) as HTMLElement;
+
+		if (!textElement || !iconElement) {
+			console.warn("Button structure missing expected elements");
+			return;
+		}
+
+		if (direction === "up") {
+			// Fade out the icon and reset its position
+			iconElement.style.opacity = "0";
+			iconElement.style.left = "6px";
+			iconElement.style.transform = "none";
+
+			// Expand the button width and show text
+			enterCreatorButton.style.width = "110px"; // Changed from auto to fixed width
+			textElement.style.opacity = "1";
+		} else {
+			// Fade out the text first (faster transition set in createCreatorModeButton)
+			textElement.style.opacity = "0";
+
+			// Collapse the button width
+			enterCreatorButton.style.width = "30px"; // Changed from 20px to 30px
+
+			// Move the icon to center position and fade it in
+			iconElement.style.left = "50%";
+			iconElement.style.transform = "translateX(-50%)";
+			iconElement.style.opacity = "1";
+		}
 	}
 
 	focus(): void {
@@ -412,7 +471,7 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	toggle(): void {
-		this.toggleOpenClose();
+		this.state === "open" ? this.close() : this.open();
 	}
 
 	public lock(): void {
@@ -508,6 +567,9 @@ export class CreatorOverlayPart extends Part {
 					console.warn("Failed to post animation message to webview:", e);
 				}
 			}
+
+			// Setting the button in the top right corner
+			this.updateEnterCreatorButton(direction);
 
 			// Create the container element for slide-down animation
 			const topOfBodyElement = this.getTopOfBodyElement();
