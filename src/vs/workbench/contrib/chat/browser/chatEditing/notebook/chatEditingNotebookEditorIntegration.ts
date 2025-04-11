@@ -269,7 +269,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			let index = 0;
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 			for (const change of sortedCellChanges) {
-				if (currentChange && currentChange.change === change) {
+				if (currentChange.change.modifiedCellIndex === change.modifiedCellIndex &&
+					currentChange.change.originalCellIndex === change.originalCellIndex) {
 					if (change.type === 'modified') {
 						index += currentChange.index;
 					}
@@ -389,9 +390,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					if (cellViewModel) {
 						this.revealChangeInView(cellViewModel, textChange?.modified, change);
 						this._currentChange.set({ change: change, index: indexInCell }, undefined);
+						return true;
 					}
-
-					return true;
+					break;
 				}
 			case 'delete':
 				// reveal the deleted cell decorator
@@ -406,7 +407,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	private getCellViewModel(change: ICellDiffInfo) {
-		if (change.type === 'delete' || change.modifiedCellIndex === undefined) {
+		if (change.type === 'delete' || change.modifiedCellIndex === undefined || change.modifiedCellIndex >= this.notebookModel.cells.length) {
 			return undefined;
 		}
 		const cell = this.notebookModel.cells[change.modifiedCellIndex];
@@ -469,7 +470,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							this.blur(currentChange.change);
 						}
 
-						return this._revealChange(change, index);
+						if (this._revealChange(change, index)) {
+							return true;
+						}
 					}
 				}
 				break;
@@ -479,8 +482,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					this.blur(currentChange.change);
 					// go to next change directly
 					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
-					if (nextChange) {
-						return this._revealFirstOrLast(nextChange, true);
+					if (nextChange && this._revealFirstOrLast(nextChange, true)) {
+						return true;
 					}
 				}
 				break;
@@ -528,7 +531,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						if (isFirstChangeInCell) {
 							this.blur(currentChange.change);
 						}
-						return this._revealChange(change, index);
+						if (this._revealChange(change, index)) {
+							return true;
+						}
 					}
 				}
 				break;
@@ -538,8 +543,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					this.blur(currentChange.change);
 					// go to previous change directly
 					const prevChange = changes[changes.indexOf(currentChange.change) - 1];
-					if (prevChange) {
-						return this._revealFirstOrLast(prevChange, false);
+					if (prevChange && this._revealFirstOrLast(prevChange, false)) {
+						return true;
 					}
 				}
 				break;
