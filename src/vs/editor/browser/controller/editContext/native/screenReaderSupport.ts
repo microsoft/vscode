@@ -28,7 +28,6 @@ export class ScreenReaderSupport {
 	private _contentWidth: number = 1;
 	private _contentHeight: number = 1;
 	private _divWidth: number = 1;
-	private _lineHeight: number = 1;
 	private _fontInfo!: FontInfo;
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
@@ -75,7 +74,6 @@ export class ScreenReaderSupport {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
 	}
@@ -133,10 +131,13 @@ export class ScreenReaderSupport {
 			return;
 		}
 
-		const offsetForStartPositionWithinEditor = this._context.viewLayout.getVerticalOffsetForLineNumber(this._screenReaderContentState.startPositionWithinEditor.lineNumber);
-		const offsetForPositionLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber);
-		const scrollTop = offsetForPositionLineNumber - offsetForStartPositionWithinEditor;
-		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, this._lineHeight);
+		// The <div> where we render the screen reader content does not support variable line heights,
+		// all the lines must have the same height. We use the line height of the cursor position as the
+		// line height for all lines.
+		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
+		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
+		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
+		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 
 	private _renderAtTopLeft(): void {
@@ -151,6 +152,7 @@ export class ScreenReaderSupport {
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
+		this._domNode.setLineHeight(height);
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
 
