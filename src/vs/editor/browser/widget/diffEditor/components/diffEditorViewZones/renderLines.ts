@@ -222,6 +222,5 @@ function renderOriginalLine(
 	), sb);
 
 	sb.appendString('</div>');
-
 	return output.characterMapping.getHorizontalOffset(output.characterMapping.length);
 }
