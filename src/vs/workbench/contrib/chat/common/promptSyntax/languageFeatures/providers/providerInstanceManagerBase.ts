@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PROMPT_LANGUAGE_ID } from '../../constants.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { isPromptFile } from '../../../../../../../platform/prompts/common/constants.js';
 import { IDiffEditor, IEditor } from '../../../../../../../editor/common/editorCommon.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
 
 /**
  * Type for a text editor that is used for reusable prompt files.
@@ -123,8 +123,11 @@ const isPromptFileEditor = (
 		return false;
 	}
 
-	// enable this on editors of the reusable prompt files only
-	if (isPromptFile(model.uri) === false) {
+	if (model.isDisposed()) {
+		return false;
+	}
+
+	if (model.getLanguageId() !== PROMPT_LANGUAGE_ID) {
 		return false;
 	}
 

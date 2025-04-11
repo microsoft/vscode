@@ -18,7 +18,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetEdit } from '../../../../common/core/offsetEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { OffsetEdits } from '../../../../common/model/textModelOffsetEdit.js';
@@ -344,17 +344,19 @@ class InlineCompletionsState extends Disposable {
 		const items: InlineSuggestionItem[] = [];
 
 		for (const item of update.completions) {
-			const oldItem = this._findByHash(item.hash);
+			const i = InlineSuggestionItem.create(item, textModel);
+			const oldItem = this._findByHash(i.hash);
 			if (oldItem) {
-				items.push(item.withIdentity(oldItem.identity));
+				items.push(i.withIdentity(oldItem.identity));
+				oldItem.setEndOfLifeReason({ kind: InlineCompletionEndOfLifeReasonKind.Ignored, userTypingDisagreed: false, supersededBy: i.getSourceCompletion() });
 			} else {
-				items.push(item);
+				items.push(i);
 			}
 		}
 
 		if (itemToPreserve) {
 			const item = this._findById(itemToPreserve);
-			if (item && !update.has(item) && item.canBeReused(textModel, request.position)) {
+			if (item && !update.has(item.getSingleTextEdit()) && item.canBeReused(textModel, request.position)) {
 				items.unshift(item);
 			}
 		}

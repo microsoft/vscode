@@ -1314,7 +1314,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
-	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): readonly string[] {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1354,6 +1354,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		return this._decorationTypeKeysToIds[decorationTypeKey] || [];
 	}
 
 	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {

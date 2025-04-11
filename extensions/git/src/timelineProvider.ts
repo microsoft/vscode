@@ -10,7 +10,7 @@ import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
-import { getCommitShortHash } from './util';
+import { getCommitShortHash, truncate } from './util';
 import { CommitShortStat } from './git';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
@@ -35,7 +35,7 @@ export class GitTimelineItem extends TimelineItem {
 		contextValue: string
 	) {
 		const index = message.indexOf('\n');
-		const label = index !== -1 ? `${message.substring(0, index)} \u2026` : message;
+		const label = index !== -1 ? `${truncate(message, index)}` : message;
 
 		super(label, timestamp);
 

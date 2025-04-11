@@ -112,6 +112,12 @@ export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly mimeType?: string;
 }
 
+export interface INotebookOutputVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'notebookOutput';
+	readonly outputIndex?: number;
+	readonly mimeType?: string;
+}
+
 export interface IDiagnosticVariableEntryFilterData {
 	readonly owner?: string;
 	readonly problemMessage?: string;
@@ -181,7 +187,7 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
-	| IChatRequestDirectoryEntry | IChatRequestFileEntry;
+	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -193,6 +199,10 @@ export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is ICh
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
 	return obj.kind === 'image';
+}
+
+export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
+	return obj.kind === 'notebookOutput';
 }
 
 export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
@@ -1056,6 +1066,7 @@ export interface ISerializableChatRequestData {
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 	timestamp?: number;
+	confirmation?: string;
 }
 
 export interface IExportableChatData {
@@ -1431,7 +1442,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					message: parsedRequest,
 					variableData,
 					timestamp: raw.timestamp ?? -1,
-					restoredId: raw.requestId
+					restoredId: raw.requestId,
+					confirmation: raw.confirmation,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
@@ -1770,7 +1782,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences,
 					codeCitations: r.response?.codeCitations,
-					timestamp: r.timestamp
+					timestamp: r.timestamp,
+					confirmation: r.confirmation,
 				};
 			}),
 		};

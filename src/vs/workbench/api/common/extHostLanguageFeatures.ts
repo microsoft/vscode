@@ -1350,6 +1350,7 @@ class InlineCompletionAdapter {
 			&& (typeof this._provider.handleDidShowCompletionItem === 'function'
 				|| typeof this._provider.handleDidPartiallyAcceptCompletionItem === 'function'
 				|| typeof this._provider.handleDidRejectCompletionItem === 'function'
+				|| typeof this._provider.handleEndOfLifetime === 'function'
 			);
 	}
 
@@ -1555,6 +1556,16 @@ class InlineCompletionAdapter {
 			if (this._provider.handleDidPartiallyAcceptCompletionItem && this._isAdditionsProposedApiEnabled) {
 				this._provider.handleDidPartiallyAcceptCompletionItem(completionItem, acceptedCharacters);
 				this._provider.handleDidPartiallyAcceptCompletionItem(completionItem, typeConvert.PartialAcceptInfo.to(info));
+			}
+		}
+	}
+
+	handleEndOfLifetime(pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void {
+		const completionItem = this._references.get(pid)?.items[idx];
+		if (completionItem) {
+			if (this._provider.handleEndOfLifetime && this._isAdditionsProposedApiEnabled) {
+				const r = typeConvert.InlineCompletionEndOfLifeReason.to(reason, ref => this._references.get(ref.pid)?.items[ref.idx]);
+				this._provider.handleEndOfLifetime(completionItem, r);
 			}
 		}
 	}
@@ -2739,6 +2750,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void {
 		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
 			adapter.handlePartialAccept(pid, idx, acceptedCharacters, info);
+		}, undefined, undefined);
+	}
+
+	$handleInlineCompletionEndOfLifetime(handle: number, pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+			adapter.handleEndOfLifetime(pid, idx, reason);
 		}, undefined, undefined);
 	}
 

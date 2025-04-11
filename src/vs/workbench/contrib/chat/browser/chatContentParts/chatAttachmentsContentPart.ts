@@ -11,6 +11,7 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -39,7 +40,9 @@ import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
-import { IChatRequestVariableEntry, isImageVariableEntry, isPasteVariableEntry, OmittedState } from '../../common/chatModel.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { IChatRequestVariableEntry, INotebookOutputVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, OmittedState } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 import { convertUint8ArrayToString } from '../imageUtils.js';
 
@@ -63,6 +66,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
+		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super();
 
@@ -92,18 +96,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			let ariaLabel: string | undefined;
 
-			if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
-				const fileBasename = basename(resource.path);
-				const fileDirname = dirname(resource.path);
-				const friendlyName = `${fileBasename} ${fileDirname}`;
-
-				if (isAttachmentOmitted) {
-					ariaLabel = range ? localize('chat.omittedFileAttachmentWithRange', "Omitted: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.omittedFileAttachment', "Omitted: {0}.", friendlyName);
-				} else if (isAttachmentPartialOrOmitted) {
-					ariaLabel = range ? localize('chat.partialFileAttachmentWithRange', "Partially attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.partialFileAttachment', "Partially attached: {0}.", friendlyName);
-				} else {
-					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
-				}
+			const renderFileAttachment = (ariaLabel: string, friendlyName: string, resource: URI, icon?: ThemeIcon) => {
 
 				if (attachment.omittedState === OmittedState.Full) {
 					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, isAttachmentOmitted);
@@ -119,7 +112,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 					} : {
 						...fileOptions,
 						fileKind: FileKind.FOLDER,
-						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
+						icon: icon || (!this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined)
 					});
 				}
 
@@ -128,6 +121,87 @@ export class ChatAttachmentsContentPart extends Disposable {
 						this.attachedContextDisposables.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
 					}
 				});
+			};
+
+			const renderImageAttachment = (ariaLabel: string, resource: URI | undefined, fullName: string, buffer: Uint8Array) => {
+				const isURL = isImageVariableEntry(attachment) && attachment.isURL;
+				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, isAttachmentOmitted, true, isURL, attachment.value as Uint8Array);
+
+				if (resource) {
+					widget.style.cursor = 'pointer';
+					const clickHandler = () => {
+						this.openResource(resource, false, undefined);
+					};
+					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'click', clickHandler));
+				}
+				const omissionType = attachment.omittedState === OmittedState.Partial ? OmittedState.Partial : isAttachmentOmitted ? OmittedState.Full : undefined;
+				this.createImageElements(buffer, widget, hoverElement, fullName, resource, omissionType);
+				this.attachedContextDisposables.add(this.hoverService.setupDelayedHover(widget, { content: hoverElement, appearance: { showPointer: true } }));
+				widget.style.position = 'relative';
+			};
+
+			const renderLabelWithIcon = (attachment: IChatRequestVariableEntry) => {
+				const attachmentLabel = attachment.fullName ?? attachment.name;
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
+			};
+
+			if (resource && isNotebookOutputVariableEntry(attachment)) {
+				const friendlyName = attachment.name;
+				const output = this.getOutputItem(resource, attachment);
+				if (output?.mime.startsWith('image/')) {
+					if (attachment.omittedState === OmittedState.Full) {
+						ariaLabel = localize('chat.notebookOutputOmittedImageAttachment', "Omitted: {0}", friendlyName);
+					} else if (attachment.omittedState === OmittedState.Partial) {
+						ariaLabel = localize('chat.notebookOutputPartiallyOmittedImageAttachment', "Partially omitted: {0}", friendlyName);
+					} else {
+						ariaLabel = localize('chat.notebookOutputImageAttachment', "Attached: {0}", friendlyName);
+					}
+				} else {
+					if (isAttachmentOmitted) {
+						ariaLabel = localize('chat.notebookOutputOmittedFileAttachment', "Omitted: {0}.", friendlyName);
+					} else if (isAttachmentPartialOrOmitted) {
+						ariaLabel = localize('chat.notebookOutputPartialFileAttachment', "Partially attached: {0}.", friendlyName);
+					} else {
+						ariaLabel = localize('chat.notebookOutputFileAttachment3', "Attached: {0}.", friendlyName);
+					}
+				}
+
+				switch (output?.mime) {
+					case 'application/vnd.code.notebook.error': {
+						renderLabelWithIcon(attachment);
+						break;
+					}
+					case 'image/png':
+					case 'image/jpeg':
+					case 'image/svg': {
+						renderImageAttachment(ariaLabel, resource, attachment.name, output.data.buffer);
+						break;
+					}
+					default: {
+						renderFileAttachment(ariaLabel, attachment.name, resource, ThemeIcon.fromId('output'));
+					}
+				}
+
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						this.attachedContextDisposables.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
+				});
+			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
+				const fileBasename = basename(resource.path);
+				const fileDirname = dirname(resource.path);
+				const friendlyName = `${fileBasename} ${fileDirname}`;
+
+				if (isAttachmentOmitted) {
+					ariaLabel = range ? localize('chat.omittedFileAttachmentWithRange', "Omitted: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.omittedFileAttachment', "Omitted: {0}.", friendlyName);
+				} else if (isAttachmentPartialOrOmitted) {
+					ariaLabel = range ? localize('chat.partialFileAttachmentWithRange', "Partially attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.partialFileAttachment', "Partially attached: {0}.", friendlyName);
+				} else {
+					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
+				}
+
+				renderFileAttachment(ariaLabel, friendlyName, resource);
 			} else if (isImageVariableEntry(attachment)) {
 				if (attachment.omittedState === OmittedState.Full) {
 					ariaLabel = localize('chat.omittedImageAttachment', "Omitted this image: {0}", attachment.name);
@@ -137,22 +211,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 					ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 				}
 
-				const isURL = isImageVariableEntry(attachment) && attachment.isURL;
-				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, isAttachmentOmitted, true, isURL, attachment.value as Uint8Array);
-
 				const ref = attachment.references?.[0]?.reference;
-				if (ref && URI.isUri(ref)) {
-					widget.style.cursor = 'pointer';
-					const clickHandler = () => {
-						this.openResource(ref, false, undefined);
-					};
-					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'click', clickHandler));
-				}
-				const buffer = attachment.value as Uint8Array;
-				const omissionType = attachment.omittedState === OmittedState.Partial ? OmittedState.Partial : isAttachmentOmitted ? OmittedState.Full : undefined;
-				this.createImageElements(buffer, widget, hoverElement, URI.isUri(ref) ? ref : undefined, omissionType);
-				this.attachedContextDisposables.add(this.hoverService.setupDelayedHover(widget, { content: hoverElement, appearance: { showPointer: true } }));
-				widget.style.position = 'relative';
+				const resource = ref && URI.isUri(ref) ? ref : undefined;
+				renderImageAttachment(ariaLabel, resource, resource?.toString() ?? '', attachment.value as Uint8Array);
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
@@ -185,11 +246,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 					}
 				}
 			} else {
-				const attachmentLabel = attachment.fullName ?? attachment.name;
-				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
-				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
-
 				ariaLabel = localize('chat.attachment3', "Attached context: {0}.", attachment.name);
+				renderLabelWithIcon(attachment);
 			}
 
 			if (attachment.kind === 'symbol') {
@@ -234,6 +292,23 @@ export class ChatAttachmentsContentPart extends Disposable {
 		});
 	}
 
+	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
+		const parsedInfo = CellUri.parseCellOutputUri(resource);
+		if (!parsedInfo || typeof parsedInfo.cellHandle !== 'number' || typeof parsedInfo.outputIndex !== 'number') {
+			return undefined;
+		}
+		const notebook = this.notebookService.getNotebookTextModel(parsedInfo.notebook);
+		if (!notebook) {
+			return undefined;
+		}
+		const cell = notebook.cells.find(c => c.handle === parsedInfo.cellHandle);
+		if (!cell) {
+			return undefined;
+		}
+		const output = cell.outputs.length > parsedInfo.outputIndex ? cell.outputs[parsedInfo.outputIndex] : undefined;
+		return output?.outputs.find(o => o.mime === attachment.mimeType);
+	}
+
 	private customAttachment(widget: HTMLElement, friendlyName: string, hoverDelegate: IHoverDelegate, ariaLabel: string, isAttachmentOmitted: boolean, isImage?: boolean, isURL?: boolean, value?: Uint8Array): HTMLElement {
 		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(isAttachmentOmitted ? 'span.codicon.codicon-warning' : 'span.codicon.codicon-file-media'));
 		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
@@ -276,7 +351,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	}
 
 	// Helper function to create and replace image
-	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement, reference?: URI, omittedState?: OmittedState): void {
+	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement, fullName: string, reference?: URI, omittedState?: OmittedState): void {
 		if (omittedState === OmittedState.Full) {
 			return;
 		}
@@ -300,7 +375,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		hoverElement.appendChild(imageContainer);
 
 		if (reference) {
-			const urlContainer = dom.$('a.chat-attached-context-url', {}, omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame was be sent.") : reference.toString());
+			const urlContainer = dom.$('a.chat-attached-context-url', {}, omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame was be sent.") : fullName);
 			const separator = dom.$('div.chat-attached-context-url-separator');
 			this._register(dom.addDisposableListener(urlContainer, 'click', () => this.openResource(reference, false, undefined)));
 			hoverElement.append(separator, urlContainer);

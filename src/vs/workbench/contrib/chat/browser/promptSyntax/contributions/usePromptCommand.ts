@@ -9,6 +9,7 @@ import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { runAttachPromptAction } from '../../actions/reusablePromptActions/index.js';
@@ -114,9 +115,13 @@ export const getActivePromptUri = (
 		return undefined;
 	}
 
-	const { uri } = activeEditor.getModel();
-	if (isPromptFile(uri)) {
-		return uri;
+	const model = activeEditor.getModel();
+	if (model.getLanguageId() === PROMPT_LANGUAGE_ID) {
+		return model.uri;
+	}
+
+	if (isPromptFile(model.uri)) {
+		return model.uri;
 	}
 
 	return undefined;
