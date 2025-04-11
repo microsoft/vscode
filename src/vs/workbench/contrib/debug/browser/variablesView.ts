@@ -792,7 +792,10 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'write' });
+			await debugService.addDataBreakpoint({
+				origin: { type: DataBreakpointSetType.Variable, ...dataBreakpointInfoResponse, dataId: dataBreakpointInfoResponse.dataId! },
+				accessType: 'write'
+			});
 		}
 	}
 });
@@ -803,7 +806,10 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'readWrite' });
+			await debugService.addDataBreakpoint({
+				origin: { type: DataBreakpointSetType.Variable, ...dataBreakpointInfoResponse, dataId: dataBreakpointInfoResponse.dataId! },
+				accessType: 'readWrite'
+			});
 		}
 	}
 });
@@ -814,7 +820,10 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'read' });
+			await debugService.addDataBreakpoint({
+				origin: { type: DataBreakpointSetType.Variable, ...dataBreakpointInfoResponse, dataId: dataBreakpointInfoResponse.dataId! },
+				accessType: 'read'
+			});
 		}
 	}
 });

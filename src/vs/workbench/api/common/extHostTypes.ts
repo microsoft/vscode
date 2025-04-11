@@ -23,7 +23,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/ex
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
-import { IRelativePatternDto } from './extHost.protocol.js';
+import * as extHostProtocol from './extHost.protocol.js';
 
 /**
  * @deprecated
@@ -3147,7 +3147,7 @@ export class RelativePattern implements IRelativePattern {
 		this.pattern = pattern;
 	}
 
-	toJSON(): IRelativePatternDto {
+	toJSON(): extHostProtocol.IRelativePatternDto {
 		return {
 			pattern: this.pattern,
 			base: this.base,
@@ -3229,21 +3229,110 @@ export class FunctionBreakpoint extends Breakpoint {
 }
 
 @es5ClassCompat
-export class DataBreakpoint extends Breakpoint {
-	readonly label: string;
-	readonly dataId: string;
-	readonly canPersist: boolean;
+export class DataBreakpoint extends Breakpoint implements vscode.DataBreakpoint {
+	readonly origin: DataBreakpointOrigin;
 
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+	constructor(origin: DataBreakpointOrigin | vscode.AvailableDataBreakpointInfo | string, readonly accessType?: vscode.DataBreakpointAccessType, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
 		super(enabled, condition, hitCondition, logMessage, mode);
-		if (!dataId) {
-			throw illegalArgument('dataId');
-		}
-		this.label = label;
-		this.dataId = dataId;
-		this.canPersist = canPersist;
+		this.origin = typeof origin === 'string' ? new ResolvedDataBreakpointOrigin(origin)
+			: 'info' in origin ? origin
+				: new ResolvedDataBreakpointOrigin(origin.dataId, origin.canPersist, origin.accessTypes, origin.description);
+	}
+
+	async info(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo> {
+		return this.origin.info(session);
+	}
+
+	// public internally for conversion from DTO but not part of the public API
+	setInfos(infos: extHostProtocol.IDataBreakpointInfos): this {
+		this.origin.setInfos(infos);
+		return this;
+	}
+
+	// public internally for conversion to DTO but not part of the public API
+	infos(): extHostProtocol.IDataBreakpointInfos {
+		return this.origin.infos();
 	}
 }
+
+export abstract class AbstractDataBreakpointOrigin {
+	private _infos = new Map<string, vscode.DataBreakpointInfo>;
+
+	protected abstract requestInfo(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo>;
+
+	async info(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo> {
+		const storedInfo = this._infos.get(session.id);
+		if (storedInfo) {
+			return storedInfo;
+		}
+		const info = await this.requestInfo(session);
+		this._infos.set(session.id, info);
+		return info;
+	}
+
+	// public internally for conversion from DTO but not part of the public API
+	setInfos(infos: extHostProtocol.IDataBreakpointInfos): this {
+		infos.forEach(([sessionId, info]) => this._infos.set(sessionId, info));
+		return this;
+	}
+
+	// public internally for conversion to DTO but not part of the public API
+	infos(): extHostProtocol.IDataBreakpointInfos {
+		return [...this._infos.entries()];
+	}
+}
+
+export class ResolvedDataBreakpointOrigin extends AbstractDataBreakpointOrigin implements vscode.ResolvedDataBreakpointOrigin {
+	constructor(public readonly dataId: string, public readonly canPersist: boolean = false, public readonly accessTypes?: vscode.DataBreakpointAccessType[], public readonly description: string = `DataId '${dataId}'`) {
+		super();
+	}
+
+	protected override async requestInfo(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo> {
+		return { dataId: this.dataId, canPersist: this.canPersist, accessTypes: this.accessTypes, description: this.description };
+	}
+}
+
+export class AddressDataBreakpointOrigin extends AbstractDataBreakpointOrigin implements vscode.AddressDataBreakpointOrigin {
+	constructor(public readonly address: string, public readonly bytes?: number, public readonly description: string = `Address '${address}${bytes ? `,${bytes}'` : ''}`) {
+		super();
+	}
+
+	protected override async requestInfo(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo> {
+		return session.customRequest('dataBreakpointInfo', { name: this.address, bytes: this.bytes, asAddress: true });
+	}
+}
+
+export class ExpressionDataBreakpointOrigin extends AbstractDataBreakpointOrigin implements vscode.ExpressionDataBreakpointOrigin {
+	constructor(public readonly expression: string, public readonly description: string = `Expression '${expression}'`) {
+		super();
+	}
+
+	protected override async requestInfo(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo> {
+		return session.customRequest('dataBreakpointInfo', { name: this.expression });
+	}
+}
+
+export class VariableScopedDataBreakpointOrigin extends AbstractDataBreakpointOrigin implements vscode.VariableScopedDataBreakpointOrigin {
+	constructor(public readonly variablesReference: number, public readonly variable: string, public readonly description: string = `Scoped '${variable}@${variablesReference}'`) {
+		super();
+	}
+
+	protected override async requestInfo(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo> {
+		return session.customRequest('dataBreakpointInfo', { name: this.variable, variablesReference: this.variablesReference });
+	}
+}
+
+export class FrameScopedDataBreakpointOrigin extends AbstractDataBreakpointOrigin implements vscode.FrameScopedDataBreakpointOrigin {
+	constructor(public readonly frameId: number, public readonly expression: string, public readonly description: string = `Scoped '${expression}@${frameId}'`) {
+		super();
+	}
+
+	protected override async requestInfo(session: vscode.DebugSession): Promise<vscode.DataBreakpointInfo> {
+		return session.customRequest('dataBreakpointInfo', { name: this.expression, frameId: this.frameId });
+	}
+}
+
+export type DataBreakpointOrigin = ResolvedDataBreakpointOrigin | AddressDataBreakpointOrigin | ExpressionDataBreakpointOrigin | VariableScopedDataBreakpointOrigin | FrameScopedDataBreakpointOrigin;
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
