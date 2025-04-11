@@ -242,6 +242,11 @@ type ProductDate = string | Date | undefined;
 
 export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean, validateApiVersion: boolean): readonly [Severity, string][] {
 	const validations: [Severity, string][] = [];
+
+	if (extensionManifest.name.includes('copilot-chat')) {
+		validations.push([Severity.Error, 'it is broken']);
+	}
+
 	if (typeof extensionManifest.publisher !== 'undefined' && typeof extensionManifest.publisher !== 'string') {
 		validations.push([Severity.Error, nls.localize('extensionDescription.publisher', "property publisher must be of type `string`.")]);
 		return validations;
