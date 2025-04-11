@@ -2803,7 +2803,7 @@ export class Repository implements Disposable {
 }
 
 export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
-	readonly visible: boolean = false;
+	readonly visible: boolean = true;
 
 	private _disposables: IDisposable[] = [];
 
@@ -2825,10 +2825,10 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 		}
 
 		// Ignore resources that are not in the index group
-		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
-			return undefined;
-		}
+		// if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+		// 	this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
+		// 	return undefined;
+		// }
 
 		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
 		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
