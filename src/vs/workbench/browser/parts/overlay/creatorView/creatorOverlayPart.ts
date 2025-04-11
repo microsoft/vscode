@@ -278,11 +278,28 @@ export class CreatorOverlayPart extends Part {
 			focusBorder: theme.getColor("focusBorder")?.toString(),
 			widgetBackground: theme.getColor("editorWidget.background")?.toString(),
 			widgetForeground: theme.getColor("editorWidget.foreground")?.toString(),
+			// Additional text-related colors
+			descriptionForeground: theme
+				.getColor("descriptionForeground")
+				?.toString(),
+			textPreformatForeground: theme
+				.getColor("textPreformat.foreground")
+				?.toString(),
+			textSeparatorForeground: theme
+				.getColor("textSeparator.foreground")
+				?.toString(),
+			textBlockQuoteForeground: theme
+				.getColor("textBlockQuote.foreground")
+				?.toString(),
+			textMutedForeground: theme.getColor("textMuted.foreground")?.toString(),
+			textCodeBlockForeground: theme
+				.getColor("textCodeBlock.foreground")
+				?.toString(),
 		};
 
 		this.webviewElement?.postMessage({
 			messageType: "themeColors",
-			colors,
+			data: colors,
 		});
 	}
 
