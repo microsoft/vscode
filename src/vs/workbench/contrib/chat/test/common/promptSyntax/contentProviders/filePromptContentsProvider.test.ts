@@ -63,6 +63,7 @@ suite('FilePromptContentsProvider', function () {
 		const contentsProvider = testDisposables.add(instantiationService.createInstance(
 			FilePromptContentProvider,
 			fileUri,
+			{},
 		));
 
 		let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
