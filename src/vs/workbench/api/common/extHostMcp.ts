@@ -141,7 +141,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 class McpSSEHandle extends Disposable {
 	private readonly _requestSequencer = new Sequencer();
-	private readonly _postEndpoint = new DeferredPromise<string>();
+	private readonly _postEndpoint = new DeferredPromise<{ url: string; transport: McpServerTransportSSE }>();
 	constructor(
 		eventSourceCtor: Promise<typeof ES.EventSource>,
 		private readonly _id: number,
@@ -185,7 +185,7 @@ class McpSSEHandle extends Disposable {
 
 		// https://github.com/modelcontextprotocol/typescript-sdk/blob/0fa2397174eba309b54575294d56754c52b13a65/src/server/sse.ts#L52
 		eventSource.addEventListener('endpoint', e => {
-			this._postEndpoint.complete(new URL(e.data, launch.uri.toString()).toString());
+			this._postEndpoint.complete({ transport: launch, url: new URL(e.data, launch.uri.toString()).toString() });
 		});
 
 		// https://github.com/modelcontextprotocol/typescript-sdk/blob/0fa2397174eba309b54575294d56754c52b13a65/src/server/sse.ts#L133
@@ -211,12 +211,13 @@ class McpSSEHandle extends Disposable {
 		// only the sending of the request needs to be sequenced
 		try {
 			const res = await this._requestSequencer.queue(async () => {
-				const endpoint = await this._postEndpoint.p;
+				const { transport, url } = await this._postEndpoint.p;
 				const asBytes = new TextEncoder().encode(message);
 
-				return fetch(endpoint, {
+				return fetch(url, {
 					method: 'POST',
 					headers: {
+						...Object.fromEntries(transport.headers),
 						'Content-Type': 'application/json',
 						'Content-Length': String(asBytes.length),
 					},
