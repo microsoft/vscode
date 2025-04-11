@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -4544,8 +4544,11 @@ export class CommandCenter {
 		}
 
 		const rootUri = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', rootUri);
+		const commitShortHashLength = config.get<number>('commitShortHashLength', 7);
+
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
+		const title = `${truncate(historyItemId, commitShortHashLength, false)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });

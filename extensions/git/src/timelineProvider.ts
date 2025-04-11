@@ -10,7 +10,7 @@ import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
-import { getCommitShortHash, truncate } from './util';
+import { truncate } from './util';
 import { CommitShortStat } from './git';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
@@ -54,7 +54,7 @@ export class GitTimelineItem extends TimelineItem {
 		return this.shortenRef(this.previousRef);
 	}
 
-	setItemDetails(uri: Uri, hash: string | undefined, avatar: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
+	setItemDetails(uri: Uri, hash: string | undefined, shortHash: string | undefined, avatar: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
 		this.tooltip = new MarkdownString('', true);
 		this.tooltip.isTrusted = true;
 
@@ -91,10 +91,10 @@ export class GitTimelineItem extends TimelineItem {
 			this.tooltip.appendMarkdown(`${labels.join(', ')}\n\n`);
 		}
 
-		if (hash) {
+		if (hash && shortHash) {
 			this.tooltip.appendMarkdown(`---\n\n`);
 
-			this.tooltip.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(uri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('Open Commit')}")`);
+			this.tooltip.appendMarkdown(`[\`$(git-commit) ${shortHash} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('Open Commit')}")`);
 			this.tooltip.appendMarkdown('&nbsp;');
 			this.tooltip.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
 
@@ -173,8 +173,6 @@ export class GitTimelineProvider implements TimelineProvider {
 			);
 		}
 
-		const config = workspace.getConfiguration('git.timeline');
-
 		// TODO@eamodio: Ensure that the uri is a file -- if not we could get the history of the repo?
 
 		let limit: number | undefined;
@@ -215,9 +213,11 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const dateFormatter = new Intl.DateTimeFormat(env.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 
-		const dateType = config.get<'committed' | 'authored'>('date');
-		const showAuthor = config.get<boolean>('showAuthor');
-		const showUncommitted = config.get<boolean>('showUncommitted');
+		const config = workspace.getConfiguration('git', Uri.file(repo.root));
+		const dateType = config.get<'committed' | 'authored'>('timeline.date');
+		const showAuthor = config.get<boolean>('timeline.showAuthor');
+		const showUncommitted = config.get<boolean>('timeline.showUncommitted');
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
 
 		const openComparison = l10n.t('Open Comparison');
 
@@ -253,7 +253,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteHoverCommands : [];
 			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(this.model, repo, message) ?? message;
 
-			item.setItemDetails(uri, c.hash, avatars?.get(c.hash), c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
+			item.setItemDetails(uri, c.hash, truncate(c.hash, commitShortHashLength, false), avatars?.get(c.hash), c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -278,7 +278,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				item.setItemDetails(uri, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.setItemDetails(uri, undefined, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -300,7 +300,7 @@ export class GitTimelineProvider implements TimelineProvider {
 					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
 					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
-					item.setItemDetails(uri, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
+					item.setItemDetails(uri, undefined, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
 
 					const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 					if (cmd) {
