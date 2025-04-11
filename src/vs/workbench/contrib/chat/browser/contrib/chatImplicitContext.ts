@@ -23,6 +23,7 @@ import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
@@ -104,7 +105,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				return;
 			}
 			if (this._implicitContextEnablement[widget.location] === 'first' && widget.viewModel?.getItems().length !== 0) {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}));
 		this._register(this.chatWidgetService.onDidAddWidget(async (widget) => {
@@ -153,7 +154,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const selection = codeEditor?.getSelection();
 		let newValue: Location | URI | undefined;
 		let isSelection = false;
+
+		let languageId: string | undefined;
 		if (model) {
+			languageId = model.getLanguageId();
 			if (selection && !selection.isEmpty()) {
 				newValue = { uri: model.uri, range: selection } satisfies Location;
 				isSelection = true;
@@ -217,11 +221,12 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if (setting === 'first' && !isFirstInteraction) {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, languageId);
 			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
-				widget.input.implicitContext.setValue(newValue, isSelection);
+				// TODO: @legomushroom - set language id if model language changes
+				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
 			} else if (setting === 'never') {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, languageId);
 			}
 		}
 	}
@@ -279,6 +284,15 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._value;
 	}
 
+	private _languageId: string | undefined;
+	get languageId() {
+		return this._languageId;
+	}
+
+	get isPrompt() {
+		return (this.languageId === PROMPT_LANGUAGE_ID);
+	}
+
 	private _enabled = true;
 	get enabled() {
 		return this._enabled;
@@ -294,9 +308,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._value = value;
 	}
 
-	setValue(value: Location | URI | undefined, isSelection: boolean) {
+	setValue(value: Location | URI | undefined, isSelection: boolean, languageId?: string): void {
 		this._value = value;
 		this._isSelection = isSelection;
+		this._languageId = languageId;
 		this._onDidChangeValue.fire();
 	}
 
