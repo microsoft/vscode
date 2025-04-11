@@ -83,7 +83,6 @@ export const getCleanPromptName = (
 ): string => {
 	const fileName = basename(fileUri.path);
 
-
 	if (fileName.endsWith(PROMPT_FILE_EXTENSION)) {
 		return basename(fileUri.path, PROMPT_FILE_EXTENSION);
 	}
