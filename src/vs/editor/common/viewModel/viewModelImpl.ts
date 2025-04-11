@@ -418,7 +418,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			this._handleVisibleLinesChanged();
 		}));
-
 		this._register(this.model.onDidChangeLineHeight((e) => {
 			e.changes.forEach((change) => {
 				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
@@ -749,7 +748,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public hasFontDecorations(lineNumber: number): boolean {
-		return this._lines.hasFontDecorations(lineNumber);
+		return this.model.getFontDecorations(lineNumber).length > 0;
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {

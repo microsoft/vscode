@@ -110,20 +110,6 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getFontDecorationsInRange(range: Range): ViewModelDecoration[] {
-		const viewModelDecorations: ViewModelDecoration[] = [];
-		const modelDecorations = this.model.getDecorationsInRange(range, this.editorId, false, false, false);
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			const modelDecoration = modelDecorations[i];
-			const decorationOptions = modelDecoration.options;
-			if (!decorationOptions.fontFamily && !decorationOptions.fontWeight && !decorationOptions.fontSize) {
-				continue;
-			}
-			viewModelDecorations.push(this._getOrCreateViewModelDecoration(modelDecoration));
-		}
-		return viewModelDecorations;
-	}
-
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
 		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
