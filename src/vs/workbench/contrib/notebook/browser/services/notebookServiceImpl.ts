@@ -819,7 +819,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		const data = await info.serializer.dataToNotebook(bytes);
 
 
-		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, info.viewType, uri, data.cells, data.metadata, info.serializer.options);
+		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, info.viewType, uri, data.cells, data.metadata, info.serializer.options, data.mapper);
 		const modelData = new ModelData(notebookModel, this._onWillDisposeDocument.bind(this));
 		this._models.set(uri, modelData);
 		this._notebookDocumentService.addNotebookDocument(modelData);
