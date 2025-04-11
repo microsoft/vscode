@@ -349,9 +349,6 @@ steps:
           # SBOM tool doesn't like recursive symlinks
           sudo find $SNAP_EXTRACTED_PATH -type l -delete
 
-          # list all permissions and files within the extracted snap
-          sudo find $SNAP_EXTRACTED_PATH -exec ls -l {} \;
-
           echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$SNAP_EXTRACTED_PATH"
           echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
         env:
