@@ -281,11 +281,11 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	get modelDescription(): string {
 		if (this.isPrompt) {
 			if (URI.isUri(this.value)) {
-				return `User's active prompt instructions file that user expects you to follow`;
+				return `User's active prompt instructions file`;
 			} else if (this._isSelection) {
-				return `User's active selection inside prompt instructions that user expects you to follow`;
+				return `User's active selection inside prompt instructions`;
 			} else {
-				return `User's current visible prompt instructions text that user expects you to follow`;
+				return `User's current visible prompt instructions text`;
 			}
 		}
 

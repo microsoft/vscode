@@ -69,7 +69,7 @@ export const toChatVariable = (
 		: `file:${basename(uri)}`;
 
 	const modelDescription = (isPromptFile)
-		? 'Prompt instructions file that user expects you to follow'
+		? 'Prompt instructions file'
 		: undefined;
 
 	return {
