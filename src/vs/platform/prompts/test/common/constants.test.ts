@@ -35,25 +35,21 @@ suite('Prompt Constants', () => {
 				getCleanPromptName(URI.file('.github/copilot-instructions.md')),
 				'copilot-instructions',
 			);
-		});
 
-		test('• throws if not a prompt file URI provided', () => {
-			assert.throws(() => {
-				getCleanPromptName(URI.file('/path/to/default.prompt.md1'));
-			});
+			assert.strictEqual(
+				getCleanPromptName(URI.file('/etc/prompts/my-prompt')),
+				'my-prompt',
+			);
 
-			assert.throws(() => {
-				getCleanPromptName(URI.file('./some.md'));
-			});
+			assert.strictEqual(
+				getCleanPromptName(URI.file('../some-folder/frequent.txt')),
+				'frequent.txt',
+			);
 
-
-			assert.throws(() => {
-				getCleanPromptName(URI.file('../some-folder/frequent.txt'));
-			});
-
-			assert.throws(() => {
-				getCleanPromptName(URI.file('/etc/prompts/my-prompt'));
-			});
+			assert.strictEqual(
+				getCleanPromptName(URI.parse('untitled:Untitled-1')),
+				'Untitled-1',
+			);
 		});
 	});
 
