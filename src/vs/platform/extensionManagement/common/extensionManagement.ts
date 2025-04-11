@@ -347,8 +347,13 @@ export interface ISearchPrefferedResults {
 	readonly preferredResults?: string[];
 }
 
+export type MaliciousExtensionInfo = {
+	readonly extensionOrPublisher: IExtensionIdentifier | string;
+	readonly learnMoreLink?: string;
+};
+
 export interface IExtensionsControlManifest {
-	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
+	readonly malicious: ReadonlyArray<MaliciousExtensionInfo>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
 }
