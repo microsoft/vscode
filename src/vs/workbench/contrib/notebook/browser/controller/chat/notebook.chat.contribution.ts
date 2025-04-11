@@ -43,7 +43,7 @@ import { normalizeDriveLetter } from '../../../../../../base/common/labels.js';
 import { basenameOrAuthority } from '../../../../../../base/common/resources.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
-export const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/html',
+const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/html',
 	'application/vnd.code.notebook.error',
 	'application/vnd.code.notebook.stdout',
 	'application/x.notebook.stdout',
