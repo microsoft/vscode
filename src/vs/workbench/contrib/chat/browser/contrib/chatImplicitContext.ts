@@ -265,10 +265,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
+		const fileType = this.isPrompt ? 'prompt' : 'file';
+
 		if (URI.isUri(this.value)) {
-			return `file:${basename(this.value)}`;
+			return `${fileType}:${basename(this.value)}`;
 		} else if (this.value) {
-			return `file:${basename(this.value.uri)}`;
+			return `${fileType}:${basename(this.value.uri)}`;
 		} else {
 			return 'implicit';
 		}
@@ -277,6 +279,16 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
+		if (this.isPrompt) {
+			if (URI.isUri(this.value)) {
+				return `User's active prompt instructions file that user expects you to follow`;
+			} else if (this._isSelection) {
+				return `User's active selection inside prompt instructions that user expects you to follow`;
+			} else {
+				return `User's current visible prompt instructions text that user expects you to follow`;
+			}
+		}
+
 		if (URI.isUri(this.value)) {
 			return `User's active file`;
 		} else if (this._isSelection) {
