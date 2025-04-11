@@ -74,10 +74,10 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	enableAccessibleDiffView(): void {
 		this.integration.enableAccessibleDiffView();
 	}
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		return this.integration.acceptNearestChange(change);
 	}
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		return this.integration.rejectNearestChange(change);
 	}
 	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
@@ -564,12 +564,45 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			integration?.enableAccessibleDiffView();
 		}
 	}
-	async acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
-		await change.accept();
+
+	private getfocusedIntegration(): ChatEditingCodeEditorIntegration | undefined {
+		const first = this.notebookEditor.getSelectionViewModels()[0];
+		if (first) {
+			return this.cellEditorIntegrations.get(first.model)?.integration;
+		}
+		return undefined;
+	}
+
+	async acceptNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		if (change) {
+			await change.accept();
+		} else {
+			const current = this.currentChange.get()!;
+			const focused = this.getfocusedIntegration();
+			if (focused) {
+				focused.acceptNearestChange();
+			} else if (current) {
+				current.change.keep(current?.change.diff.get().changes[current.index]);
+			}
+		}
+
 		this.next(true);
 	}
-	async rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
-		await change.reject();
+	async rejectNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		if (change) {
+			await change.reject();
+		} else {
+			const focused = this.getfocusedIntegration();
+			if (focused) {
+				focused.rejectNearestChange();
+			} else if (this.currentChange.get()) {
+				const current = this.currentChange.get()!;
+				current.change.undo(current.change.diff.get().changes[current.index]);
+			} else {
+				return;
+			}
+		}
+
 		this.next(true);
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {

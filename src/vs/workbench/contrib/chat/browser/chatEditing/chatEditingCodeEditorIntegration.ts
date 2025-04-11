@@ -582,7 +582,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		return closestWidget;
 	}
 
-	async rejectNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async rejectNearestChange(closestWidget?: IModifiedFileEntryChangeHunk): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.reject();
@@ -590,7 +590,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}
 	}
 
-	async acceptNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async acceptNearestChange(closestWidget?: IModifiedFileEntryChangeHunk): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.accept();
