@@ -1056,6 +1056,7 @@ export interface ISerializableChatRequestData {
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 	timestamp?: number;
+	confirmation?: string;
 }
 
 export interface IExportableChatData {
@@ -1431,7 +1432,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					message: parsedRequest,
 					variableData,
 					timestamp: raw.timestamp ?? -1,
-					restoredId: raw.requestId
+					restoredId: raw.requestId,
+					confirmation: raw.confirmation,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
@@ -1770,7 +1772,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences,
 					codeCitations: r.response?.codeCitations,
-					timestamp: r.timestamp
+					timestamp: r.timestamp,
+					confirmation: r.confirmation,
 				};
 			}),
 		};
