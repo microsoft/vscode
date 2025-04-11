@@ -780,15 +780,26 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}));
 	}
 
+	private updateCreatorButtonColors(button: HTMLElement) {
+		const titleBackground = this.getColor(
+			this.isInactive
+				? TITLE_BAR_INACTIVE_BACKGROUND
+				: TITLE_BAR_ACTIVE_BACKGROUND
+		);
+		const isLightTheme = titleBackground && Color.fromHex(titleBackground).isLighter();
+
+		button.style.backgroundColor = isLightTheme ? "#000000" : "#ffffff";
+		button.style.color = isLightTheme ? "#ffffff" : "#000000";
+	}
+
 	private createCreatorModeButton() {
 		// Adding the creator mode button to the action toolbar so there's always space for it
 		const creatorModeButton = append(
 			this.actionToolBarElement,
-			$(".creator-mode-button"),
+			$(".creator-mode-button")
 		);
 
-		creatorModeButton.style.backgroundColor = "#000000";
-		creatorModeButton.style.color = "#ffffff";
+		this.updateCreatorButtonColors(creatorModeButton);
 		creatorModeButton.style.padding = "4px 6px";
 		creatorModeButton.style.margin = "6px";
 		creatorModeButton.style.borderRadius = "8px";
@@ -800,7 +811,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		creatorModeButton.style.justifyContent = "center";
 		creatorModeButton.style.whiteSpace = "nowrap";
 		creatorModeButton.style.transition =
-			"opacity 500ms ease-out, width 500ms ease-out";
+			"opacity 500ms ease-out, width 500ms ease-out, background-color 300ms ease-out, color 300ms ease-out";
 		creatorModeButton.style.width = "110px";
 
 		// Create content wrapper for animation
@@ -841,6 +852,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			"width 500ms ease-out, padding 500ms ease-out";
 		visibleCreatorModeButton.style.overflow = "hidden"; // Ensure content doesn't overflow during width change
 		visibleCreatorModeButton.setAttribute("id", "creator-mode-visible-button");
+
+		// Initial colors for visible button
+		this.updateCreatorButtonColors(visibleCreatorModeButton);
+
+		// Update colors when theme changes
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			this.updateCreatorButtonColors(creatorModeButton);
+			this.updateCreatorButtonColors(visibleCreatorModeButton);
+		}));
 
 		visibleCreatorModeButton.onclick = () => {
 			CommandEmitter.emit("workbench.action.toggleCreatorView");
