@@ -104,7 +104,8 @@ export interface IExtension {
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly resourceExtension?: IResourceExtension;
-	readonly isMalicious: boolean;
+	readonly isMalicious: boolean | undefined;
+	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
 }
 
