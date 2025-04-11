@@ -14,12 +14,20 @@ import { PromptDecorationsProviderInstanceManager } from './decorationsProvider/
 import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } from '../../../../../../common/contributions.js';
 
 /**
+ * Whether to enable decorations in the prompt editor.
+ */
+export const DECORATIONS_ENABLED = false;
+
+/**
  * Register all language features related to reusable prompts files.
  */
 export const registerReusablePromptLanguageFeatures = () => {
 	registerContribution(PromptLinkProvider);
 	registerContribution(PromptLinkDiagnosticsInstanceManager);
-	registerContribution(PromptDecorationsProviderInstanceManager);
+
+	if (DECORATIONS_ENABLED) {
+		registerContribution(PromptDecorationsProviderInstanceManager);
+	}
 
 	/**
 	 * We restrict this provider to `Unix` machines for now because of
