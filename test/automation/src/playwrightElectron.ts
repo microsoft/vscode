@@ -32,7 +32,8 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	const electron = await measureAndLog(() => playwright._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
-		env: configuration.env as { [key: string]: string }
+		env: configuration.env as { [key: string]: string },
+		timeout: 0
 	}), 'playwright-electron#launch', logger);
 
 	let window = electron.windows()[0];
