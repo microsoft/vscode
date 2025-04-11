@@ -40,7 +40,7 @@ async function main() {
 main().then(() => {
     process.exit(0);
 }, err => {
-    console.error(err);
+    console.error(`ERROR: ${err}`);
     process.exit(1);
 });
 //# sourceMappingURL=codesign.js.map
