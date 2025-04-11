@@ -30,12 +30,12 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	/**
 	 * Currently available {@link TInstance} instances.
 	 */
-	private readonly instances: ObjectCache<TInstance, IPromptFileEditor>;
+	private readonly instances: ObjectCache<TInstance, ITextModel>;
 
 	/**
 	 * Class object of the managed {@link TInstance}.
 	 */
-	protected abstract get InstanceClass(): new (editor: IPromptFileEditor, ...args: any[]) => TInstance;
+	protected abstract get InstanceClass(): new (editor: ITextModel, ...args: any[]) => TInstance;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -46,7 +46,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 
 		// cache of managed instances
 		this.instances = this._register(
-			new ObjectCache((editor: IPromptFileEditor) => {
+			new ObjectCache((model: ITextModel) => {
 				// sanity check - the new TS/JS discrepancies regarding fields initialization
 				// logic mean that this can be `undefined` during runtime while defined in TS
 				assertDefined(
@@ -56,7 +56,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 
 				const instance: TInstance = initService.createInstance(
 					this.InstanceClass,
-					editor,
+					model,
 				);
 
 				// this is a sanity check and the contract of the object cache,
@@ -100,7 +100,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 
 		// note! calling `get` also creates a provider if it does not exist;
 		// 		and the provider is auto-removed when the editor is disposed
-		this.instances.get(editor);
+		this.instances.get(editor.getModel());
 
 		return this;
 	}
@@ -130,12 +130,6 @@ const isPromptFileEditor = (
 	if (model.getLanguageId() !== PROMPT_LANGUAGE_ID) {
 		return false;
 	}
-
-	// override the `getModel()` method to align with the `IPromptFileEditor` interface
-	// which guarantees that the `getModel()` always returns a non-null model
-	editor.getModel = () => {
-		return model;
-	};
 
 	return true;
 };
