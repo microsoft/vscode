@@ -64,11 +64,20 @@ export const toChatVariable = (
 		id = createPromptVariableId(uri, isRoot);
 	}
 
+	const name = (isPromptFile)
+		? `prompt:${basename(uri)}`
+		: `file:${basename(uri)}`;
+
+	const modelDescription = (isPromptFile)
+		? 'Prompt instructions file that user expects you to follow'
+		: undefined;
+
 	return {
 		id,
-		name: `file:${basename(uri)}`,
+		name,
 		value: uri,
 		kind: 'file',
+		modelDescription,
 	};
 };
 
