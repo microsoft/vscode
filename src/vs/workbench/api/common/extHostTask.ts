@@ -576,7 +576,6 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 		this._onDidEndTaskProblemMatchers.fire({ execution, hasErrors: value.hasErrors });
 	}
-
 	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.ITaskDTO[]; extension: IExtensionDescription };
 
 	public $provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO> {
