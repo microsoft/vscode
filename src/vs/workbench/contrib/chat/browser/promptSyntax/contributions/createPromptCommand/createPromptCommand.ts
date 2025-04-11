@@ -152,6 +152,6 @@ function register(type: TPromptsType, storage: TPromptsStorage, id: string, titl
 }
 
 register('instructions', 'local', 'workbench.command.instructions.create.local', localize('commands.instructions.create.title.local', "Create Instructions File"));
-register('instructions', 'user', 'workbench.command.instructions.create.user', localize('commands.instructions.create.title.user', "Create User Instructions File"));
+register('instructions', 'user', 'workbench.command.instructions.create.user', localize('commands.instructions.create.user.title', "Create User Instructions File"));
 register('prompt', 'local', 'workbench.command.prompts.create.local', localize('commands.prompts.create.title.local', "Create Prompt File"));
 register('prompt', 'user', 'workbench.command.prompts.create.user', localize('commands.prompts.create.title.user', "Create User Prompt File"));
