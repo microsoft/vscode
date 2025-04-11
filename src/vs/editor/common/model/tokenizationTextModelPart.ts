@@ -232,7 +232,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			return;
 		}
 		const changedRange = this._textModel.validateRange(
-			this._semanticTokens.setPartial(range, tokens, this._textModel)
+			this._semanticTokens.setPartial(range, tokens)
 		);
 
 		this._emitModelTokensChangedEvent({
