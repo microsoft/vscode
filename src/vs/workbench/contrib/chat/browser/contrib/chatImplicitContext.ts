@@ -56,7 +56,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						Event.any(
 							codeEditor.onDidChangeModel,
 							codeEditor.onDidChangeCursorSelection,
-							codeEditor.onDidScrollChange),
+							codeEditor.onDidScrollChange,
+							codeEditor.onDidChangeModelLanguage),
 						() => undefined,
 						500)(() => this.updateImplicitContext()));
 				}
@@ -223,7 +224,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			if (setting === 'first' && !isFirstInteraction) {
 				widget.input.implicitContext.setValue(undefined, false, languageId);
 			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
-				// TODO: @legomushroom - set language id if model language changes
 				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
 			} else if (setting === 'never') {
 				widget.input.implicitContext.setValue(undefined, false, languageId);
