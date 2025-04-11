@@ -13,7 +13,7 @@ import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IDraggedResourceEditorInput, MarkerTransferData, DocumentSymbolTransferData } from '../../../../platform/dnd/browser/dnd.js';
+import { IDraggedResourceEditorInput, MarkerTransferData, DocumentSymbolTransferData, NotebookCellOutputTransferData } from '../../../../platform/dnd/browser/dnd.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
@@ -21,7 +21,11 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
+import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
+import { NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../notebook/browser/controller/chat/notebook.chat.contribution.js';
+import { getNotebookEditorFromEditorPane, ICellViewModel } from '../../notebook/browser/notebookBrowser.js';
+import { CellUri } from '../../notebook/common/notebookCommon.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, IGenericChatRequestVariableEntry, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
 
@@ -231,4 +235,64 @@ function symbolId(resource: URI, range?: IRange): string {
 		}
 	}
 	return resource.fsPath + rangePart;
+}
+
+// --- NOTEBOOKS ---
+
+export function resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData, editorService: IEditorService): IChatRequestVariableEntry[] {
+	const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	if (!notebookEditor) {
+		return [];
+	}
+
+	const outputViewModel = getOutputViewModelFromId(data.outputId, notebookEditor);
+	if (!outputViewModel) {
+		return [];
+	}
+
+	const mimeType = outputViewModel.pickedMimeType?.mimeType;
+	if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
+		// get the cell index
+		const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;
+		const cell: ICellViewModel | undefined = notebookEditor.getCellByHandle(cellFromViewModelHandle);
+		if (!cell) {
+			return [];
+		}
+		// uri of the cell
+		const cellUri = cell.uri;
+
+		// get the output index
+		const outputId = outputViewModel?.model.outputId;
+		let outputIndex: number = 0;
+		if (outputId !== undefined) {
+			// find the output index
+
+			outputIndex = cell.outputsViewModels.findIndex(output => {
+				return output.model.outputId === outputId;
+			});
+		}
+		// get URI of notebook
+		let notebookUri = notebookEditor.textModel?.uri;
+		if (!notebookUri) {
+			// if the notebook is not found, try to parse the cell uri
+			const parsedCellUri = CellUri.parse(cellUri);
+			notebookUri = parsedCellUri?.notebook;
+			if (!notebookUri) {
+				return [];
+			}
+		}
+		// construct the URI using the cell uri and output index
+		const outputCellUri = CellUri.generateCellOutputUriWithIndex(notebookUri, cellUri, outputIndex);
+
+		const entry: IGenericChatRequestVariableEntry = {
+			kind: 'generic',
+			value: outputCellUri,
+			id: outputCellUri.toString(),
+			name: outputCellUri.toString(),
+		};
+
+		return [entry];
+	}
+
+	return [];
 }

@@ -2908,11 +2908,30 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.left = left + 'px';
 			this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 
+			// Make output draggable
+			this.element.draggable = true;
+
 			this.element.addEventListener('mouseenter', () => {
 				postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', { id: outputId });
 			});
 			this.element.addEventListener('mouseleave', () => {
 				postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', { id: outputId });
+			});
+
+			// Add drag handler
+			this.element.addEventListener('dragstart', (e: DragEvent) => {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const outputData = {
+					type: 'notebook-cell-output',
+					outputId: this.outputId,
+					cellId: this.cellId,
+				};
+
+				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
+				e.dataTransfer.effectAllowed = 'copy';
 			});
 		}
 
