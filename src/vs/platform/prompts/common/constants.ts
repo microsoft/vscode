@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { assert } from '../../../base/common/assert.js';
 import { basename } from '../../../base/common/path.js';
 
 /**
@@ -70,10 +69,11 @@ export const getCleanPromptName = (
 		return fileUri.path;
 	}
 
-	assert(
-		isPromptFile(fileUri),
-		`Provided path '${fileUri.fsPath}' is not a prompt file.`,
-	);
+	// any file can be a prompt file if user selects the "prompt" language in
+	// the editor, so in this case return the full file name with file extension
+	if (isPromptFile(fileUri) === false) {
+		return basename(fileUri.path);
+	}
 
 	// if a Copilot custom instructions file, remove `markdown` file extension
 	// otherwise, remove the `prompt` file extension
