@@ -1155,6 +1155,10 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 			raw.lastMessageDate = getLastYearDate();
 		}
 	}
+
+	if ((raw.initialLocation as any) === 'editing-session') {
+		raw.initialLocation = ChatAgentLocation.Panel;
+	}
 }
 
 function getLastYearDate(): number {
