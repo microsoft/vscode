@@ -19,6 +19,7 @@ import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
+import { compareFileNames } from '../../../../base/common/comparers.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -1351,7 +1352,9 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 		const sb = b.test.item.sortText;
 		// If tests are in the same location and there's no preferred sortText,
 		// keep the extension's insertion order (#163449).
-		return inSameLocation && !sa && !sb ? 0 : (sa || a.test.item.label).localeCompare(sb || b.test.item.label);
+		return inSameLocation && !sa && !sb
+			? 0
+			: compareFileNames(sa || a.test.item.label, sb || b.test.item.label);
 	}
 }
 
