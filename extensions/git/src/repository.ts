@@ -68,15 +68,13 @@ export class Resource implements SourceControlResourceState {
 				return 'U';
 			case Status.IGNORED:
 				return 'I';
-			case Status.DELETED_BY_THEM:
-				return 'D';
-			case Status.DELETED_BY_US:
-				return 'D';
 			case Status.INDEX_COPIED:
 				return 'C';
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
 			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
