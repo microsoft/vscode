@@ -5,10 +5,12 @@
 
 import { IPromptsService } from '../../../service/types.js';
 import { ProviderInstanceBase } from '../providerInstanceBase.js';
-import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
+import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import { ProviderInstanceManagerBase } from '../providerInstanceManagerBase.js';
+import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
-import { IPromptFileEditor, ProviderInstanceManagerBase } from '../providerInstanceManagerBase.js';
 import { registerThemingParticipant } from '../../../../../../../../platform/theme/common/themeService.js';
 import { FrontMatterHeader } from '../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { DecorationBase, ReactiveDecorationBase, type TDecorationClass, type TChangedDecorator } from './decorations/utils/index.js';
@@ -35,10 +37,10 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	private readonly decorations: DecorationBase<BaseToken>[] = [];
 
 	constructor(
-		editor: IPromptFileEditor,
+		model: ITextModel,
 		@IPromptsService promptsService: IPromptsService,
 	) {
-		super(editor, promptsService);
+		super(model, promptsService);
 
 		this.watchCursorPosition();
 	}
@@ -53,11 +55,24 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	}
 
 	/**
+	 * Get the current cursor position inside an active editor.
+	 * Note! Currently not implemented because the provider is disabled, and
+	 *       we need to do some refactoring to get accurate cursor position.
+	 */
+	private get cursorPosition(): Position | null {
+		if (this.model.isDisposed()) {
+			return null;
+		}
+
+		return null;
+	}
+
+	/**
 	 * Watch editor cursor position and update reactive decorations accordingly.
 	 */
 	private watchCursorPosition(): this {
 		const interval = setInterval(() => {
-			const cursorPosition = this.editor.getPosition();
+			const { cursorPosition } = this;
 
 			const changedDecorations: TChangedDecorator[] = [];
 			for (const decoration of this.decorations) {
@@ -74,7 +89,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 				return;
 			}
 
-			this.changeEditorDecorations(changedDecorations);
+			this.changeModelDecorations(changedDecorations);
 		}, 25);
 
 		this._register(toDisposable(() => {
@@ -87,10 +102,10 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	/**
 	 *
 	 */
-	private changeEditorDecorations(
+	private changeModelDecorations(
 		decorations: readonly TChangedDecorator[],
 	): this {
-		this.editor.changeDecorations((accessor) => {
+		this.model.changeDecorations((accessor) => {
 			for (const decoration of decorations) {
 				decoration.change(accessor);
 			}
@@ -109,7 +124,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 			return this;
 		}
 
-		this.editor.changeDecorations((accessor) => {
+		this.model.changeDecorations((accessor) => {
 			for (const token of tokens) {
 				for (const Decoration of SUPPORTED_DECORATIONS) {
 					if (Decoration.handles(token) === false) {
@@ -135,7 +150,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 			return this;
 		}
 
-		this.editor.changeDecorations((accessor) => {
+		this.model.changeDecorations((accessor) => {
 			for (const decoration of this.decorations) {
 				decoration.remove(accessor);
 			}
