@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise, sleep } from 'zx';
+import { $, ProcessPromise } from 'zx';
 import { e } from '../common/publish';
 
 function printBanner(title: string) {
@@ -28,8 +28,6 @@ function sign(esrpCliDLLPath: string, type: 'sign-pgp', folder: string, glob: st
 }
 
 async function main() {
-	sleep(5000);
-
 	const esrpCliDLLPath = e('EsrpCliDllPath');
 
 	// Start the code sign processes in parallel

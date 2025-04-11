@@ -24,7 +24,6 @@ function sign(esrpCliDLLPath, type, folder, glob) {
     return (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
 }
 async function main() {
-    (0, zx_1.sleep)(5000);
     const esrpCliDLLPath = (0, publish_1.e)('EsrpCliDllPath');
     // Start the code sign processes in parallel
     // 1. Codesign deb package
