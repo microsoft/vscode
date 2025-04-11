@@ -37,7 +37,7 @@ export const PROMPT_DOCS_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 });
 
 /**
- * A special quick pick item that links to the documentation.
+ * A special quick pick item that links to the custom instructions documentation.
  */
 export const INSTRUCTIONS_DOCS_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 	type: 'item',
