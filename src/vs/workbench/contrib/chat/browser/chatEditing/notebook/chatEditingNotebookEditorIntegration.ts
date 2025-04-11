@@ -291,15 +291,18 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	private getCurrentChange() {
-		const index = this.changeIndexComputer.getIndexOf(this._currentIndex.get());
+		const currentIndex = Math.min(this._currentIndex.get(), this.changeIndexComputer.getTotalSum() - 1);
+		const index = this.changeIndexComputer.getIndexOf(currentIndex);
 		const change = this.sortedCellChanges[index.index];
 
 		return change ? { change, index: index.remainder } : undefined;
 	}
 
-	private getIndexOfChange(change: ICellDiffInfo) {
+	private updateCurrentIndex(change: ICellDiffInfo, indexInCell: number = 0) {
 		const index = this.sortedCellChanges.indexOf(change);
-		return this.changeIndexComputer.getPrefixSum(index - 1);
+		const changeIndex = this.changeIndexComputer.getPrefixSum(index - 1);
+		const currentIndex = Math.min(changeIndex + indexInCell, this.changeIndexComputer.getTotalSum() - 1);
+		this._currentIndex.set(currentIndex, undefined);
 	}
 
 	private createDecorators() {
@@ -348,9 +351,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	reveal(firstOrLast: boolean): void {
-		const changes = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged'));
+		const changes = this.sortedCellChanges.filter(c => c.type !== 'unchanged');
 		if (!changes.length) {
-			return undefined;
+			return;
 		}
 		const change = firstOrLast ? changes[0] : changes[changes.length - 1];
 		this._revealFirstOrLast(change, firstOrLast);
@@ -369,7 +372,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				this.blur(this.getCurrentChange()?.change);
 				// reveal the deleted cell decorator
 				this.deletedCellDecorator?.reveal(change.originalCellIndex);
-				this._currentIndex.set(this.getIndexOfChange(change), undefined);
+				this.updateCurrentIndex(change);
 				return true;
 			default:
 				break;
@@ -386,16 +389,16 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					const textChange = change.diff.get().changes[indexInCell];
 					const cellViewModel = this.getCellViewModel(change);
 					if (cellViewModel) {
+						this.updateCurrentIndex(change, indexInCell);
 						this.revealChangeInView(cellViewModel, textChange?.modified, change);
-						this._currentIndex.set(this.getIndexOfChange(change) + indexInCell, undefined);
 						return true;
 					}
 					break;
 				}
 			case 'delete':
+				this.updateCurrentIndex(change);
 				// reveal the deleted cell decorator
 				this.deletedCellDecorator?.reveal(change.originalCellIndex);
-				this._currentIndex.set(this.getIndexOfChange(change), undefined);
 				return true;
 			default:
 				break;
@@ -434,7 +437,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	next(wrap: boolean): boolean {
-		const changes = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged'));
+		const changes = this.sortedCellChanges.filter(c => c.type !== 'unchanged');
 		const currentChange = this.getCurrentChange();
 		if (!currentChange) {
 			const firstChange = changes[0];
@@ -454,7 +457,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					const cellIntegration = this.getCell(currentChange.change.modifiedCellIndex);
 					if (cellIntegration) {
 						if (cellIntegration.next(false)) {
-							this._currentIndex.set(this.getIndexOfChange(currentChange.change) + cellIntegration.currentIndex.get(), undefined);
+							this.updateCurrentIndex(currentChange.change, cellIntegration.currentIndex.get());
 							return true;
 						}
 					}
@@ -490,14 +493,17 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		}
 
 		if (wrap) {
-			return this.next(false);
+			const firstChange = changes[0];
+			if (firstChange) {
+				return this._revealFirstOrLast(firstChange, true);
+			}
 		}
 
 		return false;
 	}
 
 	previous(wrap: boolean): boolean {
-		const changes = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged'));
+		const changes = this.sortedCellChanges.filter(c => c.type !== 'unchanged');
 		const currentChange = this.getCurrentChange();
 		if (!currentChange) {
 			const lastChange = changes[changes.length - 1];
@@ -516,7 +522,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					const cellIntegration = this.getCell(currentChange.change.modifiedCellIndex);
 					if (cellIntegration) {
 						if (cellIntegration.previous(false)) {
-							this._currentIndex.set(this.getIndexOfChange(currentChange.change) + cellIntegration.currentIndex.get(), undefined);
+							this.updateCurrentIndex(currentChange.change, cellIntegration.currentIndex.get());
 							return true;
 						}
 					}
@@ -576,9 +582,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		return undefined;
 	}
 
-	async acceptNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
-		if (change) {
-			await change.accept();
+	async acceptNearestChange(hunk: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		if (hunk) {
+			await hunk.accept();
 		} else {
 			const current = this.getCurrentChange();
 			const focused = this.getfocusedIntegration();
@@ -588,13 +594,15 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			} else if (focused) {
 				await focused.acceptNearestChange();
 			}
-		}
 
-		this.next(true);
+			this._currentIndex.set(this._currentIndex.get() - 1, undefined);
+			this.next(true);
+		}
 	}
-	async rejectNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
-		if (change) {
-			await change.reject();
+
+	async rejectNearestChange(hunk: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		if (hunk) {
+			await hunk.reject();
 		} else {
 			const current = this.getCurrentChange();
 			const focused = this.getfocusedIntegration();
@@ -604,9 +612,11 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			} else if (focused) {
 				await focused.rejectNearestChange();
 			}
+
+			this._currentIndex.set(this._currentIndex.get() - 1, undefined);
+			this.next(true);
 		}
 
-		this.next(true);
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
