@@ -244,11 +244,11 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 				'Implicit prompt attachments must have a value.',
 			);
 
-			if (URI.isUri(this.value)) {
-				return createPromptVariableId(this.value, true);
-			}
+			const uri = URI.isUri(this.value)
+				? this.value
+				: this.value.uri;
 
-			return createPromptVariableId(this.value.uri, true);
+			return createPromptVariableId(uri, true);
 		}
 
 		if (URI.isUri(this.value)) {
@@ -314,12 +314,8 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	private _languageId: string | undefined;
-	get languageId() {
-		return this._languageId;
-	}
-
 	get isPrompt() {
-		return (this.languageId === PROMPT_LANGUAGE_ID);
+		return (this._languageId === PROMPT_LANGUAGE_ID);
 	}
 
 	private _enabled = true;
