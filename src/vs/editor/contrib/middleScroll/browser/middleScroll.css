@@ -1,0 +1,53 @@
+.scroll-editor-on-middle-click-dot {
+  cursor: url('images/all-scroll.png') 10 10, all-scroll !important;
+  position: absolute;
+	z-index: 1;
+  background-color: white;
+  opacity: 0.5;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+
+  &.hidden {
+    display: none;
+  }
+}
+
+.scroll-editor-on-middle-click-editor {
+  * {
+    cursor: url('images/all-scroll.png') 10 10, all-scroll !important;
+  }
+
+  &[data-scroll-direction="n"] * {
+    cursor: url('images/n.png') 4 9, all-scroll !important;
+  }
+
+  &[data-scroll-direction="ne"] * {
+    cursor: url('images/ne.png') 2 7, all-scroll !important;
+  }
+
+  &[data-scroll-direction="e"] * {
+    cursor: url('images/e.png') 2 4, all-scroll !important;
+  }
+
+  &[data-scroll-direction="se"] * {
+    cursor: url('images/se.png') 2 2, all-scroll !important;
+  }
+
+  &[data-scroll-direction="s"] * {
+    cursor: url('images/s.png') 4 2, all-scroll !important;
+  }
+
+  &[data-scroll-direction="sw"] * {
+    cursor: url('images/sw.png') 7 2, all-scroll !important;
+  }
+
+  &[data-scroll-direction="w"] * {
+    cursor: url('images/w.png') 9 4, all-scroll !important;
+  }
+
+  &[data-scroll-direction="nw"] * {
+    cursor: url('images/nw.png') 7 7, all-scroll !important;
+  }
+}

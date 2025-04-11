@@ -2617,6 +2617,9 @@
 /users/foo/src/vs/editor/contrib/comment/comment.ts
 /users/foo/src/vs/editor/contrib/markdown
 /users/foo/src/vs/editor/contrib/markdown/markdownRenderer.ts
+/users/foo/src/vs/editor/contrib/middleScroll
+/users/foo/src/vs/editor/contrib/middleScroll/middleScroll.css
+/users/foo/src/vs/editor/contrib/middleScroll/middleScroll.ts
 /users/foo/src/vs/editor/contrib/dnd
 /users/foo/src/vs/editor/contrib/dnd/dragAndDropCommand.ts
 /users/foo/src/vs/editor/contrib/dnd/dnd.css
