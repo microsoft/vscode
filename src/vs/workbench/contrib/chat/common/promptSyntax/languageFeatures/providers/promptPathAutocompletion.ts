@@ -17,13 +17,13 @@
 import { LANGUAGE_SELECTOR } from '../../constants.js';
 import { IPromptsService } from '../../service/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { extUri } from '../../../../../../../base/common/resources.js';
 import { assertOneOf } from '../../../../../../../base/common/types.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IPromptFileReference, IPromptReference } from '../../parsers/types.js';
-import { dirname, extUri } from '../../../../../../../base/common/resources.js';
 import { assert, assertNever } from '../../../../../../../base/common/assert.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
@@ -96,8 +96,9 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IPromptsService private readonly promptSyntaxService: IPromptsService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
+
 	) {
 		super();
 
@@ -132,7 +133,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			`Prompt path autocompletion provider`,
 		);
 
-		const parser = this.promptSyntaxService.getSyntaxParserFor(model);
+		const parser = this.promptsService.getSyntaxParserFor(model);
 		assert(
 			!parser.disposed,
 			'Prompt parser must not be disposed.',
@@ -155,7 +156,13 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return undefined;
 		}
 
-		const modelDirname = dirname(model.uri);
+		const { parentFolder } = parser;
+
+		// if didn't find a folder URI to start the suggestions from,
+		// don't provide any suggestions
+		if (parentFolder === null) {
+			return undefined;
+		}
 
 		// in the case of the '.' trigger character, we must check if this is the first
 		// dot in the link path, otherwise the dot could be a part of a folder name
@@ -163,7 +170,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return {
 				suggestions: await this.getFirstFolderSuggestions(
 					triggerCharacter,
-					modelDirname,
+					parentFolder,
 					fileReference,
 				),
 			};
@@ -173,7 +180,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return {
 				suggestions: await this.getNonFirstFolderSuggestions(
 					triggerCharacter,
-					modelDirname,
+					parentFolder,
 					fileReference,
 				),
 			};

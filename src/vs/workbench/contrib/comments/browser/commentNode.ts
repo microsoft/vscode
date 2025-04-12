@@ -44,7 +44,6 @@ import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MarshalledCommentThread } from '../../../common/comments.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -116,7 +115,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHoverService private hoverService: IHoverService,
-		@IAccessibilityService private accessibilityService: IAccessibilityService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
@@ -160,9 +158,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		if (pendingEdit) {
 			this.switchToEditMode();
 		}
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			this.toggleToolbarHidden(true);
-		}));
 
 		this.activeCommentListeners();
 	}
@@ -271,16 +266,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions'));
-		this.toggleToolbarHidden(true);
 		this.createActionsToolbar();
-	}
-
-	private toggleToolbarHidden(hidden: boolean) {
-		if (hidden && !this.accessibilityService.isScreenReaderOptimized()) {
-			this._actionsToolbarContainer.classList.add('hidden');
-		} else {
-			this._actionsToolbarContainer.classList.remove('hidden');
-		}
 	}
 
 	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -328,18 +314,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this.toolbar.value.context = this.commentNodeContext;
 		this.toolbar.value.actionRunner = this._actionRunner;
-
-		this.registerActionBarListeners(this._actionsToolbarContainer);
 	}
 
 	private createActionsToolbar() {
 		const actions: IAction[] = [];
-
-		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		const toggleReactionAction = hasReactionHandler ? this.createReactionPicker(this.comment.commentReactions || []) : undefined;
-		if (toggleReactionAction) {
-			actions.push(toggleReactionAction);
-		}
 
 		const menu = this._commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
 		this._register(menu);
@@ -347,9 +325,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			const { primary, secondary } = this.getToolbarActions(menu);
 			if (!this.toolbar && (primary.length || secondary.length)) {
 				this.createToolbar();
-			}
-			if (toggleReactionAction) {
-				primary.unshift(toggleReactionAction);
 			}
 			this.toolbar.value!.setActions(primary, secondary);
 		}));
@@ -680,7 +655,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	setFocus(focused: boolean, visible: boolean = false) {
 		if (focused) {
 			this._domNode.focus();
-			this.toggleToolbarHidden(false);
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
 			if (this.comment.mode === languages.CommentMode.Editing) {
@@ -688,24 +662,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		} else {
 			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
-				this.toggleToolbarHidden(true);
 				this._domNode.tabIndex = -1;
 			}
 			this._actionsToolbarContainer.classList.remove('tabfocused');
 		}
-	}
-
-	private registerActionBarListeners(actionsContainer: HTMLElement): void {
-		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
-			this.toggleToolbarHidden(false);
-			actionsContainer.classList.add('mouseover');
-		}));
-		this._register(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
-			if (actionsContainer.classList.contains('mouseover') && !actionsContainer.classList.contains('tabfocused')) {
-				this.toggleToolbarHidden(true);
-			}
-			actionsContainer.classList.remove('mouseover');
-		}));
 	}
 
 	async update(newComment: languages.Comment) {

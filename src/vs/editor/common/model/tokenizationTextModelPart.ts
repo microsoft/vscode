@@ -211,7 +211,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	// #region Semantic Tokens
 
 	public setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void {
-		this._semanticTokens.set(tokens, isComplete);
+		this._semanticTokens.set(tokens, isComplete, this._textModel);
 
 		this._emitModelTokensChangedEvent({
 			semanticTokensApplied: tokens !== null,

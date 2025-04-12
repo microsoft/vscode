@@ -8,8 +8,9 @@ import { IPromptFileReference } from '../../parsers/types.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { NotPromptFile } from '../../../promptFileReferenceErrors.js';
+import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { IPromptFileEditor, ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
+import { ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
 
 /**
@@ -22,11 +23,11 @@ const MARKERS_OWNER_ID = 'reusable-prompts-syntax';
  */
 class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	constructor(
-		editor: IPromptFileEditor,
+		model: ITextModel,
 		@IPromptsService promptsService: IPromptsService,
 		@IMarkerService private readonly markerService: IMarkerService,
 	) {
-		super(editor, promptsService);
+		super(model, promptsService);
 	}
 
 	/**

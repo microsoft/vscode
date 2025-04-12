@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageFilter } from '../../../../../editor/common/languageSelector.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
 
 /**
  * Documentation link for the reusable prompts feature.
@@ -12,24 +11,13 @@ import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, PROMPT_FILE_EXTENSION } from '../
 export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 
 /**
- * Supported reusable prompt file patterns.
+ * Language ID for the reusable prompt syntax.
  */
-const REUSABLE_PROMPT_FILE_PATTERNS = Object.freeze([
-	/**
-	 * Any file that has the prompt file extension.
-	 * See {@link PROMPT_FILE_EXTENSION}.
-	 */
-	`**/*${PROMPT_FILE_EXTENSION}`,
-
-	/**
-	 * Copilot custom instructions file inside a `.github` folder.
-	 */
-	`**/.github/${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME}`,
-]);
+export const PROMPT_LANGUAGE_ID = 'prompt';
 
 /**
  * Prompt files language selector.
  */
 export const LANGUAGE_SELECTOR: LanguageFilter = Object.freeze({
-	pattern: `{${REUSABLE_PROMPT_FILE_PATTERNS.join(',')}}`,
+	language: PROMPT_LANGUAGE_ID,
 });

@@ -76,7 +76,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestVariableEntry, isImageVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -90,7 +90,7 @@ import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachmen
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { DefaultChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, PasteAttachmentWidget } from './chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -194,7 +194,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Check if the chat input part has any prompt instruction attachments.
 	 */
 	public get hasInstructionAttachments(): boolean {
-		return !this.instructionAttachmentsPart.empty;
+		// if prompt attached explicitly as a "prompt" attachment
+		if (this.instructionAttachmentsPart.empty === false) {
+			return true;
+		}
+
+		if (this.implicitContext === undefined) {
+			return false;
+		}
+
+		// if prompt attached as an implicit "current file" context
+		return (this.implicitContext.isPrompt && this.implicitContext.enabled);
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
@@ -773,7 +783,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	// A funtion that filters out specifically the `value` property of the attachment.
+	// A function that filters out specifically the `value` property of the attachment.
 	private getFilteredEntry(query: string, inputState: IChatInputState): IChatHistoryEntry {
 		const attachmentsWithoutImageValues = inputState.chatContextAttachments?.map(attachment => {
 			if (isImageVariableEntry(attachment) && attachment.references?.length && attachment.value) {
@@ -1115,7 +1125,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty;
+		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || this.hasInstructionAttachments;
 		dom.setVisibility(Boolean(hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
@@ -1127,7 +1137,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			container.appendChild(implicitPart.domNode);
 		}
 
-		this.promptInstructionsAttached.set(!this.instructionAttachmentsPart.empty);
+		this.promptInstructionsAttached.set(this.hasInstructionAttachments);
 		this.instructionAttachmentsPart.render(container);
 
 		for (const [index, attachment] of attachments) {
@@ -1136,7 +1146,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1);
 
 			let attachmentWidget;
-			if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
+			if (resource && isNotebookOutputVariableEntry(attachment)) {
+				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
+			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isImageVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);

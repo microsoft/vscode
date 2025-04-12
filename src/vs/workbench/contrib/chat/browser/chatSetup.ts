@@ -13,7 +13,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -266,8 +266,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					progress({
 						kind: 'warning',
 						content: new MarkdownString(ready === 'timedout' ?
-							localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again.") :
-							localize('copilotFailedWarning', "Copilot failed to get ready. Please try again.")
+							localize('copilotTookLongWarning', "Copilot took too long to get ready. Please review the guidance in the Chat view.") :
+							localize('copilotFailedWarning', "Copilot failed to get ready. Please review the guidance in the Chat view.")
 						)
 					});
 
@@ -427,6 +427,10 @@ class ChatSetup {
 			setupStrategy = await this.showDialog();
 		}
 
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.controller.value.hasEnterpriseProviderConfigured()) {
+			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
+		}
+
 		let success = undefined;
 		try {
 			switch (setupStrategy) {
@@ -557,24 +561,27 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const updateRegistration = () => {
 			const disabled = context.state.hidden;
 			if (!disabled && !registration.value) {
-				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Ask, context, controller);
-				registration.value = combinedDisposable(
-					panelDisposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Edit, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Agent, context, controller).disposable,
-					panelAgent.onUnresolvableError(() => {
+				const disposables = registration.value = new DisposableStore();
+
+				// Panel Agents
+				for (const mode of [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent]) {
+					const { agent, disposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
+					disposables.add(disposable);
+					disposables.add(agent.onUnresolvableError(() => {
 						// An unresolvable error from our agent registrations means that
 						// Copilot is unhealthy for some reason. We clear our panel
 						// registration to give Copilot a chance to show a custom message
 						// to the user from the views and stop pretending as if there was
 						// a functional agent.
 						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-						panelDisposable.dispose();
-					})
-				);
+						disposable.dispose();
+					}));
+				}
+
+				// Inline Agents
+				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
+				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
+				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 			} else if (disabled && registration.value) {
 				registration.clear();
 			}
@@ -1006,6 +1013,11 @@ class ChatSetupController extends Disposable {
 
 			throw error;
 		}
+	}
+
+	hasEnterpriseProviderConfigured(): boolean {
+		const setting = this.configurationService.getValue<{ authProvider: unknown }>(defaultChat.completionsAdvancedSetting);
+		return setting.authProvider === defaultChat.enterpriseProviderId;
 	}
 
 	async setupWithProvider(options: { useEnterpriseProvider: boolean }): Promise<boolean> {

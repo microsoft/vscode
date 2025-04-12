@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
@@ -12,6 +13,30 @@ import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+
+/**
+ * Prompt IDs start with a well-defined prefix that is used by
+ * the copilot extension to identify prompt references.
+ *
+ * @param uri The URI of the prompt file.
+ * @param isRoot Whether the prompt file is the root file, or a
+ *               child reference that is nested inside the root file.
+ */
+export const createPromptVariableId = (
+	uri: URI,
+	isRoot: boolean,
+): string => {
+	// the default prefix that is used for all prompt files
+	let prefix = 'vscode.prompt.instructions';
+	// if the reference is the root object, add the `.root` suffix
+	if (isRoot) {
+		prefix += '.root';
+	}
+
+	// final `id` for all `prompt files` starts with the well-defined
+	// part that the copilot extension(or other chatbot) can rely on
+	return `${prefix}__${uri}`;
+};
 
 /**
  * Utility to convert a {@link reference} to a chat variable entry.
@@ -29,30 +54,30 @@ export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
 ): IChatRequestVariableEntry => {
-	const { uri, isPromptFile: isPromptFile } = reference;
+	const { uri, isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
 
-	// for prompt files, we add a prefix to the `id`
+	// prompts have special `id`s that are used by the copilot extension
 	if (isPromptFile) {
-		// the default prefix that is used for all prompt files
-		let prefix = 'vscode.prompt.instructions';
-		// if the reference is the root object, add the `.root` suffix
-		if (isRoot) {
-			prefix += '.root';
-		}
-
-		// final `id` for all `prompt files` starts with the well-defined
-		// part that the copilot extension(or other chatbot) can rely on
-		id = `${prefix}__${id}`;
+		id = createPromptVariableId(uri, isRoot);
 	}
+
+	const name = (isPromptFile)
+		? `prompt:${basename(uri)}`
+		: `file:${basename(uri)}`;
+
+	const modelDescription = (isPromptFile)
+		? 'Prompt instructions file'
+		: undefined;
 
 	return {
 		id,
-		name: uri.fsPath,
+		name,
 		value: uri,
 		kind: 'file',
+		modelDescription,
 	};
 };
 
@@ -93,7 +118,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 			const { reference } = attachment;
 
 			// the usual URIs list of prompt instructions is `bottom-up`, therefore
-			// we do the same herfe - first add all child references of the model
+			// we do the same here - first add all child references of the model
 			result.push(
 				...reference.allValidReferences.map((link) => {
 					return toChatVariable(link, false);
@@ -102,7 +127,13 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 
 			// then add the root reference of the model itself
 			result.push(
-				toChatVariable(reference, true),
+				toChatVariable({
+					uri: reference.uri,
+					// the attached file must have been a prompt file therefore
+					// we force that assumption here; this makes sure that prompts
+					// in untitled documents can be also attached to the chat input
+					isPromptFile: true,
+				}, true),
 			);
 		}
 

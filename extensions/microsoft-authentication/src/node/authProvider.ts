@@ -86,7 +86,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		uriHandler: UriEventHandler,
 		env: Environment = Environment.AzureCloud
 	): Promise<MsalAuthProvider> {
-		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, env.name);
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env.name);
 		context.subscriptions.push(publicClientManager);
 		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
 		await authProvider.initialize();
@@ -354,6 +354,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				} catch (e) {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
+					this._telemetryReporter.sendTelemetryErrorEvent(e);
 					continue;
 				}
 			}
