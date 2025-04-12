@@ -221,7 +221,10 @@ steps:
           echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
         displayName: Find ESRP CLI
 
-      - script: npx deemon --detach --wait node build/azure-pipelines/win32/codesign.js
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: ✍️ Codesign
@@ -240,7 +243,10 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: npx deemon --attach node build/azure-pipelines/win32/codesign.js
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
         condition: succeededOrFailed()
         displayName: "✍️ Post-job: Codesign"
 
