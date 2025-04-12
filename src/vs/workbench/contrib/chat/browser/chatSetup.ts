@@ -427,7 +427,7 @@ class ChatSetup {
 			setupStrategy = await this.showDialog();
 		}
 
-		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.controller.value.hasProviderConfigured()) {
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.controller.value.hasEnterpriseProviderConfigured()) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
 		}
 
@@ -1015,9 +1015,9 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	hasProviderConfigured(): boolean {
-		const setting = this.configurationService.getValue<{ authProvider: string | undefined }>(defaultChat.completionsAdvancedSetting);
-		return typeof setting.authProvider === 'string';
+	hasEnterpriseProviderConfigured(): boolean {
+		const setting = this.configurationService.getValue<{ authProvider: unknown }>(defaultChat.completionsAdvancedSetting);
+		return setting.authProvider === defaultChat.enterpriseProviderId;
 	}
 
 	async setupWithProvider(options: { useEnterpriseProvider: boolean }): Promise<boolean> {
