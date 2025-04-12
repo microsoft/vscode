@@ -26,7 +26,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
 import { createActionViewItem, fillInActionBarActions as fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { WindowTitle } from './windowTitle.js';
 import { CommandCenterControl } from './commandCenterControl.js';
@@ -54,7 +54,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
-import { IsAuxiliaryTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryTitleBarContext, IsMinimalTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -288,6 +288,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly isAuxiliary: boolean;
 	private isMinimal = false;
+	private readonly isMinimalContextKey: IContextKey<boolean>;
 
 	private readonly windowTitle: WindowTitle;
 
@@ -317,8 +318,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.isAuxiliary = editorGroupsContainer !== 'main';
 
 		this.scopedContextKeyService = contextKeyService.createScoped(layoutService.getContainer(targetWindow));
+
 		const isAuxiliaryTitleBarContext = IsAuxiliaryTitleBarContext.bindTo(this.scopedContextKeyService);
 		isAuxiliaryTitleBarContext.set(this.isAuxiliary);
+
+		this.isMinimalContextKey = IsMinimalTitleBarContext.bindTo(this.scopedContextKeyService);
+		this.isMinimalContextKey.set(this.isMinimal);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -404,6 +409,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	updateOptions(options: { minimal: boolean }): void {
 		const oldIsMinimal = this.isMinimal;
 		this.isMinimal = options.minimal;
+
+		this.isMinimalContextKey.set(this.isMinimal);
 
 		if (oldIsMinimal !== this.isMinimal) {
 			this.recreateTitle();
