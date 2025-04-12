@@ -35,7 +35,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
-import { IsMinimalTitleBarContext } from '../../../../common/contextkeys.js';
+import { IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -715,7 +715,7 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 			'chat.commandCenter.enabled',
 			localize('toggle.chatControl', 'Copilot Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 5,
-			ContextKeyExpr.and(IsMinimalTitleBarContext.toNegated(), ChatContextKeys.supported)
+			ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ChatContextKeys.supported)
 		);
 	}
 });

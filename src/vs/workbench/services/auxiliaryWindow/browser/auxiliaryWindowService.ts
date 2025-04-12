@@ -21,7 +21,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_MINIMAL_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_COMPACT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
 import { BaseWindow } from '../../../browser/window.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -42,7 +42,7 @@ export enum AuxiliaryWindowMode {
 
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
-	readonly minimal?: boolean;
+	readonly compact?: boolean;
 
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
@@ -80,7 +80,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
 
-	updateOptions(options: { minimal: boolean } | undefined): void;
+	updateOptions(options: { compact: boolean } | undefined): void;
 
 	layout(): void;
 
@@ -108,7 +108,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	readonly whenStylesHaveLoaded: Promise<void>;
 
-	private minimal = false;
+	private compact = false;
 
 	constructor(
 		readonly window: CodeWindow,
@@ -125,8 +125,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		this.registerListeners();
 	}
 
-	updateOptions(options: { minimal: boolean }): void {
-		this.minimal = options.minimal;
+	updateOptions(options: { compact: boolean }): void {
+		this.compact = options.compact;
 	}
 
 	private registerListeners(): void {
@@ -219,7 +219,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				height: this.window.outerHeight
 			},
 			zoomLevel: getZoomLevel(this.window),
-			minimal: this.minimal
+			compact: this.compact
 		};
 	}
 
@@ -272,7 +272,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const { container, stylesLoaded } = this.createContainer(targetWindow, containerDisposables, options);
 
 		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded);
-		auxiliaryWindow.updateOptions({ minimal: options?.minimal ?? false });
+		auxiliaryWindow.updateOptions({ compact: options?.compact ?? false });
 
 		const registryDisposables = new DisposableStore();
 		this.windows.set(targetWindow.vscodeWindowId, auxiliaryWindow);
@@ -319,7 +319,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			height: activeWindow.outerHeight
 		};
 
-		const defaultSize = options?.minimal ? DEFAULT_MINIMAL_AUX_WINDOW_SIZE : DEFAULT_AUX_WINDOW_SIZE;
+		const defaultSize = options?.compact ? DEFAULT_COMPACT_AUX_WINDOW_SIZE : DEFAULT_AUX_WINDOW_SIZE;
 
 		const width = Math.max(options?.bounds?.width ?? defaultSize.width, WindowMinimumSize.WIDTH);
 		const height = Math.max(options?.bounds?.height ?? defaultSize.height, WindowMinimumSize.HEIGHT);
