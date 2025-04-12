@@ -6,7 +6,7 @@
 import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
 import { $, hide, show } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -56,6 +56,8 @@ export class AuxiliaryEditorPart {
 	}
 
 	async create(label: string, options?: IAuxiliaryEditorPartOpenOptions): Promise<ICreateAuxiliaryEditorPartResult> {
+		const that = this;
+		let minimal = Boolean(options?.minimal);
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -99,6 +101,23 @@ export class AuxiliaryEditorPart {
 			}
 		}
 
+		function updateMinimal(newMinimal: boolean): void {
+			if (newMinimal === minimal) {
+				return;
+			}
+
+			minimal = newMinimal;
+			auxiliaryWindow.updateOptions({ minimal });
+			titlebarPart?.updateOptions({ minimal });
+			editorPart.updateOptions({ minimal });
+
+			const oldStatusbarVisible = statusbarVisible;
+			statusbarVisible = !minimal && that.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+			if (oldStatusbarVisible !== statusbarVisible) {
+				updateStatusbarVisibility(true);
+			}
+		}
+
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
@@ -109,7 +128,8 @@ export class AuxiliaryEditorPart {
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label, { minimal: Boolean(options?.minimal) }));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
+		editorPart.updateOptions({ minimal });
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
 
@@ -118,7 +138,8 @@ export class AuxiliaryEditorPart {
 		let titlebarVisible = false;
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
-			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart, { minimal: Boolean(options?.minimal) }));
+			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+			titlebarPart.updateOptions({ minimal });
 			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined);
 
 			const handleTitleBarVisibilityEvent = () => {
@@ -146,10 +167,10 @@ export class AuxiliaryEditorPart {
 
 		// Statusbar
 		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
-		let statusbarVisible = !options?.minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+		let statusbarVisible = !minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY)) {
-				statusbarVisible = !options?.minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+				statusbarVisible = !minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 
 				updateStatusbarVisibility(true);
 			}
@@ -200,6 +221,23 @@ export class AuxiliaryEditorPart {
 		}));
 		auxiliaryWindow.layout();
 
+		// Minimal: listeners to exit this mode when other editors or groups open.
+		if (minimal) {
+			const minimalDisposables = disposables.add(new DisposableStore());
+
+			minimalDisposables.add(editorPart.onDidAddGroup(() => {
+				minimalDisposables.dispose();
+				updateMinimal(false);
+			}));
+
+			minimalDisposables.add(editorPart.activeGroup.onDidActiveEditorChange(() => {
+				if (editorPart.activeGroup.count > 1) {
+					minimalDisposables.dispose();
+					updateMinimal(false);
+				}
+			}));
+		}
+
 		// Have a InstantiationService that is scoped to the auxiliary window
 		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
@@ -221,12 +259,13 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
 
+	private readonly optionsDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		windowId: number,
 		editorPartsView: IEditorPartsView,
 		private readonly state: IEditorPartUIState | undefined,
 		groupsLabel: string,
-		auxiliaryOptions: { minimal: boolean } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -237,11 +276,15 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+	}
 
-		if (auxiliaryOptions?.minimal) {
-			this._register(this.enforcePartOptions({
+	updateOptions(options: { minimal: boolean }): void {
+		if (options.minimal && !this.optionsDisposable.value) {
+			this.optionsDisposable.value = this.enforcePartOptions({
 				showTabs: 'none'
-			}));
+			});
+		} else if (!options.minimal) {
+			this.optionsDisposable.clear();
 		}
 	}
 
