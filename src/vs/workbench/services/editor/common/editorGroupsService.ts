@@ -565,7 +565,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Opens a new window with a full editor part instantiated
 	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; minimal?: boolean }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean }): Promise<IAuxiliaryEditorPart>;
 
 	/**
 	 * Returns the instantiation service that is scoped to the

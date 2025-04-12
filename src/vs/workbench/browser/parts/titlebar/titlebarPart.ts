@@ -54,7 +54,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
-import { IsAuxiliaryTitleBarContext, IsMinimalTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryTitleBarContext, IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -287,8 +287,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private isInactive: boolean = false;
 
 	private readonly isAuxiliary: boolean;
-	private isMinimal = false;
-	private readonly isMinimalContextKey: IContextKey<boolean>;
+	private isCompact = false;
+	private readonly isCompactContextKey: IContextKey<boolean>;
 
 	private readonly windowTitle: WindowTitle;
 
@@ -322,8 +322,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const isAuxiliaryTitleBarContext = IsAuxiliaryTitleBarContext.bindTo(this.scopedContextKeyService);
 		isAuxiliaryTitleBarContext.set(this.isAuxiliary);
 
-		this.isMinimalContextKey = IsMinimalTitleBarContext.bindTo(this.scopedContextKeyService);
-		this.isMinimalContextKey.set(this.isMinimal);
+		this.isCompactContextKey = IsCompactTitleBarContext.bindTo(this.scopedContextKeyService);
+		this.isCompactContextKey.set(this.isCompact);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -406,13 +406,13 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this._onDidChange.fire(undefined);
 	}
 
-	updateOptions(options: { minimal: boolean }): void {
-		const oldIsMinimal = this.isMinimal;
-		this.isMinimal = options.minimal;
+	updateOptions(options: { compact: boolean }): void {
+		const oldIsCompact = this.isCompact;
+		this.isCompact = options.compact;
 
-		this.isMinimalContextKey.set(this.isMinimal);
+		this.isCompactContextKey.set(this.isCompact);
 
-		if (oldIsMinimal !== this.isMinimal) {
+		if (oldIsCompact !== this.isCompact) {
 			this.recreateTitle();
 			this.createActionToolBarMenus(true);
 		}
@@ -816,11 +816,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	protected get isCommandCenterVisible() {
-		return !this.isMinimal && this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== false;
+		return !this.isCompact && this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== false;
 	}
 
 	private get editorActionsEnabled(): boolean {
-		return !this.isMinimal && this.editorGroupService.partOptions.editorActionsLocation === EditorActionsLocation.TITLEBAR ||
+		return !this.isCompact && this.editorGroupService.partOptions.editorActionsLocation === EditorActionsLocation.TITLEBAR ||
 			(
 				this.editorGroupService.partOptions.editorActionsLocation === EditorActionsLocation.DEFAULT &&
 				this.editorGroupService.partOptions.showTabs === EditorTabsMode.NONE
@@ -829,11 +829,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private get activityActionsEnabled(): boolean {
 		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return !this.isMinimal && !this.isAuxiliary && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM);
+		return !this.isCompact && !this.isAuxiliary && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM);
 	}
 
 	private get globalActionsEnabled(): boolean {
-		return !this.isMinimal;
+		return !this.isCompact;
 	}
 
 	get hasZoomableElements(): boolean {
@@ -919,7 +919,7 @@ export interface IAuxiliaryTitlebarPart extends ITitlebarPart, IView {
 	readonly container: HTMLElement;
 	readonly height: number;
 
-	updateOptions(options: { minimal: boolean }): void;
+	updateOptions(options: { compact: boolean }): void;
 }
 
 export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements IAuxiliaryTitlebarPart {

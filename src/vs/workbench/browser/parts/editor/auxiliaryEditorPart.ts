@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
-import { $, hide, show } from '../../../../base/browser/dom.js';
+import { $, getActiveWindow, hide, show } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -27,6 +27,10 @@ import { IWorkbenchLayoutService, shouldShowCustomTitleBar } from '../../../serv
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IsAuxiliaryTitleBarContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
@@ -37,6 +41,49 @@ export interface ICreateAuxiliaryEditorPartResult {
 	readonly instantiationService: IInstantiationService;
 	readonly disposables: DisposableStore;
 }
+
+const compactWindowEmitter = markAsSingleton(new Emitter<{ windowId: number; compact: boolean }>());
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.enableCompactAuxiliaryWindow',
+			title: localize('enableCompactAuxiliaryWindow', "Enter Compact Mode"),
+			icon: Codicon.screenFull,
+			menu: {
+				id: MenuId.LayoutControlMenu,
+				when: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext.toNegated()),
+				order: 0
+			}
+		});
+	}
+
+	override async run(): Promise<void> {
+		compactWindowEmitter.fire({ windowId: getActiveWindow().vscodeWindowId, compact: true });
+	}
+});
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.disableCompactAuxiliaryWindow',
+			title: localize('disableCompactAuxiliaryWindow', "Leave Compact Mode"),
+			icon: Codicon.screenNormal,
+			toggled: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext),
+			menu: {
+				id: MenuId.LayoutControlMenu,
+				when: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext),
+				order: 0
+			}
+		});
+	}
+
+	override async run(): Promise<void> {
+		compactWindowEmitter.fire({ windowId: getActiveWindow().vscodeWindowId, compact: false });
+	}
+});
 
 export class AuxiliaryEditorPart {
 
@@ -57,7 +104,9 @@ export class AuxiliaryEditorPart {
 
 	async create(label: string, options?: IAuxiliaryEditorPartOpenOptions): Promise<ICreateAuxiliaryEditorPartResult> {
 		const that = this;
-		let minimal = Boolean(options?.minimal);
+		const disposables = new DisposableStore();
+
+		let compact = Boolean(options?.compact);
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -101,24 +150,22 @@ export class AuxiliaryEditorPart {
 			}
 		}
 
-		function updateMinimal(newMinimal: boolean): void {
-			if (newMinimal === minimal) {
+		function updateCompact(newCompact: boolean): void {
+			if (newCompact === compact) {
 				return;
 			}
 
-			minimal = newMinimal;
-			auxiliaryWindow.updateOptions({ minimal });
-			titlebarPart?.updateOptions({ minimal });
-			editorPart.updateOptions({ minimal });
+			compact = newCompact;
+			auxiliaryWindow.updateOptions({ compact });
+			titlebarPart?.updateOptions({ compact });
+			editorPart.updateOptions({ compact });
 
 			const oldStatusbarVisible = statusbarVisible;
-			statusbarVisible = !minimal && that.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+			statusbarVisible = !compact && that.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 			if (oldStatusbarVisible !== statusbarVisible) {
 				updateStatusbarVisibility(true);
 			}
 		}
-
-		const disposables = new DisposableStore();
 
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
@@ -129,7 +176,7 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
-		editorPart.updateOptions({ minimal });
+		editorPart.updateOptions({ compact });
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
 
@@ -139,7 +186,7 @@ export class AuxiliaryEditorPart {
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
-			titlebarPart.updateOptions({ minimal });
+			titlebarPart.updateOptions({ compact });
 			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined);
 
 			const handleTitleBarVisibilityEvent = () => {
@@ -167,10 +214,10 @@ export class AuxiliaryEditorPart {
 
 		// Statusbar
 		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
-		let statusbarVisible = !minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+		let statusbarVisible = !compact && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY)) {
-				statusbarVisible = !minimal && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+				statusbarVisible = !compact && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 
 				updateStatusbarVisibility(true);
 			}
@@ -221,24 +268,14 @@ export class AuxiliaryEditorPart {
 		}));
 		auxiliaryWindow.layout();
 
-		// Minimal: listeners to exit this mode when other editors or groups open.
-		if (minimal) {
-			const minimalDisposables = disposables.add(new DisposableStore());
+		// Compact mode
+		disposables.add(compactWindowEmitter.event(({ windowId, compact }) => {
+			if (windowId === auxiliaryWindow.window.vscodeWindowId) {
+				updateCompact(compact);
+			}
+		}));
 
-			minimalDisposables.add(editorPart.onDidAddGroup(() => {
-				minimalDisposables.dispose();
-				updateMinimal(false);
-			}));
-
-			minimalDisposables.add(editorPart.activeGroup.onDidActiveEditorChange(() => {
-				if (editorPart.activeGroup.count > 1) {
-					minimalDisposables.dispose();
-					updateMinimal(false);
-				}
-			}));
-		}
-
-		// Have a InstantiationService that is scoped to the auxiliary window
+		// Have a scoped instantiation service that is scoped to the auxiliary window
 		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
 			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
@@ -278,12 +315,12 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
-	updateOptions(options: { minimal: boolean }): void {
-		if (options.minimal && !this.optionsDisposable.value) {
+	updateOptions(options: { compact: boolean }): void {
+		if (options.compact && !this.optionsDisposable.value) {
 			this.optionsDisposable.value = this.enforcePartOptions({
 				showTabs: 'none'
 			});
-		} else if (!options.minimal) {
+		} else if (!options.compact) {
 			this.optionsDisposable.clear();
 		}
 	}

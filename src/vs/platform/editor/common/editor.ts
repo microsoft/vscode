@@ -300,12 +300,12 @@ export interface IEditorOptions {
 	transient?: boolean;
 
 	/**
-	 * A hint that the editor should have minimal chrome when showing if possible.
+	 * A hint that the editor should have compact chrome when showing if possible.
 	 *
 	 * Note: this currently is only working if AUX_GROUP is specified as target to
 	 * open the editor in a floating window.
 	 */
-	minimal?: boolean;
+	compact?: boolean;
 }
 
 export interface ITextEditorSelection {
