@@ -17,10 +17,10 @@ import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, InlineCompletionDisplayLocation, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
+import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
-import { InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
+import { IDisplayLocation as IInlineCompletionDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
@@ -52,14 +52,15 @@ abstract class InlineSuggestionItemBase {
 
 	public get isFromExplicitRequest(): boolean { return this._data.context.triggerKind === InlineCompletionTriggerKind.Explicit; }
 	public get forwardStable(): boolean { return this.source.inlineSuggestions.enableForwardStability ?? false; }
-	public get range(): Range { return this.getSingleTextEdit().range; }
+	public get editRange(): Range { return this.getSingleTextEdit().range; }
+	public get targetRange(): Range { return this.displayLocation?.range ?? this.editRange; }
 	public get insertText(): string { return this.getSingleTextEdit().text; }
 	public get semanticId(): string { return this.hash; }
 	public get action(): Command | undefined { return this._sourceInlineCompletion.action; }
 	public get command(): Command | undefined { return this._sourceInlineCompletion.command; }
 	public get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
 	public get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
-	public get displayLocation(): InlineCompletionDisplayLocation | undefined { return this._sourceInlineCompletion.displayLocation; }
+	public get displayLocation(): IInlineCompletionDisplayLocation | undefined { return this._data.displayLocation; }
 	public get hash() {
 		return JSON.stringify([
 			this.getSingleTextEdit().text,
@@ -210,8 +211,8 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 
 	public isVisible(model: ITextModel, cursorPosition: Position): boolean {
 		const minimizedReplacement = singleTextRemoveCommonPrefix(this.getSingleTextEdit(), model);
-		if (!this.range
-			|| !this._originalRange.getStartPosition().equals(this.range.getStartPosition())
+		if (!this.editRange
+			|| !this._originalRange.getStartPosition().equals(this.editRange.getStartPosition())
 			|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
 			|| minimizedReplacement.isEmpty // if the completion is empty after removing the common prefix of the completion and the model, the completion item would not be visible
 		) {

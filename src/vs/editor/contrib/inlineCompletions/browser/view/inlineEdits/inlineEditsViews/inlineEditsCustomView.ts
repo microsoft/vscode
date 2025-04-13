@@ -123,7 +123,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			};
 		});
 
-		const minEndOfLinePadding = 10;
+		const minEndOfLinePadding = 14;
 		const paddingVertically = 0;
 		const paddingHorizontally = 4;
 		const horizontalOffsetWhenAboveBelow = 4;
@@ -162,7 +162,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				case 'end': {
 					topOfLine = this._editorObs.editor.getTopForLineNumber(startLineNumber);
 					contentStartOffset = lineWidth;
-					deltaX = minEndOfLinePadding;
+					deltaX = paddingHorizontally + minEndOfLinePadding;
 					break;
 				}
 				case 'below': {
