@@ -1,0 +1,67 @@
+.monaco-diff-editor .diff-review-line-number,
+.monaco-diff-editor .deleted-sign,
+.monaco-diff-editor .modified-sign {
+	text-align: right;
+	display: inline-block;
+}
+
+.monaco-diff-editor .deleted-sign,
+.monaco-diff-editor .modified-sign {
+	user-select: text !important;
+	-webkit-user-select: text !important;
+	cursor: text !important;
+	pointer-events: auto !important;
+}
+
+.monaco-diff-editor .diff-review {
+	position: absolute;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.monaco-diff-editor .diff-review-summary {
+	padding-left: 10px;
+}
+
+.monaco-diff-editor .diff-review-shadow {
+	position: absolute;
+	box-shadow: #000000 0 0 8px 2px;
+}
+
+.monaco-diff-editor .diff-review-row {
+	white-space: pre;
+}
+
+.monaco-diff-editor .diff-review-table {
+	display: table;
+	min-width: 100%;
+}
+
+.monaco-diff-editor .diff-review-row {
+	display: table-row;
+	width: 100%;
+}
+
+.monaco-diff-editor .diff-review-spacer {
+	display: inline-block;
+	width: 10px;
+	vertical-align: middle;
+}
+
+.monaco-diff-editor .diff-review-actions {
+	display: inline-block;
+	position: absolute;
+	right: 0;
+	top: 2px;
+	z-index: 1;
+}
+
+.monaco-diff-editor .diff-review-actions .action-label {
+	width: 16px;
+	height: 16px;
+	margin: 2px 0;
+}
+
+.monaco-diff-editor.side-by-side .editor.modified {
+	box-shadow: -6px 0 5px -5px #DDD;
+}
