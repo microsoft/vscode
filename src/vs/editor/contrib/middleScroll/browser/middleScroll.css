@@ -52,6 +52,6 @@
 	}
 
 	&[data-scroll-direction="nw"] * {
-		cursor: ne-resize;
+		cursor: nw-resize;
 	}
 }
