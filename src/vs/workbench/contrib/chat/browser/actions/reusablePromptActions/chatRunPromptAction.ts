@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { attachPrompt } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
+import { attachInstructionsFile } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
 import { detachPrompt } from './dialogs/askToSelectPrompt/utils/detachPrompt.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
@@ -127,7 +127,7 @@ abstract class RunPromptBaseAction extends Action2 {
 			'Cannot find URI resource for an active text editor.',
 		);
 
-		const { widget, wasAlreadyAttached } = await attachPrompt(
+		const { widget, wasAlreadyAttached } = await attachInstructionsFile(
 			resource,
 			{
 				inNewChat,

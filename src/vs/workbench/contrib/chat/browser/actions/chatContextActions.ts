@@ -62,7 +62,7 @@ import { isQuickChat } from '../chatWidget.js';
 import { createFolderQuickPick, createMarkersQuickPick } from '../contrib/chatDynamicVariables.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
-import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
+import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { runAttachPromptAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
 
@@ -835,7 +835,7 @@ export class AttachContextAction extends Action2 {
 		// if the `reusable prompts` feature is enabled, add
 		// the appropriate attachment type to the list
 		if (widget.attachmentModel.promptInstructions.featureEnabled) {
-			const keybinding = keybindingService.lookupKeybinding(USE_PROMPT_COMMAND_ID, contextKeyService);
+			const keybinding = keybindingService.lookupKeybinding(INSTRUCTIONS_COMMAND_ID, contextKeyService);
 
 			quickPickItems.push({
 				id: REUSABLE_PROMPT_PICK_ID,

@@ -19,7 +19,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { attachPrompt, IAttachPromptOptions } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
+import { attachInstructionsFile, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
 import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
@@ -83,13 +83,13 @@ class AttachInstructionsAction extends Action2 {
 				'Resource must be defined when skipping prompt selection dialog.',
 			);
 
-			const attachOptions: IAttachPromptOptions = {
+			const attachOptions: IAttachOptions = {
 				...options,
 				viewsService,
 				commandService,
 			};
 
-			const { widget } = await attachPrompt(
+			const { widget } = await attachInstructionsFile(
 				resource,
 				attachOptions,
 			);
