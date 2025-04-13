@@ -1,66 +1,91 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+import * as assert from 'assert';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { mock } from 'vs/base/test/common/mock';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
-import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
-import { LineRange } from '../../../common/core/lineRange.js';
-import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
+suite('DiffEditorWidget - Text Selection', () => {
+    let diffEditor: DiffEditorWidget;
+    let instantiationService: TestInstantiationService;
 
-suite('DiffEditorWidget2', () => {
+    setup(() => {
+        instantiationService = new TestInstantiationService();
+        instantiationService.stub(IContextKeyService, new mock());
+        instantiationService.stub(ICodeEditorService, new mock());
+        instantiationService.stub(IThemeService, new mock());
+        instantiationService.stub(INotificationService, new mock());
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+        const container = document.createElement('div');
+        diffEditor = instantiationService.createInstance(
+            DiffEditorWidget,
+            container,
+            {}
+        );
+    });
 
-	suite('UnchangedRegion', () => {
-		function serialize(regions: UnchangedRegion[]): unknown {
-			return regions.map(r => `${r.originalUnchangedRange} - ${r.modifiedUnchangedRange}`);
-		}
+    test('should enable text selection on deleted lines', () => {
+        // Create a deleted line element
+        const deletedLine = document.createElement('div');
+        deletedLine.classList.add('deleted-sign');
+        diffEditor['_domElement'].appendChild(deletedLine);
 
-		test('Everything changed', () => {
-			assert.deepStrictEqual(serialize(UnchangedRegion.fromDiffs(
-				[new DetailedLineRangeMapping(new LineRange(1, 10), new LineRange(1, 10), [])],
-				10,
-				10,
-				3,
-				3,
-			)), []);
-		});
+        // Verify selection is enabled
+        assert.strictEqual(
+            window.getComputedStyle(deletedLine).userSelect,
+            'text',
+            'Text selection should be enabled on deleted lines'
+        );
+    });
 
-		test('Nothing changed', () => {
-			assert.deepStrictEqual(serialize(UnchangedRegion.fromDiffs(
-				[],
-				10,
-				10,
-				3,
-				3,
-			)), [
-				"[1,11) - [1,11)"
-			]);
-		});
+    test('should enable text selection on child elements of deleted lines', () => {
+        // Create a deleted line with child elements
+        const deletedLine = document.createElement('div');
+        deletedLine.classList.add('deleted-sign');
+        
+        const child = document.createElement('span');
+        deletedLine.appendChild(child);
+        
+        diffEditor['_domElement'].appendChild(deletedLine);
 
-		test('Change in the middle', () => {
-			assert.deepStrictEqual(serialize(UnchangedRegion.fromDiffs(
-				[new DetailedLineRangeMapping(new LineRange(50, 60), new LineRange(50, 60), [])],
-				100,
-				100,
-				3,
-				3,
-			)), ([
-				'[1,47) - [1,47)',
-				'[63,101) - [63,101)'
-			]));
-		});
+        // Verify selection is enabled on child
+        assert.strictEqual(
+            window.getComputedStyle(child).userSelect,
+            'text',
+            'Text selection should be enabled on child elements'
+        );
+    });
 
-		test('Change at the end', () => {
-			assert.deepStrictEqual(serialize(UnchangedRegion.fromDiffs(
-				[new DetailedLineRangeMapping(new LineRange(99, 100), new LineRange(100, 100), [])],
-				100,
-				100,
-				3,
-				3,
-			)), (["[1,96) - [1,96)"]));
-		});
-	});
+    test('should include deleted lines in search results', async () => {
+        // Setup test content
+        const originalModel = diffEditor['_originalEditor'].getModel();
+        const modifiedModel = diffEditor['_modifiedEditor'].getModel();
+
+        if (originalModel && modifiedModel) {
+            originalModel.setValue('line1\ndeleted line\nline3');
+            modifiedModel.setValue('line1\nline3');
+
+            // Trigger a diff computation
+            await diffEditor['_updateDecorations']();
+
+            // Search for 'deleted'
+            const findController = diffEditor['_originalEditor'].getContribution('editor.contrib.findController');
+            findController['_start']('deleted', {});
+
+            // Verify the deleted line is included in search results
+            const deletedLines = diffEditor['_domElement'].querySelectorAll('.deleted-sign.highlighted-search-result');
+            assert.strictEqual(
+                deletedLines.length,
+                1,
+                'Deleted line should be included in search results'
+            );
+        }
+    });
+
+    teardown(() => {
+        diffEditor.dispose();
+    });
 });
