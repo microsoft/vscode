@@ -7365,6 +7365,7 @@ declare namespace monaco.languages {
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
 		freeInlineCompletions(completions: T): void;
+		onDidChangeInlineCompletions?: IEvent<void>;
 		/**
 		 * Only used for {@link yieldsToGroupIds}.
 		 * Multiple providers can have the same group id.

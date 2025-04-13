@@ -333,35 +333,6 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 	}
 }
 
-class GetStartedWithCopilot extends Action2 {
-
-	static readonly ID = 'workbench.action.getStartedWithCopilot';
-
-	constructor() {
-		super({
-			id: GetStartedWithCopilot.ID,
-			title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
-			category: Categories.Help,
-			f1: true,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, false), !!product.defaultChatAgent?.documentationUrl ? ContextKeyExpr.true() : ContextKeyExpr.false())
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		const openerService = accessor.get(IOpenerService);
-		openerService.open(URI.parse(product.defaultChatAgent!.documentationUrl));
-	}
-}
-
-MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-	command: {
-		id: GetStartedWithCopilot.ID,
-		title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
-	},
-	order: 7,
-	group: '1_welcome',
-	when: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, false), !!product.defaultChatAgent?.documentationUrl ? ContextKeyExpr.true() : ContextKeyExpr.false())
-});
-
 class AskVSCodeCopilot extends Action2 {
 	static readonly ID = 'workbench.action.askVScode';
 
@@ -372,7 +343,7 @@ class AskVSCodeCopilot extends Action2 {
 			title: localize2('askVScode', 'Ask @vscode'),
 			category: Categories.Help,
 			f1: true,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, true)),
+			precondition: ContextKeyExpr.equals('chatSetupHidden', false)
 		});
 	}
 
@@ -396,7 +367,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	},
 	order: 7,
 	group: '1_welcome',
-	when: ContextKeyExpr.equals(`chatIsEnabled`, true),
+	when: ContextKeyExpr.equals('chatSetupHidden', false)
 });
 
 // --- Actions Registration
@@ -438,7 +409,5 @@ if (OpenPrivacyStatementUrlAction.AVAILABLE) {
 }
 
 registerAction2(GetStartedWithAccessibilityFeatures);
-
-registerAction2(GetStartedWithCopilot);
 
 registerAction2(AskVSCodeCopilot);

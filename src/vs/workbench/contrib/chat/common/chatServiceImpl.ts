@@ -137,6 +137,10 @@ export class ChatService extends Disposable implements IChatService {
 		return this.configurationService.getValue(ChatConfiguration.UseFileStorage);
 	}
 
+	public get edits2Enabled(): boolean {
+		return this.configurationService.getValue(ChatConfiguration.Edits2Enabled);
+	}
+
 	private get isEmptyWindow(): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
 		return !workspace.configuration && workspace.folders.length === 0;

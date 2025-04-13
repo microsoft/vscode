@@ -86,7 +86,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		uriHandler: UriEventHandler,
 		env: Environment = Environment.AzureCloud
 	): Promise<MsalAuthProvider> {
-		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, env.name);
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env.name);
 		context.subscriptions.push(publicClientManager);
 		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
 		await authProvider.initialize();
