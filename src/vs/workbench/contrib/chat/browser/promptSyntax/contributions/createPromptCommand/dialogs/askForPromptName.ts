@@ -9,22 +9,17 @@ import { IQuickInputService } from '../../../../../../../../platform/quickinput/
 import { TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 
 /**
- * Asks the user for a prompt name.
+ * Asks the user for a file name.
  */
-export const askForPromptName = async (
+export const askForPromptFileName = async (
 	type: TPromptsType,
 	quickInputService: IQuickInputService,
 ): Promise<string | undefined> => {
-	const fileExtension = getFileExtension(type);
+	const placeHolder = type === 'instructions' ?
+		localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file") :
+		localize('askForPromptFileName.placeholder', "Enter the name of the prompts file");
 
-	const result = await quickInputService.input(
-		{
-			placeHolder: localize(
-				'commands.prompts.create.ask-name.placeholder',
-				"Provide a prompt name"
-			),
-		});
-
+	const result = await quickInputService.input({ placeHolder });
 	if (!result) {
 		return undefined;
 	}
@@ -34,6 +29,7 @@ export const askForPromptName = async (
 		return undefined;
 	}
 
+	const fileExtension = getFileExtension(type);
 	const cleanName = (trimmedName.endsWith(fileExtension))
 		? trimmedName
 		: `${trimmedName}${fileExtension}`;

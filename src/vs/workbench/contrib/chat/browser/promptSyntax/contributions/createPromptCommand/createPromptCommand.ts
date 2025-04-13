@@ -6,7 +6,7 @@
 import { localize } from '../../../../../../../nls.js';
 import { createPromptFile } from './utils/createPromptFile.js';
 import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
-import { askForPromptName } from './dialogs/askForPromptName.js';
+import { askForPromptFileName } from './dialogs/askForPromptName.js';
 import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
@@ -45,14 +45,14 @@ const command = async (
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
 
-	const fileName = await askForPromptName(type, quickInputService);
+	const fileName = await askForPromptFileName(type, quickInputService);
 	if (!fileName) {
 		return;
 	}
 
 	const selectedFolder = await askForPromptSourceFolder({
-		type: type,
-		storage: storage,
+		type,
+		storage,
 		labelService,
 		openerService,
 		promptsService,
@@ -64,10 +64,16 @@ const command = async (
 		return;
 	}
 
-	const content = localize(
-		'workbench.command.prompts.create.initial-content',
-		"Add prompt contents...",
-	);
+	const content = type === 'instructions' ?
+		localize(
+			'workbench.command.instructions.create.initial-content',
+			"Add instructions...",
+		) :
+
+		localize(
+			'workbench.command.prompt.create.initial-content',
+			"Add prompt contents...",
+		);
 	const promptUri = await createPromptFile({
 		fileName,
 		folder: selectedFolder,
@@ -151,7 +157,7 @@ function register(type: TPromptsType, storage: TPromptsStorage, id: string, titl
 	});
 }
 
-register('instructions', 'local', 'workbench.command.instructions.create.local', localize('commands.instructions.create.title.local', "Create Instructions File"));
-register('instructions', 'user', 'workbench.command.instructions.create.user', localize('commands.instructions.create.user.title', "Create User Instructions File"));
-register('prompt', 'local', 'workbench.command.prompts.create.local', localize('commands.prompts.create.title.local', "Create Prompt File"));
-register('prompt', 'user', 'workbench.command.prompts.create.user', localize('commands.prompts.create.title.user', "Create User Prompt File"));
+register('instructions', 'local', 'workbench.command.new.instructions.local', localize('commands.new.instructions.local.title', "New Instructions File..."));
+register('instructions', 'user', 'workbench.command.new.instructions.user', localize('commands.new.instructions.user.title', "New User Instructions File..."));
+register('prompt', 'local', 'workbench.command.new.prompt.local', localize('commands.new.prompt.local.title', "New Prompt File..."));
+register('prompt', 'user', 'workbench.command.new.prompt.user', localize('commands.new.prompt.user.title', "New User Prompt File..."));

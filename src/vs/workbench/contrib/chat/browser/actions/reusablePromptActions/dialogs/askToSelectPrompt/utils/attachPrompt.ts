@@ -13,9 +13,9 @@ import { IViewsService } from '../../../../../../../../services/views/common/vie
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
 /**
- * Options for the {@link attachPrompt} function.
+ * Options for the {@link attachInstructionsFile} function.
  */
-export interface IAttachPromptOptions {
+export interface IAttachOptions {
 	/**
 	 * Chat widget instance to attach the prompt to.
 	 */
@@ -37,7 +37,7 @@ export interface IAttachPromptOptions {
 }
 
 /**
- * Return value of the {@link attachPrompt} function.
+ * Return value of the {@link attachInstructionsFile} function.
  */
 interface IAttachResult {
 	readonly widget: IChatWidget;
@@ -80,9 +80,9 @@ const isAttachedAsCurrentPrompt = (
 /**
  * Attaches provided prompts to a chat input.
  */
-export const attachPrompt = async (
+export const attachInstructionsFile = async (
 	file: URI,
-	options: IAttachPromptOptions,
+	options: IAttachOptions,
 ): Promise<IAttachResult> => {
 	const { skipIfImplicitlyAttached } = options;
 
@@ -107,7 +107,7 @@ export const attachPrompt = async (
  * @throws if failed to reveal a chat widget.
  */
 const getChatWidgetObject = async (
-	options: IAttachPromptOptions,
+	options: IAttachOptions,
 ): Promise<IChatWidget> => {
 	const { widget, inNewChat } = options;
 
@@ -125,7 +125,7 @@ const getChatWidgetObject = async (
  * Opens a chat session, or reveals an existing one.
  */
 const showChat = async (
-	options: IAttachPromptOptions,
+	options: IAttachOptions,
 	createNew: boolean = false,
 ): Promise<IChatWidget> => {
 	const { commandService, viewsService } = options;

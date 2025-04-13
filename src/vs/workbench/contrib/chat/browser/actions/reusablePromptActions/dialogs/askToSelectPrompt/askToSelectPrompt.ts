@@ -5,7 +5,7 @@
 
 import { PROMPT_DOCS_OPTION } from './constants.js';
 import { IChatWidget } from '../../../../chat.js';
-import { attachPrompt } from './utils/attachPrompt.js';
+import { attachInstructionsFile } from './utils/attachPrompt.js';
 import { handleButtonClick } from './utils/handleButtonClick.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
@@ -180,7 +180,7 @@ export const askToSelectPrompt = async (
 			}
 
 			// otherwise attach the selected prompt to a chat input
-			const attachResult = await attachPrompt(
+			const attachResult = await attachInstructionsFile(
 				selectedOption.value,
 				{
 					...options,

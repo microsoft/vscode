@@ -22,16 +22,21 @@ import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../..
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 /**
- * Command ID of the "Use Instructions" command.
+ * Command ID of the "Attach Instructions" command.
  */
-export const COMMAND_ID = 'workbench.command.instructions.use';
+export const INSTRUCTIONS_COMMAND_ID = 'workbench.command.instructions.use';
+
+/**
+ * Command ID of the "Run Prompt" command.
+ */
+export const RUN_PROMPT_COMMAND_ID = 'workbench.command.prompt.run';
 
 /**
  * Keybinding of the "Use Instructions" command.
  * The `cmd + /` is the current keybinding for 'attachment', so we use
  * the `alt` key modifier to convey the "instructions attachment" action.
  */
-const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
+const INSTRUCTIONS_COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
 
 /**
  * Implementation of the "Use Instructions" command. The command works in the following way.
@@ -131,9 +136,9 @@ export const getActivePromptUri = (
  * Register the "Use Prompt" command with its keybinding.
  */
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: COMMAND_ID,
+	id: INSTRUCTIONS_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: COMMAND_KEY_BINDING,
+	primary: INSTRUCTIONS_COMMAND_KEY_BINDING,
 	handler: command,
 	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
@@ -143,7 +148,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
  */
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: COMMAND_ID,
+		id: INSTRUCTIONS_COMMAND_ID,
 		title: localize('commands.prompts.use.title', "Use Instructions"),
 		category: CHAT_CATEGORY
 	},
