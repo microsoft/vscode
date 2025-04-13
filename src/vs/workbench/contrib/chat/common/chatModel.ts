@@ -1455,9 +1455,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();
 	notifyEditingAction(action: IChatEditingSessionAction): void {
-		const state = action.outcome === 'accepted' ? ChatAgentEditedFileEventKind.Accepted :
-			action.outcome === 'rejected' ? ChatAgentEditedFileEventKind.Rejected :
-				action.outcome === 'userModified' ? ChatAgentEditedFileEventKind.UserModified : null;
+		const state = action.outcome === 'accepted' ? ChatRequestEditedFileEventKind.Keep :
+			action.outcome === 'rejected' ? ChatRequestEditedFileEventKind.Undo :
+				action.outcome === 'userModified' ? ChatRequestEditedFileEventKind.UserModification : null;
 		if (state === null) {
 			return;
 		}
@@ -1910,13 +1910,13 @@ export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitati
 	return label;
 }
 
-export const enum ChatAgentEditedFileEventKind {
-	UserModified,
-	Accepted,
-	Rejected,
+export enum ChatRequestEditedFileEventKind {
+	Keep = 1,
+	Undo = 2,
+	UserModification = 3,
 }
 
 export interface IChatAgentEditedFileEvent {
 	readonly uri: URI;
-	readonly eventKind: ChatAgentEditedFileEventKind;
+	readonly eventKind: ChatRequestEditedFileEventKind;
 }
