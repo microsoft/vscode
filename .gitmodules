@@ -5,3 +5,4 @@
 [submodule "extensions/PearAI-Roo-Code"]
 	path = extensions/PearAI-Roo-Code
 	url = https://github.com/trypear/PearAI-Roo-Code
+        branch = main

@@ -32,7 +32,10 @@ Ensure you have the following tools installed:
 - 📦 [Yarn 1](https://classic.yarnpkg.com/en/), version `>=1.10.1 and <2`
 - 🐍 [Python](https://www.python.org/downloads/), version `=3.11.X` (required for node-gyp)
 - ⚙️ A C/C++ compiler toolchain for your platform:
-  - **Windows**: Install the Windows Build Tools and follow the detailed setup steps.
+  - **Windows**: Install the Windows Build Tools (through Visual Studio Installer) with the following components
+    - Desktop development with C++ (Workload)
+    - C++ MFC for v143 build tools with Spectre Mitigations (Individual Component)
+    - MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Individual Component)
   - **macOS**: Install Xcode and Command Line Tools with `xcode-select --install`.
   - **Linux**: Install the necessary development tools as described in the instructions.
 
@@ -72,52 +75,105 @@ To rebuild the app after initial setup:
   yarn
   ```
 
-### 3️⃣ Run the App
+# PearAI Development Setup Guide
 
-#### PearAI is split into two parts. pearai-app and pearai-submodule.
+## Project Overview
 
-- [pearai-app](https://github.com/trypear/pearai-app/): VSCode fork and parent repository for PearAI. Most contributions will NOT end up here.
+PearAI consists of several components:
 
-- [./extensions/pearai-submodule](https://github.com/trypear/pearai-submodule): Nearly all of PearAI's functionality, packaged as a built-in VSCode/PearAI extension. It is a fork of Continue, and is a git submodule of pearai-app. Most contributions will end up here!
+- **[pearai-app](https://github.com/trypear/pearai-app)**: VSCode fork and parent repository for PearAI. Most contributions will NOT end up here.
+- **[./extensions/pearai-submodule](https://github.com/trypear/pearai-submodule)**: Nearly all of PearAI's functionality, packaged as a built-in VSCode/PearAI extension. It is a fork of Continue, and is a git submodule of pearai-app. **Most contributions will end up here!**
+- **[./extensions/PearAI-Roo-Code](https://github.com/trypear/PearAI-Roo-Code)**: A Roo extension for PearAI.
 
+## Setup Instructions
 
-#### A) PearAI Submodule / Extension
+### 1. PearAI App (code.sh)
 
-1. Open the directory `extensions/pearai-submodule` in PearAI or VSCode.
-2. Make edits.
-3. In VSCode/PearAI, open the command palette (`cmd/ctrl+shift+p`) and select `Tasks: Run Task` and then select `install-and-build`.
-4. Start debugging:
-   - Switch to Run and Debug view.
-   - Select `Extension (VS Code)` from the drop-down.
-   - Hit the play button.
-   - This will start the extension in debug mode and open a new VSCode/PearAI window with the submodule installed (with your local changes).
-
-#### B) PearAI App
-
-1. Run `yarn watch` in a terminal - wait for it to compile everything (around 2 mins), it then shows "finished compiling", keep it running.
-2. For watching extension - open another terminal and run:
+1. Run in a terminal:
    ```bash
-   cd extensions/pearai-submodule/extensions/vscode
-   npm run tsc-watch
+   yarn watch
    ```
-3. Open another terminal to run the app:
-   - **macOS and Linux**:
+   Wait for it to compile everything (approximately 2 minutes) until it shows "finished compiling". Keep this terminal running.
+
+2. Open another terminal to run the app:
+
+   **macOS and Linux**:
+   ```bash
+   ./scripts/code.sh
+   ```
+
+   **Windows**:
+   - First time installation:
+     ```bat
+     .\scripts\code.bat
+     ```
+   - Subsequent runs (using Git Bash):
      ```bash
      ./scripts/code.sh
      ```
-   - **Windows**:
-     - If first time installing, you must run:
 
-       ```bat
-       .\scripts\code.bat
-       ```
-     - On consecutive runs, we recommend downloading Git Bash, and running:
+   > **Note**: Windows requires running `code.bat` for the first run to create the necessary symlinks. For subsequent runs, the symlinks will already exist, allowing you to use the faster `code.sh` script through Git Bash.
 
-       ```bash
-       ./scripts/code.sh
-       ```
+### 2. PearAI Submodule / Extensions
 
-       \*Note: this is due to the fact that the symlinking must be performed within the `code.bat` file on Windows on the first run. But on consecutive runs the symlink will already be created, so you can use the faster script which is `code.sh`
+1. Open the directory `extensions/pearai-submodule` in PearAI Dev or VSCode.
+2. Configure your development environment:
+   - Update the paths in `.vscode/launch.json` to point to the correct locations for other PearAI Extensions.
+3. Install dependencies and build:
+   - Open the command palette (`Cmd/Ctrl+Shift+P`).
+   - Select `Tasks: Run Task` and then `install-and-build`.
+4. Start debugging:
+   - Switch to Run and Debug view.
+   - Select `Extension (VS Code)` from the dropdown.
+   - Click the play button to launch.
+   - A new VSCode/PearAI window will open with your extension installed (with your local changes).
+   - The window title will display "Extension Development Host".
+5. View logs:
+   - Open the command palette (`Cmd/Ctrl+Shift+P`).
+   - Select `Developer: Open Webview Developer Tools`.
+6. Make text changes to extensions to see them reflected in the PearAI sidebar.
+
+### 3. PearAI Roo Code
+
+#### A) Standalone Development
+
+1. Download esbuild problem matchers:
+   - Install from [PearAI Marketplace](https://market.trypear.ai/items?itemName=connor4312.esbuild-problem-matchers).
+2. Install dependencies:
+   ```
+   npm run install:all
+   ```
+3. Watch the extension:
+   ```
+   npm run watch
+   ```
+4. Launch for debugging:
+   - Switch to Run and Debug view.
+   - Select `Extension (VS Code)` from the dropdown.
+   - Click the play button to launch.
+   - A new VSCode/PearAI window will open with your extension installed (with your local changes).
+   - The window title will display "Extension Development Host".
+5. View logs:
+   - Open the command palette (`Cmd/Ctrl+Shift+P`).
+   - Select `Developer: Open Webview Developer Tools`.
+6. Make text changes to see them reflected in the PearAI window.
+
+#### B) From pearai-submodule (for changes to both components)
+
+If you want to develop both pearai-submodule and PearAI-Roo-Code simultaneously:
+
+1. Update the paths in `pearai-submodule/.vscode/launch.json` to point to the correct locations for PearAI Roo Code.
+2. Follow the steps to run Extension Development Host in PearAI submodule (Section 2 above).
+3. In PearAI-Roo-Code directory, run:
+   ```
+   npm run watch
+   ```
+4. In another terminal, run:
+   ```
+   npm run dev
+   ```
+   This will start PearAI-Roo-Code on port 5174, which the extension development host will connect to.
+5. Make text changes to see them reflected in the PearAI sidebar.
 
 ## 🪳 Debugging environment issues
 

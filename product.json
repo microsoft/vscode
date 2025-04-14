@@ -1,7 +1,7 @@
 {
 	"nameShort": "PearAI",
 	"nameLong": "PearAI",
-	"pearAIVersion": "1.8.6",
+	"pearAIVersion": "1.8.7",
 	"applicationName": "PearAI",
 	"dataFolderName": ".pearai",
 	"win32MutexName": "pearai",
@@ -15,7 +15,7 @@
 	"serverDataFolderName": ".pearai-server",
 	"tunnelApplicationName": "code-tunnel",
 	"downloadUrl": "https://trypear.ai/",
-	"updateUrl": "https://walrus-backup-app-sgqep.ondigitalocean.app/pearai-backup-server-api",
+	"updateUrl": "https://updates.trypear.ai/pearai-backup-server-api",
 	"win32DirName": "PearAI",
 	"win32NameVersion": "PearAI",
 	"win32RegValueName": "PearAI",

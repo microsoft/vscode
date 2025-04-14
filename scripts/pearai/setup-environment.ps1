@@ -43,7 +43,7 @@ function Initialize-BaseFunctionality {
     Set-Location $currentDir
 
     Write-Host "`nSetting up root application..." -ForegroundColor White
-    Invoke-CMD -Command "yarn install" -ErrorMessage "Failed to install dependencies with yarn"
+    Invoke-CMD -Command "npm install" -ErrorMessage "Failed to install dependencies with npm"
 }
 
 function Create-SymLink {
