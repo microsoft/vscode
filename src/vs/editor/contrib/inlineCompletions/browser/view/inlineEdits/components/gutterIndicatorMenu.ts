@@ -200,7 +200,7 @@ function option(props: {
 					...defaultKeybindingLabelStyles,
 					keybindingLabelShadow: undefined,
 					keybindingLabelBackground: asCssVariable(keybindingLabelBackground),
-					keybindingLabelBorder: asCssVariable(keybindingLabelBackground),
+					keybindingLabelBorder: 'transparent',
 					keybindingLabelBottomBorder: undefined,
 				}));
 				store.add(autorun(reader => {
