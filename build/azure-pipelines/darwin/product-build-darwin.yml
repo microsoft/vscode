@@ -240,38 +240,38 @@ steps:
       condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
       displayName: Publish client archive (unsigned)
 
-    - task: UseDotNet@2
-      inputs:
-        version: 6.x
+    #- task: UseDotNet@2
+    #  inputs:
+    #    version: 6.x
 
-    - task: EsrpCodeSigning@5
-      inputs:
-        UseMSIAuthentication: true
-        ConnectedServiceName: vscode-esrp
-        AppRegistrationClientId: $(ESRP_CLIENT_ID)
-        AppRegistrationTenantId: $(ESRP_TENANT_ID)
-        AuthAKVName: vscode-esrp
-        AuthSignCertName: esrp-sign
-        FolderPath: .
-        Pattern: noop
-      displayName: 'Install ESRP Tooling'
+    #- task: EsrpCodeSigning@5
+    #  inputs:
+    #    UseMSIAuthentication: true
+    #    ConnectedServiceName: vscode-esrp
+    #    AppRegistrationClientId: $(ESRP_CLIENT_ID)
+    #    AppRegistrationTenantId: $(ESRP_TENANT_ID)
+    #    AuthAKVName: vscode-esrp
+    #    AuthSignCertName: esrp-sign
+    #    FolderPath: .
+    #    Pattern: noop
+    #  displayName: 'Install ESRP Tooling'
 
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
-        $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
-        echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
-      displayName: Find ESRP CLI
+    #- pwsh: |
+    #    . build/azure-pipelines/win32/exec.ps1
+    #    $ErrorActionPreference = "Stop"
+    #    $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
+    #    $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+    #    echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
+    #  displayName: Find ESRP CLI
 
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/darwin/codesign.js }
-      env:
-        EsrpCliDllPath: $(EsrpCliDllPath)
-        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: ✍️ Codesign & Notarize
+    #- pwsh: |
+    #    . build/azure-pipelines/win32/exec.ps1
+    #    $ErrorActionPreference = "Stop"
+    #    exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/darwin/codesign.js }
+    #  env:
+    #    EsrpCliDllPath: $(EsrpCliDllPath)
+    #    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    #  displayName: ✍️ Codesign & Notarize
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml@self
@@ -285,24 +285,24 @@ steps:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        exec { npx deemon --attach -- npx zx build/azure-pipelines/darwin/codesign.js }
-      condition: succeededOrFailed()
-      displayName: "Post-job: ✍️ Codesign & Notarize"
+    #- pwsh: |
+    #    . build/azure-pipelines/win32/exec.ps1
+    #    $ErrorActionPreference = "Stop"
+    #    exec { npx deemon --attach -- npx zx build/azure-pipelines/darwin/codesign.js }
+    #  condition: succeededOrFailed()
+    #  displayName: "Post-job: ✍️ Codesign & Notarize"
 
-    - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      displayName: Extract signed app
+    #- script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+    #  displayName: Extract signed app
 
-    - script: |
-        set -e
-        APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-        APP_NAME="`ls $APP_ROOT | head -n 1`"
-        APP_PATH="$APP_ROOT/$APP_NAME"
-        codesign -dv --deep --verbose=4 "$APP_PATH"
-        "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
-      displayName: Verify signature
+    #- script: |
+    #    set -e
+    #    APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+    #    APP_NAME="`ls $APP_ROOT | head -n 1`"
+    #    APP_PATH="$APP_ROOT/$APP_NAME"
+    #    codesign -dv --deep --verbose=4 "$APP_PATH"
+    #    "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+    #  displayName: Verify signature
 
     - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
       displayName: Rename x64 build to its legacy name
