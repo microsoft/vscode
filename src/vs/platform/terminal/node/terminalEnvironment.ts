@@ -242,7 +242,7 @@ export async function getShellIntegrationInjection(
 				// Ensure the ZDOTDIR exists
 				if (!existsSync(zdotdir)) {
 					try {
-						mkdirSync(zdotdir, { recursive: true });
+						mkdirSync(zdotdir);
 					} catch (err) {
 						logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
 						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
