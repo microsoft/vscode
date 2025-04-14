@@ -1768,6 +1768,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getAllInjectedText(this, ownerId);
 	}
 
+	public getCustomLineHeightsDecorations(ownerId: number = 0): model.IModelDecoration[] {
+		return this._decorationsTree.getAllCustomLineHeights(this, ownerId);
+	}
+
 	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
@@ -2109,32 +2113,16 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
-	// TODO: is this still needed?
-	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number | null {
-		const versionId = host.getVersionId();
-		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
-		let lineHeight: number | null = null;
-		this._ensureNodesHaveRanges(host, result).forEach((decoration) => {
-			const decorationLineHeight = decoration.options.lineHeight;
-			if (typeof decorationLineHeight === 'number') {
-				lineHeight = Math.max(lineHeight ?? decorationLineHeight, decorationLineHeight);
-			}
-		});
-		return lineHeight;
-	}
-
-	// TODO: is this still needed?
-	public getLinesWithSpecialHeightsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): Range[] {
-		const versionId = host.getVersionId();
-		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
-		const affectedDecorations = this._ensureNodesHaveRanges(host, result).filter((i) => i.options.lineHeight !== null);
-		return affectedDecorations.map(decoration => decoration.range);
-	}
-
 	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.search(filterOwnerId, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
+	}
+
+	public getAllCustomLineHeights(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
+		const versionId = host.getVersionId();
+		const result = this._search(filterOwnerId, false, false, versionId, false);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => typeof i.options.lineHeight === 'number');
 	}
 
 	public getAll(host: IDecorationsTreesHost, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, onlyMarginDecorations: boolean): model.IModelDecoration[] {

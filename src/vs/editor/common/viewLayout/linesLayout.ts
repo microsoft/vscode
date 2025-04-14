@@ -5,7 +5,7 @@
 
 import { IEditorWhitespace, IPartialViewLinesViewportData, ILineHeightChangeAccessor, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
 import * as strings from '../../../base/common/strings.js';
-import { LineHeightsManager } from './lineHeights.js';
+import { ICustomLineHeightData, LineHeightsManager } from './lineHeights.js';
 
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
 interface IPendingRemove { id: string }
@@ -93,9 +93,9 @@ export class LinesLayout {
 	private _lineCount: number;
 	private _paddingTop: number;
 	private _paddingBottom: number;
-	private readonly _lineHeightsManager: LineHeightsManager;
+	private _lineHeightsManager: LineHeightsManager;
 
-	constructor(lineCount: number, defaultLineHeight: number, paddingTop: number, paddingBottom: number) {
+	constructor(lineCount: number, defaultLineHeight: number, paddingTop: number, paddingBottom: number, customLineHeightData: ICustomLineHeightData[]) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
 		this._lastWhitespaceId = 0;
@@ -105,7 +105,7 @@ export class LinesLayout {
 		this._lineCount = lineCount;
 		this._paddingTop = paddingTop;
 		this._paddingBottom = paddingBottom;
-		this._lineHeightsManager = new LineHeightsManager(defaultLineHeight);
+		this._lineHeightsManager = new LineHeightsManager(defaultLineHeight, customLineHeightData);
 	}
 
 	/**
@@ -155,8 +155,9 @@ export class LinesLayout {
 	 *
 	 * @param lineCount New number of lines.
 	 */
-	public onFlushed(lineCount: number): void {
+	public onFlushed(lineCount: number, customLineHeightData: ICustomLineHeightData[]): void {
 		this._lineCount = lineCount;
+		this._lineHeightsManager = new LineHeightsManager(this._lineHeightsManager.defaultLineHeight, customLineHeightData);
 	}
 
 	public changeLineHeights(callback: (accessor: ILineHeightChangeAccessor) => void): boolean {

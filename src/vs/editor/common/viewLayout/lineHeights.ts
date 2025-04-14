@@ -62,8 +62,14 @@ export class LineHeightsManager {
 	private _defaultLineHeight: number;
 	private _hasPending: boolean = false;
 
-	constructor(defaultLineHeight: number) {
+	constructor(defaultLineHeight: number, customLineHeightData: ICustomLineHeightData[]) {
 		this._defaultLineHeight = defaultLineHeight;
+		if (customLineHeightData.length > 0) {
+			for (const data of customLineHeightData) {
+				this.insertOrChangeCustomLineHeight(data.decorationId, data.startLineNumber, data.endLineNumber, data.lineHeight);
+			}
+			this.commit();
+		}
 	}
 
 	set defaultLineHeight(defaultLineHeight: number) {
@@ -97,7 +103,6 @@ export class LineHeightsManager {
 	}
 
 	public heightForLineNumber(lineNumber: number): number {
-		this.commit();
 		const searchIndex = this._binarySearchOverOrderedCustomLinesArray(lineNumber);
 		if (searchIndex >= 0) {
 			return this._orderedCustomLines[searchIndex].maximumSpecialHeight;
@@ -106,7 +111,6 @@ export class LineHeightsManager {
 	}
 
 	public getAccumulatedLineHeightsIncludingLineNumber(lineNumber: number): number {
-		this.commit();
 		const searchIndex = this._binarySearchOverOrderedCustomLinesArray(lineNumber);
 		if (searchIndex >= 0) {
 			return this._orderedCustomLines[searchIndex].prefixSum + this._orderedCustomLines[searchIndex].maximumSpecialHeight;
@@ -120,7 +124,6 @@ export class LineHeightsManager {
 	}
 
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		this.commit();
 		const deleteCount = toLineNumber - fromLineNumber + 1;
 		const numberOfCustomLines = this._orderedCustomLines.length;
 		const candidateStartIndexOfDeletion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
@@ -223,7 +226,6 @@ export class LineHeightsManager {
 	}
 
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
-		this.commit();
 		const insertCount = toLineNumber - fromLineNumber + 1;
 		const candidateStartIndexOfInsertion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
 		let startIndexOfInsertion: number;
@@ -239,7 +241,7 @@ export class LineHeightsManager {
 		} else {
 			startIndexOfInsertion = -(candidateStartIndexOfInsertion + 1);
 		}
-		const toReAdd: { decorationId: string; startLineNumber: number; endLineNumber: number; lineHeight: number }[] = [];
+		const toReAdd: ICustomLineHeightData[] = [];
 		const decorationsImmediatelyAfter = new Set<string>();
 		for (let i = startIndexOfInsertion; i < this._orderedCustomLines.length; i++) {
 			if (this._orderedCustomLines[i].lineNumber === fromLineNumber) {
@@ -357,6 +359,13 @@ export class LineHeightsManager {
 			}
 		});
 	}
+}
+
+export interface ICustomLineHeightData {
+	readonly decorationId: string;
+	readonly startLineNumber: number;
+	readonly endLineNumber: number;
+	readonly lineHeight: number;
 }
 
 class ArrayMap<K, T> {

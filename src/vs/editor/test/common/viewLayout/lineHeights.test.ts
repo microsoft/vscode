@@ -12,7 +12,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('default line height is used when no custom heights exist', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 
 		// Check individual line heights
 		assert.strictEqual(manager.heightForLineNumber(1), 10);
@@ -26,7 +26,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('can change default line height', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.defaultLineHeight = 20;
 
 		// Check individual line heights
@@ -39,7 +39,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('can add single custom line height', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);
 		manager.commit();
 
@@ -57,7 +57,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('can add multiple custom line heights', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 2, 2, 15);
 		manager.insertOrChangeCustomLineHeight('dec2', 4, 4, 25);
 		manager.commit();
@@ -78,7 +78,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('can add range of custom line heights', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 2, 4, 15);
 		manager.commit();
 
@@ -98,7 +98,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('can change existing custom line height', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);
 		manager.commit();
 		assert.strictEqual(manager.heightForLineNumber(3), 20);
@@ -113,7 +113,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('can remove custom line height', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);
 		manager.commit();
 		assert.strictEqual(manager.heightForLineNumber(3), 20);
@@ -128,7 +128,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('handles overlapping custom line heights (last one wins)', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 5, 20);
 		manager.insertOrChangeCustomLineHeight('dec2', 4, 6, 30);
 		manager.commit();
@@ -142,7 +142,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('handles deleting lines before custom line heights', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 10, 12, 20);
 		manager.commit();
 
@@ -155,7 +155,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('handles deleting lines overlapping with custom line heights', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 10, 20);
 		manager.commit();
 
@@ -167,7 +167,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('handles deleting lines containing custom line heights completely', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 		manager.commit();
 
@@ -180,7 +180,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('handles inserting lines before custom line heights', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 		manager.commit();
 
@@ -194,7 +194,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('handles inserting lines inside custom line heights range', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 		manager.commit();
 
@@ -208,7 +208,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('changing decoration id maintains custom line height', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 		manager.commit();
 
@@ -222,7 +222,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('accumulates heights correctly with complex setup', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 15);
 		manager.insertOrChangeCustomLineHeight('dec2', 5, 7, 20);
 		manager.insertOrChangeCustomLineHeight('dec3', 10, 10, 30);
@@ -240,7 +240,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('partial deletion with multiple lines for the same decoration ID', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('decSame', 5, 5, 20);
 		manager.insertOrChangeCustomLineHeight('decSame', 6, 6, 25);
 		manager.commit();
@@ -254,7 +254,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 	});
 
 	test('overlapping decorations use maximum line height', () => {
-		const manager = new LineHeightsManager(10);
+		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('decA', 3, 5, 40);
 		manager.insertOrChangeCustomLineHeight('decB', 4, 6, 30);
 		manager.commit();
