@@ -230,15 +230,6 @@ export async function getShellIntegrationInjection(
 			const realTmpDir = realpathSync(os.tmpdir());
 			const zdotdir = path.join(realTmpDir, `${username}-${productService.applicationName}-zsh`);
 
-			// Ensure the ZDOTDIR exists
-			if (!existsSync(zdotdir)) {
-				try {
-					mkdirSync(zdotdir, { recursive: true });
-				} catch (err) {
-					logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
-					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
-				}
-			}
 			// Set directory permissions using octal notation:
 			// - 0o1700:
 			// - Sticky bit is set, preventing non-owners from deleting or renaming files within this directory (1)
@@ -247,6 +238,16 @@ export async function getShellIntegrationInjection(
 			// - Others have no permissions (0)
 			if (!skipStickyBit) {
 				// skip for tests
+
+				// Ensure the ZDOTDIR exists
+				if (!existsSync(zdotdir)) {
+					try {
+						mkdirSync(zdotdir, { recursive: true });
+					} catch (err) {
+						logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
+						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
+					}
+				}
 				try {
 					const chmodAsync = promisify(chmod);
 					await chmodAsync(zdotdir, 0o1700);
