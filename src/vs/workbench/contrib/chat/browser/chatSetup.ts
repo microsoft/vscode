@@ -741,8 +741,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						group: 'a_first',
 						order: 1,
 						when: ContextKeyExpr.or(
-							ChatContextKeys.chatQuotaExceeded,
-							ChatContextKeys.completionsQuotaExceeded
+							ChatContextKeys.freeChatQuotaExceeded,
+							ChatContextKeys.freeCompletionsQuotaExceeded
 						)
 					}
 				});
