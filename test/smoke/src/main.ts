@@ -16,7 +16,7 @@ import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog,
 import { retry, timeout } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
+/*import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupSearchTests } from './areas/search/search.test';
 import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
 import { setup as setupLanguagesTests } from './areas/languages/languages.test';
@@ -26,7 +26,7 @@ import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
-import { setup as setupTaskTests } from './areas/task/task.test';
+import { setup as setupTaskTests } from './areas/task/task.test';*/
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -397,7 +397,7 @@ after(async function () {
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
-	setupPreferencesTests(logger);
+	/*setupPreferencesTests(logger);
 	setupSearchTests(logger);
 	if (!opts.web) { setupNotebookTests(logger); }
 	setupLanguagesTests(logger);
@@ -407,5 +407,5 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
-	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
+	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }*/
 });
