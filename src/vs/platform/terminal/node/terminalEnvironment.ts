@@ -15,7 +15,7 @@ import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions, Shel
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
-import { chmod, realpathSync } from 'fs';
+import { chmod, realpathSync, existsSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
 
 export function getWindowsBuildNumber(): number {
@@ -230,6 +230,15 @@ export async function getShellIntegrationInjection(
 			const realTmpDir = realpathSync(os.tmpdir());
 			const zdotdir = path.join(realTmpDir, `${username}-${productService.applicationName}-zsh`);
 
+			// Ensure the ZDOTDIR exists
+			if (!existsSync(zdotdir)) {
+				try {
+					mkdirSync(zdotdir, { recursive: true });
+				} catch (err) {
+					logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
+				}
+			}
 			// Set directory permissions using octal notation:
 			// - 0o1700:
 			// - Sticky bit is set, preventing non-owners from deleting or renaming files within this directory (1)
