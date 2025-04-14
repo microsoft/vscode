@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow, getActiveWindow } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
@@ -28,7 +27,6 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	private speed: number = 2;
 	private animationFrameId: number | null = null;
 	private dot: HTMLDivElement | null = null;
-	private readonly disposables: DisposableStore = new DisposableStore();
 
 	static get(editor: ICodeEditor): MiddleScrollController | null {
 		return editor.getContribution<MiddleScrollController>(MiddleScrollController.ID);
@@ -42,18 +40,14 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	constructor(editor: ICodeEditor) {
 		super();
 		this._editor = editor;
-		this.setCurrent = this.setCurrent.bind(this);
-		this.windowMouseDown = this.windowMouseDown.bind(this);
-		this.windowMouseUp = this.windowMouseUp.bind(this);
-		this.scrollPane = this.scrollPane.bind(this);
-		this.stopScroll = this.stopScroll.bind(this);
 
-		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this.windowMouseDown(e.event)));
-		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this.windowMouseUp()));
+		this.editorMouseDown = this.editorMouseDown.bind(this);
+		this.editorMouseUp = this.editorMouseUp.bind(this);
+		this.windowMouseMove = this.windowMouseMove.bind(this);
 
-		this.disposables.add(toDisposable(() => {
-			this.stopScroll();
-		}));
+		this._register(this._editor.onMouseDown(this.editorMouseDown));
+		this._register(this._editor.onMouseUp(this.editorMouseUp));
+		this._register(toDisposable(() => this.stopScroll()));
 	}
 
 	getWindow() {
@@ -97,10 +91,10 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		const targetLeft = left + moveLeft;
 		this._editor.setScrollLeft(targetLeft);
 
-		this.animationFrameId = this.getWindow().requestAnimationFrame(this.scrollPane);
+		this.animationFrameId = this.getWindow().requestAnimationFrame(() => this.scrollPane());
 	}
 
-	startScroll(e: IMouseEvent) {
+	startScroll(x: number, y: number) {
 		if (this.scrolling) {
 			this.stopScroll();
 		}
@@ -108,22 +102,22 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		this.moving = false;
 		this.getWindow().document.body.classList.add('scroll-editor-on-middle-click-editor');
 		if (this.dot) {
-			this.dot.style.left = e.posx + 'px';
-			this.dot.style.top = e.posy + 'px';
+			this.dot.style.left = x + 'px';
+			this.dot.style.top = y + 'px';
 			this.dot.classList.remove('hidden');
 		}
-		this.x = e.posx;
-		this.y = e.posy;
-		this.currentX = e.posx;
-		this.currentY = e.posy;
-		this.getWindow().addEventListener('mousemove', this.setCurrent, { capture: true });
+		this.x = x;
+		this.y = y;
+		this.currentX = x;
+		this.currentY = y;
+		this.getWindow().addEventListener('mousemove', this.windowMouseMove, { capture: true });
 		this.scrollPane();
 	}
 
 	stopScroll() {
 		this.scrolling = false;
 		this.moving = false;
-		this.getWindow().removeEventListener('mousemove', this.setCurrent, { capture: true });
+		this.getWindow().removeEventListener('mousemove', this.windowMouseMove, { capture: true });
 		if (this.animationFrameId !== null) {
 			this.getWindow().cancelAnimationFrame(this.animationFrameId);
 			this.animationFrameId = null;
@@ -135,55 +129,55 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		this.getWindow().document.body.classList.remove('scroll-editor-on-middle-click-editor');
 	}
 
-	setCurrent(e: MouseEvent) {
-		this.currentX = e.pageX;
-		this.currentY = e.pageY;
+	setCurrent(x: number, y: number) {
+		this.currentX = x;
+		this.currentY = y;
 	}
 
-	windowMouseDown(e: IMouseEvent) {
+	editorMouseDown(e: IEditorMouseEvent) {
 		if (!this._editor.getOptions().get(EditorOption.scrollOnMiddleClick)) {
 			return;
 		}
 
 		if (this.scrolling) {
-			if (e.middleButton) {
-				e.stopPropagation();
+			if (e.event.middleButton) {
+				e.event.stopPropagation();
+				e.event.preventDefault();
 			}
 			this.stopScroll();
 		} else {
 			if (!this.dot) {
 				this.createDot();
 			}
-			if (e.middleButton) {
-				e.stopPropagation();
-				this.startScroll(e);
+			if (e.event.middleButton) {
+				e.event.stopPropagation();
+				e.event.preventDefault();
+				this.startScroll(e.event.posx, e.event.posy);
 			}
 		}
 	}
 
-	windowMouseUp() {
+	editorMouseUp() {
 		if (this.moving) {
 			this.stopScroll();
 		}
+	}
+
+	windowMouseMove(e: MouseEvent) {
+		this.setCurrent(e.pageX, e.pageY);
 	}
 
 	createDot() {
 		this.dot = document.createElement('div');
 		this.dot.classList.add('scroll-editor-on-middle-click-dot', 'hidden');
 		this.getWindow().document.body.append(this.dot);
-		this.disposables.add(toDisposable(() => {
+		this._register(toDisposable(() => {
 			if (this.dot) {
 				this.dot.remove();
 				this.dot = null;
 			}
 		}));
-		console.log(this.dot);
 
-	}
-
-	public override dispose() {
-		this.disposables.dispose();
-		super.dispose();
 	}
 }
 

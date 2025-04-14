@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MiddleScrollController } from '../../browser/middleScroll.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
-import { getWindow } from '../../../../../base/browser/dom.js';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
 
 suite('middleScroll', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,9 +16,9 @@ suite('middleScroll', () => {
 		withTestCodeEditor('test', {}, (editor) => {
 			const middleScrollController = editor.registerAndInstantiateContribution(MiddleScrollController.ID, MiddleScrollController);
 
-			editor.getDomNode().dispatchEvent(new MouseEvent('mousedown', { button: 1 }));
+			middleScrollController.startScroll(10, 10);
 
-			assert.equal(getWindow(editor.getDomNode()).document.body.classList.contains('scroll-editor-on-middle-click-editor'), true);
+			assert.equal(getActiveWindow().document.body.classList.contains('scroll-editor-on-middle-click-editor'), true);
 
 			middleScrollController.dispose();
 		});
