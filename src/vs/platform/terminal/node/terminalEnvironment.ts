@@ -238,22 +238,27 @@ export async function getShellIntegrationInjection(
 			// - Others have no permissions (0)
 			if (!skipStickyBit) {
 				// skip for tests
-
-				// Ensure the ZDOTDIR exists
-				if (!existsSync(zdotdir)) {
-					try {
-						mkdirSync(zdotdir);
-					} catch (err) {
-						logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
-						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
-					}
-				}
 				try {
 					const chmodAsync = promisify(chmod);
 					await chmodAsync(zdotdir, 0o1700);
 				} catch (err) {
+					if (err.message.includes('ENOENT')) {
+						try {
+							mkdirSync(zdotdir);
+						} catch (err) {
+							logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
+							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
+						}
+						try {
+							const chmodAsync = promisify(chmod);
+							await chmodAsync(zdotdir, 0o1700);
+						} catch {
+							logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
+						}
+					}
 					logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
-					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 				}
 			}
 			envMixin['ZDOTDIR'] = zdotdir;
