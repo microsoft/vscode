@@ -592,28 +592,26 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 
 		// Legacy Free SKU Quota
-		else {
-			if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
-				quotas.freeChat = {
-					total: response.monthly_quotas.chat,
-					percentRemaining: Math.round((response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100),
-					resetDate: response.limited_user_reset_date,
-					snapshotDate: `${new Date()}`,
-					overageEnabled: false,
-					overageCount: 0
-				};
-			}
+		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
+			quotas.freeChat = {
+				total: response.monthly_quotas.chat,
+				percentRemaining: Math.round((response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100),
+				resetDate: response.limited_user_reset_date,
+				snapshotDate: `${new Date()}`,
+				overageEnabled: false,
+				overageCount: 0
+			};
+		}
 
-			if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
-				quotas.freeCompletions = {
-					total: response.monthly_quotas.completions,
-					percentRemaining: Math.round((response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100),
-					resetDate: response.limited_user_reset_date,
-					snapshotDate: `${new Date()}`,
-					overageEnabled: false,
-					overageCount: 0
-				};
-			}
+		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
+			quotas.freeCompletions = {
+				total: response.monthly_quotas.completions,
+				percentRemaining: Math.round((response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100),
+				resetDate: response.limited_user_reset_date,
+				snapshotDate: `${new Date()}`,
+				overageEnabled: false,
+				overageCount: 0
+			};
 		}
 
 		return quotas;
