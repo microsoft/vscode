@@ -41,7 +41,7 @@ interface IAttachResult {
 
 
 /**
- * Options for the {@link attachInstructionsFiles} function.
+ * Options for the {@link runPromptFile} function.
  */
 export interface IRunPromptOptions {
 	/**
@@ -60,7 +60,7 @@ export interface IRunPromptOptions {
 
 
 /**
- * Return value of the {@link attachInstructionsFiles} function.
+ * Return value of the {@link runPromptFile} function.
  */
 interface IRunPromptResult {
 	readonly widget: IChatWidget;
@@ -160,7 +160,7 @@ export const runPromptFile = async (
  * @throws if failed to reveal a chat widget.
  */
 const getChatWidgetObject = async (
-	options: IAttachOptions,
+	options: IAttachOptions | IRunPromptOptions,
 ): Promise<IChatWidget> => {
 	const { widget, inNewChat } = options;
 
@@ -178,7 +178,7 @@ const getChatWidgetObject = async (
  * Opens a chat session, or reveals an existing one.
  */
 const showChat = async (
-	options: IAttachOptions,
+	options: IAttachOptions | IRunPromptOptions,
 	createNew: boolean = false,
 ): Promise<IChatWidget> => {
 	const { commandService, viewsService } = options;

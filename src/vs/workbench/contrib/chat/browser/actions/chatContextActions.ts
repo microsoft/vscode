@@ -234,7 +234,7 @@ interface IDiagnosticsQuickPickItemWithFilter extends IQuickPickItem {
 }
 
 /**
- * Quick pick item for reusable prompt attachment.
+ * Quick pick item for instructions attachment.
  */
 const INSTRUCTION_PICK_ID = 'instructions';
 interface IInstructionsQuickPickItem extends IQuickPickItem {
