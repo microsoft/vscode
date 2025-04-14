@@ -3,43 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NewLine } from '../../linesCodec/tokens/newLine.js';
+import { VALID_SPACE_TOKENS } from '../constants.js';
 import { assert } from '../../../../../base/common/assert.js';
-import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
-import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
-import { Comma, LeftBracket, RightBracket, Space, Tab } from '../../simpleCodec/tokens/index.js';
+import { Comma, LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
+import { PartialFrontMatterValue, VALID_VALUE_START_TOKENS } from './frontMatterValue.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
- * TODO: @legomushroom
+ * List of tokens that can go in-between array items
+ * and array brackets.
  */
-// TODO: @legomushroom - any other tokens allowed?
-// TODO: @legomushroom - use common constant
-// TODO: @legomushroom - validate that does not intersect with "start value tokens"
-const ALLOWED_NON_VALUE_TOKENS = [
-	Space, Tab, CarriageReturn, NewLine, Comma,
-];
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// type TArrayItem = LeftBracket | FrontMatterValueToken | RightBracket;
+const VALID_DELIMITER_TOKENS = Object.freeze([
+	...VALID_SPACE_TOKENS,
+	Comma,
+]);
 
 /**
- * TODO: @legomushroom
+ * Responsible for parsing an array syntax (or "inline sequence"
+ * in YAML terms), e.g. `[1, '2', true, 2.54]`
  */
 export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, PartialFrontMatterArray | FrontMatterArray> {
 	/**
-	 * TODO: @legomushroom
+	 * Current parser reference responsible for parsing an array "value".
 	 */
 	private currentValueParser?: PartialFrontMatterValue;
 
 	/**
-	 * TODO: @legomushroom
+	 * Whether an array item is allowed in the current position
+	 * of the token sequence. E.g., items are allowed after
+	 * a command or a open bracket, but not immediately after
+	 * another item in the array.
 	 */
 	private arrayItemAllowed = true;
 
@@ -104,8 +101,8 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 		}
 
 		// iterate until a valid value start token is found
-		for (const AllowedToken of ALLOWED_NON_VALUE_TOKENS) {
-			if (token instanceof AllowedToken) {
+		for (const ValidToken of VALID_DELIMITER_TOKENS) {
+			if (token instanceof ValidToken) {
 				this.currentTokens.push(token);
 
 				if ((this.arrayItemAllowed === false) && token instanceof Comma) {
@@ -137,11 +134,14 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Convert current parser into a {@link FrontMatterArray} token,
+	 * if possible.
+	 *
+	 * @throws if the last token in the accumulated token list
+	 * 		   is not a closing bracket ({@link RightBracket}).
 	 */
 	public asArrayToken(): FrontMatterArray {
 		this.isConsumed = true;
-
 		const endToken = this.currentTokens[this.currentTokens.length - 1];
 
 		assertDefined(
@@ -166,5 +166,22 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			...valueTokens,
 			endToken,
 		]);
+	}
+}
+
+/**
+ * Sanity check - logic inside the {@link PartialFrontMatterArray.accept accept} method
+ * above assumes that the {@link VALID_DELIMITER_TOKENS} tokens list does not intersect
+ * with the {@link VALID_VALUE_START_TOKENS} tokens list.
+ *
+ * Note! the `as` type casting below is ok since we offload the type intersection check
+ *       to the runtime, and is required to avoid compilation errors in Typescript.
+ */
+for (const DelimiterToken of VALID_DELIMITER_TOKENS) {
+	for (const ValueStartToken of VALID_VALUE_START_TOKENS as unknown[]) {
+		assert(
+			DelimiterToken !== ValueStartToken,
+			`Delimiter tokens list must not contain value start token '${ValueStartToken}'.`,
+		);
 	}
 }

@@ -4,22 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
-import { FrontMatterString } from './frontMatterString.js';
-import { FrontMatterBoolean } from './frontMatterBoolean.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
 import { LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
 
 /**
- * TODO: @legomushroom
- */
-export type TFrontMatterValue = FrontMatterString | FrontMatterBoolean | FrontMatterArray;
-
-/**
- * TODO: @legomushroom
+ * Token that represents an `array` value in a Front Matter header.
  */
 export class FrontMatterArray extends FrontMatterValueToken {
 	constructor(
-		// TODO: @legomushroom - add `Comma`?
+		/**
+		 * List of tokens of the array value. Must start and end
+		 * with square brackets, but tokens in the middle hold
+		 * only the value tokens, omitting commas and spaces.
+		 */
 		public readonly tokens: readonly [
 			LeftBracket,
 			...FrontMatterValueToken[],

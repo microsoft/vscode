@@ -9,7 +9,6 @@ import { SimpleToken } from './simpleToken.js';
  * A token that represent a `,` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-// TODO: @legomushroom - add unit tests?
 export class Comma extends SimpleToken {
 	/**
 	 * The underlying symbol of the token.

@@ -4,22 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
-import { Quote, DoubleQuote } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
+import { Quote, DoubleQuote } from '../../simpleCodec/tokens/index.js';
 
 /**
- * TODO: @legomushroom
+ * Type for any quote token that can be used to wrap a string.
  */
 export type TQuoteToken = Quote | DoubleQuote;
 
 /**
- * TODO: @legomushroom
+ * Token that represents a string value in a Front Matter header.
  */
 export class FrontMatterString<TQuote extends TQuoteToken = Quote> extends FrontMatterValueToken {
 	constructor(
 		public readonly tokens: readonly [TQuote, ...BaseToken[], TQuote],
 	) {
-		// TODO: @legomushroom - validate that the tokens in the middle don't have a quote?
 		super(BaseToken.fullRange(tokens));
 	}
 

@@ -24,7 +24,8 @@ export class DoubleQuote extends SimpleToken {
 	}
 
 	/**
-	 * Check if a provided token is of the same type as this token.
+	 * Checks if the provided token is of the same type
+	 * as the current one.
 	 */
 	public sameType(other: BaseToken): other is typeof this {
 		return (other instanceof this.constructor);

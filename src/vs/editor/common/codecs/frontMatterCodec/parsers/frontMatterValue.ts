@@ -13,24 +13,53 @@ import { Word, Quote, DoubleQuote, LeftBracket } from '../../simpleCodec/tokens/
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
- * TODO: @legomushroom
+ * List of tokens that can start a "value" sequence.
+ *
+ * - {@link Word} - can be a `boolean` value
+ * - {@link Quote}, {@link DoubleQuote} - can start a `string` value
+ * - {@link LeftBracket} - can start an `array` value
  */
-export type TValueStartToken = Word | Quote | DoubleQuote | LeftBracket;
+export const VALID_VALUE_START_TOKENS = Object.freeze([
+	Word,
+	Quote,
+	DoubleQuote,
+	LeftBracket,
+]);
 
 /**
- * TODO: @legomushroom
+ * Type alias for a token that can start a "value" sequence.
+ */
+type TValueStartToken = InstanceType<typeof VALID_VALUE_START_TOKENS[number]>;
+
+/**
+ * Parser responsible for parsing a "value" sequence in a Front Matter header.
  */
 export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, PartialFrontMatterValue | FrontMatterValueToken> {
 	/**
-	 * TODO: @legomushroom
+	 * Current parser reference responsible for parsing
+	 * a specific "value" sequence.
 	 */
 	private currentValueParser?: PartialFrontMatterString | PartialFrontMatterArray;
+
+	/**
+	 * Get the tokens that were accumulated so far.
+	 */
+	public override get tokens(): readonly TSimpleDecoderToken[] {
+		if (this.currentValueParser === undefined) {
+			return [];
+		}
+
+		return this.currentValueParser.tokens;
+	}
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterValue | FrontMatterValueToken> {
 		if (this.currentValueParser !== undefined) {
 			const acceptResult = this.currentValueParser.accept(token);
 			const { result, wasTokenConsumed } = acceptResult;
+
+			// current value parser is consumed with its child value parser
+			this.isConsumed = this.currentValueParser.consumed;
 
 			if (result === 'success') {
 				const { nextParser } = acceptResult;
@@ -51,7 +80,6 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 				};
 			}
 
-			// TODO: @legomushroom - implement `tokens` getter so consumer can re-emit tokens of the current value parser
 			return {
 				result: 'failure',
 				wasTokenConsumed,
@@ -82,6 +110,9 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 
 		// if the first token represents a `word` try to parse a boolean
 		if (token instanceof Word) {
+			// in either success or failure case, the parser is consumed
+			this.isConsumed = true;
+
 			try {
 				return {
 					result: 'success',
@@ -97,6 +128,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		}
 
 		// in all other cases fail due to unexpected value sequence
+		this.isConsumed = true;
 		return {
 			result: 'failure',
 			wasTokenConsumed: false,
@@ -104,25 +136,16 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Check if provided token can be a start of a "value" sequence.
+	 * See {@link VALID_VALUE_START_TOKENS} for the list of valid tokens.
 	 */
 	public static isValueStartToken(
 		token: BaseToken,
 	): token is TValueStartToken {
-		if (token instanceof Word) {
-			return true;
-		}
-
-		if (token instanceof Quote) {
-			return true;
-		}
-
-		if (token instanceof DoubleQuote) {
-			return true;
-		}
-
-		if (token instanceof LeftBracket) {
-			return true;
+		for (const ValidToken of VALID_VALUE_START_TOKENS) {
+			if (token instanceof ValidToken) {
+				return true;
+			}
 		}
 
 		return false;

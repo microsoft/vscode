@@ -24,7 +24,8 @@ export class Quote extends SimpleToken {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Checks if the provided token is of the same type
+	 * as the current one.
 	 */
 	public sameType(other: BaseToken): other is Quote {
 		return (other instanceof this.constructor);
