@@ -16,7 +16,7 @@ import { hc_black, hc_light, vs, vs_dark } from '../common/themes.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from '../../../platform/theme/common/colorRegistry.js';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle, IThemeChangeEvent } from '../../../platform/theme/common/themeService.js';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from '../../../platform/theme/common/themeService.js';
 import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../platform/theme/common/theme.js';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from '../../../platform/theme/browser/iconsStyleSheet.js';
@@ -213,7 +213,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onColorThemeChange = this._register(new Emitter<IThemeChangeEvent>());
+	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
 	public readonly onDidColorThemeChange = this._onColorThemeChange.event;
 
 	private readonly _onFileIconThemeChange = this._register(new Emitter<IFileIconTheme>());
@@ -403,7 +403,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._updateCSS();
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onColorThemeChange.fire({ theme: this._theme });
+		this._onColorThemeChange.fire(this._theme);
 	}
 
 	private _updateCSS(): void {

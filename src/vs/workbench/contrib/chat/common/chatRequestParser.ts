@@ -96,7 +96,7 @@ export class ChatRequestParser {
 
 	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: Array<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | undefined {
 		const nextAgentMatch = message.match(agentReg);
-		if (!nextAgentMatch) {
+		if (!nextAgentMatch || context?.mode !== undefined && context.mode !== ChatMode.Ask) {
 			return;
 		}
 
@@ -194,7 +194,7 @@ export class ChatRequestParser {
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 			}
 		} else {
-			const slashCommands = this.slashCommandService.getCommands(location);
+			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatMode.Ask);
 			const slashCommand = slashCommands.find(c => c.command === command);
 			if (slashCommand) {
 				// Valid standalone slash command

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
+import { LanguageFilter } from '../../../../../editor/common/languageSelector.js';
 
 /**
  * Documentation link for the reusable prompts feature.
@@ -11,8 +11,13 @@ import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/co
 export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 
 /**
+ * Language ID for the reusable prompt syntax.
+ */
+export const PROMPT_LANGUAGE_ID = 'prompt';
+
+/**
  * Prompt files language selector.
  */
-export const LANGUAGE_SELECTOR = Object.freeze({
-	pattern: `**/*${PROMPT_FILE_EXTENSION}`,
+export const LANGUAGE_SELECTOR: LanguageFilter = Object.freeze({
+	language: PROMPT_LANGUAGE_ID,
 });

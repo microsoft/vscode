@@ -30,13 +30,15 @@ import {
 	ITaskDefinitionDTO, ITaskExecutionDTO, IProcessExecutionOptionsDTO, ITaskPresentationOptionsDTO,
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
 	IRunOptionsDTO, ITaskGroupDTO,
-	ITaskStatus,
+	ITaskProblemMatcherStarted,
+	ITaskProblemMatcherEnded,
 	TaskEventKind
 } from '../common/shared/tasks.js';
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ConfigurationResolverExpression } from '../../services/configurationResolver/common/configurationResolverExpression.js';
 
 namespace TaskExecutionDTO {
 	export function from(value: ITaskExecution): ITaskExecutionDTO {
@@ -47,22 +49,38 @@ namespace TaskExecutionDTO {
 	}
 }
 
-export interface ITaskTerminalStatusDTO {
+export interface ITaskProblemMatcherStartedDto {
 	execution: ITaskExecutionDTO;
-	taskEventKind: TaskEventKind;
 }
 
-export namespace TaskTerminalStatusDTO {
-	export function from(value: ITaskStatus): ITaskTerminalStatusDTO {
+export namespace TaskProblemMatcherStartedDto {
+	export function from(value: ITaskProblemMatcherStarted): ITaskProblemMatcherStartedDto {
 		return {
 			execution: {
 				id: value.execution.id,
 				task: TaskDTO.from(value.execution.task)
 			},
-			taskEventKind: value.taskEventKind
 		};
 	}
 }
+
+export interface ITaskProblemMatcherEndedDto {
+	execution: ITaskExecutionDTO;
+	hasErrors: boolean;
+}
+
+export namespace TaskProblemMatcherEndedDto {
+	export function from(value: ITaskProblemMatcherEnded): ITaskProblemMatcherEndedDto {
+		return {
+			execution: {
+				id: value.execution.id,
+				task: TaskDTO.from(value.execution.task)
+			},
+			hasErrors: value.hasErrors
+		};
+	}
+}
+
 
 
 namespace TaskProcessStartedDTO {
@@ -460,12 +478,15 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
 				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
-					const dictionary: IStringDictionary<string> = {};
-					for (const [key, value] of event.resolvedVariables.entries()) {
-						dictionary[key] = value;
+					const expr = ConfigurationResolverExpression.parse(execution.task.definition);
+					for (const replacement of expr.unresolved()) {
+						const value = event.resolvedVariables.get(replacement.inner);
+						if (value !== undefined) {
+							expr.resolve(replacement, value);
+						}
 					}
-					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
-						execution.task.definition, dictionary);
+
+					resolvedDefinition = await this._configurationResolverService.resolveAsync(task.getWorkspaceFolder(), expr);
 				}
 				this._proxy.$onDidStartTask(execution, event.terminalId, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
@@ -474,8 +495,14 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
+			} else if (event.kind === TaskEventKind.ProblemMatcherStarted) {
+				this._proxy.$onDidStartTaskProblemMatchers(TaskProblemMatcherStartedDto.from({ execution: task.getTaskExecution() }));
+			} else if (event.kind === TaskEventKind.ProblemMatcherEnded) {
+				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: false }));
+			} else if (event.kind === TaskEventKind.ProblemMatcherFoundErrors) {
+				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: true }));
 			}
-			this._proxy.$onDidChangeTaskTerminalStatus(TaskTerminalStatusDTO.from({ execution: task.getTaskExecution(), taskEventKind: event.kind }));
+
 		}));
 	}
 

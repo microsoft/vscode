@@ -1044,7 +1044,7 @@ class SCMHistoryViewModel extends Disposable {
 
 type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
 
-class RepositoryPicker extends Disposable {
+class RepositoryPicker {
 	private readonly _autoQuickPickItem: RepositoryQuickPickItem = {
 		label: localize('auto', "Auto"),
 		description: localize('activeRepository', "Show the source control graph for the active repository"),
@@ -1054,9 +1054,7 @@ class RepositoryPicker extends Disposable {
 	constructor(
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
-	) {
-		super();
-	}
+	) { }
 
 	async pickRepository(): Promise<RepositoryQuickPickItem | undefined> {
 		const picks: (RepositoryQuickPickItem | IQuickPickSeparator)[] = [

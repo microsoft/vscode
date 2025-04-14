@@ -78,7 +78,7 @@
 	margin-top: 4px !important;
 }
 
-.review-widget .body .review-comment .avatar-container img.avatar {
+.review-widget .body .avatar-container img.avatar {
 	height: 28px;
 	width: 28px;
 	display: inline-block;
@@ -172,7 +172,6 @@
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	display: none;
 	background-size: 16px;
 	font-size: 16px;
 	width: 26px;
@@ -181,11 +180,6 @@
 	background-position: center;
 	margin-top: 3px;
 	border: none;
-}
-
-.review-widget .body .review-comment .review-comment-contents:hover .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	display: inline-block;
-	background-size: 16px;
 }
 
 .review-widget .body .review-comment .comment-title .action-label {
@@ -252,7 +246,7 @@
 	max-width: 100%;
 }
 
-.review-widget .body .comment-form {
+.review-widget .body .comment-form-container {
 	margin: 8px 20px;
 }
 
@@ -302,7 +296,6 @@
 	padding: 4px 10px;
 }
 
-
 .review-widget .body .comment-additional-actions .codicon-drop-down-button {
 	align-items: center;
 }
@@ -310,17 +303,27 @@
 .review-widget .body .monaco-editor {
 	color: var(--vscode-editor-foreground);
 }
-.review-widget .body .comment-form.expand .review-thread-reply-button {
+
+.review-widget .body .comment-form-container .comment-form {
+	display: flex;
+	flex-direction: row;
+}
+
+.review-widget .body .comment-form-container .comment-form .avatar-container {
+	padding-right: 20px;
+}
+
+.review-widget .body .comment-form-container.expand .review-thread-reply-button {
 	display: none;
 }
 
-.review-widget .body .comment-form.expand .monaco-editor,
-.review-widget .body .comment-form.expand .form-actions {
+.review-widget .body .comment-form-container.expand .monaco-editor,
+.review-widget .body .comment-form-container.expand .form-actions {
 	display: block;
 	box-sizing: content-box;
 }
 
-.review-widget .body .comment-form .review-thread-reply-button {
+.review-widget .body .comment-form-container .review-thread-reply-button {
 	text-align: left;
 	display: block;
 	width: 100%;
@@ -339,18 +342,18 @@
 	font-family: var(--monaco-monospace-font);
 }
 
-.review-widget .body .comment-form .review-thread-reply-button:focus {
+.review-widget .body .comment-form-container .review-thread-reply-button:focus {
 	outline-style: solid;
 	outline-width: 1px;
 }
 
-.review-widget .body .comment-form .monaco-editor,
-.review-widget .body .comment-form .monaco-editor .monaco-editor-background,
+.review-widget .body .comment-form-container .monaco-editor,
+.review-widget .body .comment-form-container .monaco-editor .monaco-editor-background,
 .review-widget .body .edit-container .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-editorCommentsWidget-replyInputBackground);
 }
 
-.review-widget .body .comment-form .monaco-editor,
+.review-widget .body .comment-form-container .monaco-editor,
 .review-widget .body .edit-container .monaco-editor {
 	width: 100%;
 	min-height: 90px;
@@ -361,12 +364,12 @@
 	padding: 6px 0 6px 12px;
 }
 
-.review-widget .body .comment-form .monaco-editor,
-.review-widget .body .comment-form .form-actions {
+.review-widget .body .comment-form-container .monaco-editor,
+.review-widget .body .comment-form-container .form-actions {
 	display: none;
 }
 
-.review-widget .body .comment-form .form-actions,
+.review-widget .body .comment-form-container .form-actions,
 .review-widget .body .edit-container .form-actions {
 	overflow: auto;
 	margin: 10px 0;
@@ -381,7 +384,7 @@
 	margin-right: 12px;
 }
 
-.review-widget .body .comment-form .form-actions .monaco-text-button,
+.review-widget .body .comment-form-container .form-actions .monaco-text-button,
 .review-widget .body .edit-container .monaco-text-button {
 	width: auto;
 	padding: 4px 10px;

@@ -5,24 +5,62 @@
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Platform } from '../../../../../base/common/platform.js';
+import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { DiscoverySource } from '../mcpConfiguration.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerTransportType } from '../mcpTypes.js';
 
 export interface NativeMpcDiscoveryAdapter {
 	readonly remoteAuthority: string | null;
 	readonly id: string;
-	readonly label: string;
 	readonly order: number;
+	readonly discoverySource: DiscoverySource;
 
 	getFilePath(details: INativeMcpDiscoveryData): URI | undefined;
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): McpServerDefinition[] | undefined;
 }
 
+export function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, cwd?: URI) {
+	let parsed: {
+		mcpServers: Record<string, {
+			command: string;
+			args?: string[];
+			env?: Record<string, string>;
+			url?: string;
+		}>;
+	};
+
+	try {
+		parsed = JSON.parse(contents.toString());
+	} catch {
+		return;
+	}
+
+	return Object.entries(parsed.mcpServers).map(([name, server]): Mutable<McpServerDefinition> => {
+		return {
+			id: `${idPrefix}.${name}`,
+			label: name,
+			launch: server.url ? {
+				type: McpServerTransportType.SSE,
+				uri: URI.parse(server.url),
+				headers: [],
+			} : {
+				type: McpServerTransportType.Stdio,
+				args: server.args || [],
+				command: server.command,
+				env: server.env || {},
+				envFile: undefined,
+				cwd,
+			}
+		};
+	});
+}
+
 export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapter {
-	public readonly id: string;
-	public readonly label: string = 'Claude Desktop';
+	public id: string;
 	public readonly order = McpCollectionSortOrder.Filesystem;
+	public readonly discoverySource: DiscoverySource = DiscoverySource.ClaudeDesktop;
 
 	constructor(public readonly remoteAuthority: string | null) {
 		this.id = `claude-desktop.${this.remoteAuthority}`;
@@ -41,31 +79,32 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 
 	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): McpServerDefinition[] | undefined {
-		let parsed: {
-			mcpServers: Record<string, {
-				command: string;
-				args?: string[];
-				env?: Record<string, string>;
-			}>;
-		};
+		return claudeConfigToServerDefinition(this.id, contents, homedir);
+	}
+}
 
-		try {
-			parsed = JSON.parse(contents.toString());
-		} catch {
-			return;
-		}
-		return Object.entries(parsed.mcpServers).map(([name, server]): McpServerDefinition => {
-			return {
-				id: `claude_desktop_config.${name}`,
-				label: name,
-				launch: {
-					type: McpServerTransportType.Stdio,
-					args: server.args || [],
-					command: server.command,
-					env: server.env || {},
-					cwd: homedir,
-				}
-			};
-		});
+export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
+	public override readonly discoverySource: DiscoverySource = DiscoverySource.Windsurf;
+
+	constructor(remoteAuthority: string | null) {
+		super(remoteAuthority);
+		this.id = `windsurf.${this.remoteAuthority}`;
+	}
+
+	override getFilePath({ homedir }: INativeMcpDiscoveryData): URI | undefined {
+		return URI.joinPath(homedir, '.codeium', 'windsurf', 'mcp_config.json');
+	}
+}
+
+export class CursorDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
+	public override readonly discoverySource: DiscoverySource = DiscoverySource.CursorGlobal;
+
+	constructor(remoteAuthority: string | null) {
+		super(remoteAuthority);
+		this.id = `cursor.${this.remoteAuthority}`;
+	}
+
+	override getFilePath({ homedir }: INativeMcpDiscoveryData): URI | undefined {
+		return URI.joinPath(homedir, '.cursor', 'mcp.json');
 	}
 }

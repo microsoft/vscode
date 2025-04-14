@@ -10,7 +10,6 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
@@ -18,20 +17,37 @@ import { cancelPreviousCalls } from '../../../../../../base/common/decorators/ca
 /**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
  *
- * - implement the {@linkcode getContentsStream} method to provide the contents stream
+ * - implement the {@link getContentsStream} method to provide the contents stream
  *   of a prompt; this method should throw a `ResolveError` or its derivative if the contents
  *   cannot be parsed for any reason
- * - fire a {@linkcode TChangeEvent} event on the {@linkcode onChangeEmitter} event when
+ * - fire a {@link TChangeEvent} event on the {@link onChangeEmitter} event when
  * 	 prompt contents change
  * - misc:
- *   - provide the {@linkcode uri} property that represents the URI of a prompt that
+ *   - provide the {@link uri} property that represents the URI of a prompt that
  *     the contents are for
- *   - implement the {@linkcode toString} method to return a string representation of this
+ *   - implement the {@link toString} method to return a string representation of this
  *     provider type to aid with debugging/tracing
  */
 export abstract class PromptContentsProviderBase<
 	TChangeEvent extends NonNullable<unknown>,
 > extends ObservableDisposable implements IPromptContentsProvider {
+	public abstract readonly uri: URI;
+	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
+	public abstract override toString(): string;
+
+	/**
+	 * Function to get contents stream for the provider. This function should
+	 * throw a `ResolveError` or its derivative if the contents cannot be parsed.
+	 *
+	 * @param changesEvent The event that triggered the change. The special
+	 * `'full'` value means  that everything has changed hence entire prompt
+	 * contents need to be re-parsed from scratch.
+	 */
+	protected abstract getContentsStream(
+		changesEvent: TChangeEvent | 'full',
+		cancellationToken?: CancellationToken,
+	): Promise<VSBufferReadableStream>;
+
 	/**
 	 * Internal event emitter for the prompt contents change event. Classes that extend
 	 * this abstract class are responsible to use this emitter to fire the contents change
@@ -48,32 +64,8 @@ export abstract class PromptContentsProviderBase<
 	}
 
 	/**
-	 * Function to get contents stream for the provider. This function should
-	 * throw a `ResolveError` or its derivative if the contents cannot be parsed.
-	 *
-	 * @param changesEvent The event that triggered the change. The special
-	 * `'full'` value means  that everything has changed hence entire prompt
-	 * contents need to be re-parsed from scratch.
-	 */
-	protected abstract getContentsStream(
-		changesEvent: TChangeEvent | 'full',
-		cancellationToken?: CancellationToken,
-	): Promise<VSBufferReadableStream>;
-
-	/**
-	 * URI reference associated with the prompt contents.
-	 */
-	public abstract readonly uri: URI;
-
-	/**
-	 * Return a string representation of this object
-	 * for debugging/tracing purposes.
-	 */
-	public abstract override toString(): string;
-
-	/**
 	 * Event emitter for the prompt contents change event.
-	 * See {@linkcode onContentChanged} for more details.
+	 * See {@link onContentChanged} for more details.
 	 */
 	private readonly onContentChangedEmitter = this._register(new Emitter<VSBufferReadableStream | ResolveError>());
 
@@ -84,7 +76,7 @@ export abstract class PromptContentsProviderBase<
 	 *
 	 * `Note!` this field is meant to be used by the external consumers of the prompt
 	 *         contents provider that the classes that extend this abstract class.
-	 *         Please use the {@linkcode onChangeEmitter} event to provide a change
+	 *         Please use the {@link onChangeEmitter} event to provide a change
 	 *         event in your prompt contents implementation instead.
 	 */
 	public readonly onContentChanged = this.onContentChangedEmitter.event;
@@ -139,12 +131,5 @@ export abstract class PromptContentsProviderBase<
 		this.onContentsChanged('full');
 
 		return this;
-	}
-
-	/**
-	 * Check if the current URI points to a prompt snippet.
-	 */
-	public isPromptSnippet(): boolean {
-		return isPromptFile(this.uri);
 	}
 }

@@ -5,8 +5,9 @@
 
 import { strictEquals } from '../../../base/common/equals.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { ISettableObservable } from '../../../base/common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
 import { ObservableValue } from '../../../base/common/observableInternal/base.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
 import { DebugNameData } from '../../../base/common/observableInternal/debugName.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 
@@ -26,7 +27,7 @@ interface IObservableMementoOpts<T> {
  * with storage service events, and must be tracked appropriately.
  */
 export function observableMemento<T>(opts: IObservableMementoOpts<T>) {
-	return (scope: StorageScope, target: StorageTarget, storageService: IStorageService): ISettableObservable<T> & IDisposable => {
+	return (scope: StorageScope, target: StorageTarget, storageService: IStorageService): ObservableMemento<T> => {
 		return new ObservableMemento<T>(opts, scope, target, storageService);
 	};
 }
@@ -34,7 +35,7 @@ export function observableMemento<T>(opts: IObservableMementoOpts<T>) {
 /**
  * A value that is stored, and is also observable. Note: T should be readonly.
  */
-class ObservableMemento<T> extends ObservableValue<T> implements IDisposable {
+export class ObservableMemento<T> extends ObservableValue<T> implements IDisposable {
 	private readonly _store = new DisposableStore();
 	private _didChange = false;
 

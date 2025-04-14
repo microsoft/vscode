@@ -237,6 +237,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,
+		private: !!metadata.private,
 		isWorkspaceScoped: false,
 		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource'),
 		size: metadata.size ?? 0,
@@ -254,7 +255,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
 
-	private _profileLocation = this.options.profileLocation;
+	private _profileLocation: URI;
 	get profileLocation() { return this._profileLocation; }
 
 	private _operation = InstallOperation.Install;
@@ -268,6 +269,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 		private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
+		this._profileLocation = options.profileLocation;
 		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
 		this.source = extension;
 	}
@@ -291,6 +293,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 			metadata.updated = !!existingExtension;
 			metadata.isApplicationScoped = this.options.isApplicationScoped || metadata.isApplicationScoped;
+			metadata.private = this.extension.private;
 			metadata.preRelease = isBoolean(this.options.preRelease)
 				? this.options.preRelease
 				: this.options.installPreReleaseVersion || this.extension.properties.isPreReleaseVersion || metadata.preRelease;

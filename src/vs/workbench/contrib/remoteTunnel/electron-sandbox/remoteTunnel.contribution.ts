@@ -20,7 +20,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -188,6 +188,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			}
 			this.notificationService.notify({
 				severity: Severity.Info,
+				priority: NotificationPriority.OPTIONAL,
 				message:
 					localize(
 						{

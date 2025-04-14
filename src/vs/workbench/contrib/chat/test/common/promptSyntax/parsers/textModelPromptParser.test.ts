@@ -9,6 +9,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ExpectedReference } from '../testUtils/expectedReference.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -78,7 +79,14 @@ class TextModelPromptParserTest extends Disposable {
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
-			expectedReferences[i].validateEqual(references[i]);
+			const reference = references[i];
+
+			assertDefined(
+				reference,
+				`Expected reference #${i} be ${expectedReferences[i]}, got 'undefined'.`,
+			);
+
+			expectedReferences[i].validateEqual(reference);
 		}
 
 		assert.strictEqual(

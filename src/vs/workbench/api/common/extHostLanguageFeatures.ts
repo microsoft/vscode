@@ -1350,6 +1350,7 @@ class InlineCompletionAdapter {
 			&& (typeof this._provider.handleDidShowCompletionItem === 'function'
 				|| typeof this._provider.handleDidPartiallyAcceptCompletionItem === 'function'
 				|| typeof this._provider.handleDidRejectCompletionItem === 'function'
+				|| typeof this._provider.handleEndOfLifetime === 'function'
 			);
 	}
 
@@ -1428,6 +1429,10 @@ class InlineCompletionAdapter {
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 					isInlineEdit: this._isAdditionsProposedApiEnabled ? item.isInlineEdit : false,
 					showInlineEditMenu: this._isAdditionsProposedApiEnabled ? item.showInlineEditMenu : false,
+					displayLocation: (item.displayLocation && this._isAdditionsProposedApiEnabled) ? {
+						range: typeConvert.Range.from(item.displayLocation.range),
+						label: item.displayLocation.label,
+					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
 						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
@@ -1551,6 +1556,16 @@ class InlineCompletionAdapter {
 			if (this._provider.handleDidPartiallyAcceptCompletionItem && this._isAdditionsProposedApiEnabled) {
 				this._provider.handleDidPartiallyAcceptCompletionItem(completionItem, acceptedCharacters);
 				this._provider.handleDidPartiallyAcceptCompletionItem(completionItem, typeConvert.PartialAcceptInfo.to(info));
+			}
+		}
+	}
+
+	handleEndOfLifetime(pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void {
+		const completionItem = this._references.get(pid)?.items[idx];
+		if (completionItem) {
+			if (this._provider.handleEndOfLifetime && this._isAdditionsProposedApiEnabled) {
+				const r = typeConvert.InlineCompletionEndOfLifeReason.to(reason, ref => this._references.get(ref.pid)?.items[ref.idx]);
+				this._provider.handleEndOfLifetime(completionItem, r);
 			}
 		}
 	}
@@ -2704,8 +2719,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- ghost text
 
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
+		const eventHandle = typeof provider.onDidChange === 'function' && isProposedApiEnabled(extension, 'inlineCompletionsAdditions') ? this._nextHandle() : undefined;
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChange!(_ => this._proxy.$emitInlineCompletionsChange(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
 		this._proxy.$registerInlineCompletionsSupport(
 			handle,
 			this._transformDocumentSelector(selector, extension),
@@ -2714,8 +2737,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			metadata?.displayName,
 			metadata?.debounceDelayMs,
+			eventHandle,
 		);
-		return this._createDisposable(handle);
+		return result;
 	}
 
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
@@ -2735,6 +2759,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void {
 		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
 			adapter.handlePartialAccept(pid, idx, acceptedCharacters, info);
+		}, undefined, undefined);
+	}
+
+	$handleInlineCompletionEndOfLifetime(handle: number, pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+			adapter.handleEndOfLifetime(pid, idx, reason);
 		}, undefined, undefined);
 	}
 

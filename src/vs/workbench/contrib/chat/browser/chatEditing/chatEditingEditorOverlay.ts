@@ -8,7 +8,7 @@ import { combinedDisposable, DisposableMap, DisposableStore, MutableDisposable, 
 import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
@@ -31,11 +31,11 @@ import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineCha
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
 import { rcut } from '../../../../../base/common/strings.js';
+import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
 
 class ChatEditorOverlayWidget {
 
 	private readonly _domNode: HTMLElement;
-	// private readonly _progressNode: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
 
 	private readonly _showStore = new DisposableStore();
@@ -168,7 +168,7 @@ class ChatEditorOverlayWidget {
 					};
 				}
 
-				if (action.id === 'inlineChat2.reveal' || action.id === 'workbench.action.chat.openEditSession') {
+				if (action.id === 'inlineChat2.reveal' || action.id === CHAT_OPEN_ACTION_ID) {
 					return new class extends ActionViewItem {
 
 						private _requestMessage: IObservable<{ message: string; paused?: boolean } | undefined>;
@@ -195,8 +195,8 @@ class ChatEditorOverlayWidget {
 									if (entry) {
 										const progress = entry?.rewriteRatio.read(r);
 										const message = progress === 0
-											? localize('generating', "Generating Edits")
-											: localize('applyingPercentage', "{0}% Applying Edits", Math.round(progress * 100));
+											? localize('generating', "Generating edits")
+											: localize('applyingPercentage', "{0}% Applying edits", Math.round(progress * 100));
 
 										return { message };
 									}
@@ -247,10 +247,6 @@ class ChatEditorOverlayWidget {
 								this.label.classList.toggle('busy', busy);
 
 							}));
-						}
-
-						protected override getTooltip(): string | undefined {
-							return this._requestMessage.get()?.message || super.getTooltip();
 						}
 					};
 				}
@@ -406,7 +402,7 @@ class ChatEditingOverlayController {
 			const { session, entry } = data;
 
 			if (
-				entry?.state.read(r) === WorkingSetEntryState.Modified // any entry changing
+				entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
 				|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request
 			) {
 				// any session with changes

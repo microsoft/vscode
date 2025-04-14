@@ -62,7 +62,8 @@ import { IChatRequestModel } from '../../../chat/common/chatModel.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 
 suite('InlineChatSession', function () {
 
@@ -89,6 +90,7 @@ suite('InlineChatSession', function () {
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
+			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
@@ -139,6 +141,7 @@ suite('InlineChatSession', function () {
 			name: 'testAgent',
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
+			modes: [ChatMode.Ask],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],

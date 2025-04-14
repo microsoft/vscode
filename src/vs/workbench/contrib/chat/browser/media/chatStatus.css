@@ -16,9 +16,15 @@
 }
 
 .chat-status-bar-entry-tooltip div.header {
+	display: flex;
+	align-items: center;
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 4px;
 	font-weight: 600;
+}
+
+.chat-status-bar-entry-tooltip div.header .monaco-action-bar {
+	margin-left: auto;
 }
 
 .chat-status-bar-entry-tooltip div.description {
@@ -49,6 +55,10 @@
 	display: flex;
 	justify-content: space-between;
 	margin-bottom: 3px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-label .quota-percentage {
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
@@ -100,14 +110,32 @@
 	margin-right: 5px;
 }
 
-.chat-status-bar-entry-tooltip .settings .setting .codicon {
-	font-size: 12px;
-}
-
 .chat-status-bar-entry-tooltip .settings .setting .setting-label {
 	cursor: pointer;
 }
 
 .chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
 	color: var(--vscode-disabledForeground);
+}
+
+/* Contributions */
+
+.chat-status-bar-entry-tooltip .contribution .body {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 5px;
+
+	.description,
+	.detail-item {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+	}
+
+	.detail-item,
+	.detail-item a {
+		margin-left: auto;
+		color: var(--vscode-descriptionForeground);
+	}
 }

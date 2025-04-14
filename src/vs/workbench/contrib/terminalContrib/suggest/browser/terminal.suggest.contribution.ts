@@ -100,8 +100,12 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private async _loadPwshCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-		// Disable when shell type is not powershell
-		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
+		// Disable when shell type is not powershell. A naive check is done for Windows PowerShell
+		// as we don't differentiate it in shellType
+		if (
+			this._ctx.instance.shellType !== GeneralShellType.PowerShell ||
+			this._ctx.instance.shellLaunchConfig.executable?.endsWith('WindowsPowerShell\\v1.0\\powershell.exe')
+		) {
 			this._pwshAddon.clear();
 			return;
 		}
@@ -113,11 +117,10 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
+		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon.onDidRequestSendText(text => {
-			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));
 		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', pwshCompletionProviderAddon.id, pwshCompletionProviderAddon));
@@ -408,13 +411,6 @@ registerActiveInstanceAction({
 		TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true);
 		activeInstance.sendText('\u001b[A', false); // Up arrow
 	}
-});
-
-registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ClearSuggestCache,
-	title: localize2('workbench.action.terminal.clearSuggestCache', 'Clear Suggest Cache'),
-	f1: true,
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.pwshAddon?.clearSuggestCache()
 });
 
 // #endregion

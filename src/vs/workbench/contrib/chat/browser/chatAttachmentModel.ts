@@ -11,6 +11,13 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { equals } from '../../../../base/common/objects.js';
 
 export class ChatAttachmentModel extends Disposable {
 	/**
@@ -20,6 +27,9 @@ export class ChatAttachmentModel extends Disposable {
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 
@@ -43,12 +53,8 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	get fileAttachments(): URI[] {
-		return this.attachments.reduce<URI[]>((acc, file) => {
-			if (file.isFile && URI.isUri(file.value)) {
-				acc.push(file.value);
-			}
-			return acc;
-		}, []);
+		return this.attachments.filter(file => file.kind === 'file' && URI.isUri(file.value))
+			.map(file => file.value as URI);
 	}
 
 	getAttachmentIDs() {
@@ -67,27 +73,49 @@ export class ChatAttachmentModel extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
-	addFile(uri: URI, range?: IRange) {
+	async addFile(uri: URI, range?: IRange) {
+		if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(uri.path)) {
+			const context = await this.asImageVariableEntry(uri);
+			if (context) {
+				this.addContext(context);
+			}
+			return;
+		}
+
 		this.addContext(this.asVariableEntry(uri, range));
 	}
 
 	addFolder(uri: URI) {
 		this.addContext({
+			kind: 'directory',
 			value: uri,
 			id: uri.toString(),
 			name: basename(uri),
-			isFile: false,
-			isDirectory: true,
+
 		});
 	}
 
 	asVariableEntry(uri: URI, range?: IRange): IChatRequestVariableEntry {
 		return {
+			kind: 'file',
 			value: range ? { uri, range } : uri,
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
-			isFile: true,
 		};
+	}
+
+	// Gets an image variable for a given URI, which may be a file or a web URL
+	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
+		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
+			return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri);
+		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
+			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
+			if (extractedImages) {
+				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri, extractedImages);
+			}
+		}
+
+		return undefined;
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
@@ -108,5 +136,26 @@ export class ChatAttachmentModel extends Disposable {
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
 		this.clear();
 		this.addContext(...attachments);
+	}
+
+	updateContent(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
+
+		let didChange = false;
+
+		for (const id of toDelete) {
+			didChange = this._attachments.delete(id) || didChange;
+		}
+
+		for (const item of upsert) {
+			const oldItem = this._attachments.get(item.id);
+			if (!oldItem || !equals(oldItem, item)) {
+				this._attachments.set(item.id, item);
+				didChange = true;
+			}
+		}
+
+		if (didChange) {
+			this._onDidChangeContext.fire();
+		}
 	}
 }

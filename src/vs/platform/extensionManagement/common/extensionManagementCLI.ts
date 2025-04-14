@@ -170,7 +170,8 @@ export class ExtensionManagementCLI {
 	}
 
 	private async installGalleryExtensions(installExtensionInfos: InstallGalleryExtensionInfo[], installed: ILocalExtension[], force: boolean): Promise<string[]> {
-		installExtensionInfos = installExtensionInfos.filter(({ id, version }) => {
+		installExtensionInfos = installExtensionInfos.filter(installExtensionInfo => {
+			const { id, version, installOptions } = installExtensionInfo;
 			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
 			if (installedExtension) {
 				if (!force && (!version || (version === 'prerelease' && installedExtension.preRelease))) {
@@ -180,6 +181,9 @@ export class ExtensionManagementCLI {
 				if (version && installedExtension.manifest.version === version) {
 					this.logger.info(localize('alreadyInstalled', "Extension '{0}' is already installed.", `${id}@${version}`));
 					return false;
+				}
+				if (installedExtension.preRelease && version !== 'prerelease') {
+					installOptions.preRelease = false;
 				}
 			}
 			return true;

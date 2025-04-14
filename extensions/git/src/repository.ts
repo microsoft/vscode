@@ -7,15 +7,14 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import * as iconv from '@vscode/iconv-lite-umd';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
-import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefQuery, RefType, Remote, Status } from './api/git';
+import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -25,7 +24,6 @@ import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
-import { detectEncoding } from './encoding';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
@@ -1028,6 +1026,8 @@ export class Repository implements Disposable {
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
+		this.logger.trace(`[Repository][provideOriginalResource] Resource: ${uri.toString()}`);
+
 		if (uri.scheme !== 'file') {
 			return;
 		}
@@ -1065,7 +1065,10 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
-		return toGitUri(uri, '', { replaceFileExtension: true });
+		const originalResource = toGitUri(uri, '', { replaceFileExtension: true });
+		this.logger.trace(`[Repository][provideOriginalResource] Original resource: ${originalResource.toString()}`);
+
+		return originalResource;
 	}
 
 	async getInputTemplate(): Promise<string> {
@@ -1222,19 +1225,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
 	}
 
-	async stage(resource: Uri, contents: string): Promise<void> {
+	async stage(resource: Uri, contents: string, encoding: string): Promise<void> {
 		await this.run(Operation.Stage, async () => {
-			const configFiles = workspace.getConfiguration('files', Uri.file(resource.fsPath));
-			let encoding = configFiles.get<string>('encoding') ?? 'utf8';
-			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding') === true;
-			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings') ?? [];
-
-			if (autoGuessEncoding) {
-				encoding = detectEncoding(Buffer.from(contents), candidateGuessEncodings) ?? encoding;
-			}
-
-			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-			await this.repository.stage(resource.fsPath, contents, encoding);
+			const data = await workspace.encode(contents, { encoding });
+			await this.repository.stage(resource.fsPath, data);
 
 			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
@@ -1399,22 +1393,29 @@ export class Repository implements Disposable {
 					}
 				});
 
-				if (discardUntrackedChangesToTrash) {
-					const limiter = new Limiter<void>(5);
-					await Promise.all(toClean.map(fsPath => limiter.queue(
-						async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
-				} else {
-					await this.repository.clean(toClean);
-				}
-
-				try {
-					await this.repository.checkout('', toCheckout);
-				} catch (err) {
-					if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
-						throw err;
+				if (toClean.length > 0) {
+					if (discardUntrackedChangesToTrash) {
+						const limiter = new Limiter<void>(5);
+						await Promise.all(toClean.map(fsPath => limiter.queue(
+							async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+					} else {
+						await this.repository.clean(toClean);
 					}
 				}
-				await this.repository.updateSubmodules(submodulesToUpdate);
+
+				if (toCheckout.length > 0) {
+					try {
+						await this.repository.checkout('', toCheckout);
+					} catch (err) {
+						if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
+							throw err;
+						}
+					}
+				}
+
+				if (submodulesToUpdate.length > 0) {
+					await this.repository.updateSubmodules(submodulesToUpdate);
+				}
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
 			},
@@ -1628,7 +1629,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<(Ref | Branch)[]> {
 		const config = workspace.getConfiguration('git');
 		let defaultSort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder');
 		if (defaultSort !== 'alphabetically' && defaultSort !== 'committerdate') {
@@ -1976,17 +1977,14 @@ export class Repository implements Disposable {
 
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const defaultEncoding = configFiles.get<string>('encoding');
-			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
-			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings');
-
 			try {
-				return await this.repository.bufferString(ref, filePath, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
+				const content = await this.repository.buffer(ref, filePath);
+				return await workspace.decode(content, { uri: Uri.file(filePath) });
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
 					const gitFilePath = await this.repository.getGitFilePath(ref, filePath);
-					return await this.repository.bufferString(ref, gitFilePath, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
+					const content = await this.repository.buffer(ref, gitFilePath);
+					return await workspace.decode(content, { uri: Uri.file(filePath) });
 				}
 
 				throw err;
@@ -2809,23 +2807,32 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 
 	private _disposables: IDisposable[] = [];
 
-	constructor(private readonly _repositoryResolver: IRepositoryResolver) {
+	constructor(
+		private readonly _repositoryResolver: IRepositoryResolver,
+		private readonly logger: LogOutputChannel
+	) {
 		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (working tree + index)')));
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
+		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource: ${uri.toString()}`);
+
 		// Ignore resources outside a repository
 		const repository = this._repositoryResolver.getRepository(uri);
 		if (!repository) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
 			return undefined;
 		}
 
 		// Ignore resources that are not in the index group
 		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
 			return undefined;
 		}
 
-		return toGitUri(uri, 'HEAD', { replaceFileExtension: true });
+		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
+		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
+		return originalResource;
 	}
 
 	dispose() {

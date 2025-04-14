@@ -164,7 +164,6 @@
 	"typescript.updateImportsOnFileMove.enabled.never": "Never rename paths and don't prompt.",
 	"typescript.autoClosingTags": "Enable/disable automatic closing of JSX tags.",
 	"typescript.suggest.enabled": "Enabled/disable autocomplete suggestions.",
-	"configuration.surveys.enabled": "Enabled/disable occasional surveys that help us improve VS Code's JavaScript and TypeScript support.",
 	"configuration.suggest.completeJSDocs": "Enable/disable suggestion to complete JSDoc comments.",
 	"configuration.tsserver.useVsCodeWatcher": "Use VS Code's file watchers instead of TypeScript's. Requires using TypeScript 5.4+ in the workspace.",
 	"configuration.tsserver.useVsCodeWatcher.deprecation": "Please use the `#typescript.tsserver.watchOptions#` setting instead.",
