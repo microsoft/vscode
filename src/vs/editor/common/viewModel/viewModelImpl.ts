@@ -313,7 +313,7 @@ export class ViewModel extends Disposable implements IViewModel {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
 								// Goes from line number to line number so how to get the relevant data?
-								const inlineDecorations = this._lines.getInlineDecorationsOnLine(change.fromLineNumber);
+								const inlineDecorations = this.getInlineDecorationsOnLine(change.fromLineNumber);
 								lineBreaksComputer.addRequest(change.fromLineNumber, line, injectedText, inlineDecorations, null);
 							}
 							break;
@@ -323,7 +323,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							const inlineDecorations = this._lines.getInlineDecorationsOnLine(change.lineNumber);
+							const inlineDecorations = this.getInlineDecorationsOnLine(change.lineNumber);
 							lineBreaksComputer.addRequest(change.lineNumber, change.detail, injectedText, inlineDecorations, null);
 							break;
 						}
@@ -864,6 +864,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(position);
 		const resultModelPosition = this.model.modifyPosition(modelPosition, offset);
 		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
+	}
+
+	public getInlineDecorationsOnLine(lineNumber: number): InlineDecoration[] {
+		return this._lines.getInlineDecorationsOnLine(lineNumber);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {

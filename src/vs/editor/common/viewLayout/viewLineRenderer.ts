@@ -342,13 +342,15 @@ export class RenderLineOutput {
 	readonly containsRTL: boolean;
 	readonly containsForeignElements: ForeignElementType;
 	readonly rawCharacterOffsets: number[];
+	readonly rawSpanOffsets: number[];
 	readonly rawVisibleColumns: number[];
 
-	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType, rawCharacterOffsets: number[], rawVisibleColumns: number[]) {
+	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType, rawCharacterOffsets: number[], rawSpanOffsets: number[], rawVisibleColumns: number[]) {
 		this.characterMapping = characterMapping;
 		this.containsRTL = containsRTL;
 		this.containsForeignElements = containsForeignElements;
 		this.rawCharacterOffsets = rawCharacterOffsets;
+		this.rawSpanOffsets = rawSpanOffsets;
 		this.rawVisibleColumns = rawVisibleColumns;
 	}
 }
@@ -390,6 +392,7 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 				false,
 				containsForeignElements,
 				[],
+				[],
 				[]
 			);
 		}
@@ -397,9 +400,10 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		// completely empty line
 		sb.appendString('<span><span></span></span>');
 		return new RenderLineOutput(
-			new CharacterMapping(0, 0),
+			new CharacterMapping(0, 0), // re-use
 			false,
 			ForeignElementType.None,
+			[],
 			[],
 			[]
 		);
@@ -940,6 +944,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	let lastCharacterMappingDefined = false;
 
 	const rawCharacterOffsets: number[] = [];
+	const rawSpanOffsets: number[] = [];
 	const rawVisibleColumns: number[] = [];
 
 	let charIndex = 0;
@@ -1001,6 +1006,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 			for (; charIndex < partEndIndex; charIndex++) {
 				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, charHorizontalOffset);
 				rawCharacterOffsets[charIndex] = charOffsetInPart;
+				rawSpanOffsets[charIndex] = charIndex === 0 ? 0 : (rawSpanOffsets[charIndex - 1] + (charOffsetInPart === 0 ? 1 : 0));
 				rawVisibleColumns[charIndex] = visibleColumn;
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
@@ -1043,6 +1049,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 			for (; charIndex < partEndIndex; charIndex++) {
 				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, charHorizontalOffset);
 				rawCharacterOffsets[charIndex] = charOffsetInPart;
+				rawSpanOffsets[charIndex] = charIndex === 0 ? 0 : (rawSpanOffsets[charIndex - 1] + (charOffsetInPart === 0 ? 1 : 0));
 				rawVisibleColumns[charIndex] = visibleColumn;
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
@@ -1130,6 +1137,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 			lastCharacterMappingDefined = true;
 			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, charHorizontalOffset);
 			rawCharacterOffsets[charIndex] = charOffsetInPart;
+			rawSpanOffsets[charIndex] = charIndex === 0 ? 0 : (rawSpanOffsets[charIndex - 1] + (charOffsetInPart === 0 ? 1 : 0));
 			rawVisibleColumns[charIndex] = visibleColumn;
 		}
 
@@ -1142,6 +1150,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		// text range at the end of the span, insteaf of at the beginning of next span
 		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, charHorizontalOffset);
 		rawCharacterOffsets[len] = charOffsetInPart;
+		rawSpanOffsets[charIndex] = charIndex === 0 ? 0 : (rawSpanOffsets[charIndex - 1] + (charOffsetInPart === 0 ? 1 : 0));
 		rawVisibleColumns[len] = visibleColumn;
 	}
 
@@ -1153,7 +1162,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	sb.appendString('</span>');
 
-	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements, rawCharacterOffsets, rawVisibleColumns);
+	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements, rawCharacterOffsets, rawSpanOffsets, rawVisibleColumns);
 }
 
 function to4CharHex(n: number): string {

@@ -35,6 +35,7 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
+	getInlineDecorationsOnLine(lineNumber: number): InlineDecoration[];
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
