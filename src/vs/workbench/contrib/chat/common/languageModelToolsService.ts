@@ -17,6 +17,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export interface IToolData {
 	id: string;
@@ -93,7 +94,7 @@ export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInpu
 }
 
 export interface IToolResult {
-	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
 }
@@ -110,6 +111,14 @@ export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
 export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
+}
+
+export interface IToolResultDataPart {
+	kind: 'data';
+	value: {
+		mimeType: string;
+		data: VSBuffer;
+	};
 }
 
 export interface IToolConfirmationMessages {

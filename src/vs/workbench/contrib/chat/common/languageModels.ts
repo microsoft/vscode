@@ -15,6 +15,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+// import { ChatImagePart } from '../../../api/common/extHostTypes.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatContextKeys } from './chatContextKeys.js';
@@ -70,7 +71,7 @@ export enum ImageDetailLevel {
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
-	value: (IChatResponseTextPart | IChatResponsePromptTsxPart)[];
+	value: (IChatResponseTextPart | IChatResponsePromptTsxPart | IChatResponseDataPart)[];
 	isError?: boolean;
 }
 
@@ -92,6 +93,11 @@ export interface IChatResponsePromptTsxPart {
 	value: unknown;
 }
 
+export interface IChatResponseDataPart {
+	type: 'data';
+	value: IChatImageURLPart;
+}
+
 export interface IChatResponseToolUsePart {
 	type: 'tool_use';
 	name: string;
@@ -99,7 +105,7 @@ export interface IChatResponseToolUsePart {
 	parameters: any;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart;
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart;
 
 export interface IChatResponseFragment {
 	index: number;
