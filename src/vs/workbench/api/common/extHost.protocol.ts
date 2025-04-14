@@ -48,7 +48,7 @@ import { ICreateContributedTerminalProfileOptions, IProcessProperty, IProcessRea
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from '../../../platform/tunnel/common/tunnel.js';
 import { EditSessionIdentityMatch } from '../../../platform/workspace/common/editSessions.js';
 import { WorkspaceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
-import { SaveReason } from '../../common/editor.js';
+import { ISaveOptions, SaveReason } from '../../common/editor.js';
 import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
 import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
@@ -86,6 +86,7 @@ import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../services/search/common/queryBuilder.js';
 import * as search from '../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
+import { ITextFileSaveOptions } from '../../services/textfile/common/textfiles.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
@@ -242,7 +243,7 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 export interface MainThreadDocumentsShape extends IDisposable {
 	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<UriComponents>;
 	$tryOpenDocument(uri: UriComponents, options?: { encoding?: string }): Promise<UriComponents>;
-	$trySaveDocument(uri: UriComponents): Promise<boolean>;
+	$trySaveDocument(uri: UriComponents, options?: ITextFileSaveOptions): Promise<boolean>;
 }
 
 export interface ITextEditorConfigurationUpdate {
@@ -1133,7 +1134,7 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
 	$tryCreateNotebook(options: { viewType: string; content?: NotebookDataDto }): Promise<UriComponents>;
 	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
-	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
+	$trySaveNotebook(uri: UriComponents, options?: ISaveOptions): Promise<boolean>;
 }
 
 export interface INotebookKernelDto2 {

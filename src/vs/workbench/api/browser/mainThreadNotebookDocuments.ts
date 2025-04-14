@@ -14,6 +14,7 @@ import { INotebookEditorModelResolverService } from '../../contrib/notebook/comm
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { ExtHostContext, ExtHostNotebookDocumentsShape, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
+import { ISaveOptions } from '../../common/editor.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
@@ -169,11 +170,11 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		return uri;
 	}
 
-	async $trySaveNotebook(uriComponents: UriComponents) {
+	async $trySaveNotebook(uriComponents: UriComponents, options?: ISaveOptions) {
 		const uri = URI.revive(uriComponents);
 
 		const ref = await this._notebookEditorModelResolverService.resolve(uri);
-		const saveResult = await ref.object.save();
+		const saveResult = await ref.object.save(options);
 		ref.dispose();
 		return saveResult;
 	}

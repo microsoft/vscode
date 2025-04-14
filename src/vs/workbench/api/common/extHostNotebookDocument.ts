@@ -210,8 +210,8 @@ export class ExtHostNotebookDocument {
 					const cells = range ? that._getCells(range) : that._cells;
 					return cells.map(cell => cell.apiCell);
 				},
-				save() {
-					return that._save();
+				save(options?: vscode.SaveOptions) {
+					return that._save(options);
 				},
 				[Symbol.for('debug.description')]() {
 					return `NotebookDocument(${this.uri.toString()})`;
@@ -346,11 +346,15 @@ export class ExtHostNotebookDocument {
 		return result;
 	}
 
-	private async _save(): Promise<boolean> {
+	private async _save(options?: vscode.SaveOptions): Promise<boolean> {
 		if (this._disposed) {
 			return Promise.reject(new Error('Notebook has been closed'));
 		}
-		return this._proxy.$trySaveNotebook(this.uri);
+		const { skipSaveParticipants } = options ?? {};
+		// I know I need to somehow use `isProposedApiEnabled` to check if the
+		// `saveOptions` API proposal is enabled, but I don't know how to get a
+		// reference to any specific extension from here.
+		return this._proxy.$trySaveNotebook(this.uri, { skipSaveParticipants });
 	}
 
 	private _spliceNotebookCells(splices: notebookCommon.NotebookCellTextModelSplice<extHostProtocol.NotebookCellDto>[], initialization: boolean, bucket: vscode.NotebookDocumentContentChange[] | undefined): void {
