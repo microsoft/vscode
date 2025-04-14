@@ -21,7 +21,7 @@ import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -585,7 +585,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Check if the current reference points to a prompt snippet file.
 	 */
 	public get isPromptFile(): boolean {
-		return isPromptFile(this.uri);
+		return isPromptOrInstructionsFile(this.uri);
 	}
 
 	/**
