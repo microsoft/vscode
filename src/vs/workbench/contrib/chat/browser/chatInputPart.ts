@@ -86,7 +86,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
-import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
+import { InstructionsAttachmentsCollectionWidget } from './attachments/promptInstructions/instructionsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
@@ -340,9 +340,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Child widget of prompt instruction attachments.
-	 * See {@linkcode PromptAttachmentsCollectionWidget}.
+	 * See {@linkcode InstructionsAttachmentsCollectionWidget}.
 	 */
-	private instructionAttachmentsPart: PromptAttachmentsCollectionWidget;
+	private instructionAttachmentsPart: InstructionsAttachmentsCollectionWidget;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -406,7 +406,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.instructionAttachmentsPart = this._register(
 			instantiationService.createInstance(
-				PromptAttachmentsCollectionWidget,
+				InstructionsAttachmentsCollectionWidget,
 				this.attachmentModel.promptInstructions,
 				this._contextResourceLabels,
 			),
