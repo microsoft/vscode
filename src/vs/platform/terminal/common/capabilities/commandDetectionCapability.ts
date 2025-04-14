@@ -354,7 +354,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		// Command executed may not have happened yet, if not handle it now so the expected events
-		// properly propogate. This may cause the output to show up in the computed command line,
+		// properly propagate. This may cause the output to show up in the computed command line,
 		// but the command line confidence will be low in the extension host for example and
 		// therefore cannot be trusted anyway.
 		if (!this._currentCommand.commandExecutedMarker) {

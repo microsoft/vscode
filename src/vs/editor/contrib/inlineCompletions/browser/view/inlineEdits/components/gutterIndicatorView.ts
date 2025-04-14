@@ -438,7 +438,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 			style: {
 				cursor: 'pointer',
-				zIndex: '1000',
+				zIndex: '20',
 				position: 'absolute',
 				backgroundColor: this._gutterIndicatorStyles.map(v => v.background),
 				['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),

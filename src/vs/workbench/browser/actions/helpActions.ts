@@ -16,7 +16,6 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 class KeybindingsReferenceAction extends Action2 {
@@ -336,7 +335,6 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 class AskVSCodeCopilot extends Action2 {
 	static readonly ID = 'workbench.action.askVScode';
 
-	//  add check for enablement
 	constructor() {
 		super({
 			id: AskVSCodeCopilot.ID,
@@ -348,15 +346,8 @@ class AskVSCodeCopilot extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
-		const input = await quickInputService.input({
-			title: localize('askVscodeTitle', "Ask @vscode"),
-			placeHolder: localize('askVscodePlaceholder', "@vscode can help you with settings, commands, or how to do something in VS Code.")
-		});
-		if (input) {
-			commandService.executeCommand('workbench.action.chat.open', { mode: 'ask', query: `@vscode ${input}` });
-		}
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'ask', query: '@vscode ', isPartialQuery: true });
 	}
 }
 

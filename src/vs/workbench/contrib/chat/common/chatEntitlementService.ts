@@ -21,7 +21,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from './chatContextKeys.js';
@@ -465,8 +465,17 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doGetSessions(providerId: string): Promise<readonly AuthenticationSession[]> {
+		const preferredAccountName = this.authenticationExtensionsService.getAccountPreference(defaultChat.chatExtensionId, providerId) ?? this.authenticationExtensionsService.getAccountPreference(defaultChat.extensionId, providerId);
+		let preferredAccount: AuthenticationSessionAccount | undefined;
+		for (const account of await this.authenticationService.getAccounts(providerId)) {
+			if (account.label === preferredAccountName) {
+				preferredAccount = account;
+				break;
+			}
+		}
+
 		try {
-			return await this.authenticationService.getSessions(providerId);
+			return await this.authenticationService.getSessions(providerId, undefined, preferredAccount);
 		} catch (error) {
 			// ignore - errors can throw if a provider is not registered
 		}

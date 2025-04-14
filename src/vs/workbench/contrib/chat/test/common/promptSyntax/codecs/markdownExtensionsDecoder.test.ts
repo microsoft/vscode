@@ -18,8 +18,8 @@ import { TestSimpleDecoder } from '../../../../../../../editor/test/common/codec
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
 import { Colon, Dash, Space, Tab, VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { MarkdownExtensionsDecoder } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/markdownExtensionsDecoder.js';
 import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { MarkdownExtensionsDecoder } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/markdownExtensionsDecoder.js';
 import { FrontMatterMarker, TMarkerToken } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
 /**

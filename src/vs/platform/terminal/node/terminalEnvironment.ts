@@ -98,14 +98,16 @@ export async function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
+	// Temporarily pass list of hardcoded env vars for shell env api
+	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
 			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
-				envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 			}
 		} else {
-			envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+			envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 		}
 	}
 	// Windows

@@ -73,29 +73,28 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		const view = state.map(s => s ? this.getRendering(s, styles) : undefined);
 
-		this._register(autorun((reader) => {
-			const v = view.read(reader);
-			if (!v) { this._isHovered.set(false, undefined); return; }
-			this._isHovered.set(v.isHovered.read(reader), undefined);
-		}));
-
-		const overlayElement = n.div({
+		const overlay = n.div({
 			class: 'inline-edits-custom-view',
 			style: {
 				position: 'absolute',
 				overflow: 'visible',
 				top: '0px',
 				left: '0px',
-				zIndex: '0',
 				display: 'block',
 			},
-		}, [view]).keepUpdated(this._store).element;
+		}, [view]).keepUpdated(this._store);
 
 		this._register(this._editorObs.createOverlayWidget({
-			domNode: overlayElement,
+			domNode: overlay.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
 			minContentWidthInPx: constObservable(0),
+		}));
+
+		this._register(autorun((reader) => {
+			const v = view.read(reader);
+			if (!v) { this._isHovered.set(false, undefined); return; }
+			this._isHovered.set(overlay.isHovered.read(reader), undefined);
 		}));
 	}
 
@@ -234,7 +233,6 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			onclick: (e) => { this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)); }
 		}, [
 			line
-		]).keepUpdated(this._store);
-
+		]);
 	}
 }
