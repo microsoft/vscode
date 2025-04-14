@@ -13,7 +13,7 @@ import { PromptsConfig } from '../../../../../../platform/prompts/common/config.
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { getFileExtension, isPromptOrInstructionsFile, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { getFileExtension as getPromptFileExtension, isPromptOrInstructionsFile, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { TPromptsType } from '../service/types.js';
 
 /**
@@ -118,7 +118,7 @@ export class PromptFilesLocator {
 		absoluteLocations: readonly URI[],
 		type: TPromptsType,
 	): Promise<readonly URI[]> {
-		const fileExtension = getFileExtension(type);
+		const fileExtension = getPromptFileExtension(type);
 
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
