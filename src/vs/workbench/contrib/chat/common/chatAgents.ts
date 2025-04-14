@@ -226,6 +226,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _agentsContextKeys = new Set<string>();
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
+	private readonly _extensionAgentRegistered: IContextKey<boolean>;
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
 	private readonly _editingAgentRegistered: IContextKey<boolean>;
 	private _hasToolsAgent = false;
@@ -237,6 +238,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	) {
 		super();
 		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
+		this._extensionAgentRegistered = ChatContextKeys.extensionParticipantRegistered.bindTo(this.contextKeyService);
 		this._defaultAgentRegistered = ChatContextKeys.panelParticipantRegistered.bindTo(this.contextKeyService);
 		this._editingAgentRegistered = ChatContextKeys.editingParticipantRegistered.bindTo(this.contextKeyService);
 		this._register(contextKeyService.onDidChangeContext((e) => {
@@ -289,10 +291,14 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private _updateContextKeys(): void {
 		let editingAgentRegistered = false;
+		let extensionAgentRegistered = false;
 		let defaultAgentRegistered = false;
 		let toolsAgentRegistered = false;
 		for (const agent of this.getAgents()) {
 			if (agent.isDefault) {
+				if (!agent.isCore) {
+					extensionAgentRegistered = true;
+				}
 				if (agent.modes.includes(ChatMode.Agent)) {
 					toolsAgentRegistered = true;
 				} else if (agent.modes.includes(ChatMode.Edit)) {
@@ -304,6 +310,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		}
 		this._editingAgentRegistered.set(editingAgentRegistered);
 		this._defaultAgentRegistered.set(defaultAgentRegistered);
+		this._extensionAgentRegistered.set(extensionAgentRegistered);
 		if (toolsAgentRegistered !== this._hasToolsAgent) {
 			this._hasToolsAgent = toolsAgentRegistered;
 			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Panel, ChatMode.Agent));
