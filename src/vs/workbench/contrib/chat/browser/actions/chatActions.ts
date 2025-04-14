@@ -160,6 +160,9 @@ export function registerChatActions() {
 				}
 			}
 			if (opts?.query) {
+				if (opts.query.startsWith('@') && (chatWidget.input.currentMode === ChatMode.Agent || chatService.edits2Enabled)) {
+					chatWidget.input.setChatMode(ChatMode.Ask);
+				}
 				if (opts.isPartialQuery) {
 					chatWidget.setInput(opts.query);
 				} else {
