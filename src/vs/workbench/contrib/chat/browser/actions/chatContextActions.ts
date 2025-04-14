@@ -63,7 +63,7 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { runAttachPromptAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
+import { runAttachInstructionsAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -78,7 +78,7 @@ export function registerChatContextActions() {
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
 	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
-	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IReusablePromptQuickPickItem | IFolderQuickPickItem | IDiagnosticsQuickPickItem;
+	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IInstructionsQuickPickItem | IFolderQuickPickItem | IDiagnosticsQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -147,12 +147,12 @@ function isRelatedFileQuickPickItem(obj: unknown): obj is IRelatedFilesQuickPick
 /**
  * Checks is a provided object is a prompt instructions quick pick item.
  */
-function isPromptInstructionsQuickPickItem(obj: unknown): obj is IReusablePromptQuickPickItem {
+function isPromptInstructionsQuickPickItem(obj: unknown): obj is IInstructionsQuickPickItem {
 	if (!obj || typeof obj !== 'object') {
 		return false;
 	}
 
-	return ('kind' in obj && obj.kind === 'reusable-prompt');
+	return ('kind' in obj && obj.kind === INSTRUCTION_PICK_ID);
 }
 
 interface IRelatedFilesQuickPickItem extends IQuickPickItem {
@@ -235,17 +235,17 @@ interface IDiagnosticsQuickPickItemWithFilter extends IQuickPickItem {
 /**
  * Quick pick item for reusable prompt attachment.
  */
-const REUSABLE_PROMPT_PICK_ID = 'reusable-prompt';
-interface IReusablePromptQuickPickItem extends IQuickPickItem {
+const INSTRUCTION_PICK_ID = 'instructions';
+interface IInstructionsQuickPickItem extends IQuickPickItem {
 	/**
 	 * The ID of the quick pick item.
 	 */
-	id: typeof REUSABLE_PROMPT_PICK_ID;
+	id: typeof INSTRUCTION_PICK_ID;
 
 	/**
-	 * Unique kind identifier of the reusable prompt attachment.
+	 * Unique kind identifier of the instructions attachment.
 	 */
-	kind: typeof REUSABLE_PROMPT_PICK_ID;
+	kind: typeof INSTRUCTION_PICK_ID;
 
 	/**
 	 * Keybinding of the command.
@@ -628,7 +628,7 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				await runAttachPromptAction({ widget }, commandService);
+				await runAttachInstructionsAction({ widget }, commandService);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -836,9 +836,9 @@ export class AttachContextAction extends Action2 {
 			const keybinding = keybindingService.lookupKeybinding(INSTRUCTIONS_COMMAND_ID, contextKeyService);
 
 			quickPickItems.push({
-				id: REUSABLE_PROMPT_PICK_ID,
-				kind: REUSABLE_PROMPT_PICK_ID,
-				label: localize('chatContext.attach.prompt.label', 'Prompt...'),
+				id: INSTRUCTION_PICK_ID,
+				kind: INSTRUCTION_PICK_ID,
+				label: localize('chatContext.attach.instructions.label', 'Instructions...'),
 				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
 				keybinding,
 			});

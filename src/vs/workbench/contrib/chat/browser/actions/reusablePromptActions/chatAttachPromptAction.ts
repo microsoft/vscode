@@ -19,8 +19,8 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { attachInstructionsFile, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
-import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
+import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
+import { ISelectInstructionsOptions, askToSelectInstructions } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -30,8 +30,8 @@ const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions
 /**
  * Options for the {@link AttachInstructionsAction} action.
  */
-export interface IChatAttachPromptActionOptions extends Pick<
-	ISelectPromptOptions, 'resource' | 'widget'
+export interface IChatAttachInstructionsActionOptions extends Pick<
+	ISelectInstructionsOptions, 'resource' | 'widget'
 > {
 	/**
 	 * Whether to create a new chat panel or open
@@ -40,7 +40,7 @@ export interface IChatAttachPromptActionOptions extends Pick<
 	inNewChat?: boolean;
 
 	/**
-	 * Whether to skip the prompt files selection dialog.
+	 * Whether to skip the instructions files selection dialog.
 	 *
 	 * Note! if this option is set to `true`, the {@link resource}
 	 * option `must be defined`.
@@ -64,7 +64,7 @@ class AttachInstructionsAction extends Action2 {
 
 	public override async run(
 		accessor: ServicesAccessor,
-		options: IChatAttachPromptActionOptions,
+		options: IChatAttachInstructionsActionOptions,
 	): Promise<void> {
 		const fileService = accessor.get(IFileService);
 		const labelService = accessor.get(ILabelService);
@@ -89,8 +89,8 @@ class AttachInstructionsAction extends Action2 {
 				commandService,
 			};
 
-			const { widget } = await attachInstructionsFile(
-				resource,
+			const { widget } = await attachInstructionsFiles(
+				[resource],
 				attachOptions,
 			);
 
@@ -102,9 +102,8 @@ class AttachInstructionsAction extends Action2 {
 		// find all prompt files in the user workspace
 		const promptFiles = await promptsService.listPromptFiles('instructions');
 
-		await askToSelectPrompt({
+		await askToSelectInstructions({
 			...options,
-			type: 'instructions',
 			promptFiles,
 			fileService,
 			viewsService,
@@ -118,12 +117,12 @@ class AttachInstructionsAction extends Action2 {
 }
 
 /**
- * Runs the `Attach Prompt` action with provided options. We export this
+ * Runs the `Attach Instructions` action with provided options. We export this
  * function instead of {@link ATTACH_INSTRUCTIONS_ACTION_ID} directly to
  * encapsulate/enforce the correct options to be passed to the action.
  */
-export const runAttachPromptAction = async (
-	options: IChatAttachPromptActionOptions,
+export const runAttachInstructionsAction = async (
+	options: IChatAttachInstructionsActionOptions,
 	commandService: ICommandService,
 ): Promise<void> => {
 	return await commandService.executeCommand(

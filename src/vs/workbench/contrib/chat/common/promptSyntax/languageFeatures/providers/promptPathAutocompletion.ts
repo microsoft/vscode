@@ -14,7 +14,7 @@
  *   - add `Windows` support
  */
 
-import { LANGUAGE_SELECTOR } from '../../constants.js';
+import { PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR } from '../../constants.js';
 import { IPromptsService } from '../../service/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { extUri } from '../../../../../../../base/common/resources.js';
@@ -102,7 +102,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 	) {
 		super();
 
-		this._register(this.languageService.completionProvider.register(LANGUAGE_SELECTOR, this));
+		this._register(this.languageService.completionProvider.register(PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR, this));
 	}
 
 	/**

@@ -76,7 +76,7 @@ export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVaria
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
-	readonly isPrompt: boolean;
+	readonly isInstructions: boolean;
 	enabled: boolean;
 }
 
