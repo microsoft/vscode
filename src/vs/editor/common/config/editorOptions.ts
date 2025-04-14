@@ -2696,7 +2696,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
 		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
-		const wordWrap = 'bounded';  // (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
+		const wordWrap = 'on';  // (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
@@ -2744,8 +2744,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		console.log('wordWrap : ', wordWrap);
-
 		if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
 			// Force viewport width wrapping if model is dominated by long lines
 			isWordWrapMinified = true;
@@ -2783,8 +2781,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		// (leaving 2px for the cursor to have space after the last character)
 		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth));
-		console.log('viewPortColumn : ', viewportColumn);
-		console.log('isViewportWrapping : ', isViewportWrapping);
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
@@ -2795,7 +2791,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
 			}
 		}
-		console.log('wrappingColumn : ', wrappingColumn);
 
 		return {
 			width: outerWidth,
