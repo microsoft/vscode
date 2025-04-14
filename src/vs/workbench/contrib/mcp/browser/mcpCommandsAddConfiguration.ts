@@ -16,7 +16,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpConfiguration, IMcpConfigurationHTTP, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -33,7 +33,7 @@ import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
 	Stdio,
-	SSE,
+	HTTP,
 
 	NpmPackage,
 	PipPackage,
@@ -117,7 +117,7 @@ export class McpAddConfigurationCommand {
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
 		const items: QuickPickInput<{ kind: AddConfigurationType } & IQuickPickItem>[] = [
 			{ kind: AddConfigurationType.Stdio, label: localize('mcp.serverType.command', "Command (stdio)"), description: localize('mcp.serverType.command.description', "Run a local command that implements the MCP protocol") },
-			{ kind: AddConfigurationType.SSE, label: localize('mcp.serverType.http', "HTTP (server-sent events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
+			{ kind: AddConfigurationType.HTTP, label: localize('mcp.serverType.http', "HTTP (HTTP or Server-Sent Events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
 		];
 
 		let aiSupported: boolean | undefined;
@@ -171,7 +171,7 @@ export class McpAddConfigurationCommand {
 		};
 	}
 
-	private async getSSEConfig(): Promise<IMcpConfigurationSSE | undefined> {
+	private async getSSEConfig(): Promise<IMcpConfigurationHTTP | undefined> {
 		const url = await this._quickInputService.input({
 			title: localize('mcp.url.title', "Enter Server URL"),
 			placeHolder: localize('mcp.url.placeholder', "URL of the MCP server (e.g., http://localhost:3000)"),
@@ -186,10 +186,7 @@ export class McpAddConfigurationCommand {
 			packageType: 'sse'
 		});
 
-		return {
-			type: 'sse',
-			url
-		};
+		return { url };
 	}
 
 	private async getServerId(suggestion = `my-mcp-server-${generateUuid().split('-')[0]}`): Promise<string | undefined> {
@@ -378,7 +375,7 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.Stdio:
 				serverConfig = await this.getStdioConfig();
 				break;
-			case AddConfigurationType.SSE:
+			case AddConfigurationType.HTTP:
 				serverConfig = await this.getSSEConfig();
 				break;
 			case AddConfigurationType.NpmPackage:
@@ -499,7 +496,7 @@ export class McpAddConfigurationCommand {
 				return 'docker';
 			case AddConfigurationType.Stdio:
 				return 'stdio';
-			case AddConfigurationType.SSE:
+			case AddConfigurationType.HTTP:
 				return 'sse';
 			default:
 				return undefined;

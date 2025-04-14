@@ -40,7 +40,6 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				return proxy.$waitForInitialCollectionProviders();
 			},
 			canStart(collection, serverDefinition) {
-				// todo: SSE MPC servers without a remote authority could be served from the renderer
 				if (collection.remoteAuthority !== _extHostContext.remoteAuthority) {
 					return false;
 				}
@@ -148,7 +147,11 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 		}
 
 		if (parsed) {
-			this._onDidReceiveMessage.fire(parsed);
+			if (Array.isArray(parsed)) { // streamable HTTP supports batching
+				parsed.forEach(p => this._onDidReceiveMessage.fire(p));
+			} else {
+				this._onDidReceiveMessage.fire(parsed);
+			}
 		}
 	}
 
