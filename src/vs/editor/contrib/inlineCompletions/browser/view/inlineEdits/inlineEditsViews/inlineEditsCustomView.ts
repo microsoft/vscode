@@ -86,7 +86,6 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				overflow: 'visible',
 				top: '0px',
 				left: '0px',
-				zIndex: '0',
 				display: 'block',
 			},
 		}, [view]).keepUpdated(this._store).element;
