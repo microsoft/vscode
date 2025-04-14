@@ -235,7 +235,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 				f1: true,
 				keybinding: {
 					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
-					weight: KeybindingWeight.WorkbenchContrib + 5,
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
 						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
