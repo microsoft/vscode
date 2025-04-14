@@ -15,7 +15,7 @@ import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions, Shel
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
-import { chmod, realpathSync, existsSync, mkdirSync } from 'fs';
+import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
 
 export function getWindowsBuildNumber(): number {
