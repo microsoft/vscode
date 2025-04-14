@@ -23,10 +23,11 @@ import {
 	AllowedExtensionsConfigKey,
 	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
 	ExtensionManagementError,
-	ExtensionManagementErrorCode
+	ExtensionManagementErrorCode,
+	MaliciousExtensionInfo
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -294,9 +295,13 @@ export class Extension implements IExtension {
 		return this.stateProvider(this);
 	}
 
-	private malicious: boolean = false;
-	public get isMalicious(): boolean {
-		return this.malicious || this.enablementState === EnablementState.DisabledByMalicious;
+	private malicious: MaliciousExtensionInfo | undefined;
+	public get isMalicious(): boolean | undefined {
+		return !!this.malicious || this.enablementState === EnablementState.DisabledByMalicious;
+	}
+
+	public get maliciousInfoLink(): string | undefined {
+		return this.malicious?.learnMoreLink;
 	}
 
 	public deprecationInfo: IDeprecationInfo | undefined;
@@ -555,7 +560,7 @@ ${this.description}
 	}
 
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
-		this.malicious = isMalicious(this.identifier, extensionsControlManifest.malicious);
+		this.malicious = findMatchingMaliciousEntry(this.identifier, extensionsControlManifest.malicious);
 		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
 	}
 

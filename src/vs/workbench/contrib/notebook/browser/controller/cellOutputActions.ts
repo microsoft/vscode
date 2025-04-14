@@ -26,7 +26,7 @@ registerAction2(class ShowAllOutputsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.cellOuput.showEmptyOutputs',
-			title: localize('notebookActions.showAllOutput', "Show empty outputs"),
+			title: localize('notebookActions.showAllOutput', "Show Empty Outputs"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS)

@@ -379,7 +379,7 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - script: npx deemon -- npx zx build/azure-pipelines/linux/codesign.js
+    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.js
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
@@ -397,9 +397,9 @@ steps:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    # - script: npx deemon --attach -- npx zx build/azure-pipelines/linux/codesign.js
-    #   condition: succeededOrFailed()
-    #   displayName: "✍️ Post-job: Codesign deb & rpm"
+    - script: npx deemon --attach node build/azure-pipelines/linux/codesign.js
+      condition: succeededOrFailed()
+      displayName: "✍️ Post-job: Codesign deb & rpm"
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
       condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))

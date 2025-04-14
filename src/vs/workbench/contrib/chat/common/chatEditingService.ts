@@ -188,12 +188,12 @@ export interface IModifiedFileEntryEditorIntegration extends IDisposable {
 	 * Accept the change given or the nearest
 	 * @param change An opaque change object
 	 */
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void>;
+	acceptNearestChange(change?: IModifiedFileEntryChangeHunk): Promise<void>;
 
 	/**
 	 * @see `acceptNearestChange`
 	 */
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void>;
+	rejectNearestChange(change?: IModifiedFileEntryChangeHunk): Promise<void>;
 
 	/**
 	 * Toggle between diff-editor and normal editor

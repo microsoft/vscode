@@ -113,6 +113,7 @@ export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', f
 export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', 'custom', localize('titleBarStyle', "Style of the window title bar"));
 export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
 export const IsAuxiliaryTitleBarContext = new RawContextKey<boolean>('isAuxiliaryTitleBar', false, localize('isAuxiliaryTitleBar', "Title bar is in an auxiliary window"));
+export const IsCompactTitleBarContext = new RawContextKey<boolean>('isCompactTitleBar', false, localize('isCompactTitleBar', "Title bar is in compact mode"));
 
 //#endregion
 

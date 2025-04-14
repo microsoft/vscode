@@ -347,8 +347,13 @@ export interface ISearchPrefferedResults {
 	readonly preferredResults?: string[];
 }
 
+export type MaliciousExtensionInfo = {
+	readonly extensionOrPublisher: IExtensionIdentifier | string;
+	readonly learnMoreLink?: string;
+};
+
 export interface IExtensionsControlManifest {
-	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
+	readonly malicious: ReadonlyArray<MaliciousExtensionInfo>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
 }
@@ -697,6 +702,7 @@ export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
 export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
+export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({

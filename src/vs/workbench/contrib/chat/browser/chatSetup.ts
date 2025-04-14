@@ -13,7 +13,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -51,7 +51,6 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
@@ -266,8 +265,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					progress({
 						kind: 'warning',
 						content: new MarkdownString(ready === 'timedout' ?
-							localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again.") :
-							localize('copilotFailedWarning', "Copilot failed to get ready. Please try again.")
+							localize('copilotTookLongWarning', "Copilot took too long to get ready. Please review the guidance in the Chat view.") :
+							localize('copilotFailedWarning', "Copilot failed to get ready. Please review the guidance in the Chat view.")
 						)
 					});
 
@@ -427,6 +426,10 @@ class ChatSetup {
 			setupStrategy = await this.showDialog();
 		}
 
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.controller.value.hasEnterpriseProviderConfigured()) {
+			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
+		}
+
 		let success = undefined;
 		try {
 			switch (setupStrategy) {
@@ -557,24 +560,27 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const updateRegistration = () => {
 			const disabled = context.state.hidden;
 			if (!disabled && !registration.value) {
-				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Ask, context, controller);
-				registration.value = combinedDisposable(
-					panelDisposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Edit, context, controller).disposable,
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, ChatMode.Agent, context, controller).disposable,
-					panelAgent.onUnresolvableError(() => {
+				const disposables = registration.value = new DisposableStore();
+
+				// Panel Agents
+				for (const mode of [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent]) {
+					const { agent, disposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
+					disposables.add(disposable);
+					disposables.add(agent.onUnresolvableError(() => {
 						// An unresolvable error from our agent registrations means that
 						// Copilot is unhealthy for some reason. We clear our panel
 						// registration to give Copilot a chance to show a custom message
 						// to the user from the views and stop pretending as if there was
 						// a functional agent.
 						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-						panelDisposable.dispose();
-					})
-				);
+						disposable.dispose();
+					}));
+				}
+
+				// Inline Agents
+				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
+				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
+				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 			} else if (disabled && registration.value) {
 				registration.clear();
 			}
@@ -614,9 +620,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor, mode: ChatMode): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
-				const configurationService = accessor.get(IConfigurationService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const statusbarService = accessor.get(IStatusbarService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
@@ -629,9 +633,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					const chatWidget = await chatWidgetPromise;
 					chatWidget?.input.setChatMode(mode);
 				}
-
-				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
-				configurationService.updateValue('chat.commandCenter.enabled', true);
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
 				const result = await setup.run();
@@ -646,6 +647,30 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 					}
 				}
+			}
+		}
+
+		class ChatSetupFromAccountsAction extends Action2 {
+
+			constructor() {
+				super({
+					id: 'workbench.action.chat.triggerSetupFromAccounts',
+					title: localize2('triggerChatSetupFromAccounts', "Sign in to use Copilot..."),
+					menu: {
+						id: MenuId.AccountsContext,
+						group: '2_copilot',
+						when: ContextKeyExpr.and(
+							ChatContextKeys.Setup.hidden.toNegated(),
+							ChatContextKeys.Setup.installed.negate(),
+							ChatContextKeys.Entitlement.signedOut
+						)
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 			}
 		}
 
@@ -673,9 +698,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const viewsDescriptorService = accessor.get(IViewDescriptorService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const statusbarService = accessor.get(IStatusbarService);
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
@@ -697,9 +720,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 					}
 				}
-
-				statusbarService.updateEntryVisibility('chat.statusBarEntry', false);
-				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
 		}
 
@@ -755,6 +775,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		}
 
 		registerAction2(ChatSetupTriggerAction);
+		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
 	}
@@ -1006,6 +1027,11 @@ class ChatSetupController extends Disposable {
 
 			throw error;
 		}
+	}
+
+	hasEnterpriseProviderConfigured(): boolean {
+		const setting = this.configurationService.getValue<{ authProvider: unknown } | undefined>(defaultChat.completionsAdvancedSetting);
+		return setting?.authProvider === defaultChat.enterpriseProviderId;
 	}
 
 	async setupWithProvider(options: { useEnterpriseProvider: boolean }): Promise<boolean> {

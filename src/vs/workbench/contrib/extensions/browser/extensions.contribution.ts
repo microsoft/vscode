@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -260,7 +260,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
 				default: true
 			},
-			'extensions.verifySignature': {
+			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
 				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),
 				default: true,

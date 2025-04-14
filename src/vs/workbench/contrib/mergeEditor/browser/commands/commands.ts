@@ -22,6 +22,8 @@ import { MergeEditor } from '../view/mergeEditor.js';
 import { MergeEditorViewModel } from '../view/viewModel.js';
 import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from '../../common/mergeEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { transaction } from '../../../../../base/common/observable.js';
+import { ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange.js';
 
 abstract class MergeEditorAction extends Action2 {
 	constructor(desc: Readonly<IAction2Options>) {
@@ -574,6 +576,41 @@ export class ResetCloseWithConflictsChoice extends Action2 {
 	}
 	run(accessor: ServicesAccessor): void {
 		accessor.get(IStorageService).remove(StorageCloseWithConflicts, StorageScope.PROFILE);
+	}
+}
+
+export class AcceptAllCombination extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.acceptAllCombination',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.acceptAllCombination', "Accept All Combination"),
+			f1: true,
+		});
+	}
+
+	override runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
+		const { viewModel } = context;
+		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
+		const model = viewModel.model;
+		transaction((tx) => {
+			for (const m of modifiedBaseRanges) {
+				const state = model.getState(m).get();
+				if (state.kind !== ModifiedBaseRangeStateKind.unrecognized && !state.isInputIncluded(1) && (!state.isInputIncluded(2) || !viewModel.shouldUseAppendInsteadOfAccept.get()) && m.canBeCombined) {
+					model.setState(
+						m,
+						state
+							.withInputValue(1, true)
+							.withInputValue(2, true, true),
+						true,
+						tx
+					);
+					model.telemetry.reportSmartCombinationInvoked(state.includesInput(2));
+				}
+			}
+		});
+		return { success: true };
+
 	}
 }
 
