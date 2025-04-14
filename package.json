@@ -38,7 +38,7 @@
     "update-grammars": "node build/npm/update-all-grammars.mjs",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "node build/lib/preLaunch.js && cd test/smoke && npm run compile && node test/index.js",
-    "smoketest-no-compile": "cd test/smoke && node --cpu-prof test/index.js",
+    "smoketest-no-compile": "cd test/smoke && node --cpu-prof --cpu-prof-dir=\".build\\cpuprofiles\" test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
