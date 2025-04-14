@@ -34,6 +34,15 @@
 	background: var(--vscode-editorGutter-addedBackground);
 }
 
+.monaco-editor .dirty-diff-added-secondary {
+	border-left-color: var(--vscode-editorGutter-addedSecondaryBackground);
+	border-left-style: solid;
+}
+
+.monaco-editor .dirty-diff-added-secondary:before {
+	background: var(--vscode-editorGutter-addedSecondaryBackground);
+}
+
 .monaco-editor .dirty-diff-added-pattern {
 	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-addedBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedBackground) 50%, var(--vscode-editorGutter-addedBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 	background-repeat: repeat-y;
@@ -51,6 +60,15 @@
 
 .monaco-editor .dirty-diff-modified:before {
 	background: var(--vscode-editorGutter-modifiedBackground);
+}
+
+.monaco-editor .dirty-diff-modified-secondary {
+	border-left-color: var(--vscode-editorGutter-modifiedSecondaryBackground);
+	border-left-style: solid;
+}
+
+.monaco-editor .dirty-diff-modified-secondary:before {
+	background: var(--vscode-editorGutter-modifiedSecondaryBackground);
 }
 
 .monaco-editor .dirty-diff-modified-pattern {

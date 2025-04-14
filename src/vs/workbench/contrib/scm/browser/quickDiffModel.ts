@@ -368,44 +368,37 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
-		let preferredProvider: string | undefined;
-		if (!provider && inclusive) {
-			preferredProvider = this.quickDiffs.find(value => value.isSCM)?.label;
+		const visibleQuickDiffLabels = this.quickDiffs
+			.filter(quickDiff => (!provider || quickDiff.label === provider) && quickDiff.visible)
+			.map(quickDiff => quickDiff.label);
+
+		if (!inclusive) {
+			// Next visible change
+			const nextChange = this.changes
+				.findIndex(change => visibleQuickDiffLabels.includes(change.label) &&
+					change.change.modifiedStartLineNumber > lineNumber);
+
+			return nextChange !== -1 ? nextChange : 0;
 		}
 
-		const possibleChanges: number[] = [];
-		for (let i = 0; i < this.changes.length; i++) {
-			if (provider && this.changes[i].label !== provider) {
-				continue;
-			}
+		const scmQuickDiffLabel = this.quickDiffs
+			.find(quickDiff => quickDiff.isSCM)?.label;
 
-			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
-				continue;
-			}
+		const scmInclusiveChangeIndex = this.changes
+			.findIndex(change => change.label === scmQuickDiffLabel &&
+				change.change.modifiedStartLineNumber <= lineNumber &&
+				getModifiedEndLineNumber(change.change) >= lineNumber);
 
-			const change = this.changes[i];
-			const possibleChangesLength = possibleChanges.length;
-
-			if (inclusive) {
-				if (getModifiedEndLineNumber(change.change) >= lineNumber) {
-					if (preferredProvider && change.label !== preferredProvider) {
-						possibleChanges.push(i);
-					} else {
-						return i;
-					}
-				}
-			} else {
-				if (change.change.modifiedStartLineNumber > lineNumber) {
-					return i;
-				}
-			}
-			if ((possibleChanges.length > 0) && (possibleChanges.length === possibleChangesLength)) {
-				return possibleChanges[0];
-			}
+		if (scmInclusiveChangeIndex !== -1) {
+			return scmInclusiveChangeIndex;
 		}
 
-		return possibleChanges.length > 0 ? possibleChanges[0] : 0;
+		const inclusiveChangeIndex = this.changes
+			.findIndex(change => visibleQuickDiffLabels.includes(change.label) &&
+				change.change.modifiedStartLineNumber <= lineNumber &&
+				getModifiedEndLineNumber(change.change) >= lineNumber);
+
+		return inclusiveChangeIndex !== -1 ? inclusiveChangeIndex : 0;
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, provider?: string): number {

@@ -2219,11 +2219,11 @@
       "scm/change/title": [
         {
           "command": "git.stageChange",
-          "when": "config.git.enabled && !git.missing && originalResourceScheme == git"
+          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22%22%7D$/"
         },
         {
           "command": "git.revertChange",
-          "when": "config.git.enabled && !git.missing && originalResourceScheme == git"
+          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22%22%7D$/"
         }
       ],
       "timeline/item/context": [
