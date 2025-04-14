@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptsService } from '../../service/types.js';
-import { IPromptFileEditor } from './providerInstanceManagerBase.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { TextModelPromptParser } from '../../parsers/textModelPromptParser.js';
 import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
@@ -29,24 +28,17 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 	protected readonly parser: TextModelPromptParser;
 
 	constructor(
-		protected readonly editor: IPromptFileEditor,
+		protected readonly model: ITextModel,
 		@IPromptsService promptsService: IPromptsService,
 	) {
 		super();
 
-		this.parser = promptsService.getSyntaxParserFor(this.model);
+		this.parser = promptsService.getSyntaxParserFor(model);
 		this.parser.onUpdate(this.onPromptParserUpdate.bind(this));
 		this.parser.onDispose(this.dispose.bind(this));
 		this.parser.start();
 
 		// initialize an update
 		this.onPromptParserUpdate();
-	}
-
-	/**
-	 * Underlying text model of the editor.
-	 */
-	protected get model(): ITextModel {
-		return this.editor.getModel();
 	}
 }

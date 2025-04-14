@@ -12,6 +12,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../j
 import * as platform from '../../registry/common/platform.js';
 import { IColorTheme } from './themeService.js';
 import * as nls from '../../../nls.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 //  ------ API types
 
@@ -133,9 +134,9 @@ export interface IColorRegistry {
 type IJSONSchemaForColors = IJSONSchema & { properties: { [name: string]: { oneOf: [IJSONSchemaWithSnippets, IJSONSchema] } } };
 type IJSONSchemaWithSnippets = IJSONSchema & { defaultSnippets: IJSONSchemaSnippet[] };
 
-class ColorRegistry implements IColorRegistry {
+class ColorRegistry extends Disposable implements IColorRegistry {
 
-	private readonly _onDidChangeSchema = new Emitter<void>();
+	private readonly _onDidChangeSchema = this._register(new Emitter<void>());
 	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
 	private colorsById: { [key: string]: ColorContribution };
@@ -143,6 +144,7 @@ class ColorRegistry implements IColorRegistry {
 	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
+		super();
 		this.colorsById = {};
 	}
 
@@ -214,7 +216,7 @@ class ColorRegistry implements IColorRegistry {
 		return this.colorReferenceSchema;
 	}
 
-	public toString() {
+	public override toString() {
 		const sorter = (a: string, b: string) => {
 			const cat1 = a.indexOf('.') === -1 ? 0 : 1;
 			const cat2 = b.indexOf('.') === -1 ? 0 : 1;
