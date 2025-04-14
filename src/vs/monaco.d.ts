@@ -1748,12 +1748,6 @@ declare namespace monaco.editor {
 		 */
 		lineHeight?: number | null;
 		/**
-		 * If set, the decoration will override the line height of the lines it spans.
-		 */
-		lineHeight?: number | null;
-		/**
-	=======
-	>>>>>>> main
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
 		linesDecorationsClassName?: string | null;
@@ -2353,8 +2347,6 @@ declare namespace monaco.editor {
 		 */
 		readonly onDidChangeDecorations: IEvent<IModelDecorationsChangedEvent>;
 		/**
-	=======
-	>>>>>>> main
 		 * An event emitted when the model options have changed.
 		 * @event
 		 */
