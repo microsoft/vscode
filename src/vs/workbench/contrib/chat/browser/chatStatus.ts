@@ -120,15 +120,17 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		this.create();
+		this.update();
 		this.registerListeners();
 	}
 
-	private async create(): Promise<void> {
-		const hidden = this.chatEntitlementService.sentiment === ChatSentiment.Disabled;
-
-		if (!hidden) {
-			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
+	private update(): void {
+		if (this.chatEntitlementService.sentiment !== ChatSentiment.Disabled) {
+			if (!this.entry) {
+				this.entry = this.statusbarService.addEntry(this.getEntryProps(), 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
+			} else {
+				this.entry.update(this.getEntryProps());
+			}
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
@@ -136,21 +138,21 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerListeners(): void {
-		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
-		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.entry?.update(this.getEntryProps())));
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(defaultChat.completionsEnablementSetting)) {
-				this.entry?.update(this.getEntryProps());
+				this.update();
 			}
 		}));
 	}
 
 	private onDidActiveEditorChange(): void {
-		this.entry?.update(this.getEntryProps());
+		this.update();
 
 		this.activeCodeEditorListener.clear();
 
@@ -158,7 +160,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (activeCodeEditor) {
 			this.activeCodeEditorListener.value = activeCodeEditor.onDidChangeModelLanguage(() => {
-				this.entry?.update(this.getEntryProps());
+				this.update();
 			});
 		}
 	}

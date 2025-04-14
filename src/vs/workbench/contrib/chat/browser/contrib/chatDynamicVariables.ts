@@ -184,11 +184,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	private updateDecorations(): void {
 
-		const decorations = this._variables.map((r): IDecorationOptions => ({
+		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
-		}));
-		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, decorations);
+		})));
 
 		this.decorationData = [];
 		for (let i = 0; i < decorationIds.length; i++) {

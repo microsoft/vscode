@@ -263,7 +263,8 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: AcesShared
+                  name: Azure Pipelines
+                  image: macOS-13
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -279,7 +280,8 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: AcesShared
+                  name: Azure Pipelines
+                  image: macOS-13
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
