@@ -104,7 +104,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
 	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, minimal: moveTo === MoveToNewLocation.Window } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, compact: moveTo === MoveToNewLocation.Window } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
@@ -114,7 +114,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	widget.clear();
 	await waitForChatSessionCleared(sessionId, chatService);
 
-	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState, minimal: moveTo === MoveToNewLocation.Window };
+	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState, compact: moveTo === MoveToNewLocation.Window };
 	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 

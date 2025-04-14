@@ -76,6 +76,7 @@ export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVaria
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
+	readonly isPrompt: boolean;
 	enabled: boolean;
 }
 
@@ -1154,6 +1155,10 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 			// A bug led to not porting creationDate properly, and that was copied to lastMessageDate, so fix that up if missing.
 			raw.lastMessageDate = getLastYearDate();
 		}
+	}
+
+	if ((raw.initialLocation as any) === 'editing-session') {
+		raw.initialLocation = ChatAgentLocation.Panel;
 	}
 }
 

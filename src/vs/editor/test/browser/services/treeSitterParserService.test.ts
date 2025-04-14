@@ -14,6 +14,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ITreeSitterImporter } from '../../../common/services/treeSitterParserService.js';
 import { TextModelTreeSitter } from '../../../common/services/treeSitter/textModelTreeSitter.js';
 import { TreeSitterLanguages } from '../../../common/services/treeSitter/treeSitterLanguages.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 
 class MockParser implements Parser.Parser {
 	language: Parser.Language | null = null;
@@ -168,7 +169,8 @@ suite('TreeSitterParserService', function () {
 			}
 		}
 
-		const treeSitterLanguages: TreeSitterLanguages = store.add(new MockTreeSitterLanguages(treeSitterImporter, {} as any, { isBuilt: false } as any, new Map()));
+		const mockConfigurationService = new TestConfigurationService();
+		const treeSitterLanguages: TreeSitterLanguages = store.add(new MockTreeSitterLanguages(treeSitterImporter, {} as any, { isBuilt: false } as any, mockConfigurationService, new Map()));
 		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'javascript'));
 		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterLanguages, false, treeSitterImporter, logService, telemetryService, { exists: async () => false } as any));
 		textModel.setLanguage('typescript');

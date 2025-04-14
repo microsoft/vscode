@@ -143,12 +143,16 @@ export class ChatPromptAttachmentModel extends Disposable {
 			return this.initService.createInstance(TextModelContentsProvider, model);
 		}
 
-		// use file contents provider for all other file documents
-		if (uri.scheme === 'file') {
-			return this._register(this.initService.createInstance(FilePromptContentProvider, uri));
-		}
-
-		throw new Error(`Cannot create prompt contents provider for URI scheme '${uri.scheme}'.`);
+		// use file contents provider for all other documents; in this case
+		// we know that the attached file must have been a prompt file,
+		// hence we pass the `allowNonPromptFiles` option to the provider
+		return this._register(
+			this.initService.createInstance(
+				FilePromptContentProvider,
+				uri,
+				{ allowNonPromptFiles: true },
+			),
+		);
 	}
 
 	/**

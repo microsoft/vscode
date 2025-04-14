@@ -92,7 +92,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 	// Group: Aux Window
 	else if (preferredGroup === AUX_WINDOW_GROUP) {
-		group = editorGroupService.createAuxiliaryEditorPart({ minimal: options?.minimal }).then(group => group.activeGroup);
+		group = editorGroupService.createAuxiliaryEditorPart({ compact: options?.compact }).then(group => group.activeGroup);
 	}
 
 	// Group: Unspecified without a specific index to open

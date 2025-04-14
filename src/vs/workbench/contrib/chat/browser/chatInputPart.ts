@@ -194,7 +194,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Check if the chat input part has any prompt instruction attachments.
 	 */
 	public get hasInstructionAttachments(): boolean {
-		return !this.instructionAttachmentsPart.empty;
+		// if prompt attached explicitly as a "prompt" attachment
+		if (this.instructionAttachmentsPart.empty === false) {
+			return true;
+		}
+
+		if (this.implicitContext === undefined) {
+			return false;
+		}
+
+		// if prompt attached as an implicit "current file" context
+		return (this.implicitContext.isPrompt && this.implicitContext.enabled);
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
@@ -773,7 +783,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	// A funtion that filters out specifically the `value` property of the attachment.
+	// A function that filters out specifically the `value` property of the attachment.
 	private getFilteredEntry(query: string, inputState: IChatInputState): IChatHistoryEntry {
 		const attachmentsWithoutImageValues = inputState.chatContextAttachments?.map(attachment => {
 			if (isImageVariableEntry(attachment) && attachment.references?.length && attachment.value) {
@@ -1115,7 +1125,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty;
+		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || this.hasInstructionAttachments;
 		dom.setVisibility(Boolean(hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
@@ -1127,7 +1137,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			container.appendChild(implicitPart.domNode);
 		}
 
-		this.promptInstructionsAttached.set(!this.instructionAttachmentsPart.empty);
+		this.promptInstructionsAttached.set(this.hasInstructionAttachments);
 		this.instructionAttachmentsPart.render(container);
 
 		for (const [index, attachment] of attachments) {
