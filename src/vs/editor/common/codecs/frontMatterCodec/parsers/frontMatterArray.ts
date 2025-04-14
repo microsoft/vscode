@@ -43,6 +43,23 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	constructor(
 		private readonly startToken: LeftBracket,
 	) {
+		/**
+		 * Sanity check - logic inside the {@link PartialFrontMatterArray.accept accept} method
+		 * above assumes that the {@link VALID_DELIMITER_TOKENS} tokens list does not intersect
+		 * with the {@link VALID_VALUE_START_TOKENS} tokens list.
+		 *
+		 * Note! the `as` type casting below is ok since we offload the type intersection check
+		 *       to the runtime, and is required to avoid compilation errors in Typescript.
+		 */
+		for (const DelimiterToken of VALID_DELIMITER_TOKENS) {
+			for (const ValueStartToken of VALID_VALUE_START_TOKENS as unknown[]) {
+				assert(
+					DelimiterToken !== ValueStartToken,
+					`Delimiter tokens list must not contain value start token '${ValueStartToken}'.`,
+				);
+			}
+		}
+
 		super([startToken]);
 	}
 
@@ -166,22 +183,5 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			...valueTokens,
 			endToken,
 		]);
-	}
-}
-
-/**
- * Sanity check - logic inside the {@link PartialFrontMatterArray.accept accept} method
- * above assumes that the {@link VALID_DELIMITER_TOKENS} tokens list does not intersect
- * with the {@link VALID_VALUE_START_TOKENS} tokens list.
- *
- * Note! the `as` type casting below is ok since we offload the type intersection check
- *       to the runtime, and is required to avoid compilation errors in Typescript.
- */
-for (const DelimiterToken of VALID_DELIMITER_TOKENS) {
-	for (const ValueStartToken of VALID_VALUE_START_TOKENS as unknown[]) {
-		assert(
-			DelimiterToken !== ValueStartToken,
-			`Delimiter tokens list must not contain value start token '${ValueStartToken}'.`,
-		);
 	}
 }
