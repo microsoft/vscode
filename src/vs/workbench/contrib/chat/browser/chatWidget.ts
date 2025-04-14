@@ -501,12 +501,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(autorun(r => {
 			const input = parsedInput.read(r);
 
-			const newAttachments = new Map<string, IChatRequestVariableEntry>();
+			const newPromptAttachments = new Map<string, IChatRequestVariableEntry>();
 			const oldPromptAttachments = new Set<string>();
 
 			// get all attachments, know those that are prompt-referenced
 			for (const attachment of this.attachmentModel.attachments) {
-				newAttachments.set(attachment.id, attachment);
 				if (attachment.range) {
 					oldPromptAttachments.add(attachment.id);
 				}
@@ -516,17 +515,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			for (const part of input.parts) {
 				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestDynamicVariablePart) {
 					const entry = part.toVariableEntry();
-					newAttachments.set(entry.id, entry);
+					newPromptAttachments.set(entry.id, entry);
 					oldPromptAttachments.delete(entry.id);
 				}
 			}
 
-			// delete old prompt-referenced attachments
-			for (const id of oldPromptAttachments) {
-				newAttachments.delete(id);
-			}
-
-			this.attachmentModel.clearAndSetContext(...newAttachments.values());
+			this.attachmentModel.updateContent(oldPromptAttachments, newPromptAttachments.values());
 		}));
 	}
 
