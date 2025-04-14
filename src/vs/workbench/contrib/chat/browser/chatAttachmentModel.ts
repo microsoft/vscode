@@ -17,6 +17,7 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { Schemas } from '../../../../base/common/network.js';
 import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { equals } from '../../../../base/common/objects.js';
 
 export class ChatAttachmentModel extends Disposable {
 	/**
@@ -135,5 +136,26 @@ export class ChatAttachmentModel extends Disposable {
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
 		this.clear();
 		this.addContext(...attachments);
+	}
+
+	updateContent(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
+
+		let didChange = false;
+
+		for (const id of toDelete) {
+			didChange = this._attachments.delete(id) || didChange;
+		}
+
+		for (const item of upsert) {
+			const oldItem = this._attachments.get(item.id);
+			if (!oldItem || !equals(oldItem, item)) {
+				this._attachments.set(item.id, item);
+				didChange = true;
+			}
+		}
+
+		if (didChange) {
+			this._onDidChangeContext.fire();
+		}
 	}
 }
