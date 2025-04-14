@@ -204,7 +204,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// if prompt attached as an implicit "current file" context
-		return (this.implicitContext.isPrompt && this.implicitContext.enabled);
+		return (this.implicitContext.isInstructions && this.implicitContext.enabled);
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;

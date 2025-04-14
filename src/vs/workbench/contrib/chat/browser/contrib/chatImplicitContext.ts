@@ -24,7 +24,7 @@ import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { createPromptVariableId } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
@@ -238,7 +238,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	get id() {
 		// IDs for prompt files need to start with a special prefix
 		// that is used by the copilot extension to identify them
-		if (this.isPrompt) {
+		if (this.isInstructions) {
 			assertDefined(
 				this.value,
 				'Implicit prompt attachments must have a value.',
@@ -265,7 +265,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
-		const fileType = this.isPrompt ? 'prompt' : 'file';
+		const fileType = this.isInstructions ? 'prompt' : 'file';
 
 		if (URI.isUri(this.value)) {
 			return `${fileType}:${basename(this.value)}`;
@@ -279,7 +279,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
-		if (this.isPrompt) {
+		if (this.isInstructions) {
 			if (URI.isUri(this.value)) {
 				return `User's active prompt instructions file`;
 			} else if (this._isSelection) {
@@ -314,8 +314,8 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	private _languageId: string | undefined;
-	get isPrompt() {
-		return (this._languageId === PROMPT_LANGUAGE_ID);
+	get isInstructions() {
+		return (this._languageId === INSTRUCTIONS_LANGUAGE_ID);
 	}
 
 	private _enabled = true;

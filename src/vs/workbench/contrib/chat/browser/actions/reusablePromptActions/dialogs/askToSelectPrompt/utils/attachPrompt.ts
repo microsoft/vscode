@@ -8,12 +8,13 @@ import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
 import { extUri } from '../../../../../../../../../base/common/resources.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
-import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
+import { IChatAttachInstructionsActionOptions } from '../../../chatAttachPromptAction.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
+import { detachPrompt } from './detachPrompt.js';
 
 /**
- * Options for the {@link attachInstructionsFile} function.
+ * Options for the {@link attachInstructionsFiles} function.
  */
 export interface IAttachOptions {
 	/**
@@ -26,22 +27,43 @@ export interface IAttachOptions {
 	 */
 	readonly inNewChat?: boolean;
 
-	/**
-	 * Whether to skip attaching provided prompt if it is
-	 * already attached as an implicit  "current file" context.
-	 */
-	readonly skipIfImplicitlyAttached?: boolean;
-
 	readonly viewsService: IViewsService;
 	readonly commandService: ICommandService;
 }
 
 /**
- * Return value of the {@link attachInstructionsFile} function.
+ * Return value of the {@link attachInstructionsFiles} function.
  */
 interface IAttachResult {
 	readonly widget: IChatWidget;
-	readonly wasAlreadyAttached: boolean;
+	readonly wasAlreadyAttached: URI[];
+}
+
+
+/**
+ * Options for the {@link attachInstructionsFiles} function.
+ */
+export interface IRunPromptOptions {
+	/**
+	 * Chat widget instance to attach the prompt to.
+	 */
+	readonly widget?: IChatWidget;
+	/**
+	 * Whether to create a new chat session and
+	 * attach the prompt to it.
+	 */
+	readonly inNewChat?: boolean;
+
+	readonly viewsService: IViewsService;
+	readonly commandService: ICommandService;
+}
+
+
+/**
+ * Return value of the {@link attachInstructionsFiles} function.
+ */
+interface IRunPromptResult {
+	readonly widget: IChatWidget;
 }
 
 /**
@@ -57,7 +79,7 @@ const isAttachedAsCurrentPrompt = (
 		return false;
 	}
 
-	if (implicitContext.isPrompt === false) {
+	if (implicitContext.isInstructions === false) {
 		return false;
 	}
 
@@ -78,30 +100,61 @@ const isAttachedAsCurrentPrompt = (
 };
 
 /**
- * Attaches provided prompts to a chat input.
+ * Attaches provided instructions to a chat input.
  */
-export const attachInstructionsFile = async (
-	file: URI,
+export const attachInstructionsFiles = async (
+	files: URI[],
 	options: IAttachOptions,
 ): Promise<IAttachResult> => {
-	const { skipIfImplicitlyAttached } = options;
 
 	const widget = await getChatWidgetObject(options);
 
-	if (skipIfImplicitlyAttached && isAttachedAsCurrentPrompt(file, widget)) {
-		return { widget, wasAlreadyAttached: true };
-	}
+	const wasAlreadyAttached: URI[] = [];
 
-	const wasAlreadyAttached = widget
-		.attachmentModel
-		.promptInstructions
-		.add(file);
+	for (const file of files) {
+		if (widget.attachmentModel.promptInstructions.add(file)) {
+			wasAlreadyAttached.push(file);
+			continue;
+		}
+	}
 
 	return { widget, wasAlreadyAttached };
 };
 
 /**
- * Gets a chat widget based on the provided {@link IChatAttachPromptActionOptions.widget widget}
+ * Runs the prompt file
+ */
+export const runPromptFile = async (
+	file: URI,
+	options: IRunPromptOptions,
+): Promise<IRunPromptResult> => {
+
+	const widget = await getChatWidgetObject(options);
+
+	let wasAlreadyAttached: boolean = false;
+
+	if (isAttachedAsCurrentPrompt(file, widget)) {
+		wasAlreadyAttached = true;
+	} else {
+		if (widget.attachmentModel.promptInstructions.add(file)) {
+			wasAlreadyAttached = true;
+		}
+	}
+
+	// submit the prompt immediately
+	await widget.acceptInput();
+
+	// detach the prompt immediately, unless was attached
+	// before the action was executed
+	if (wasAlreadyAttached === false) {
+		await detachPrompt(file, { widget });
+	}
+
+	return { widget };
+};
+
+/**
+ * Gets a chat widget based on the provided {@link IChatAttachInstructionsActionOptions.widget widget}
  * reference and the `inNewChat` flag.
  *
  * @throws if failed to reveal a chat widget.
