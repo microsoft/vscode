@@ -117,10 +117,10 @@ function darwinBundleDocumentTypes(types, icon) {
         };
     });
 }
-const { electronVersion, msBuildId } = util.getElectronVersion();
+const { electronVersion } = util.getElectronVersion();
 exports.config = {
     version: electronVersion,
-    tag: product.electronRepository ? `v${electronVersion}-${msBuildId}` : undefined,
+    tag: undefined,
     productAppName: product.nameLong,
     companyName: 'Microsoft Corporation',
     copyright: 'Copyright (C) 2024 Microsoft. All rights reserved',
@@ -217,9 +217,9 @@ exports.config = {
     linuxExecutableName: product.applicationName,
     winIcon: 'resources/win32/code.ico',
     token: process.env['GITHUB_TOKEN'],
-    repo: product.electronRepository || undefined,
+    repo: undefined,
     validateChecksum: true,
-    checksumFile: path_1.default.join(root, 'build', 'checksums', 'electron.txt'),
+    checksumFile: path_1.default.join(root, 'build', 'checksums', 'electron-oss.txt'),
 };
 function getElectron(arch) {
     return () => {

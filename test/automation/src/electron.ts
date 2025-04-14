@@ -34,7 +34,9 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,
-		`--logsPath=${logsPath}`
+		`--logsPath=${logsPath}`,
+		'--enable-tracing="benchmark,browser,mojom,loading,navigation,renderer_host,base,renderer,blink,v8,startup,disabled-by-default-file,disabled-by-default-loading,disabled-by-default-network,disabled-by-default-v8.cpu_profiler"',
+		`--trace-startup-file=${logsPath}/chrometrace.log`
 	];
 
 	if (options.verbose) {
