@@ -10,7 +10,7 @@ import { Emitter } from '../../base/common/event.js';
 import { Selection } from './core/selection.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { CursorChangeReason } from './cursorEvents.js';
-import { ModelLineHeightChangedEvent as OriginalModelLineHeightChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from './textModelEvents.js';
+import { ModelLineHeightChangedEvent as OriginalModelLineHeightChangedEvent, ModelFontChangedEvent as OriginalModelFontChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from './textModelEvents.js';
 
 export class ViewModelEventDispatcher extends Disposable {
 
@@ -189,6 +189,7 @@ export type OutgoingViewModelEvent = (
 	| ModelOptionsChangedEvent
 	| ModelTokensChangedEvent
 	| ModelLineHeightChangedEvent
+	| ModelFontChangedEvent
 );
 
 export const enum OutgoingViewModelEventKind {
@@ -207,6 +208,7 @@ export const enum OutgoingViewModelEventKind {
 	ModelOptionsChanged,
 	ModelTokensChanged,
 	ModelLineHeightChanged,
+	ModelFontChangedEvent
 }
 
 export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
@@ -561,6 +563,22 @@ export class ModelLineHeightChangedEvent {
 
 	constructor(
 		public readonly event: OriginalModelLineHeightChangedEvent
+	) { }
+
+	public isNoOp(): boolean {
+		return false;
+	}
+
+	public attemptToMerge(other: OutgoingViewModelEvent): OutgoingViewModelEvent | null {
+		return null;
+	}
+}
+
+export class ModelFontChangedEvent {
+	public readonly kind = OutgoingViewModelEventKind.ModelFontChangedEvent;
+
+	constructor(
+		public readonly event: OriginalModelFontChangedEvent
 	) { }
 
 	public isNoOp(): boolean {

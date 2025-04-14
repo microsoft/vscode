@@ -21,6 +21,7 @@ import { ICoordinatesConverter, ICustomFontChangeAccessor, InlineDecoration, Inl
 import { CustomFontsManager } from './customFontsManager.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { isModelDecorationVisible } from './viewModelDecorations.js';
+import { ViewLayout } from '../viewLayout/viewLayout.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -68,10 +69,11 @@ export interface IViewModelLines extends IDisposable {
 export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly _editorId: number;
 	private readonly model: ITextModel;
+	private readonly viewLayout: ViewLayout;
 	private _validModelVersionId: number;
 
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	// private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
+	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
 	private readonly _customFontsManager: CustomFontsManager;
 
 	private fontInfo: FontInfo;
@@ -96,6 +98,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	constructor(
 		editorId: number,
 		model: ITextModel,
+		viewLayout: ViewLayout,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		config: IEditorConfiguration,
@@ -108,9 +111,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	) {
 		this._editorId = editorId;
 		this.model = model;
+		this.viewLayout = viewLayout;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		// this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
 		this.config = config;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
@@ -159,15 +163,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
-		// This should be modified so we use the domLineBreaksComputer on lines that have custom fonts, otherwise we use the other one
-		// Can just check whether there are special fonts on the current line from the text model and then use a different rendering strategy.
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
 			const lineNumber = i + 1;
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
-			// const lineRenderingData = this._getViewLineRenderingData(i); // Can not use the view line rendering data here, because it is not yet initialized
 			const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
-			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineInjectedText, inlineDecorations, previousLineBreaks ? previousLineBreaks[i] : null);
+			const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -198,36 +200,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
 	}
-
-	/*
-	private _getViewLineRenderingData(lineNumber: number) {
-		const mightContainRTL = this.model.mightContainRTL();
-		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
-		const tabSize = this.model.getOptions().tabSize;
-		const lineData = this.getViewLineData(lineNumber);
-		let inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
-		if (lineData.inlineDecorations) {
-			inlineDecorations = [
-				...inlineDecorations,
-				...lineData.inlineDecorations.map(d =>
-					d.toInlineDecoration(lineNumber)
-				)
-			];
-		}
-		return new ViewLineRenderingData(
-			lineData.minColumn,
-			lineData.maxColumn,
-			lineData.content,
-			lineData.continuesWithWrappedLine,
-			mightContainRTL,
-			mightContainNonBasicASCII,
-			lineData.tokens,
-			inlineDecorations,
-			tabSize,
-			lineData.startVisibleColumn
-		);
-	}
-	*/
 
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
 		const modelRange = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
@@ -410,7 +382,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				? this._domLineBreaksComputerFactory
 				: this._domLineBreaksComputerFactory
 		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.config, this.tabSize); //
+		return lineBreaksComputerFactory.createLineBreaksComputer(this.config, this.tabSize);
 	}
 
 	public onModelFlushed(): void {
@@ -1268,7 +1240,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (lineNumber: number, lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {

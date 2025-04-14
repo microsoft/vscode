@@ -41,6 +41,7 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { FontInfo } from '../config/fontInfo.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -87,7 +88,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._viewportStart = ViewportStart.create(this.model);
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), this._getCustomLineHeights(), scheduleAtNextAnimationFrame));
+
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
+
 			this._lines = new ViewModelLinesFromModelAsIs(this.model, this._configuration.options.get(EditorOption.fontInfo));
 
 		} else {
@@ -98,16 +102,10 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 
-			// const viewportData = new ViewportData(
-			// 	this._selections,
-			// 	partialViewportData,
-			// 	this._context.viewLayout.getWhitespaceViewportData(),
-			// 	this._context.viewModel
-			// );
-
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
+				this.viewLayout,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
 				this._configuration,
@@ -123,8 +121,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.coordinatesConverter = this._lines.createCoordinatesConverter();
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
-
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), this._getCustomLineHeights(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
@@ -326,9 +322,10 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								// Goes from line number to line number so how to get the relevant data?
-								const inlineDecorations = this.getInlineDecorationsOnLine(change.fromLineNumber);
-								lineBreaksComputer.addRequest(change.fromLineNumber, line, injectedText, inlineDecorations, null);
+								const lineNumber = change.fromLineNumber;
+								const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, null);
 							}
 							break;
 						}
@@ -337,8 +334,10 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							const inlineDecorations = this.getInlineDecorationsOnLine(change.lineNumber);
-							lineBreaksComputer.addRequest(change.lineNumber, change.detail, injectedText, inlineDecorations, null);
+							const lineNumber = change.lineNumber;
+							const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, null);
 							break;
 						}
 					}

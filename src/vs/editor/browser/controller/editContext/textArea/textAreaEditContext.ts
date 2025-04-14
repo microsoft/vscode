@@ -720,7 +720,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 				const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition);
 				let left = this._computeLeftOffset(this._primaryCursorPosition, visibleStart, fontInfo);
 				applyFontInfo(this.textArea, fontInfo);
-
 				// See https://github.com/microsoft/vscode/issues/141725#issuecomment-1050670841
 				// Here we are adding +1 to avoid flickering that might be caused by having a width that is too small.
 				// This could be caused by rounding errors that might only show up with certain font families.

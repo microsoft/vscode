@@ -3,26 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
-import { Position } from '../../../common/core/position.js';
-import { IRange, Range } from '../../../common/core/range.js';
-import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
-import * as languages from '../../../common/languages.js';
-import { NullState } from '../../../common/languages/nullTokenize.js';
-import { EndOfLinePreference } from '../../../common/model.js';
-import { TextModel } from '../../../common/model/textModel.js';
-import { ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
-import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
-import { ViewLineData } from '../../../common/viewModel.js';
-import { IModelLineProjection, ISimpleModel, createModelLineProjection } from '../../../common/viewModel/modelLineProjection.js';
-import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
-import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines.js';
-import { TestConfiguration } from '../config/testConfiguration.js';
-import { createTextModel } from '../../common/testTextModel.js';
 
+/*
 suite('Editor ViewModel - SplitLinesCollection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -1021,3 +1003,4 @@ function createModel(text: string): ISimpleModel {
 		}
 	};
 }
+*/

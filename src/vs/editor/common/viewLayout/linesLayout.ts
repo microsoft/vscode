@@ -180,7 +180,6 @@ export class LinesLayout {
 		return hadAChange;
 	}
 
-}
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
 		let hadAChange = false;
 		try {
@@ -413,11 +412,6 @@ export class LinesLayout {
 		const whitespacesHeight = this.getWhitespacesTotalHeight();
 
 		return linesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
-	}
-
-	private _linesHeight(until?: number): number {
-		const untilLineNumber = typeof until === 'number' ? until : this._lineCount;
-		return this._specialLineHeightsManager.totalHeightUntilLineNumber(untilLineNumber);
 	}
 
 	/**

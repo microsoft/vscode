@@ -25,7 +25,7 @@ import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { MenuId } from '../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
-import { BareFontInfo } from '../common/config/fontInfo.js';
+import { FontInfo } from '../common/config/fontInfo.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -1081,6 +1081,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getLineHeightForLineNumber(lineNumber: number): number;
 
+	/**
+	 * Get the font info for the editor.
+	 */
+	getFontInfoForPosition(position: Position): FontInfo | undefined;
 	/**
 	 * Set the model ranges that will be hidden in the view.
 	 * Hidden areas are stored per source.

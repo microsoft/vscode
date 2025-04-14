@@ -230,7 +230,7 @@ export class ViewCursor {
 			height = 2;
 		}
 
-		return new ViewCursorRenderData(top, range.left, 0, width, lineHeight, textContent, textContentClassName);
+		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
 	}
 
 	private _getTokenClassName(position: Position): string {

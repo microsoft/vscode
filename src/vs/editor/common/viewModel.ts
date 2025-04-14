@@ -162,9 +162,9 @@ export interface IWhitespaceChangeAccessor {
 	removeWhitespace(id: string): void;
 }
 
-export interface ISpecialLineHeightChangeAccessor {
-	insertOrChangeSpecialLineHeight(decoration: string, lineNumber: number, lineHeight: number): void;
-	removeSpecialLineHeight(decoration: string): void;
+export interface ILineHeightChangeAccessor {
+	insertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void;
+	removeCustomLineHeight(decorationId: string): void;
 }
 
 export interface ICustomFontChangeAccessor {

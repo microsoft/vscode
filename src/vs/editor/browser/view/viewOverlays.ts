@@ -26,7 +26,7 @@ export class ViewOverlays extends ViewPart {
 
 		this._visibleLines = new VisibleLinesCollection(this._context, {
 			createLine: () => new ViewOverlayLine(this._dynamicOverlays)
-		}, this._context);
+		});
 		this.domNode = this._visibleLines.domNode;
 
 		const options = this._context.configuration.options;
@@ -160,7 +160,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		// Nothing
 	}
 
-	public renderLine(viewContext: ViewContext, lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			const dynamicOverlay = this._dynamicOverlays[i];
@@ -174,7 +174,6 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		const lineHeight = viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');

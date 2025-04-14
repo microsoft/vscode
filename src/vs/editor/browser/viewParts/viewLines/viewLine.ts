@@ -56,7 +56,7 @@ export class ViewLine implements IVisibleLine {
 	private _isMaybeInvalid: boolean;
 	private _renderedViewLine: IRenderedViewLine | null;
 
-	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, options: ViewLineOptions) {
+	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, private readonly _viewContext: ViewContext, options: ViewLineOptions) {
 		this._options = options;
 		this._isMaybeInvalid = true;
 		this._renderedViewLine = null;
@@ -99,7 +99,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(viewContext: ViewContext, lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -173,7 +173,6 @@ export class ViewLine implements IVisibleLine {
 			return false;
 		}
 
-		const lineHeight = viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
@@ -187,12 +186,10 @@ export class ViewLine implements IVisibleLine {
 		const output = renderViewLine(renderLineInput, sb);
 
 		sb.appendString('</div>');
-
 		console.log('renderViewLine sb : ', sb.build());
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		const fontDecorationsExistOnLine = viewContext.viewModel.hasFontDecorations(lineNumber);
-		console.log('fontDecorationsExistOnLine : ', fontDecorationsExistOnLine);
+		const fontDecorationsExistOnLine = this._viewContext.viewModel.hasFontDecorations(lineNumber);
 		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,

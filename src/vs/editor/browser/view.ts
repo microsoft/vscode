@@ -117,7 +117,6 @@ export class View extends ViewEventHandler {
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
 	private _ownerID: string;
-	// private _viewPortData: ViewportData | undefined;
 
 	constructor(
 		editorContainer: HTMLElement,
@@ -580,7 +579,7 @@ export class View extends ViewEventHandler {
 				const partialViewportData = this._context.viewLayout.getLinesViewportData();
 				this._context.viewModel.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-				const viewportData = new ViewportData( // this._viewPortData
+				const viewportData = new ViewportData(
 					this._selections,
 					partialViewportData,
 					this._context.viewLayout.getWhitespaceViewportData(),
@@ -605,7 +604,7 @@ export class View extends ViewEventHandler {
 					this._viewLinesGpu.onDidRender();
 				}
 
-				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines, this._viewLinesGpu)];
+				return [viewPartsToRender, new RenderingContext(this._context, viewportData, this._viewLines, this._viewLinesGpu)];
 			},
 			prepareRender: (viewPartsToRender: ViewPart[], ctx: RenderingContext) => {
 				for (const viewPart of viewPartsToRender) {
