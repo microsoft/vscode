@@ -6,7 +6,7 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { PromptAttachmentWidget } from './promptAttachmentWidget.js';
+import { InstructionsAttachmentWidget } from './instructionsWidget.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -14,13 +14,13 @@ import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatP
 
 /**
  * Widget for a collection of prompt instructions attachments.
- * See {@linkcode PromptAttachmentWidget}.
+ * See {@linkcode InstructionsAttachmentWidget}.
  */
-export class PromptAttachmentsCollectionWidget extends Disposable {
+export class InstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * List of child instruction attachment widgets.
 	 */
-	private children: PromptAttachmentWidget[] = [];
+	private children: InstructionsAttachmentWidget[] = [];
 
 	/**
 	 * Event that fires when number of attachments change
@@ -79,7 +79,7 @@ export class PromptAttachmentsCollectionWidget extends Disposable {
 		// when a new attachment model is added, create a new child widget for it
 		this.model.onAdd((attachment) => {
 			const widget = this.initService.createInstance(
-				PromptAttachmentWidget,
+				InstructionsAttachmentWidget,
 				attachment,
 				this.resourceLabels,
 			);
@@ -105,7 +105,7 @@ export class PromptAttachmentsCollectionWidget extends Disposable {
 	 * Handle child widget disposal.
 	 * @param widget The child widget that was disposed.
 	 */
-	public handleAttachmentDispose(widget: PromptAttachmentWidget): this {
+	public handleAttachmentDispose(widget: InstructionsAttachmentWidget): this {
 		// common prefix for all log messages
 		const logPrefix = `[onChildDispose] Widget for instructions attachment '${widget.uri.path}'`;
 

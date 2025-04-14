@@ -31,7 +31,7 @@ import { getFlatContextMenuActions } from '../../../../../../platform/actions/br
 /**
  * Widget for a single prompt instructions attachment.
  */
-export class PromptAttachmentWidget extends Disposable {
+export class InstructionsAttachmentWidget extends Disposable {
 	/**
 	 * The root DOM node of the widget.
 	 */
