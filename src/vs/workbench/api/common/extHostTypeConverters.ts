@@ -2843,8 +2843,6 @@ export namespace ChatResponsePart {
 			return ChatResponseCodeCitationPart.from(part);
 		} else if (part instanceof types.ChatResponseMovePart) {
 			return ChatResponseMovePart.from(part);
-		} else if (part instanceof types.ChatResponseNotebookEditPart) {
-			// TODO@DonJayamanne
 		}
 
 		return {
