@@ -97,7 +97,7 @@ export function getShellIntegrationInjection(
 	}
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
-		// TODO: (Perf) Temporarily pass lists of hardcoded env vars for shell env api
+		// Temporarily pass lists of hardcoded env vars for shell env api
 		if (isWindows) {
 			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
