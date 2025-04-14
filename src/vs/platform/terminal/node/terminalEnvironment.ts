@@ -95,9 +95,9 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
+	// Temporarily pass list of hardcoded env vars for shell env api
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
-		// Temporarily pass lists of hardcoded env vars for shell env api
 		if (isWindows) {
 			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
