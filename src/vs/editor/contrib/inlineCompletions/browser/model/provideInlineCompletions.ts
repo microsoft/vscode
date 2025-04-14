@@ -17,7 +17,6 @@ import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
-import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
 import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind, PartialAcceptInfo } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
@@ -27,7 +26,7 @@ import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 
 export async function provideInlineCompletions(
-	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
+	providers: InlineCompletionsProvider[],
 	positionOrRange: Position | Range,
 	model: ITextModel,
 	context: InlineCompletionContext,
@@ -40,7 +39,6 @@ export async function provideInlineCompletions(
 	const contextWithUuid = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
-	const providers = registry.all(model);
 
 	const multiMap = new SetMap<InlineCompletionProviderGroupId, InlineCompletionsProvider<any>>();
 	for (const provider of providers) {
@@ -305,10 +303,16 @@ function createInlineCompletionItem(
 		assertNever(inlineCompletion.insertText);
 	}
 
+	const displayLocation = inlineCompletion.displayLocation ? {
+		range: Range.lift(inlineCompletion.displayLocation.range),
+		label: inlineCompletion.displayLocation.label
+	} : undefined;
+
 	return new InlineSuggestData(
 		range,
 		insertText,
 		snippetInfo,
+		displayLocation,
 		inlineCompletion.additionalTextEdits || getReadonlyEmptyArray(),
 		inlineCompletion,
 		source,
@@ -326,6 +330,7 @@ export class InlineSuggestData {
 		public readonly range: Range,
 		public readonly insertText: string,
 		public readonly snippetInfo: SnippetInfo | undefined,
+		public readonly displayLocation: IDisplayLocation | undefined,
 		public readonly additionalTextEdits: readonly ISingleEditOperation[],
 
 		public readonly sourceInlineCompletion: InlineCompletion,
@@ -398,6 +403,11 @@ export interface SnippetInfo {
 	snippet: string;
 	/* Could be different than the main range */
 	range: Range;
+}
+
+export interface IDisplayLocation {
+	range: Range;
+	label: string;
 }
 
 /**

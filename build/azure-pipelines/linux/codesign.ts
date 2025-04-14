@@ -3,29 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise } from 'zx';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
 import { e } from '../common/publish';
-
-function printBanner(title: string) {
-	title = `${title} (${new Date().toISOString()})`;
-
-	console.log('\n');
-	console.log('#'.repeat(75));
-	console.log(`# ${title.padEnd(71)} #`);
-	console.log('#'.repeat(75));
-	console.log('\n');
-}
-
-async function handleProcessPromise(name: string, promise: ProcessPromise): Promise<void> {
-	const result = await promise.pipe(process.stdout);
-	if (!result.ok) {
-		throw new Error(`${name} failed: ${result.stderr}`);
-	}
-}
-
-function sign(esrpCliDLLPath: string, type: 'sign-pgp', folder: string, glob: string): ProcessPromise {
-	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${folder} ${glob}`;
-}
 
 async function main() {
 	const esrpCliDLLPath = e('EsrpCliDllPath');
@@ -33,21 +12,21 @@ async function main() {
 	// Start the code sign processes in parallel
 	// 1. Codesign deb package
 	// 2. Codesign rpm package
-	const codesignTask1 = sign(esrpCliDLLPath, 'sign-pgp', '.build/linux/deb', '*.deb');
-	const codesignTask2 = sign(esrpCliDLLPath, 'sign-pgp', '.build/linux/rpm', '*.rpm');
+	const codesignTask1 = spawnCodesignProcess(esrpCliDLLPath, 'sign-pgp', '.build/linux/deb', '*.deb');
+	const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-pgp', '.build/linux/rpm', '*.rpm');
 
 	// Codesign deb package
 	printBanner('Codesign deb package');
-	await handleProcessPromise('Codesign deb package', codesignTask1);
+	await streamProcessOutputAndCheckResult('Codesign deb package', codesignTask1);
 
 	// Codesign rpm package
 	printBanner('Codesign rpm package');
-	await handleProcessPromise('Codesign rpm package', codesignTask2);
+	await streamProcessOutputAndCheckResult('Codesign rpm package', codesignTask2);
 }
 
 main().then(() => {
 	process.exit(0);
 }, err => {
-	console.error(err);
+	console.error(`ERROR: ${err}`);
 	process.exit(1);
 });

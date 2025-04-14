@@ -501,12 +501,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(autorun(r => {
 			const input = parsedInput.read(r);
 
-			const newAttachments = new Map<string, IChatRequestVariableEntry>();
+			const newPromptAttachments = new Map<string, IChatRequestVariableEntry>();
 			const oldPromptAttachments = new Set<string>();
 
 			// get all attachments, know those that are prompt-referenced
 			for (const attachment of this.attachmentModel.attachments) {
-				newAttachments.set(attachment.id, attachment);
 				if (attachment.range) {
 					oldPromptAttachments.add(attachment.id);
 				}
@@ -516,17 +515,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			for (const part of input.parts) {
 				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestDynamicVariablePart) {
 					const entry = part.toVariableEntry();
-					newAttachments.set(entry.id, entry);
+					newPromptAttachments.set(entry.id, entry);
 					oldPromptAttachments.delete(entry.id);
 				}
 			}
 
-			// delete old prompt-referenced attachments
-			for (const id of oldPromptAttachments) {
-				newAttachments.delete(id);
-			}
-
-			this.attachmentModel.clearAndSetContext(...newAttachments.values());
+			this.attachmentModel.updateContent(oldPromptAttachments, newPromptAttachments.values());
 		}));
 	}
 
@@ -1017,7 +1011,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
-		this.viewModelDisposables.add(Event.accumulate(this.viewModel.onDidChange, 0)(events => {
+		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, 0), (events => {
 			if (!this.viewModel) {
 				return;
 			}
@@ -1027,14 +1021,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.canRequestBePaused.set(this.viewModel.requestPausibility !== ChatPauseState.NotPausable);
 
 			this.onDidChangeItems();
-			if (events.some(e => e?.kind === 'addRequest') && this.visible) {
+			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
 				this.scrollToEnd();
 			}
 
 			if (this._editingSession) {
 				this.renderChatEditingSessionState();
 			}
-		}));
+		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			this.inputPart.saveState();
@@ -1168,7 +1162,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
-			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode !== ChatMode.Ask) {
+			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 				const editingSessionAttachedContext: IChatRequestVariableEntry[] = attachedContext;
 

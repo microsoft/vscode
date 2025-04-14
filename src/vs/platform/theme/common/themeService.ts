@@ -134,13 +134,14 @@ export interface IThemingRegistry {
 	readonly onThemingParticipantAdded: Event<IThemingParticipant>;
 }
 
-class ThemingRegistry implements IThemingRegistry {
+class ThemingRegistry extends Disposable implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
 	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
+		super();
 		this.themingParticipants = [];
-		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
+		this.onThemingParticipantAddedEmitter = this._register(new Emitter<IThemingParticipant>());
 	}
 
 	public onColorThemeChange(participant: IThemingParticipant): IDisposable {

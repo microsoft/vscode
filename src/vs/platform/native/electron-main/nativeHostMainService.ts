@@ -321,6 +321,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.win?.setAlwaysOnTop(!window.win.isAlwaysOnTop());
 	}
 
+	async setWindowAlwaysOnTop(windowId: number | undefined, alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAlwaysOnTop(alwaysOnTop);
+	}
+
 	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
