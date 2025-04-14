@@ -369,9 +369,9 @@ export class QuickDiffModel extends Disposable {
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
 		let preferredProvider: string | undefined;
-		if (!provider && inclusive) {
-			preferredProvider = this.quickDiffs.find(value => value.isSCM)?.label;
-		}
+		// if (!provider && inclusive) {
+		// 	preferredProvider = this.quickDiffs.find(value => value.isSCM)?.label;
+		// }
 
 		const possibleChanges: number[] = [];
 		for (let i = 0; i < this.changes.length; i++) {

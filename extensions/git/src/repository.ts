@@ -2811,7 +2811,7 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 		private readonly _repositoryResolver: IRepositoryResolver,
 		private readonly logger: LogOutputChannel
 	) {
-		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (working tree + index)')));
+		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (index + working tree)')));
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {

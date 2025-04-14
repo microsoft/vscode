@@ -1949,6 +1949,9 @@ export class CommandCenter {
 		if (!uri) {
 			return;
 		}
+
+		console.log('changes: ', changes);
+		console.log('index: ', index);
 	}
 
 	@command('git.unstageSelectedRanges')
@@ -1962,15 +1965,15 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (!isGitUri(modifiedUri)) {
-			return;
-		}
+		// if (!isGitUri(modifiedUri)) {
+		// 	return;
+		// }
 
-		const { ref } = fromGitUri(modifiedUri);
+		// const { ref } = fromGitUri(modifiedUri);
 
-		if (ref !== '') {
-			return;
-		}
+		// if (ref !== '') {
+		// 	return;
+		// }
 
 		const repository = this.model.getRepository(modifiedUri);
 		if (!repository) {
@@ -2007,10 +2010,18 @@ export class CommandCenter {
 
 		const invertedDiffs = selectedDiffs.map(invertLineChange);
 
+		const unselectedDiffs = indexLineChanges
+			.filter(change => selectedDiffs.every(selectedChange =>
+				selectedChange.originalStartLineNumber !== change.originalStartLineNumber &&
+				selectedChange.originalEndLineNumber !== change.originalEndLineNumber &&
+				selectedChange.modifiedStartLineNumber !== change.modifiedStartLineNumber &&
+				selectedChange.modifiedEndLineNumber !== change.modifiedEndLineNumber));
+
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] unselectedDiffs: ${JSON.stringify(unselectedDiffs)}`);
 
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
+		const result = applyLineChanges(modifiedDocument, originalDocument, [...invertedDiffs, ...unselectedDiffs]);
 		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
 	}
 
