@@ -157,7 +157,27 @@ function register(type: TPromptsType, storage: TPromptsStorage, id: string, titl
 	});
 }
 
-register('instructions', 'local', 'workbench.command.new.instructions.local', localize('commands.new.instructions.local.title', "New Instructions File..."));
-register('instructions', 'user', 'workbench.command.new.instructions.user', localize('commands.new.instructions.user.title', "New User Instructions File..."));
-register('prompt', 'local', 'workbench.command.new.prompt.local', localize('commands.new.prompt.local.title', "New Prompt File..."));
-register('prompt', 'user', 'workbench.command.new.prompt.user', localize('commands.new.prompt.user.title', "New User Prompt File..."));
+register(
+	'instructions',
+	'local',
+	'workbench.command.new.instructions.local',
+	localize('commands.new.instructions.local.title', "New Instructions File...")
+);
+register(
+	'instructions',
+	'user',
+	'workbench.command.new.instructions.user',
+	localize('commands.new.instructions.user.title', "New User Instructions File...")
+);
+register(
+	'prompt',
+	'local',
+	'workbench.command.new.prompt.local',
+	localize('commands.new.prompt.local.title', "New Prompt File...")
+);
+register(
+	'prompt',
+	'user',
+	'workbench.command.new.prompt.user',
+	localize('commands.new.prompt.user.title', "New User Prompt File...")
+);
