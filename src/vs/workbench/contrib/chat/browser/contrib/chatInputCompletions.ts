@@ -936,10 +936,18 @@ class ToolCompletions extends Disposable {
 					.filter(t => t.canBeReferencedInPrompt)
 					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
 					.map((t): CompletionItem => {
+						const source = t.source;
+						const detail = source.type === 'mcp'
+							? localize('desc', "MCP Server: {0}", source.label)
+							: source.type === 'extension'
+								? source.label
+								: undefined;
+
 						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
 						return {
 							label: withLeader,
 							range,
+							detail,
 							insertText: withLeader + ' ',
 							documentation: t.userDescription,
 							kind: CompletionItemKind.Text,
