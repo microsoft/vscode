@@ -66,10 +66,6 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 
-	public getFontInfoForPosition(position: Position): FontInfo {
-		return this.viewportData.getFontInfoForPosition(position);
-	}
-
 	public getDecorationsInViewport(): ViewModelDecoration[] {
 		return this.viewportData.getDecorationsInViewport();
 	}

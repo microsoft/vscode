@@ -116,6 +116,7 @@ export interface ITreeSitterTokenizationSupport {
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 	onDidChangeBackgroundTokenization: Event<{ textModel: model.ITextModel }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
+	guessTokensForLinesContent(lineNumber: number, textModel: model.ITextModel, lines: string[]): Uint32Array[] | undefined;
 }
 
 /**
@@ -846,11 +847,18 @@ export interface InlineCompletion {
 	readonly showRange?: IRange;
 
 	readonly warning?: InlineCompletionWarning;
+
+	readonly displayLocation?: InlineCompletionDisplayLocation;
 }
 
 export interface InlineCompletionWarning {
 	message: IMarkdownString | string;
 	icon?: IconPath;
+}
+
+export interface InlineCompletionDisplayLocation {
+	range: IRange;
+	label: string;
 }
 
 /**
@@ -896,12 +904,23 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
+	/**
+	 * @deprecated Use `handleEndOfLifetime` instead.
+	*/
 	handleRejection?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Is called when an inline completion item is no longer being used.
+	 * Provides a reason of why it is not used anymore.
+	*/
+	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
 	freeInlineCompletions(completions: T): void;
+
+	onDidChangeInlineCompletions?: Event<void>;
 
 	/**
 	 * Only used for {@link yieldsToGroupIds}.
@@ -921,6 +940,22 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	toString?(): string;
 }
+
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2,
+}
+
+export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
+	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Ignored;
+	supersededBy?: TInlineCompletion;
+	userTypingDisagreed: boolean;
+};
 
 export interface CodeAction {
 	title: string;
@@ -2058,7 +2093,7 @@ export interface CommentThread<T = IRange> {
 	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	applicability?: CommentThreadApplicability;
-	canReply: boolean;
+	canReply: boolean | CommentAuthorInformation;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeLabel: Event<string | undefined>;

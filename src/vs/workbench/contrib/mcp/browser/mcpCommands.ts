@@ -8,12 +8,10 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { parse as jsoncParse } from '../../../../base/common/jsonc.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -22,7 +20,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -74,21 +72,28 @@ export class ListMcpServerCommand extends Action2 {
 
 		const store = new DisposableStore();
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
-		pick.title = localize('mcp.selectServer', 'Select an MCP Server');
+		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
 		store.add(pick);
+
 		store.add(autorun(reader => {
 			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
-			pick.items = Object.values(servers).flatMap(servers => {
-				return [
+			const firstRun = pick.items.length === 0;
+			pick.items = [
+				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
+				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
 					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
 					...servers.map(server => ({
 						id: server.definition.id,
 						label: server.definition.label,
 						description: McpConnectionState.toString(server.connectionState.read(reader)),
 					})),
-				];
-			});
+				]),
+			];
+
+			if (firstRun && pick.items.length > 3) {
+				pick.activeItems = pick.items.slice(2, 3) as ItemType[]; // select the first server by default
+			}
 		}));
 
 
@@ -104,7 +109,11 @@ export class ListMcpServerCommand extends Action2 {
 
 		store.dispose();
 
-		if (picked) {
+		if (!picked) {
+			// no-op
+		} else if (picked.id === '$add') {
+			commandService.executeCommand(AddConfigurationAction.ID);
+		} else {
 			commandService.executeCommand(McpServerOptionsCommand.id, picked.id);
 		}
 	}
@@ -471,6 +480,26 @@ export class ShowOutput extends Action2 {
 	}
 }
 
+export class RestartServer extends Action2 {
+	static readonly ID = 'workbench.mcp.restartServer';
+
+	constructor() {
+		super({
+			id: RestartServer.ID,
+			title: localize2('mcp.command.restartServer', "Restart Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		s?.showOutput();
+		await s?.stop();
+		await s?.start();
+	}
+}
+
 export class StartServer extends Action2 {
 	static readonly ID = 'workbench.mcp.startServer';
 
@@ -485,7 +514,6 @@ export class StartServer extends Action2 {
 
 	async run(accessor: ServicesAccessor, serverId: string) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.stop();
 		await s?.start();
 	}
 }
@@ -525,9 +553,7 @@ export class InstallFromActivation extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, uri: URI) {
-		const editorService = accessor.get(IModelService);
 		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
-
-		addConfigHelper.pickForUrlHandler(uri, jsoncParse(editorService.getModel(uri)!.getValue()));
+		addConfigHelper.pickForUrlHandler(uri);
 	}
 }

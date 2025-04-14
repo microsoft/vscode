@@ -34,13 +34,13 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
-import { FontInfo } from '../config/fontInfo.js';
+import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -124,7 +124,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), this._getCustomLineHeights(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
@@ -161,9 +161,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
-		this._register(this._themeService.onDidColorThemeChange((e) => {
+		this._register(this._themeService.onDidColorThemeChange((theme) => {
 			this._invalidateDecorationsColorCache();
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(e.theme));
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(theme));
 		}));
 
 		this._updateConfigurationViewLineCountNow();
@@ -189,6 +189,20 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public removeViewEventHandler(eventHandler: ViewEventHandler): void {
 		this._eventDispatcher.removeViewEventHandler(eventHandler);
+	}
+
+	private _getCustomLineHeights(): ICustomLineHeightData[] {
+		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
+		return decorations.map((d) => {
+			const lineNumber = d.range.startLineNumber;
+			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+			return {
+				decorationId: d.id,
+				startLineNumber: viewRange.startLineNumber,
+				endLineNumber: viewRange.endLineNumber,
+				lineHeight: d.options.lineHeight || 0
+			};
+		});
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -262,7 +276,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 			this._cursor.onLineMappingChanged(eventsCollector);
 			this._decorations.onLineMappingChanged();
-			this.viewLayout.onFlushed(this.getLineCount());
+			this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 
 			this._updateConfigurationViewLineCount.schedule();
 		}
@@ -338,7 +352,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							this._lines.onModelFlushed();
 							eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 							this._decorations.reset();
-							this.viewLayout.onFlushed(this.getLineCount());
+							this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 							hadOtherModelChange = true;
 							break;
 						}
@@ -429,29 +443,27 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			this._handleVisibleLinesChanged();
 		}));
+
 		this._register(this.model.onDidChangeLineHeight((e) => {
-			e.changes.forEach((change) => {
-				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
-					return;
-				}
-				const lineNumber = change.lineNumber;
-				const lineHeight = change.lineHeight;
-				const decorationId = change.decorationId;
-				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-				if (lineHeight !== null) {
-					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
-						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
-							accessor.insertOrChangeSpecialLineHeight(decorationId, lineNumber, lineHeight);
-						});
-					}
-				} else {
-					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
-						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
-							accessor.removeSpecialLineHeight(decorationId);
-						});
+			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+
+			this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+				for (const change of filteredChanges) {
+					const { decorationId, lineNumber, lineHeight } = change;
+					const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+					if (lineHeight !== null) {
+						accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+					} else {
+						accessor.removeCustomLineHeight(decorationId);
 					}
 				}
 			});
+
+			// recreate the model event using the filtered changes
+			if (filteredChanges.length > 0) {
+				const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
+				this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
+			}
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
@@ -492,7 +504,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 					this._cursor.onLineMappingChanged(eventsCollector);
 					this._decorations.onLineMappingChanged();
-					this.viewLayout.onFlushed(this.getLineCount());
+					this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 				} finally {
 					this._eventDispatcher.endEmitViewEvents();
 				}
@@ -541,7 +553,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 				this._cursor.onLineMappingChanged(eventsCollector);
 				this._decorations.onLineMappingChanged();
-				this.viewLayout.onFlushed(this.getLineCount());
+				this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 				this.viewLayout.onHeightMaybeChanged();
 			}
 

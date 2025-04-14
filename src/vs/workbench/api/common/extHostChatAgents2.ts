@@ -127,10 +127,10 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				codeblockUri(value) {
+				codeblockUri(value, isEdit) {
 					throwIfDone(this.codeblockUri);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
-					const part = new extHostTypes.ChatResponseCodeblockUriPart(value);
+					const part = new extHostTypes.ChatResponseCodeblockUriPart(value, isEdit);
 					const dto = typeConvert.ChatResponseCodeblockUriPart.from(part);
 					_report(dto);
 					return this;
@@ -320,6 +320,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
 	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
+
+	private readonly _onDidDisposeChatSession = this._register(new Emitter<string>());
+	readonly onDidDisposeChatSession = this._onDidDisposeChatSession.event;
 
 	constructor(
 		mainContext: IMainContext,
@@ -576,10 +579,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			// REQUEST turn
 			const varsWithoutTools = h.request.variables.variables
-				.filter(v => !v.isTool)
+				.filter(v => v.kind !== 'tool')
 				.map(v => typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension)));
 			const toolReferences = h.request.variables.variables
-				.filter(v => v.isTool)
+				.filter(v => v.kind === 'tool')
 				.map(typeConvert.ChatLanguageModelToolReference.to);
 			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences);
 			res.push(turn);
@@ -594,6 +597,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	$releaseSession(sessionId: string): void {
 		this._sessionDisposables.deleteAndDispose(sessionId);
+		this._onDidDisposeChatSession.fire(sessionId);
 	}
 
 	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
@@ -728,7 +732,7 @@ class ExtHostChatAgent {
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
-	private _welcomeMessageContent?: vscode.ChatWelcomeMessageContent | undefined;
+	private _additionalWelcomeMessage?: string | vscode.MarkdownString | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
@@ -824,10 +828,7 @@ class ExtHostChatAgent {
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester,
-					welcomeMessageContent: this._welcomeMessageContent && {
-						...this._welcomeMessageContent,
-						message: typeConvert.MarkdownString.from(this._welcomeMessageContent.message),
-					}
+					additionalWelcomeMessage: (!this._additionalWelcomeMessage || typeof this._additionalWelcomeMessage === 'string') ? this._additionalWelcomeMessage : typeConvert.MarkdownString.from(this._additionalWelcomeMessage),
 				});
 				updateScheduled = false;
 			});
@@ -924,14 +925,14 @@ class ExtHostChatAgent {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._welcomeMessageProvider;
 			},
-			set welcomeMessageContent(v) {
+			set additionalWelcomeMessage(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._welcomeMessageContent = v;
+				that._additionalWelcomeMessage = v;
 				updateMetadataSoon();
 			},
-			get welcomeMessageContent() {
+			get additionalWelcomeMessage() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._welcomeMessageContent;
+				return that._additionalWelcomeMessage;
 			},
 			set titleProvider(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');

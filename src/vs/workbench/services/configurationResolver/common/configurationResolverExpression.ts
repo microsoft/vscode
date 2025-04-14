@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from '../../../../base/common/iterator.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ConfiguredInput } from './configurationResolver.js';
 
 /** A replacement found in the object, as ${name} or ${name:arg} */
@@ -45,6 +46,7 @@ interface IConfigurationResolverExpression<T> {
 type PropertyLocation = {
 	object: any;
 	propertyName: string | number;
+	replaceKeyName?: boolean;
 };
 
 export interface IResolvedValue {
@@ -66,6 +68,11 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 	private locations = new Map<string, IReplacementLocation>();
 	private root: T;
 	private stringRoot: boolean;
+	/**
+	 * Callbacks when a new replacement is made, so that nested resolutions from
+	 * `expr.unresolved()` can be fulfilled in the same iteration.
+	 */
+	private newReplacementNotifiers = new Set<(r: Replacement) => void>();
 
 	private constructor(object: T) {
 		// If the input is a string, wrap it in an object so we can use the same logic
@@ -78,14 +85,34 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		}
 	}
 
+	/**
+	 * Creates a new {@link ConfigurationResolverExpression} from an object.
+	 * Note that platform-specific keys (i.e. `windows`, `osx`, `linux`) are
+	 * applied during parsing.
+	 */
 	public static parse<T>(object: T): ConfigurationResolverExpression<T> {
 		if (object instanceof ConfigurationResolverExpression) {
 			return object;
 		}
 
 		const expr = new ConfigurationResolverExpression<T>(object);
+		expr.applyPlatformSpecificKeys();
 		expr.parseObject(expr.root);
 		return expr;
+	}
+
+	private applyPlatformSpecificKeys() {
+		const config = this.root as any; // already cloned by ctor, safe to change
+		const key = isWindows ? 'windows' : isMacintosh ? 'osx' : isLinux ? 'linux' : undefined;
+		if (key === undefined || !config || typeof config !== 'object' || !config.hasOwnProperty(key)) {
+			return;
+		}
+
+		Object.keys(config[key]).forEach(k => config[k] = config[key][k]);
+
+		delete config.windows;
+		delete config.osx;
+		delete config.linux;
 	}
 
 	private parseVariable(str: string, start: number): { replacement: Replacement; end: number } | undefined {
@@ -153,9 +180,14 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 				this.parseObject(value);
 			}
 		}
+
+		// only after all values are marked for replacement, we can collect keys that have to be replaced
+		for (const [key] of Object.entries(obj)) {
+			this.parseString(obj, key, key, true);
+		}
 	}
 
-	private parseString(object: any, propertyName: string | number, value: string): void {
+	private parseString(object: any, propertyName: string | number, value: string, replaceKeyName?: boolean, replacementPath?: string[]): void {
 		let pos = 0;
 		while (pos < value.length) {
 			const match = value.indexOf('${', pos);
@@ -164,18 +196,53 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			}
 			const parsed = this.parseVariable(value, match);
 			if (parsed) {
-				const locations = this.locations.get(parsed.replacement.id) || { locations: [], replacement: parsed.replacement };
-				locations.locations.push({ object, propertyName });
-				this.locations.set(parsed.replacement.id, locations);
 				pos = parsed.end + 1;
+				if (replacementPath?.includes(parsed.replacement.id)) {
+					continue;
+				}
+
+				const locations = this.locations.get(parsed.replacement.id) || { locations: [], replacement: parsed.replacement };
+				const newLocation: PropertyLocation = { object, propertyName, replaceKeyName };
+				locations.locations.push(newLocation);
+				this.locations.set(parsed.replacement.id, locations);
+
+				if (locations.resolved) {
+					this._resolveAtLocation(parsed.replacement, newLocation, locations.resolved, replacementPath);
+				} else {
+					this.newReplacementNotifiers.forEach(n => n(parsed.replacement));
+				}
 			} else {
 				pos = match + 2;
 			}
 		}
 	}
 
-	public unresolved(): Iterable<Replacement> {
-		return Iterable.map(Iterable.filter(this.locations.values(), l => l.resolved === undefined), l => l.replacement);
+	public *unresolved(): Iterable<Replacement> {
+		const newReplacements = new Map<string, Replacement>();
+		const notifier = (replacement: Replacement) => {
+			newReplacements.set(replacement.id, replacement);
+		};
+
+		for (const location of this.locations.values()) {
+			if (location.resolved === undefined) {
+				newReplacements.set(location.replacement.id, location.replacement);
+			}
+		}
+
+		this.newReplacementNotifiers.add(notifier);
+
+		while (true) {
+			const next = Iterable.first(newReplacements);
+			if (!next) {
+				break;
+			}
+
+			const [key, value] = next;
+			yield value;
+			newReplacements.delete(key);
+		}
+
+		this.newReplacementNotifiers.delete(notifier);
 	}
 
 	public resolved(): Iterable<[Replacement, IResolvedValue]> {
@@ -192,14 +259,36 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			return;
 		}
 
+		location.resolved = data;
+
 		if (data.value !== undefined) {
-			for (const { object, propertyName } of location.locations || []) {
-				const newValue = object[propertyName].replaceAll(replacement.id, data.value);
-				object[propertyName] = newValue;
+			for (const l of location.locations || Iterable.empty()) {
+				this._resolveAtLocation(replacement, l, data);
 			}
 		}
+	}
 
-		location.resolved = data;
+	private _resolveAtLocation(replacement: Replacement, { replaceKeyName, propertyName, object }: PropertyLocation, data: IResolvedValue, path: string[] = []) {
+		if (data.value === undefined) {
+			return;
+		}
+
+		// avoid recursive resolution, e.g. ${env:FOO} -> ${env:BAR}=${env:FOO}
+		path.push(replacement.id);
+
+		// note: in nested `this.parseString`, parse only the new substring for any replacements, don't reparse the whole string
+		if (replaceKeyName && typeof propertyName === 'string') {
+			const value = object[propertyName];
+			const newKey = propertyName.replaceAll(replacement.id, data.value);
+			delete object[propertyName];
+			object[newKey] = value;
+			this.parseString(object, newKey, data.value, true, path);
+		} else {
+			this.parseString(object, propertyName, data.value, false, path);
+			object[propertyName] = object[propertyName].replaceAll(replacement.id, data.value);
+		}
+
+		path.pop();
 	}
 
 	public toObject(): T {

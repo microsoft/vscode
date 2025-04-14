@@ -76,23 +76,23 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 			content.push(localize('state-msg1', "Visible repositories: {0}", repositoryList));
 		}
 
-		const activeRepository = this._scmViewService.activeRepository.get();
-		if (activeRepository) {
-			content.push(localize('state-msg2', "Repository: {0}", activeRepository.provider.name));
+		const focusedRepository = this._scmViewService.focusedRepository;
+		if (focusedRepository) {
+			content.push(localize('state-msg2', "Repository: {0}", focusedRepository.provider.name));
 
 			// History Item Reference
-			const currentHistoryItemRef = activeRepository.provider.historyProvider.get()?.historyItemRef.get();
+			const currentHistoryItemRef = focusedRepository.provider.historyProvider.get()?.historyItemRef.get();
 			if (currentHistoryItemRef) {
 				content.push(localize('state-msg3', "History item reference: {0}", currentHistoryItemRef.name));
 			}
 
 			// Commit Message
-			if (activeRepository.input.visible && activeRepository.input.enabled && activeRepository.input.value !== '') {
-				content.push(localize('state-msg4', "Commit message: {0}", activeRepository.input.value));
+			if (focusedRepository.input.visible && focusedRepository.input.enabled && focusedRepository.input.value !== '') {
+				content.push(localize('state-msg4', "Commit message: {0}", focusedRepository.input.value));
 			}
 
 			// Action Button
-			const actionButton = activeRepository.provider.actionButton.get();
+			const actionButton = focusedRepository.provider.actionButton.get();
 			if (actionButton) {
 				const label = actionButton.command.tooltip ?? actionButton.command.title;
 				const enablementLabel = actionButton.enabled ? localize('enabled', "enabled") : localize('disabled', "disabled");
@@ -101,11 +101,11 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 
 			// Resource Groups
 			const resourceGroups: string[] = [];
-			for (const resourceGroup of activeRepository.provider.groups) {
+			for (const resourceGroup of focusedRepository.provider.groups) {
 				resourceGroups.push(`${resourceGroup.label} (${resourceGroup.resources.length} resource(s))`);
 			}
 
-			activeRepository.provider.groups.map(g => g.label).join(', ');
+			focusedRepository.provider.groups.map(g => g.label).join(', ');
 			content.push(localize('state-msg6', "Resource groups: {0}", resourceGroups.join(', ')));
 		}
 

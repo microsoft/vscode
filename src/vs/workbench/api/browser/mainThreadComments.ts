@@ -93,9 +93,9 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	private readonly _onDidChangeCanReply = new Emitter<boolean>();
 	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
-	set canReply(state: boolean) {
+	set canReply(state: boolean | languages.CommentAuthorInformation) {
 		this._canReply = state;
-		this._onDidChangeCanReply.fire(this._canReply);
+		this._onDidChangeCanReply.fire(!!this._canReply);
 	}
 
 	get canReply() {
@@ -182,7 +182,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		public resource: string,
 		private _range: T | undefined,
 		comments: languages.Comment[] | undefined,
-		private _canReply: boolean,
+		private _canReply: boolean | languages.CommentAuthorInformation,
 		private _isTemplate: boolean,
 		public editorId?: string
 	) {
@@ -541,6 +541,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private readonly _activeEditingCommentThreadDisposables = this._register(new DisposableStore());
 
 	private readonly _openViewListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _onChangeContainerListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _onChangeContainerLocationListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -757,19 +759,24 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this.registerViewOpenedListener();
 		}
 
-		this._register(this._viewDescriptorService.onDidChangeContainer(e => {
-			if (e.views.find(view => view.id === COMMENTS_VIEW_ID)) {
-				this.setComments();
-				this.registerViewOpenedListener();
-			}
-		}));
-		this._register(this._viewDescriptorService.onDidChangeContainerLocation(e => {
-			const commentsContainer = this._viewDescriptorService.getViewContainerByViewId(COMMENTS_VIEW_ID);
-			if (e.viewContainer.id === commentsContainer?.id) {
-				this.setComments();
-				this.registerViewOpenedListener();
-			}
-		}));
+		if (!this._onChangeContainerListener.value) {
+			this._onChangeContainerListener.value = this._viewDescriptorService.onDidChangeContainer(e => {
+				if (e.views.find(view => view.id === COMMENTS_VIEW_ID)) {
+					this.setComments();
+					this.registerViewOpenedListener();
+				}
+			});
+		}
+
+		if (!this._onChangeContainerLocationListener.value) {
+			this._onChangeContainerLocationListener.value = this._viewDescriptorService.onDidChangeContainerLocation(e => {
+				const commentsContainer = this._viewDescriptorService.getViewContainerByViewId(COMMENTS_VIEW_ID);
+				if (e.viewContainer.id === commentsContainer?.id) {
+					this.setComments();
+					this.registerViewOpenedListener();
+				}
+			});
+		}
 	}
 
 	private getHandler(handle: number) {

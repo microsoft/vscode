@@ -73,6 +73,7 @@ import { IUpdateService } from '../../../../platform/update/common/update.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -92,6 +93,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IWorkbenchIssueService private readonly workbenchIssueService: IWorkbenchIssueService,
 	) {
 		super('extension.promptExtensionInstallFailure');
 	}
@@ -158,7 +160,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		if (ExtensionManagementErrorCode.SignatureVerificationFailed === (<ExtensionManagementErrorCode>this.error.name) || ExtensionManagementErrorCode.SignatureVerificationInternal === (<ExtensionManagementErrorCode>this.error.name)) {
+		if (ExtensionManagementErrorCode.SignatureVerificationFailed === (<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.prompt({
 				type: 'error',
 				message: localize('verification failed', "Cannot install '{0}' extension because {1} cannot verify the extension signature", this.extension.displayName, this.productService.nameLong),
@@ -166,6 +168,33 @@ export class PromptExtensionInstallFailureAction extends Action {
 				buttons: [{
 					label: localize('learn more', "Learn More"),
 					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/extension-marketplace#_the-extension-signature-cannot-be-verified-by-vs-code')
+				}, {
+					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
+					run: () => {
+						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
+						installAction.extension = this.extension;
+						return installAction.run();
+					}
+				}],
+				cancelButton: true
+			});
+			return;
+		}
+
+		if (ExtensionManagementErrorCode.SignatureVerificationInternal === (<ExtensionManagementErrorCode>this.error.name)) {
+			await this.dialogService.prompt({
+				type: 'error',
+				message: localize('verification failed', "Cannot install '{0}' extension because {1} cannot verify the extension signature", this.extension.displayName, this.productService.nameLong),
+				detail: getErrorMessage(this.error),
+				buttons: [{
+					label: localize('learn more', "Learn More"),
+					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/extension-marketplace#_the-extension-signature-cannot-be-verified-by-vs-code')
+				}, {
+					label: localize('report issue', "Report Issue"),
+					run: () => this.workbenchIssueService.openReporter({
+						issueTitle: localize('report issue title', "Extension Signature Verification Failed: {0}", this.extension.displayName),
+						issueBody: localize('report issue body', "Please include following log `F1 > Open View... > Shared` below.\n\n")
+					})
 				}, {
 					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
 					run: () => {
@@ -999,17 +1028,19 @@ export class UpdateAction extends ExtensionAction {
 			}
 		}
 
-		alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
-		return this.install(this.extension);
-	}
-
-	private async install(extension: IExtension): Promise<void> {
-		const options = extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined;
+		const installOptions: InstallOptions = {};
+		if (this.extension.local?.source === 'vsix' && this.extension.local.pinned) {
+			installOptions.pinned = false;
+		}
+		if (this.extension.local?.preRelease) {
+			installOptions.installPreReleaseVersion = true;
+		}
 		try {
-			await this.extensionsWorkbenchService.install(extension, options);
-			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
+			alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
+			await this.extensionsWorkbenchService.install(this.extension, installOptions);
+			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", this.extension.displayName, this.extension.latestVersion));
 		} catch (err) {
-			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, options, extension.latestVersion, InstallOperation.Update, err).run();
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, installOptions, this.extension.latestVersion, InstallOperation.Update, err).run();
 		}
 	}
 }
@@ -2578,7 +2609,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.outdated && this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension)) {
+		if (this.extension.outdated) {
 			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 			if (message) {
 				const markdown = new MarkdownString();
@@ -2610,11 +2641,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		// Extension is disabled by its dependency
-		const result = this.allowedExtensionsService.isAllowed(this.extension.local);
-		if (result !== true) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
-			return;
+		// Extension is disabled by allowed list
+		if (this.extension.enablementState === EnablementState.DisabledByAllowlist) {
+			const result = this.allowedExtensionsService.isAllowed(this.extension.local);
+			if (result !== true) {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
+				return;
+			}
 		}
 
 		// Extension is disabled by environment

@@ -24,6 +24,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isSafari } from '../../../../../../base/common/platform.js';
+import { IHistory } from '../../../../../../base/common/history.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindReplaceState, FindReplaceStateChangedEvent } from '../../../../../../editor/contrib/find/browser/findState.js';
@@ -35,6 +36,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from '../../../../../../platform/history/browser/contextScopedHistoryWidget.js';
+
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -327,6 +329,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IHoverService hoverService: IHoverService,
 		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>(),
 		protected readonly _notebookEditor: INotebookEditor,
+		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
+		private readonly _replaceWidgetHistory: IHistory<string> | undefined,
 	) {
 		super();
 
@@ -338,6 +342,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			codeSource: boolean;
 			codeOutput: boolean;
 		}>(NotebookSetting.findFilters) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
+
+		const findHistoryConfig = this._configurationService.getValue<'never' | 'workspace'>('editor.find.history');
+		const replaceHistoryConfig = this._configurationService.getValue<'never' | 'workspace'>('editor.find.replaceHistory');
 
 		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, { findScopeType: NotebookFindScopeType.None });
 		this._state.change({ filters: this._filters }, false);
@@ -414,7 +421,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				flexibleWidth: true,
 				showCommonFindToggles: true,
 				inputBoxStyles: defaultInputBoxStyles,
-				toggleStyles: defaultToggleStyles
+				toggleStyles: defaultToggleStyles,
+				history: findHistoryConfig === 'workspace' ? this._findWidgetSearchHistory : new Set([]),
 			}
 		));
 
@@ -568,7 +576,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: new Set([]),
+			history: replaceHistoryConfig === 'workspace' ? this._replaceWidgetHistory : new Set([]),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService, false));

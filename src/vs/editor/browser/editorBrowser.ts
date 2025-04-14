@@ -1027,7 +1027,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): readonly string[];
 
 	/**
 	 * @internal
@@ -1080,11 +1080,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the line height for the line number.
 	 */
 	getLineHeightForLineNumber(lineNumber: number): number;
-
-	/**
-	 * Get the font info for the editor at the given position.
-	 */
-	getFontInfoForPosition(position: Position): BareFontInfo | undefined;
 
 	/**
 	 * Set the model ranges that will be hidden in the view.

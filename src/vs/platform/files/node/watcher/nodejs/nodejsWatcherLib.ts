@@ -190,6 +190,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	private async doWatchWithNodeJS(isDirectory: boolean, disposables: DisposableStore): Promise<void> {
 		const realPath = await this.realPath.value;
 
+		if (this.cts.token.isCancellationRequested) {
+			return;
+		}
+
 		// macOS: watching samba shares can crash VSCode so we do
 		// a simple check for the file path pointing to /Volumes
 		// (https://github.com/microsoft/vscode/issues/106879)
@@ -429,9 +433,11 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 			});
 		} catch (error) {
-			if (!cts.token.isCancellationRequested) {
-				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${error.toString()})`);
+			if (cts.token.isCancellationRequested) {
+				return;
 			}
+
+			this.error(`Failed to watch ${realPath} for changes using fs.watch() (${error.toString()})`);
 
 			this.notifyWatchFailed();
 		}

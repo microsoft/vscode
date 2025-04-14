@@ -256,8 +256,8 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
 
 	constructor(
+		private readonly _viewContext: ViewContext,
 		private readonly _lineFactory: ILineFactory<T>,
-		private readonly _viewContext: ViewContext
 	) {
 	}
 
@@ -470,7 +470,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber));
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeightForLineNumber(lineNumber));
 		}
 	}
 
@@ -575,7 +575,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb); // renderLine
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -606,7 +606,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb); // renderLine
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -620,5 +620,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
 			}
 		}
+	}
+
+	private _lineHeightForLineNumber(lineNumber: number): number {
+		return this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 }

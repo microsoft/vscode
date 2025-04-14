@@ -14,11 +14,13 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { IChatTerminalToolInvocationData } from './chatService.js';
+import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
 export interface IToolData {
 	id: string;
-	extensionId?: ExtensionIdentifier;
+	source: ToolDataSource;
 	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
@@ -28,6 +30,37 @@ export interface IToolData {
 	modelDescription: string;
 	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
+	/**
+	 * True if the tool runs in the (possibly remote) workspace, false if it runs
+	 * on the host, undefined if known.
+	 */
+	runsInWorkspace?: boolean;
+	requiresConfirmation?: boolean;
+	alwaysDisplayInputOutput?: boolean;
+	supportsToolPicker?: boolean;
+}
+
+export type ToolDataSource =
+	| {
+		type: 'extension';
+		extensionId: ExtensionIdentifier;
+		/**
+		 * True for tools contributed through extension API from third-party extensions, so they can be disabled by policy.
+		 * False for built-in tools, MCP tools are handled differently.
+		 */
+		isExternalTool: boolean;
+	}
+	| { type: 'mcp'; collectionId: string; definitionId: string }
+	| { type: 'internal' };
+
+export namespace ToolDataSource {
+	export function toKey(source: ToolDataSource): string {
+		switch (source.type) {
+			case 'extension': return `extension:${source.extensionId.value}`;
+			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
+			case 'internal': return 'internal';
+		}
+	}
 }
 
 export interface IToolInvocation {
@@ -38,7 +71,8 @@ export interface IToolInvocation {
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	modelId?: string;
 }
 
 export interface IToolInvocationContext {
@@ -69,6 +103,10 @@ export interface IToolResultPromptTsxPart {
 	value: unknown;
 }
 
+export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
+	return stringifyPromptElementJSON(part.value as PromptElementJSON);
+}
+
 export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
@@ -77,6 +115,7 @@ export interface IToolResultTextPart {
 export interface IToolConfirmationMessages {
 	title: string;
 	message: string | IMarkdownString;
+	allowAutoConfirm?: boolean;
 }
 
 export interface IPreparedToolInvocation {
@@ -84,7 +123,7 @@ export interface IPreparedToolInvocation {
 	pastTenseMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
-	toolSpecificData?: IChatTerminalToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 }
 
 export interface IToolImpl {
@@ -105,5 +144,21 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
+	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
+}
+
+export function createToolInputUri(toolOrId: IToolData | string): URI {
+	if (typeof toolOrId !== 'string') {
+		toolOrId = toolOrId.id;
+	}
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
+}
+
+export function createToolSchemaUri(toolOrId: IToolData | string): URI {
+	if (typeof toolOrId !== 'string') {
+		toolOrId = toolOrId.id;
+	}
+	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
 }

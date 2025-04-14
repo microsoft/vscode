@@ -44,7 +44,7 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSi
 import { ClassName } from '../../../common/model/intervalTree.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
 import { VerticalRevealType } from '../../../common/viewEvents.js';
 import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
@@ -94,9 +94,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
-
-	private readonly _onDidChangeFonts: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>({ deliveryQueue: this._deliveryQueue }));
-	public readonly onDidChangeFonts: Event<ModelFontChangedEvent> = this._onDidChangeFonts.event;
 
 	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
@@ -505,8 +502,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const hasTextFocus = this.hasTextFocus();
 			const detachedModel = this._detachModel();
 			this._attachModel(model);
-			if (hasTextFocus && this.hasModel()) {
-				this.focus();
+			if (this.hasModel()) {
+				// we have a new model (with a new view)!
+				if (hasTextFocus) {
+					this.focus();
+				}
+			} else {
+				// we have no model (and no view) anymore
+				// make sure the outside world knows we are not focused
+				this._editorTextFocus.setValue(false);
+				this._editorWidgetFocus.setValue(false);
 			}
 
 			this._removeDecorationTypes();
@@ -599,13 +604,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(lineNumber, 1));
 		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
-	}
-
-	public getFontInfoForPosition(position: Position): FontInfo | undefined {
-		if (!this._modelData) {
-			return;
-		}
-		return this._modelData.viewModel.getFontInfoForPosition(position);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
@@ -1328,7 +1326,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
-	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): readonly string[] {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1368,6 +1366,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		return this._decorationTypeKeysToIds[decorationTypeKey] || [];
 	}
 
 	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
@@ -1795,6 +1794,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ModelTokensChanged:
 					this._onDidChangeModelTokens.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelLineHeightChanged:
+					this._onDidChangeLineHeight.fire(e.event);
 					break;
 
 			}

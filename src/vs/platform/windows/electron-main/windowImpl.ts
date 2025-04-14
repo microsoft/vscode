@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron, { BrowserWindowConstructorOptions } from 'electron';
-import { DeferredPromise, RunOnceScheduler, timeout } from '../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -33,7 +33,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
@@ -44,6 +44,7 @@ import { IUserDataProfilesMainService } from '../../userDataProfile/electron-mai
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { errorHandler } from '../../../base/common/errors.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -104,6 +105,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidLeaveFullScreen = this._register(new Emitter<void>());
 	readonly onDidLeaveFullScreen = this._onDidLeaveFullScreen.event;
 
+	private readonly _onDidChangeAlwaysOnTop = this._register(new Emitter<boolean>());
+	readonly onDidChangeAlwaysOnTop = this._onDidChangeAlwaysOnTop.event;
+
 	//#endregion
 
 	abstract readonly id: number;
@@ -129,6 +133,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}));
 		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
 		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
+		this._register(Event.fromNodeEventEmitter(this._win, 'always-on-top-changed', (_, alwaysOnTop) => alwaysOnTop)(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire(alwaysOnTop)));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
@@ -146,23 +151,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 
-		// Windows Custom System Context Menu
-		// See https://github.com/electron/electron/issues/24893
-		//
-		// The purpose of this is to allow for the context menu in the Windows Title Bar
-		//
-		// Currently, all mouse events in the title bar are captured by the OS
-		// thus we need to capture them here with a window hook specific to Windows
-		// and then forward them to the correct window.
+		// Setup windows system context menu so it only is allowed in certain cases
 		if (isWindows && useCustomTitleStyle) {
-			const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
-
-			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
-			win.hookWindowMessage(WM_INITMENU, () => {
+			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))((e) => {
 				const [x, y] = win.getPosition();
-				const cursorPos = electron.screen.getCursorScreenPoint();
-				const cx = cursorPos.x - x;
-				const cy = cursorPos.y - y;
+				const cursorPos = electron.screen.screenToDipPoint(e.point);
+				const cx = Math.floor(cursorPos.x) - x;
+				const cy = Math.floor(cursorPos.y) - y;
 
 				// In some cases, show the default system context menu
 				// 1) The mouse position is not within the title bar
@@ -180,16 +175,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				};
 
 				if (!shouldTriggerDefaultSystemContextMenu()) {
-
-					// This is necessary to make sure the native system context menu does not show up.
-					win.setEnabled(false);
-					win.setEnabled(true);
+					e.event.preventDefault();
 
 					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
 				}
-
-				return 0;
-			});
+			}));
 		}
 
 		// Open devtools if instructed from command line args
@@ -232,7 +222,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
-		if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || electron.BrowserWindow.getAllWindows().length === 1)) {
+		if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || getAllWindowsExcludingOffscreen().length === 1)) {
 			if ([state.width, state.height, state.x, state.y].every(value => typeof value === 'number')) {
 				this._win?.setBounds({
 					width: state.width,
@@ -540,6 +530,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
+	private readonly jsCallStackMap: Map<string, number>;
+	private readonly jsCallStackEffectiveSampleCount: number;
+	private readonly jsCallStackCollector: Delayer<void>;
+	private readonly jsCallStackCollectorStopScheduler: RunOnceScheduler;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService logService: ILogService,
@@ -593,6 +588,25 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
+		//#endregion
+
+		//#region JS Callstack Collector
+
+		let sampleInterval = parseInt(this.environmentMainService.args['unresponsive-sample-interval'] || '1000');
+		let samplePeriod = parseInt(this.environmentMainService.args['unresponsive-sample-period'] || '15000');
+		if (sampleInterval <= 0 || samplePeriod <= 0 || sampleInterval > samplePeriod) {
+			this.logService.warn(`Invalid unresponsive sample interval (${sampleInterval}ms) or period (${samplePeriod}ms), using defaults.`);
+			sampleInterval = 1000;
+			samplePeriod = 15000;
+		}
+
+		this.jsCallStackMap = new Map<string, number>();
+		this.jsCallStackEffectiveSampleCount = Math.round(sampleInterval / samplePeriod);
+		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
+		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
+			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
+		}, samplePeriod));
+
 		//#endregion
 
 		// respect configured menu bar visibility
@@ -655,6 +669,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Window error conditions to handle
 		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
+		this._register(Event.fromNodeEventEmitter(this._win, 'responsive')(() => this.onWindowError(WindowError.RESPONSIVE)));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
@@ -730,6 +745,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
+	private async onWindowError(error: WindowError.RESPONSIVE): Promise<void>;
 	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(type: WindowError, details?: { reason?: string; exitCode?: number }): Promise<void> {
@@ -740,6 +756,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
+				break;
+			case WindowError.RESPONSIVE:
+				this.logService.error('CodeWindow: recovered from unresponsive');
 				break;
 			case WindowError.LOAD:
 				this.logService.error(`CodeWindow: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
@@ -799,6 +818,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 						return;
 					}
 
+					// Interrupt V8 and collect JavaScript stack
+					this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+					// Stack collection will stop under any of the following conditions:
+					// - The window becomes responsive again
+					// - The window is destroyed i-e reopen or closed
+					// - sampling period is complete, default is 15s
+					this.jsCallStackCollectorStopScheduler.schedule();
+
 					// Show Dialog
 					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
@@ -815,6 +842,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					// Handle choice
 					if (response !== 2 /* keep waiting */) {
 						const reopen = response === 0;
+						this.stopCollectingJScallStacks();
 						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
@@ -846,6 +874,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					const reopen = response === 0;
 					await this.destroyWindow(reopen, checkboxChecked);
 				}
+				break;
+			case WindowError.RESPONSIVE:
+				this.stopCollectingJScallStacks();
 				break;
 		}
 	}
@@ -1449,6 +1480,50 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return segments;
 	}
 
+	private async startCollectingJScallStacks(): Promise<void> {
+		if (!this.jsCallStackCollector.isTriggered()) {
+			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+
+			// Increment the count for this stack trace
+			if (stack) {
+				const count = this.jsCallStackMap.get(stack) || 0;
+				this.jsCallStackMap.set(stack, count + 1);
+			}
+
+			this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+		}
+	}
+
+	private stopCollectingJScallStacks(): void {
+		this.jsCallStackCollectorStopScheduler.cancel();
+		this.jsCallStackCollector.cancel();
+
+		if (this.jsCallStackMap.size) {
+			let logMessage = `CodeWindow unresponsive samples:\n`;
+			let samples = 0;
+
+			const sortedEntries = Array.from(this.jsCallStackMap.entries())
+				.sort((a, b) => b[1] - a[1]);
+
+			for (const [stack, count] of sortedEntries) {
+				samples += count;
+				// If the stack appears more than 20 percent of the time, log it
+				// to the error telemetry as UnresponsiveSampleError.
+				if (Math.round((count * 100) / this.jsCallStackEffectiveSampleCount) > 20) {
+					const fakeError = new UnresponsiveError(stack, this.id, this.win?.webContents.getOSProcessId());
+					errorHandler.onUnexpectedError(fakeError);
+				}
+				logMessage += `<${count}> ${stack}\n`;
+			}
+
+			logMessage += `Total Samples: ${samples}\n`;
+			logMessage += 'For full overview of the unresponsive period, capture cpu profile via https://aka.ms/vscode-tracing-cpu-profile';
+			this.logService.error(logMessage);
+		}
+
+		this.jsCallStackMap.clear();
+	}
+
 	matches(webContents: electron.WebContents): boolean {
 		return this._win?.webContents.id === webContents.id;
 	}
@@ -1458,5 +1533,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Deregister the loggers for this window
 		this.loggerMainService.deregisterLoggers(this.id);
+	}
+}
+
+class UnresponsiveError extends Error {
+
+	constructor(sample: string, windowId: number, pid: number = 0) {
+		// Since the stacks are available via the sample
+		// we can avoid collecting them when constructing the error.
+		const stackTraceLimit = Error.stackTraceLimit;
+		Error.stackTraceLimit = 0;
+		super(`UnresponsiveSampleError: from window with ID ${windowId} belonging to process with pid ${pid}`);
+		Error.stackTraceLimit = stackTraceLimit;
+		this.name = 'UnresponsiveSampleError';
+		this.stack = sample;
 	}
 }

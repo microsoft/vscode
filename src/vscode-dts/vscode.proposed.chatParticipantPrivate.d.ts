@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 6
+// version: 7
 
 declare module 'vscode' {
 
@@ -27,10 +27,6 @@ declare module 'vscode' {
 		 * Code editor inline chat
 		 */
 		Editor = 4,
-		/**
-		 * Chat is happening in an editing session
-		 */
-		EditingSession = 5,
 	}
 
 	export class ChatRequestEditorData {
@@ -128,6 +124,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		chatSessionId?: string;
 		chatInteractionId?: string;
 		terminalCommand?: string;
 	}
@@ -177,6 +174,8 @@ declare module 'vscode' {
 
 	export namespace chat {
 		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
+
+		export const onDidDisposeChatSession: Event<string>;
 	}
 
 	// #endregion

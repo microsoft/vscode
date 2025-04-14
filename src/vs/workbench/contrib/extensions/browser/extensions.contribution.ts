@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, SortBy, FilterType } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -80,7 +80,7 @@ import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationEx
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import product from '../../../../platform/product/common/product.js';
-import { ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -260,7 +260,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
 				default: true
 			},
-			'extensions.verifySignature': {
+			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
 				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),
 				default: true,
@@ -292,69 +292,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					minimumVersion: '1.99',
 				},
 			},
-			[AllowedExtensionsConfigKey]: {
-				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
-				type: 'object',
-				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
-				default: '*',
-				defaultSnippets: [{
-					body: {},
-					description: localize('extensions.allowed.none', "No extensions are allowed."),
-				}, {
-					body: {
-						'*': true
-					},
-					description: localize('extensions.allowed.all', "All extensions are allowed."),
-				}],
-				scope: ConfigurationScope.APPLICATION,
-				policy: {
-					name: 'AllowedExtensions',
-					minimumVersion: '1.96',
-				},
-				additionalProperties: false,
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						anyOf: [
-							{
-								type: ['boolean', 'string'],
-								enum: [true, false, 'stable'],
-								description: localize('extensions.allow.description', "Allow or disallow the extension."),
-								enumDescriptions: [
-									localize('extensions.allowed.enable.desc', "Extension is allowed."),
-									localize('extensions.allowed.disable.desc', "Extension is not allowed."),
-									localize('extensions.allowed.disable.stable.desc', "Allow only stable versions of the extension."),
-								],
-							},
-							{
-								type: 'array',
-								items: {
-									type: 'string',
-								},
-								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
-							},
-						]
-					},
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						type: ['boolean', 'string'],
-						enum: [true, false, 'stable'],
-						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
-						enumDescriptions: [
-							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
-							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
-							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
-						],
-					},
-					'\\*': {
-						type: 'boolean',
-						enum: [true, false],
-						description: localize('extensions.allow.all.description', "Allow or disallow all extensions."),
-						enumDescriptions: [
-							localize('extensions.allow.all.enable', "Allow all extensions."),
-							localize('extensions.allow.all.disable', "Disallow all extensions.")
-						],
-					}
-				}
-			}
 		}
 	});
 
@@ -509,7 +446,7 @@ CommandsRegistry.registerCommand({
 			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
 		}
 		if (extensionToUninstall.isBuiltin) {
-			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
+			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
 		}
 
 		try {
@@ -562,6 +499,7 @@ export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer',
 const CONTEXT_GALLERY_SORT_CAPABILITIES = new RawContextKey<string>('gallerySortCapabilities', '');
 const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFilterCapabilities', '');
 const CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllRepositorySigned', false);
+const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 
 async function runAction(action: IAction): Promise<void> {
 	try {
@@ -628,6 +566,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		CONTEXT_GALLERY_SORT_CAPABILITIES.bindTo(this.contextKeyService).set(`_${extensionGalleryManifest?.capabilities.extensionQuery.sorting?.map(s => s.name)?.join('_')}_UpdateDate_`);
 		CONTEXT_GALLERY_FILTER_CAPABILITIES.bindTo(this.contextKeyService).set(`_${extensionGalleryManifest?.capabilities.extensionQuery.filtering?.map(s => s.name)?.join('_')}_`);
 		CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(!!extensionGalleryManifest?.capabilities?.signing?.allRepositorySigned);
+		CONTEXT_GALLERY_HAS_EXTENSION_LINK.bindTo(this.contextKeyService).set(!!(extensionGalleryManifest && getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionDetailsViewUri)));
 	}
 
 	private registerQuickAccessProvider(): void {
@@ -1673,7 +1612,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy',
-				when: ContextKeyExpr.has('isGalleryExtension'),
+				when: ContextKeyExpr.and(ContextKeyExpr.has('isGalleryExtension'), CONTEXT_GALLERY_HAS_EXTENSION_LINK),
 			},
 			run: async (accessor: ServicesAccessor, _, extension: IExtensionArg) => {
 				const clipboardService = accessor.get(IClipboardService);

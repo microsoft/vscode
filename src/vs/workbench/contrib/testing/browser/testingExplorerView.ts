@@ -19,6 +19,7 @@ import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
+import { compareFileNames } from '../../../../base/common/comparers.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -36,7 +37,7 @@ import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, get
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -701,15 +702,11 @@ class TestingExplorerViewModel extends Disposable {
 	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly revealTimeout = new MutableDisposable();
-	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
-	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
+	private readonly _viewMode: IContextKey<TestExplorerViewMode>;
+	private readonly _viewSorting: IContextKey<TestExplorerViewSorting>;
 	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
 	private readonly actionRunner = this._register(new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined)));
-	private readonly lastViewState = this._register(new StoredValue<ISerializedTestTreeCollapseState>({
-		key: 'testing.treeState',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.MACHINE,
-	}, this.storageService));
+	private readonly lastViewState: StoredValue<ISerializedTestTreeCollapseState>;
 	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;
 
 	/**
@@ -781,6 +778,13 @@ class TestingExplorerViewModel extends Disposable {
 
 		this.hasPendingReveal = !!filterState.reveal.get();
 		this.noTestForDocumentWidget = this._register(instantiationService.createInstance(NoTestsForDocumentWidget, listContainer));
+		this.lastViewState = this._register(new StoredValue<ISerializedTestTreeCollapseState>({
+			key: 'testing.treeState',
+			scope: StorageScope.WORKSPACE,
+			target: StorageTarget.MACHINE,
+		}, this.storageService));
+		this._viewMode = TestingContextKeys.viewMode.bindTo(contextKeyService);
+		this._viewSorting = TestingContextKeys.viewSorting.bindTo(contextKeyService);
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
 
@@ -1348,7 +1352,9 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 		const sb = b.test.item.sortText;
 		// If tests are in the same location and there's no preferred sortText,
 		// keep the extension's insertion order (#163449).
-		return inSameLocation && !sa && !sb ? 0 : (sa || a.test.item.label).localeCompare(sb || b.test.item.label);
+		return inSameLocation && !sa && !sb
+			? 0
+			: compareFileNames(sa || a.test.item.label, sb || b.test.item.label);
 	}
 }
 
@@ -1543,6 +1549,12 @@ class TestItemRenderer extends Disposable
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
+		}));
+
+		disposable.add(this.profiles.onDidChange(() => {
+			if (templateData.current) {
+				this.fillActionBar(templateData.current, templateData);
+			}
 		}));
 
 		disposable.add(this.crService.onDidChange(changed => {

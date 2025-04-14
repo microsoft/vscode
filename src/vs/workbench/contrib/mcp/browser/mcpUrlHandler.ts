@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IOpenURLOptions, IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
@@ -17,24 +17,26 @@ import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 
 const providerScheme = 'mcp-install';
 
-export class McpUrlHandler extends Disposable implements IWorkbenchContribution, ITextModelContentProvider, IURLHandler {
+export class McpUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 	public static readonly scheme = providerScheme;
 
-	private installContent?: string;
+
+	private readonly _fileSystemProvider = new Lazy(() => {
+		return this._instaService.invokeFunction(accessor => {
+			const fileService = accessor.get(IFileService);
+			const filesystem = new InMemoryFileSystemProvider();
+			this._register(fileService.registerProvider(providerScheme, filesystem));
+			return providerScheme;
+		});
+	});
 
 	constructor(
 		@IURLService urlService: IURLService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ITextModelService textModelService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
-		textModelService.registerTextModelContentProvider(providerScheme, this);
-	}
-
-	provideTextContent(resource: URI): Promise<ITextModel> {
-		return Promise.resolve(this._modelService.createModel(this.installContent || '', { onDidChange: Event.None, languageId: 'json' }, resource));
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -50,10 +52,17 @@ export class McpUrlHandler extends Disposable implements IWorkbenchContribution,
 		}
 
 		const { name, ...rest } = parsed;
-		this.installContent = JSON.stringify(rest, null, '\t');
+
+		const scheme = this._fileSystemProvider.value;
+		const fileUri = URI.from({ scheme, path: `/${encodeURIComponent(name)}.json` });
+
+		await this._fileService.writeFile(
+			fileUri,
+			VSBuffer.fromString(JSON.stringify(rest, null, '\t')),
+		);
 
 		const addConfigHelper = this._instaService.createInstance(McpAddConfigurationCommand, undefined);
-		addConfigHelper.pickForUrlHandler(URI.from({ scheme: providerScheme, path: `/${encodeURIComponent(name)}.json` }), rest);
+		addConfigHelper.pickForUrlHandler(fileUri, true);
 
 		return Promise.resolve(true);
 	}

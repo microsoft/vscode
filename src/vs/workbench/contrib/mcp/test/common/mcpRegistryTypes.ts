@@ -6,6 +6,7 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { LogLevel } from '../../../../../platform/log/common/log.js';
 import { IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpConnectionState } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
@@ -15,7 +16,7 @@ import { MCP } from '../../common/modelContextProtocol.js';
  * Allows tests to easily send/receive messages and control the connection state.
  */
 export class TestMcpMessageTransport extends Disposable implements IMcpMessageTransport {
-	private readonly _onDidLog = this._register(new Emitter<string>());
+	private readonly _onDidLog = this._register(new Emitter<{ level: LogLevel; message: string }>());
 	public readonly onDidLog = this._onDidLog.event;
 
 	private readonly _onDidReceiveMessage = this._register(new Emitter<MCP.JSONRPCMessage>());
@@ -81,7 +82,7 @@ export class TestMcpMessageTransport extends Disposable implements IMcpMessageTr
 	 * Simulate a log event.
 	 */
 	public simulateLog(message: string): void {
-		this._onDidLog.fire(message);
+		this._onDidLog.fire({ level: LogLevel.Info, message });
 	}
 
 	/**

@@ -8,6 +8,7 @@ import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type * as webviewMessages from './webviewMessages.js';
 import type { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 import type * as rendererApi from 'vscode-notebook-renderer';
+import type { NotebookCellOutputTransferData } from '../../../../../../platform/dnd/browser/dnd.js';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -1780,6 +1781,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
 			}
+			case 'markupDecorations': {
+				const markupCell = window.document.getElementById(event.data.cellId);
+				// The cell may not have been added yet if it is out of view.
+				// Decorations will be added when the cell is shown.
+				if (markupCell) {
+					markupCell?.classList.add(...event.data.addedClassNames);
+					markupCell?.classList.remove(...event.data.removedClassNames);
+				}
+				break;
+			}
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
@@ -2898,11 +2909,27 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.left = left + 'px';
 			this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 
+			// Make output draggable
+			this.element.draggable = true;
+
 			this.element.addEventListener('mouseenter', () => {
 				postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', { id: outputId });
 			});
 			this.element.addEventListener('mouseleave', () => {
 				postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', { id: outputId });
+			});
+
+			// Add drag handler
+			this.element.addEventListener('dragstart', (e: DragEvent) => {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const outputData: NotebookCellOutputTransferData = {
+					outputId: this.outputId,
+				};
+
+				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
 			});
 		}
 

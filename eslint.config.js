@@ -24,7 +24,10 @@ const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 export default tseslint.config(
 	// Global ignores
 	{
-		ignores,
+		ignores: [
+			...ignores,
+			'!**/.eslint-plugin-local/**/*'
+		],
 	},
 	// All files (JS and TS)
 	{
@@ -85,6 +88,7 @@ export default tseslint.config(
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
+			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
 				{
@@ -956,7 +960,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/editor/editor.worker.ts',
+					'target': 'src/vs/editor/editor.worker.start.ts',
 					'layer': 'worker',
 					'restrictions': [
 						'vs/base/~',

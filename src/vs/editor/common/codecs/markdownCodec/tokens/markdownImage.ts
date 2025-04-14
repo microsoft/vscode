@@ -136,6 +136,6 @@ export class MarkdownImage extends MarkdownToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-image("${this.text}")${this.range}`;
+		return `md-image("${this.shortText()}")${this.range}`;
 	}
 }

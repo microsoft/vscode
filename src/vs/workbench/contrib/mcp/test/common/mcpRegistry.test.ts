@@ -10,11 +10,11 @@ import { ISettableObservable, observableValue } from '../../../../../base/common
 import { upcast } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILoggerService } from '../../../../../platform/log/common/log.js';
+import { ILogger, ILoggerService, NullLogger } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
@@ -28,6 +28,8 @@ import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { mcpEnabledSection } from '../../common/mcpConfiguration.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -72,6 +74,8 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 }
 
 class TestMcpHostDelegate implements IMcpHostDelegate {
+	priority = 0;
+
 	canStart(): boolean {
 		return true;
 	}
@@ -120,13 +124,17 @@ suite('Workbench - MCP - Registry', () => {
 	let testDialogService: TestDialogService;
 	let testCollection: McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> };
 	let baseDefinition: McpServerDefinition;
+	let configurationService: TestConfigurationService;
+	let logger: ILogger;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
 		testStorageService = store.add(new TestStorageService());
 		testDialogService = new TestDialogService();
+		configurationService = new TestConfigurationService({ [mcpEnabledSection]: true });
 
 		const services = new ServiceCollection(
+			[IConfigurationService, configurationService],
 			[IConfigurationResolverService, testConfigResolverService],
 			[IStorageService, testStorageService],
 			[ISecretStorageService, new TestSecretStorageService()],
@@ -135,6 +143,8 @@ suite('Workbench - MCP - Registry', () => {
 			[IDialogService, testDialogService],
 			[IProductService, {}],
 		);
+
+		logger = new NullLogger();
 
 		const instaService = store.add(new TestInstantiationService(services));
 		registry = store.add(instaService.createInstance(McpRegistry));
@@ -158,6 +168,7 @@ suite('Workbench - MCP - Registry', () => {
 				command: 'test-command',
 				args: [],
 				env: {},
+				envFile: undefined,
 				cwd: URI.parse('file:///test')
 			}
 		};
@@ -172,6 +183,21 @@ suite('Workbench - MCP - Registry', () => {
 
 		disposable.dispose();
 		assert.strictEqual(registry.collections.get().length, 0);
+	});
+
+	test('collections are not visible when not enabled', () => {
+		const disposable = registry.registerCollection(testCollection);
+		store.add(disposable);
+
+		assert.strictEqual(registry.collections.get().length, 1);
+
+		configurationService.setUserConfiguration(mcpEnabledSection, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+
+		assert.strictEqual(registry.collections.get().length, 0);
+
+		configurationService.setUserConfiguration(mcpEnabledSection, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 	});
 
 	test('registerDelegate adds delegate to registry', () => {
@@ -196,6 +222,7 @@ suite('Workbench - MCP - Registry', () => {
 				env: {
 					PATH: '${input:testInteractive}'
 				},
+				envFile: undefined,
 				cwd: URI.parse('file:///test')
 			},
 			variableReplacement: {
@@ -209,7 +236,7 @@ suite('Workbench - MCP - Registry', () => {
 		testCollection.serverDefinitions.set([definition], undefined);
 		store.add(registry.registerCollection(testCollection));
 
-		const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition }) as McpServerConnection;
+		const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger }) as McpServerConnection;
 
 		assert.ok(connection);
 		assert.strictEqual(connection.definition, definition);
@@ -217,15 +244,15 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual((connection.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection.dispose();
 
-		const connection2 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition }) as McpServerConnection;
+		const connection2 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger }) as McpServerConnection;
 
 		assert.ok(connection2);
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
 
-		registry.clearSavedInputs(StorageScope.APPLICATION);
+		registry.clearSavedInputs(StorageScope.WORKSPACE);
 
-		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition }) as McpServerConnection;
+		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger }) as McpServerConnection;
 
 		assert.ok(connection3);
 		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
@@ -243,7 +270,7 @@ suite('Workbench - MCP - Registry', () => {
 			store.add(registry.registerCollection(testCollection));
 			testCollection.serverDefinitions.set([definition], undefined);
 
-			const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition });
+			const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger });
 
 			assert.ok(connection);
 			assert.strictEqual(testDialogService.promptSpy.called, false);
@@ -263,6 +290,7 @@ suite('Workbench - MCP - Registry', () => {
 			testDialogService.setPromptResult(true);
 
 			const connection = await registry.resolveConnection({
+				logger,
 				collectionRef: untrustedCollection,
 				definitionRef: definition
 			});
@@ -273,6 +301,7 @@ suite('Workbench - MCP - Registry', () => {
 
 			testDialogService.promptSpy.resetHistory();
 			const connection2 = await registry.resolveConnection({
+				logger,
 				collectionRef: untrustedCollection,
 				definitionRef: definition
 			});
@@ -295,6 +324,7 @@ suite('Workbench - MCP - Registry', () => {
 			testDialogService.setPromptResult(false);
 
 			const connection = await registry.resolveConnection({
+				logger,
 				collectionRef: untrustedCollection,
 				definitionRef: definition
 			});
@@ -304,6 +334,7 @@ suite('Workbench - MCP - Registry', () => {
 
 			testDialogService.promptSpy.resetHistory();
 			const connection2 = await registry.resolveConnection({
+				logger,
 				collectionRef: untrustedCollection,
 				definitionRef: definition
 			});
@@ -325,6 +356,7 @@ suite('Workbench - MCP - Registry', () => {
 			testDialogService.setPromptResult(false);
 
 			const connection1 = await registry.resolveConnection({
+				logger,
 				collectionRef: untrustedCollection,
 				definitionRef: definition
 			});
@@ -335,6 +367,7 @@ suite('Workbench - MCP - Registry', () => {
 			testDialogService.setPromptResult(true);
 
 			const connection2 = await registry.resolveConnection({
+				logger,
 				collectionRef: untrustedCollection,
 				definitionRef: definition,
 				forceTrust: true
@@ -346,6 +379,7 @@ suite('Workbench - MCP - Registry', () => {
 
 			testDialogService.promptSpy.resetHistory();
 			const connection3 = await registry.resolveConnection({
+				logger,
 				collectionRef: untrustedCollection,
 				definitionRef: definition
 			});
@@ -537,6 +571,23 @@ suite('Workbench - MCP - Registry', () => {
 			const prefix2 = registry.collectionToolPrefix(collection1).get();
 
 			assert.strictEqual(prefix2, '');
+		});
+
+		test('prefix does not start with a number', () => {
+			const collection: McpCollectionDefinition = {
+				id: 'foo',
+				label: 'Collection 1',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				isTrustedByDefault: true,
+				scope: StorageScope.APPLICATION
+			};
+
+			const disposable = registry.registerCollection(collection);
+			store.add(disposable);
+
+			const prefix1 = registry.collectionToolPrefix(collection).get();
+			assert.strictEqual(prefix1, 'bee.'); // normally 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
 		});
 
 		test('prefix is empty for unknown collections', () => {

@@ -5,6 +5,7 @@
 
 import { IStringDictionary } from './collections.js';
 import { PlatformName } from './platform.js';
+import { IPolicy } from './policy.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -179,6 +180,10 @@ export interface IProductConfiguration {
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
+	readonly extensionProperties: IStringDictionary<{
+		readonly hasPrereleaseVersion?: boolean;
+		readonly excludeVersionRange?: string;
+	}>;
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -186,9 +191,12 @@ export interface IProductConfiguration {
 	readonly defaultAccount?: {
 		readonly authenticationProvider: {
 			readonly id: string;
+			readonly enterpriseProviderId: string;
+			readonly enterpriseProviderConfig: string;
 			readonly scopes: string[];
 		};
-		readonly entitlementUrl: string;
+		readonly tokenEntitlementUrl: string;
+		readonly chatEntitlementUrl: string;
 	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -205,6 +213,10 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
+
+	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
+
+	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 }
 
 export interface ITunnelApplicationConfig {

@@ -180,8 +180,6 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
-		// sb.appendString(`px;${ViewLine.MAX_FONT_SIZE_VARIABLE_NAME}:`);
-		// sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
@@ -223,7 +221,6 @@ export class ViewLine implements IVisibleLine {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
 			this._renderedViewLine.domNode.setLineHeight(lineHeight);
-			// this._setMaximumFontSize(lineHeight);
 		}
 	}
 

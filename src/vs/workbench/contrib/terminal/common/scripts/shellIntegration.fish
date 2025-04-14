@@ -35,6 +35,9 @@ set -e VSCODE_PATH_PREFIX
 set -g vsc_env_keys
 set -g vsc_env_values
 
+# Tracks if the shell has been initialized, this prevents
+set -g vsc_initialized 0
+
 set -g __vsc_applied_env_vars 0
 function __vsc_apply_env_vars
 	if test $__vsc_applied_env_vars -eq 1;
@@ -79,11 +82,6 @@ function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
 	builtin printf "\e]633;%s\a" (string join ";" -- $argv)
 end
 
-function __vsc_ctrl_c --on-event fish_cancel
-	__vsc_esc C
-	set --global _vsc_has_cmd
-end
-
 # Sent right before executing an interactive command.
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
@@ -114,6 +112,11 @@ end
 # Sent when a command line is cleared or reset, but no command was run.
 # Marks the cleared line with neither success nor failure.
 function __vsc_cmd_clear --on-event fish_cancel
+	if test $vsc_initialized -eq 0;
+		return
+	end
+	__vsc_esc E "" $__vsc_nonce
+	__vsc_esc C
 	__vsc_esc D
 end
 
@@ -175,6 +178,7 @@ function __vsc_fish_prompt_start
 	# evaluated
 	__vsc_apply_env_vars
 	__vsc_esc A
+	set -g vsc_initialized 1
 end
 
 # Sent at the end of the prompt.
@@ -211,6 +215,11 @@ function __init_vscode_shell_integration
 			__vsc_fish_cmd_start
 		end
 	end
+end
+
+# Report prompt type
+if set -q POSH_SESSION_ID
+	__vsc_esc P PromptType=oh-my-posh
 end
 
 # Report this shell supports rich command detection

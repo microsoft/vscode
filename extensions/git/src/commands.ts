@@ -8,13 +8,13 @@ import * as path from 'path';
 import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -73,8 +73,8 @@ class RefItem implements QuickPickItem {
 	}
 
 	get description(): string {
-		if (this.ref.commitDetails?.authorDate) {
-			return fromNow(this.ref.commitDetails.authorDate, true, true);
+		if (this.ref.commitDetails?.commitDate) {
+			return fromNow(this.ref.commitDetails.commitDate, true, true);
 		}
 
 		switch (this.ref.type) {
@@ -91,7 +91,7 @@ class RefItem implements QuickPickItem {
 
 	get detail(): string | undefined {
 		if (this.ref.commitDetails?.authorName && this.ref.commitDetails?.message) {
-			return `${this.ref.commitDetails?.authorName}  |  ${this.ref.commitDetails?.message}`;
+			return `${this.ref.commitDetails?.authorName}$(circle-small-filled)${this.ref.commitDetails?.message}`;
 		}
 
 		return undefined;
@@ -108,8 +108,26 @@ class RefItem implements QuickPickItem {
 	constructor(protected readonly ref: Ref) { }
 }
 
-class CheckoutItem extends RefItem {
+class BranchItem extends RefItem {
+	override get description(): string {
+		const description: string[] = [];
 
+		if (typeof this.ref.behind === 'number' && typeof this.ref.ahead === 'number') {
+			description.push(`${this.ref.behind}↓ ${this.ref.ahead}↑`);
+		}
+		if (this.ref.commitDetails?.commitDate) {
+			description.push(fromNow(this.ref.commitDetails.commitDate, true, true));
+		}
+
+		return description.length > 0 ? description.join('$(circle-small-filled)') : this.shortCommit;
+	}
+
+	constructor(override readonly ref: Branch) {
+		super(ref);
+	}
+}
+
+class CheckoutItem extends BranchItem {
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -128,7 +146,6 @@ class CheckoutProtectedItem extends CheckoutItem {
 	override get label(): string {
 		return `$(lock) ${this.ref.name ?? this.shortCommit}`;
 	}
-
 }
 
 class CheckoutRemoteHeadItem extends RefItem {
@@ -164,7 +181,7 @@ class CheckoutTagItem extends RefItem {
 	}
 }
 
-class BranchDeleteItem extends RefItem {
+class BranchDeleteItem extends BranchItem {
 
 	async run(repository: Repository, force?: boolean): Promise<void> {
 		if (this.ref.type === RefType.Head && this.refName) {
@@ -198,7 +215,7 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
-class MergeItem extends RefItem {
+class MergeItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref.name || this.ref.commit) {
@@ -207,7 +224,7 @@ class MergeItem extends RefItem {
 	}
 }
 
-class RebaseItem extends RefItem {
+class RebaseItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref?.name) {
@@ -360,7 +377,7 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		.filter(p => !!p) as RefProcessor[];
 
 	const buttons = await getRemoteRefItemButtons(repository);
-	const itemsProcessor = new CheckoutItemsProcessor(refProcessors, repository, buttons, detached);
+	const itemsProcessor = new CheckoutItemsProcessor(repository, refProcessors, buttons, detached);
 
 	return itemsProcessor.processRefs(refs);
 }
@@ -418,10 +435,22 @@ class RefProcessor {
 
 class RefItemsProcessor {
 
-	constructor(protected readonly processors: RefProcessor[]) { }
+	constructor(
+		protected readonly repository: Repository,
+		protected readonly processors: RefProcessor[],
+		protected readonly options: {
+			skipCurrentBranch?: boolean;
+			skipCurrentBranchRemote?: boolean;
+		} = {}
+	) { }
 
 	processRefs(refs: Ref[]): QuickPickItem[] {
+		const refsToSkip = this.getRefsToSkip();
+
 		for (const ref of refs) {
+			if (ref.name && refsToSkip.includes(ref.name)) {
+				continue;
+			}
 			for (const processor of this.processors) {
 				if (processor.processRef(ref)) {
 					break;
@@ -436,48 +465,19 @@ class RefItemsProcessor {
 
 		return result;
 	}
-}
 
-class RebaseItemsProcessors extends RefItemsProcessor {
+	protected getRefsToSkip(): string[] {
+		const refsToSkip = ['origin/HEAD'];
 
-	private upstreamName: string | undefined;
-
-	constructor(private readonly repository: Repository) {
-		super([
-			new RefProcessor(RefType.Head, RebaseItem),
-			new RefProcessor(RefType.RemoteHead, RebaseItem)
-		]);
-
-		if (this.repository.HEAD?.upstream) {
-			this.upstreamName = `${this.repository.HEAD?.upstream.remote}/${this.repository.HEAD?.upstream.name}`;
-		}
-	}
-
-	override processRefs(refs: Ref[]): QuickPickItem[] {
-		const result: QuickPickItem[] = [];
-
-		for (const ref of refs) {
-			if (ref.name === this.repository.HEAD?.name) {
-				continue;
-			}
-
-			if (ref.name === this.upstreamName) {
-				result.push(new RebaseUpstreamItem(ref));
-				continue;
-			}
-
-			for (const processor of this.processors) {
-				if (processor.processRef(ref)) {
-					break;
-				}
-			}
+		if (this.options.skipCurrentBranch && this.repository.HEAD?.name) {
+			refsToSkip.push(this.repository.HEAD.name);
 		}
 
-		for (const processor of this.processors) {
-			result.push(...processor.items);
+		if (this.options.skipCurrentBranchRemote && this.repository.HEAD?.upstream) {
+			refsToSkip.push(`${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`);
 		}
 
-		return result;
+		return refsToSkip;
 	}
 }
 
@@ -503,11 +503,11 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 	private defaultButtons: RemoteSourceActionButton[] | undefined;
 
 	constructor(
+		repository: Repository,
 		processors: RefProcessor[],
-		private readonly repository: Repository,
 		private readonly buttons: Map<string, RemoteSourceActionButton[]>,
 		private readonly detached = false) {
-		super(processors);
+		super(repository, processors);
 
 		// Default button(s)
 		const remote = repository.remotes.find(r => r.pushUrl === repository.HEAD?.remote || r.fetchUrl === repository.HEAD?.remote) ?? repository.remotes[0];
@@ -632,59 +632,59 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 
 async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
-	const enabled = config.get<boolean>('diagnosticsCommitHook.Enabled', false) === true;
-	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.Sources', { '*': 'error' });
+	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
+	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.sources', { '*': 'error' });
 
 	if (!enabled) {
 		return true;
 	}
 
-	const changes: Uri[] = [];
+	const resources: Uri[] = [];
 	if (repository.indexGroup.resourceStates.length > 0) {
 		// Staged files
-		changes.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
 	} else if (options.all === 'tracked') {
 		// Tracked files
-		changes.push(...repository.workingTreeGroup.resourceStates
+		resources.push(...repository.workingTreeGroup.resourceStates
 			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
 			.map(r => r.resourceUri));
 	} else {
 		// All files
-		changes.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
-		changes.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
 	}
 
-	const diagnostics = languages.getDiagnostics();
-	const changesDiagnostics = diagnostics.filter(([uri, diags]) => {
-		// File
-		if (uri.scheme !== 'file' || !changes.find(c => pathEquals(c.fsPath, uri.fsPath))) {
-			return false;
-		}
+	const diagnostics: Map<Uri, number> = new Map();
 
-		// Diagnostics
-		return diags.find(d => {
-			// No source or ignored source
-			if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+	for (const resource of resources) {
+		const unresolvedDiagnostics = languages.getDiagnostics(resource)
+			.filter(d => {
+				// No source or ignored source
+				if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+					return false;
+				}
+
+				// Source severity
+				if (Object.keys(sourceSeverity).includes(d.source) &&
+					d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+					return true;
+				}
+
+				// Wildcard severity
+				if (Object.keys(sourceSeverity).includes('*') &&
+					d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+					return true;
+				}
+
 				return false;
-			}
+			});
 
-			// Source severity
-			if (Object.keys(sourceSeverity).includes(d.source) &&
-				d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
-				return true;
-			}
+		if (unresolvedDiagnostics.length > 0) {
+			diagnostics.set(resource, unresolvedDiagnostics.length);
+		}
+	}
 
-			// Wildcard severity
-			if (Object.keys(sourceSeverity).includes('*') &&
-				d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
-				return true;
-			}
-
-			return false;
-		});
-	});
-
-	if (changesDiagnostics.length === 0) {
+	if (diagnostics.size === 0) {
 		return true;
 	}
 
@@ -692,9 +692,9 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	const commit = l10n.t('Commit Anyway');
 	const view = l10n.t('View Problems');
 
-	const message = changesDiagnostics.length === 1
-		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
-		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', changesDiagnostics.length);
+	const message = diagnostics.size === 1
+		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(diagnostics.keys().next().value!.fsPath))
+		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', diagnostics.size);
 
 	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
 
@@ -2867,6 +2867,7 @@ export class CommandCenter {
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+		const refs = await repository.getRefs({ pattern: 'refs/heads' });
 
 		if (defaultName) {
 			return sanitizeBranchName(defaultName, branchWhitespaceChar);
@@ -2884,6 +2885,13 @@ export class CommandCenter {
 		const getValidationMessage = (name: string): string | InputBoxValidationMessage | undefined => {
 			const validateName = new RegExp(branchValidationRegex);
 			const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
+
+			// Check if branch name already exists
+			const existingBranch = refs.find(ref => ref.name === sanitizedName);
+			if (existingBranch) {
+				return l10n.t('Branch "{0}" already exists', sanitizedName);
+			}
+
 			if (validateName.test(sanitizedName)) {
 				// If the sanitized name that we will use is different than what is
 				// in the input box, show an info message to the user informing them
@@ -2947,7 +2955,7 @@ export class CommandCenter {
 		if (from) {
 			const getRefPicks = async () => {
 				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-				const refProcessors = new RefItemsProcessor([
+				const refProcessors = new RefItemsProcessor(repository, [
 					new RefProcessor(RefType.Head),
 					new RefProcessor(RefType.RemoteHead),
 					new RefProcessor(RefType.Tag)
@@ -3062,33 +3070,25 @@ export class CommandCenter {
 			const getBranchPicks = async () => {
 				const pattern = options.remote ? 'refs/remotes' : 'refs/heads';
 				const refs = await repository.getRefs({ pattern, includeCommitDetails: showRefDetails });
+				const processors = options.remote
+					? [new RefProcessor(RefType.RemoteHead, BranchDeleteItem)]
+					: [new RefProcessor(RefType.Head, BranchDeleteItem)];
 
-				const refsToExclude: string[] = [];
-				if (options.remote) {
-					refsToExclude.push('origin/HEAD');
+				const itemsProcessor = new RefItemsProcessor(repository, processors, {
+					skipCurrentBranch: true,
+					skipCurrentBranchRemote: true
+				});
 
-					if (repository.HEAD?.upstream) {
-						// Current branch's upstream
-						refsToExclude.push(`${repository.HEAD.upstream.remote}/${repository.HEAD.upstream.name}`);
-					}
-				} else {
-					if (repository.HEAD?.name) {
-						// Current branch
-						refsToExclude.push(repository.HEAD.name);
-					}
-				}
-
-				return refs.filter(ref => ref.name && !refsToExclude.includes(ref.name))
-					.map(ref => new BranchDeleteItem(ref));
+				return itemsProcessor.processRefs(refs);
 			};
 
 			const placeHolder = !options.remote
 				? l10n.t('Select a branch to delete')
 				: l10n.t('Select a remote branch to delete');
 
-			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
+			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-			if (!choice || !choice.refName) {
+			if (!(choice instanceof BranchDeleteItem) || !choice.refName) {
 				return;
 			}
 			name = choice.refName;
@@ -3144,11 +3144,14 @@ export class CommandCenter {
 
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const itemsProcessor = new RefItemsProcessor([
+			const itemsProcessor = new RefItemsProcessor(repository, [
 				new RefProcessor(RefType.Head, MergeItem),
 				new RefProcessor(RefType.RemoteHead, MergeItem),
 				new RefProcessor(RefType.Tag, MergeItem)
-			]);
+			], {
+				skipCurrentBranch: true,
+				skipCurrentBranchRemote: true
+			});
 
 			return itemsProcessor.processRefs(refs);
 		};
@@ -3173,9 +3176,26 @@ export class CommandCenter {
 
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const itemsProcessor = new RebaseItemsProcessors(repository);
+			const itemsProcessor = new RefItemsProcessor(repository, [
+				new RefProcessor(RefType.Head, RebaseItem),
+				new RefProcessor(RefType.RemoteHead, RebaseItem)
+			], {
+				skipCurrentBranch: true,
+				skipCurrentBranchRemote: true
+			});
 
-			return itemsProcessor.processRefs(refs);
+			const quickPickItems = itemsProcessor.processRefs(refs);
+
+			if (repository.HEAD?.upstream) {
+				const upstreamRef = refs.find(ref => ref.type === RefType.RemoteHead &&
+					ref.name === `${repository.HEAD!.upstream!.remote}/${repository.HEAD!.upstream!.name}`);
+
+				if (upstreamRef) {
+					quickPickItems.splice(0, 0, new RebaseUpstreamItem(upstreamRef));
+				}
+			}
+
+			return quickPickItems;
 		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
@@ -4524,8 +4544,11 @@ export class CommandCenter {
 		}
 
 		const rootUri = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', rootUri);
+		const commitShortHashLength = config.get<number>('commitShortHashLength', 7);
+
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
+		const title = `${truncate(historyItemId, commitShortHashLength, false)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });

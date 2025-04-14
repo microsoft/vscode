@@ -120,7 +120,7 @@ suite('ChatRequestParser', () => {
 	// });
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
+		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], modes: [ChatMode.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
 
 	test('agent with subcommand after text', async () => {
@@ -198,8 +198,8 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
-		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
+		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
+		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
@@ -211,8 +211,8 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
-		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
+		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
+		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');

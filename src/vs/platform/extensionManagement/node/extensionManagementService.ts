@@ -34,6 +34,7 @@ import {
 	ExtensionSignatureVerificationCode,
 	computeSize,
 	IAllowedExtensionsService,
+	VerifyExtensionSignatureConfigKey,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -53,7 +54,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { isLinux } from '../../../base/common/platform.js';
 import { IExtensionGalleryManifestService } from '../common/extensionGalleryManifest.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
@@ -330,7 +330,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		if (verifySignature) {
-			const value = this.configurationService.getValue('extensions.verifySignature');
+			const value = this.configurationService.getValue(VerifyExtensionSignatureConfigKey);
 			verifySignature = isBoolean(value) ? value : true;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
@@ -341,7 +341,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			&& !(verificationStatus === ExtensionSignatureVerificationCode.NotSigned && !shouldRequireSignature)
 			&& verifySignature
 			&& this.environmentService.isBuilt
-			&& !(isLinux && this.productService.quality === 'stable')
 		) {
 			try {
 				await this.extensionsDownloader.delete(location);
@@ -638,7 +637,7 @@ export class ExtensionsScanner extends Disposable {
 				throw fromExtractError(e);
 			}
 
-			const metadata: ManifestMetadata = { installedTimestamp: Date.now() };
+			const metadata: ManifestMetadata = { installedTimestamp: Date.now(), targetPlatform: extensionKey.targetPlatform };
 			try {
 				metadata.size = await computeSize(tempLocation, this.fileService);
 			} catch (error) {
@@ -703,7 +702,13 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async setExtensionsForRemoval(...extensions: IExtension[]): Promise<void> {
-		const extensionKeys: ExtensionKey[] = extensions.map(e => ExtensionKey.create(e));
+		const extensionsToRemove = [];
+		for (const extension of extensions) {
+			if (await this.fileService.exists(extension.location)) {
+				extensionsToRemove.push(extension);
+			}
+		}
+		const extensionKeys: ExtensionKey[] = extensionsToRemove.map(e => ExtensionKey.create(e));
 		await this.withRemovedExtensions(removedExtensions =>
 			extensionKeys.forEach(extensionKey => {
 				removedExtensions[extensionKey.toString()] = true;
