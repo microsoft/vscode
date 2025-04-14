@@ -650,6 +650,30 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
+		class ChatSetupFromAccountsAction extends Action2 {
+
+			constructor() {
+				super({
+					id: 'workbench.action.chat.triggerSetupFromAccounts',
+					title: localize2('triggerChatSetupFromAccounts', "Sign in to use Copilot..."),
+					menu: {
+						id: MenuId.AccountsContext,
+						group: '2_copilot',
+						when: ContextKeyExpr.and(
+							ChatContextKeys.Setup.hidden.toNegated(),
+							ChatContextKeys.Setup.installed.negate(),
+							ChatContextKeys.Entitlement.signedOut
+						)
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			}
+		}
+
 		class ChatSetupHideAction extends Action2 {
 
 			static readonly ID = 'workbench.action.chat.hideSetup';
@@ -751,6 +775,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		}
 
 		registerAction2(ChatSetupTriggerAction);
+		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
 	}
