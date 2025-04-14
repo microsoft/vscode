@@ -2118,11 +2118,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return;
 		}
 
-		if (extension.local.identifier.uuid !== extension.gallery.identifier.uuid) {
+		if (extension.local.identifier.uuid && extension.local.identifier.uuid !== extension.gallery.identifier.uuid) {
 			return nls.localize('consentRequiredToUpdateRepublishedExtension', "The marketplace metadata of this extension changed, likely due to a re-publish.");
 		}
 
-		if (extension.local.manifest.main || extension.local.manifest.browser) {
+		if (!extension.local.manifest.engines.vscode || extension.local.manifest.main || extension.local.manifest.browser) {
 			return;
 		}
 
