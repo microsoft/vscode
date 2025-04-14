@@ -14416,6 +14416,8 @@ declare module 'vscode' {
 			 * Allows to explicitly pick the encoding to use.
 			 * See {@link TextDocument.encoding} for more information
 			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
 			 */
 			readonly encoding: string;
 		}): Thenable<string>;
@@ -14471,6 +14473,8 @@ declare module 'vscode' {
 			 * Allows to explicitly pick the encoding to use.
 			 * See {@link TextDocument.encoding} for more information
 			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
 			 */
 			readonly encoding: string;
 		}): Thenable<Uint8Array>;
