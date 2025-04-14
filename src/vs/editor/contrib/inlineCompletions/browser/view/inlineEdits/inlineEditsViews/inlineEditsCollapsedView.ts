@@ -57,7 +57,6 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 				overflow: 'visible',
 				top: '0px',
 				left: '0px',
-				zIndex: '0',
 				display: 'block',
 			},
 		}, [
