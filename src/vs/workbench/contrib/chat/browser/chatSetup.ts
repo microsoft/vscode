@@ -383,7 +383,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IContextMenuService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService));
+				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IContextMenuService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService), accessor.get(IConfigurationService));
 			});
 		}
 
@@ -402,6 +402,7 @@ class ChatSetup {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	async run(): Promise<boolean | undefined> {
@@ -426,7 +427,7 @@ class ChatSetup {
 			setupStrategy = await this.showDialog();
 		}
 
-		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.controller.value.hasEnterpriseProviderConfigured()) {
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
 		}
 
@@ -1027,11 +1028,6 @@ class ChatSetupController extends Disposable {
 
 			throw error;
 		}
-	}
-
-	hasEnterpriseProviderConfigured(): boolean {
-		const setting = this.configurationService.getValue<{ authProvider: unknown } | undefined>(defaultChat.completionsAdvancedSetting);
-		return setting?.authProvider === defaultChat.enterpriseProviderId;
 	}
 
 	async setupWithProvider(options: { useEnterpriseProvider: boolean }): Promise<boolean> {
