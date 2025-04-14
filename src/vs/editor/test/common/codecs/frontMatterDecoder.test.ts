@@ -31,7 +31,7 @@ export class TestFrontMatterDecoder extends TestDecoder<TSimpleDecoderToken, Fro
 suite('FrontMatterDecoder', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('produces expected tokens', async () => {
+	test('• produces expected tokens', async () => {
 		const test = disposables.add(
 			new TestFrontMatterDecoder(),
 		);
