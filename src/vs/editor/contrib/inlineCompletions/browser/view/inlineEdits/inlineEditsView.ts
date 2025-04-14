@@ -364,7 +364,12 @@ export class InlineEditsView extends Disposable {
 				return 'wordReplacements';
 			}
 		}
+
 		if (numOriginalLines > 0 && numModifiedLines > 0) {
+			if (numOriginalLines === 1 && numModifiedLines === 1) {
+				return 'lineReplacement';
+			}
+
 			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideView.fitsInsideViewport(this._editor, this._previewTextModel, inlineEdit, reader)) {
 				return 'sideBySide';
 			}

@@ -388,6 +388,13 @@ export class CloseAction extends AbstractInline1ChatAction {
 				when: ContextKeyExpr.and(
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 				),
+			}, {
+				id: MENU_INLINE_CHAT_SIDE,
+				group: 'navigation',
+				when: ContextKeyExpr.and(
+					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.None),
+					CTX_INLINE_CHAT_HAS_AGENT2.negate(),
+				)
 			}]
 		});
 	}

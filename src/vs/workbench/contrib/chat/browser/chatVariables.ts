@@ -5,7 +5,7 @@
 
 import { coalesce } from '../../../../base/common/arrays.js';
 import { IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
-import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
+import { ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
@@ -22,7 +22,7 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		prompt.parts
 			.forEach((part, i) => {
-				if (part instanceof ChatRequestDynamicVariablePart || part instanceof ChatRequestToolPart) {
+				if (part instanceof ChatRequestToolPart) {
 					resolvedVariables[i] = part.toVariableEntry();
 				}
 			});

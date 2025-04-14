@@ -920,6 +920,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	*/
 	freeInlineCompletions(completions: T): void;
 
+	onDidChangeInlineCompletions?: Event<void>;
+
 	/**
 	 * Only used for {@link yieldsToGroupIds}.
 	 * Multiple providers can have the same group id.

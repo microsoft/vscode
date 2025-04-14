@@ -70,6 +70,7 @@ interface IRawGalleryExtensionPublisher {
 	readonly publisherName: string;
 	readonly domain?: string | null;
 	readonly isDomainVerified?: boolean;
+	readonly linkType?: ExtensionGalleryResourceType;
 }
 
 interface IRawGalleryExtension {
@@ -86,6 +87,8 @@ interface IRawGalleryExtension {
 	readonly lastUpdated: string;
 	readonly categories: string[] | undefined;
 	readonly flags: string;
+	readonly linkType?: ExtensionGalleryResourceType;
+	readonly ratingLinkType?: ExtensionGalleryResourceType;
 }
 
 interface IRawGalleryExtensionsResult {
@@ -465,9 +468,9 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		coreTranslations: getCoreTranslationAssets(version)
 	};
 
-	const detailsViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionDetailsViewUri);
-	const publisherViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.PublisherViewUri);
-	const ratingViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionRatingViewUri);
+	const detailsViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.linkType ?? ExtensionGalleryResourceType.ExtensionDetailsViewUri);
+	const publisherViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.publisher.linkType ?? ExtensionGalleryResourceType.PublisherViewUri);
+	const ratingViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.ratingLinkType ?? ExtensionGalleryResourceType.ExtensionRatingViewUri);
 	const id = getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName);
 
 	return {

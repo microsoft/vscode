@@ -1057,6 +1057,9 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		if (this.ui.list.ariaLabel !== ariaLabel) {
 			this.ui.list.ariaLabel = ariaLabel ?? null;
 		}
+		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+			this.ui.inputBox.ariaLabel = ariaLabel ?? 'input';
+		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;

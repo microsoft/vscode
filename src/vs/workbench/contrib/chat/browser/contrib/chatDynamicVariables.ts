@@ -25,7 +25,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { FileType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -33,7 +32,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
 import { IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
-import { IChatRequestProblemsVariable, IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
+import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
@@ -184,11 +183,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	private updateDecorations(): void {
 
-		const decorations = this._variables.map((r): IDecorationOptions => ({
+		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
-		}));
-		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, decorations);
+		})));
 
 		this.decorationData = [];
 		for (let i = 0; i < decorationIds.length; i++) {
@@ -240,15 +238,6 @@ function isDynamicVariable(obj: any): obj is IDynamicVariable {
 }
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
-
-interface SelectAndInsertActionContext {
-	widget: IChatWidget;
-	range: IRange;
-}
-
-function isSelectAndInsertActionContext(context: any): context is SelectAndInsertActionContext {
-	return 'widget' in context && 'range' in context;
-}
 
 
 export async function createFolderQuickPick(accessor: ServicesAccessor): Promise<URI | undefined> {
@@ -590,53 +579,3 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 
 		quickPick.show();
 	}).finally(() => store.dispose());
 }
-
-export class SelectAndInsertProblemAction extends Action2 {
-	static readonly Name = 'problems';
-	static readonly ID = 'workbench.action.chat.selectAndInsertProblems';
-
-	constructor() {
-		super({
-			id: SelectAndInsertProblemAction.ID,
-			title: '' // not displayed
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const logService = accessor.get(ILogService);
-		const context = args[0];
-		if (!isSelectAndInsertActionContext(context)) {
-			return;
-		}
-
-		const doCleanup = () => {
-			// Failed, remove the dangling `problem`
-			context.widget.inputEditor.executeEdits('chatInsertProblems', [{ range: context.range, text: `` }]);
-		};
-
-		const pick = await createMarkersQuickPick(accessor, 'file');
-		if (!pick) {
-			doCleanup();
-			return;
-		}
-
-		const editor = context.widget.inputEditor;
-		const originalRange = context.range;
-		const insertText = `#${SelectAndInsertProblemAction.Name}:${pick.filterUri ? basename(pick.filterUri) : MarkerSeverity.toString(pick.filterSeverity!)}`;
-
-		const varRange = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.startColumn + insertText.length);
-		const success = editor.executeEdits('chatInsertProblems', [{ range: varRange, text: insertText + ' ' }]);
-		if (!success) {
-			logService.trace(`SelectAndInsertProblemsAction: failed to insert "${insertText}"`);
-			doCleanup();
-			return;
-		}
-
-		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: 'vscode.problems',
-			range: varRange,
-			data: { id: 'vscode.problems', filter: pick } satisfies IChatRequestProblemsVariable,
-		});
-	}
-}
-registerAction2(SelectAndInsertProblemAction);

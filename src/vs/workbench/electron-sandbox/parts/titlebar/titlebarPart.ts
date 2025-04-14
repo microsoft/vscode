@@ -322,7 +322,6 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 		readonly container: HTMLElement,
 		editorGroupsContainer: IEditorGroupsContainer,
 		private readonly mainTitlebar: BrowserTitlebarPart,
-		private readonly auxiliaryOptions: { minimal: boolean } | undefined,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
@@ -340,14 +339,6 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 	) {
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
-	}
-
-	protected override get isCommandCenterVisible() {
-		return this.auxiliaryOptions?.minimal ? false : super.isCommandCenterVisible;
-	}
-
-	protected override get editorActionsEnabled(): boolean {
-		return this.auxiliaryOptions?.minimal ? false : super.editorActionsEnabled;
 	}
 
 	override get preventZoom(): boolean {
@@ -368,7 +359,7 @@ export class NativeTitleService extends BrowserTitleService {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, options?: { minimal: boolean }): AuxiliaryNativeTitlebarPart {
-		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart, options);
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): AuxiliaryNativeTitlebarPart {
+		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
 	}
 }
