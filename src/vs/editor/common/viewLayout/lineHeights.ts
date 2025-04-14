@@ -6,7 +6,6 @@
 import { binarySearch2 } from '../../../base/common/arrays.js';
 import { intersection } from '../../../base/common/collections.js';
 
-
 export class CustomLine {
 
 	public index: number;
@@ -69,6 +68,10 @@ export class LineHeightsManager {
 
 	set defaultLineHeight(defaultLineHeight: number) {
 		this._defaultLineHeight = defaultLineHeight;
+	}
+
+	get defaultLineHeight() {
+		return this._defaultLineHeight;
 	}
 
 	public removeCustomLineHeight(decorationID: string): void {
@@ -274,6 +277,7 @@ export class LineHeightsManager {
 			for (const dec of toReAdd) {
 				this.insertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight);
 			}
+			this.commit();
 		}
 	}
 
