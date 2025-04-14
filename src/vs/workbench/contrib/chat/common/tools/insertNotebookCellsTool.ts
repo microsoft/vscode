@@ -21,7 +21,6 @@ import { ChatModel } from '../chatModel.js';
 import { IChatService } from '../chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../ignoredFiles.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../languageModelToolsService.js';
-import { IToolInputProcessor } from './tools.js';
 
 const codeInstructions = `
 The user is very smart and can understand how to insert cells to their new Notebook files
@@ -200,20 +199,4 @@ export interface EditToolRawParams {
 	filePath: string;
 	explanation: string;
 	code: string;
-}
-
-export class EditToolInputProcessor implements IToolInputProcessor {
-	processInput(input: EditToolRawParams): EditToolParams {
-		if (!input.filePath) {
-			// Tool name collision, or input wasn't properly validated upstream
-			return input as any;
-		}
-		const filePath = input.filePath;
-		// Runs in EH, will be mapped
-		return {
-			file: filePath.startsWith('untitled:') ? URI.parse(filePath) : URI.file(filePath),
-			explanation: input.explanation,
-			code: input.code,
-		};
-	}
 }
