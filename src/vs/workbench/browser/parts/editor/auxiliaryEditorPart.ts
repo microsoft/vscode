@@ -28,9 +28,10 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IsAuxiliaryTitleBarContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryTitleBarContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
@@ -42,14 +43,31 @@ export interface ICreateAuxiliaryEditorPartResult {
 	readonly disposables: DisposableStore;
 }
 
-const compactWindowEmitter = markAsSingleton(new Emitter<{ windowId: number; compact: boolean }>());
+const compactWindowEmitter = markAsSingleton(new Emitter<{ windowId: number; compact: boolean | 'toggle' }>());
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.toggleCompactAuxiliaryWindow',
+			title: localize2('toggleCompactAuxiliaryWindow', "Toggle Window Compact Mode"),
+			category: Categories.View,
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext
+		});
+	}
+
+	override async run(): Promise<void> {
+		compactWindowEmitter.fire({ windowId: getActiveWindow().vscodeWindowId, compact: 'toggle' });
+	}
+});
 
 registerAction2(class extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.enableCompactAuxiliaryWindow',
-			title: localize('enableCompactAuxiliaryWindow', "Enter Compact Mode"),
+			title: localize('enableCompactAuxiliaryWindow', "Set Compact Mode"),
 			icon: Codicon.screenFull,
 			menu: {
 				id: MenuId.LayoutControlMenu,
@@ -69,7 +87,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.disableCompactAuxiliaryWindow',
-			title: localize('disableCompactAuxiliaryWindow', "Leave Compact Mode"),
+			title: localize('disableCompactAuxiliaryWindow', "Unset Compact Mode"),
 			icon: Codicon.screenNormal,
 			toggled: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext),
 			menu: {
@@ -269,9 +287,15 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.layout();
 
 		// Compact mode
-		disposables.add(compactWindowEmitter.event(({ windowId, compact }) => {
-			if (windowId === auxiliaryWindow.window.vscodeWindowId) {
-				updateCompact(compact);
+		disposables.add(compactWindowEmitter.event(e => {
+			if (e.windowId === auxiliaryWindow.window.vscodeWindowId) {
+				let newCompact: boolean;
+				if (typeof e.compact === 'boolean') {
+					newCompact = e.compact;
+				} else {
+					newCompact = !compact;
+				}
+				updateCompact(newCompact);
 			}
 		}));
 
