@@ -57,7 +57,7 @@ export function getPromptFileType(fileUri: URI): 'instructions' | 'prompt' | und
 /**
  * Check if provided URI points to a file that with prompt file extension.
  */
-export function isPromptFile(fileUri: URI): boolean {
+export function isPromptOrInstructionsFile(fileUri: URI): boolean {
 	return getPromptFileType(fileUri) !== undefined;
 }
 
