@@ -7,7 +7,7 @@
 	"configuration.typescript": "TypeScript",
 	"configuration.javascript.preferences": "JavaScript Preferences",
 	"configuration.typescript.preferences": "TypeScript Preferences",
-	"configuration.javascript.format": "JavaScript formatting",
+	"configuration.javascript.format": "JavaScript Formatting",
 	"configuration.typescript.format": "TypeScript Formatting",
 	"configuration.server": "TS Server",
 	"configuration.suggest.completeFunctionCalls": "Complete functions with their parameter signature.",
