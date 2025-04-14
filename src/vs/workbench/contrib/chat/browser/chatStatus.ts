@@ -312,11 +312,11 @@ class ChatStatusDashboard extends Disposable {
 
 			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat messages")) : undefined;
 			const freeCompletionsQuotaIndicator = freeCompletionsQuota ? this.createQuotaIndicator(this.element, freeCompletionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium Chat messages")) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium Chat messages"), overageCount => localize('overrageDisplay', "{0} messages over limit", overageCount)) : undefined;
 
-			const freeResetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : undefined;
-			if (freeResetDate) {
-				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(freeResetDate))));
+			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
+			if (resetDate) {
+				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(resetDate))));
 			}
 
 			if (freeChatQuota?.percentRemaining === 0 || freeCompletionsQuota?.percentRemaining === 0) {
@@ -458,7 +458,7 @@ class ChatStatusDashboard extends Disposable {
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string): (quota: IQuotaSnapshot) => void {
+	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string, overageLabel?: (overage: number) => string): (quota: IQuotaSnapshot) => void {
 		const quotaText = $('span.quota-percentage');
 		const quotaBit = $('div.quota-bit');
 
@@ -472,6 +472,8 @@ class ChatStatusDashboard extends Disposable {
 			)
 		));
 
+		const overrageIndicator = container.appendChild($('div.overrage-indicator'));
+
 		const update = (quota: IQuotaSnapshot) => {
 			quotaIndicator.classList.remove('error');
 			quotaIndicator.classList.remove('warning');
@@ -484,10 +486,16 @@ class ChatStatusDashboard extends Disposable {
 			quotaText.textContent = localize('quotaDisplay', "{0}%", usedPercentage);
 			quotaBit.style.width = `${usedPercentage}%`;
 
-			if (usedPercentage >= 90) {
+			if (usedPercentage >= 90 && !quota.overageEnabled) {
 				quotaIndicator.classList.add('error');
 			} else if (usedPercentage >= 75) {
 				quotaIndicator.classList.add('warning');
+			}
+
+			if (overageLabel && quota.overageEnabled && quota.overageCount > 0) {
+				overrageIndicator.textContent = overageLabel(quota.overageCount);
+			} else {
+				overrageIndicator.textContent = '';
 			}
 		};
 
