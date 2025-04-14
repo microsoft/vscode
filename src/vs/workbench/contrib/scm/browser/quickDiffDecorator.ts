@@ -169,8 +169,7 @@ class QuickDiffDecorator extends Disposable {
 			const quickDiff = this.quickDiffModelRef.object.quickDiffs
 				.find(quickDiff => quickDiff.label === change.label);
 
-			if (!quickDiff?.visible) {
-				// Not visible
+			if (!quickDiff) {
 				continue;
 			}
 
@@ -382,8 +381,9 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 			const visibleDecorationCount = observableFromEvent(this,
 				quickDiffModelRef.object.onDidChange, () => {
-					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
-					return quickDiffModelRef.object.changes.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label)).length;
+					const quickDiffs = quickDiffModelRef.object.quickDiffs;
+					return quickDiffModelRef.object.changes.filter(labeledChange =>
+						quickDiffs.some(quickDiff => quickDiff.label === labeledChange.label)).length;
 				});
 
 			store.add(autorun(reader => {

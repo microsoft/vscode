@@ -2803,7 +2803,6 @@ export class Repository implements Disposable {
 }
 
 export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
-	readonly visible: boolean = true;
 
 	private _disposables: IDisposable[] = [];
 

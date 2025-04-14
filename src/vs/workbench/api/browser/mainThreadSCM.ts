@@ -338,7 +338,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label: features.quickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
 				isSCM: this.isSCM,
-				visible: this.visible,
 				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
 			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {

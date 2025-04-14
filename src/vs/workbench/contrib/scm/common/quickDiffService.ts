@@ -72,8 +72,7 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 			const diff: Partial<QuickDiff> = {
 				originalResource: scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined,
 				label: provider.label,
-				isSCM: provider.isSCM,
-				visible: provider.visible
+				isSCM: provider.isSCM
 			};
 			return diff;
 		}));

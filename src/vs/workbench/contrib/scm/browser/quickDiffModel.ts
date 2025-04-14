@@ -379,11 +379,6 @@ export class QuickDiffModel extends Disposable {
 				continue;
 			}
 
-			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
-				continue;
-			}
-
 			const change = this.changes[i];
 			const possibleChangesLength = possibleChanges.length;
 
@@ -411,11 +406,6 @@ export class QuickDiffModel extends Disposable {
 	findPreviousClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
 		for (let i = this.changes.length - 1; i >= 0; i--) {
 			if (provider && this.changes[i].label !== provider) {
-				continue;
-			}
-
-			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
 				continue;
 			}
 

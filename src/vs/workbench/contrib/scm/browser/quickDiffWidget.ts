@@ -342,12 +342,10 @@ class QuickDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
-		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
-
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
 		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem,
 			new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
-			visibleQuickDiffs.map(quickDiff => quickDiff.label), this.model.changes[this._index].label);
+			this.model.quickDiffs.map(quickDiff => quickDiff.label), this.model.changes[this._index].label);
 		this.dropdown.render(this.dropdownContainer);
 		this.updateActions();
 	}
