@@ -892,6 +892,7 @@ export class Repository implements Disposable {
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
 		this._sourceControl.quickDiffProvider = this;
+		this._sourceControl.stagedQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
 
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
@@ -2804,28 +2805,18 @@ export class Repository implements Disposable {
 
 export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 	readonly visible: boolean = true;
-
-	private _disposables: IDisposable[] = [];
+	readonly label = l10n.t('Git local changes (index + working tree)');
 
 	constructor(
-		private readonly _repositoryResolver: IRepositoryResolver,
+		private readonly _repository: Repository,
 		private readonly logger: LogOutputChannel
-	) {
-		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (index + working tree)')));
-	}
+	) { }
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
 		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource: ${uri.toString()}`);
 
-		// Ignore resources outside a repository
-		const repository = this._repositoryResolver.getRepository(uri);
-		if (!repository) {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
-			return undefined;
-		}
-
 		// Ignore resources that are not in the index group
-		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
 			return undefined;
 		}
@@ -2833,9 +2824,5 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
 		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
 		return originalResource;
-	}
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
 	}
 }

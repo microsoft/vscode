@@ -71,6 +71,7 @@ export interface QuickDiffProvider {
 	selector?: LanguageSelector;
 	isSCM: boolean;
 	visible: boolean;
+	readonly kind: 'primary' | 'secondary' | 'contributed';
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
@@ -79,6 +80,7 @@ export interface QuickDiff {
 	originalResource: URI;
 	isSCM: boolean;
 	visible: boolean;
+	readonly kind: 'primary' | 'secondary' | 'contributed';
 }
 
 export interface QuickDiffChange {

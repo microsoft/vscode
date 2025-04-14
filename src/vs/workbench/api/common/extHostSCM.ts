@@ -591,6 +591,21 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel });
 	}
 
+	private _stagedQuickDiffProvider: vscode.QuickDiffProvider | undefined = undefined;
+
+	get stagedQuickDiffProvider(): vscode.QuickDiffProvider | undefined {
+		checkProposedApiEnabled(this._extension, 'quickDiffProvider');
+		return this._stagedQuickDiffProvider;
+	}
+
+	set stagedQuickDiffProvider(stagedQuickDiffProvider: vscode.QuickDiffProvider | undefined) {
+		checkProposedApiEnabled(this._extension, 'quickDiffProvider');
+
+		this._stagedQuickDiffProvider = stagedQuickDiffProvider;
+		const stagedQuickDiffLabel = stagedQuickDiffProvider?.label;
+		this.#proxy.$updateSourceControl(this.handle, { hasStagedQuickDiffProvider: !!stagedQuickDiffProvider, stagedQuickDiffLabel });
+	}
+
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private readonly _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 
@@ -941,6 +956,20 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		return asPromise(() => sourceControl.quickDiffProvider!.provideOriginalResource!(uri, token))
+			.then<UriComponents | null>(r => r || null);
+	}
+
+	$provideStagedOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
+		const uri = URI.revive(uriComponents);
+		this.logService.trace('ExtHostSCM#$provideStagedOriginalResource', sourceControlHandle, uri.toString());
+
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
+
+		if (!sourceControl || !sourceControl.stagedQuickDiffProvider || !sourceControl.stagedQuickDiffProvider.provideOriginalResource) {
+			return Promise.resolve(null);
+		}
+
+		return asPromise(() => sourceControl.stagedQuickDiffProvider!.provideOriginalResource!(uri, token))
 			.then<UriComponents | null>(r => r || null);
 	}
 
