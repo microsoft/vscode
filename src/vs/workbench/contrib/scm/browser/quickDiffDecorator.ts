@@ -161,9 +161,8 @@ class QuickDiffDecorator extends Disposable {
 
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
-		const scmQuickDiffs = this.quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.isSCM);
-		const scmQuickDiffChanges = this.quickDiffModelRef.object.changes
-			.filter(labeledChange => scmQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label));
+		const primaryQuickDiff = this.quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
+		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(labeledChange => labeledChange.label === primaryQuickDiff?.label);
 
 		const decorations: IModelDeltaDecoration[] = [];
 		for (const change of this.quickDiffModelRef.object.changes) {
@@ -175,8 +174,8 @@ class QuickDiffDecorator extends Disposable {
 				continue;
 			}
 
-			if (!quickDiff.isSCM && scmQuickDiffChanges.some(c => c.change2.modified.overlapOrTouch(change.change2.modified))) {
-				// Overlap with SCM changes
+			if (quickDiff.kind !== 'primary' && primaryQuickDiffChanges.some(c => c.change2.modified.overlapOrTouch(change.change2.modified))) {
+				// Overlap with primary quick diff changes
 				continue;
 			}
 
@@ -191,7 +190,7 @@ class QuickDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: quickDiff.isSCM
+						options: quickDiff.kind === 'primary'
 							? pattern.added ? this.addedPatternOptions : this.addedOptions
 							: pattern.added ? this.addedSecondaryPatternOptions : this.addedSecondaryOptions
 					});
@@ -202,7 +201,7 @@ class QuickDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
 							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
 						},
-						options: quickDiff.isSCM ? this.deletedOptions : this.deletedSecondaryOptions
+						options: quickDiff.kind === 'primary' ? this.deletedOptions : this.deletedSecondaryOptions
 					});
 					break;
 				case ChangeType.Modify:
@@ -211,7 +210,7 @@ class QuickDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: quickDiff.isSCM
+						options: quickDiff.kind === 'primary'
 							? pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
 							: pattern.modified ? this.modifiedSecondaryPatternOptions : this.modifiedSecondaryOptions
 					});

@@ -381,16 +381,16 @@ export class QuickDiffModel extends Disposable {
 			return nextChange !== -1 ? nextChange : 0;
 		}
 
-		const scmQuickDiffLabel = this.quickDiffs
-			.find(quickDiff => quickDiff.isSCM)?.label;
+		const primaryQuickDiffLabel = this.quickDiffs
+			.find(quickDiff => quickDiff.kind === 'primary')?.label;
 
-		const scmInclusiveChangeIndex = this.changes
-			.findIndex(change => change.label === scmQuickDiffLabel &&
+		const primaryInclusiveChangeIndex = this.changes
+			.findIndex(change => change.label === primaryQuickDiffLabel &&
 				change.change.modifiedStartLineNumber <= lineNumber &&
 				getModifiedEndLineNumber(change.change) >= lineNumber);
 
-		if (scmInclusiveChangeIndex !== -1) {
-			return scmInclusiveChangeIndex;
+		if (primaryInclusiveChangeIndex !== -1) {
+			return primaryInclusiveChangeIndex;
 		}
 
 		const inclusiveChangeIndex = this.changes
