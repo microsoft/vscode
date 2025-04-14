@@ -945,7 +945,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- encodings ---
 
-	async decode(content: Uint8Array, args: { uri?: vscode.Uri; encoding?: string }): Promise<string> {
+	async decode(content: Uint8Array, args?: { uri?: vscode.Uri; encoding?: string }): Promise<string> {
 		const [uri, opts] = this.toEncodeDecodeParameters(args);
 		const options = await this._proxy.$resolveDecoding(uri, opts);
 
@@ -967,7 +967,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return consumeStream(stream, chunks => chunks.join(''));
 	}
 
-	async encode(content: string, args: { uri?: vscode.Uri; encoding?: string }): Promise<Uint8Array> {
+	async encode(content: string, args?: { uri?: vscode.Uri; encoding?: string }): Promise<Uint8Array> {
 		const [uri, options] = this.toEncodeDecodeParameters(args);
 		const { encoding, addBOM } = await this._proxy.$resolveEncoding(uri, options);
 
@@ -981,9 +981,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return readableToBuffer(res).buffer;
 	}
 
-	private toEncodeDecodeParameters(opts: { uri?: vscode.Uri; encoding?: string }): [UriComponents | undefined, { encoding: string } | undefined] {
-		const uri = isUriComponents(opts.uri) ? opts.uri : undefined;
-		const encoding = typeof opts.encoding === 'string' ? opts.encoding : undefined;
+	private toEncodeDecodeParameters(opts?: { uri?: vscode.Uri; encoding?: string }): [UriComponents | undefined, { encoding: string } | undefined] {
+		const uri = isUriComponents(opts?.uri) ? opts.uri : undefined;
+		const encoding = typeof opts?.encoding === 'string' ? opts.encoding : undefined;
 
 		return [uri, encoding ? { encoding } : undefined];
 	}

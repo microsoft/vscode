@@ -193,7 +193,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
 					const tool: IToolData = {
 						...rawTool,
-						source: { type: 'extension', extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
+						source: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
