@@ -37,7 +37,7 @@ import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
-import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
+import { IViewModelLines, IViewModelLinesFromProjectedModelContext, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
@@ -88,8 +88,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._viewportStart = ViewportStart.create(this.model);
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), this._getCustomLineHeights(), scheduleAtNextAnimationFrame));
-
+		const customLineHeights = this._getCustomLineHeights();
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
 			this._lines = new ViewModelLinesFromModelAsIs(this.model, this._configuration.options.get(EditorOption.fontInfo));
@@ -102,10 +101,19 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 
+			const context: IViewModelLinesFromProjectedModelContext = {
+				getLineHeightForLineNumber: (lineNumber: number): number => {
+					if (this.viewLayout) {
+						return this.viewLayout.getLineHeightForLineNumber(lineNumber);
+					}
+					console.log('customLineHeights : ', customLineHeights);
+					return fontInfo.lineHeight;
+				}
+			};
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				this.viewLayout,
+				context,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
 				this._configuration,
@@ -121,6 +129,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.coordinatesConverter = this._lines.createCoordinatesConverter();
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
+
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), customLineHeights, scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {

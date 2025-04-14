@@ -21,7 +21,6 @@ import { ICoordinatesConverter, ICustomFontChangeAccessor, InlineDecoration, Inl
 import { CustomFontsManager } from './customFontsManager.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { isModelDecorationVisible } from './viewModelDecorations.js';
-import { ViewLayout } from '../viewLayout/viewLayout.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -66,10 +65,13 @@ export interface IViewModelLines extends IDisposable {
 	getLineIndentColumn(lineNumber: number): number;
 }
 
+export interface IViewModelLinesFromProjectedModelContext {
+	getLineHeightForLineNumber(lineNumber: number): number;
+}
+
 export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly _editorId: number;
 	private readonly model: ITextModel;
-	private readonly viewLayout: ViewLayout;
 	private _validModelVersionId: number;
 
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
@@ -94,11 +96,12 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	private config: IEditorConfiguration;
 	private coordinatesConverter: ICoordinatesConverter;
+	private context: IViewModelLinesFromProjectedModelContext;
 
 	constructor(
 		editorId: number,
 		model: ITextModel,
-		viewLayout: ViewLayout,
+		context: IViewModelLinesFromProjectedModelContext,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		config: IEditorConfiguration,
@@ -111,7 +114,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	) {
 		this._editorId = editorId;
 		this.model = model;
-		this.viewLayout = viewLayout;
+		this.context = context;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
 		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
@@ -168,7 +171,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const lineNumber = i + 1;
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
 			const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
-			const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+			const lineHeight = this.context.getLineHeightForLineNumber(lineNumber);
 			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();

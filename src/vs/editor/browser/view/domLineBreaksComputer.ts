@@ -22,6 +22,8 @@ const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML:
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
+	private _container: HTMLElement | undefined = undefined;
+
 	public static create(targetWindow: Window, model: ITextModel): DOMLineBreaksComputerFactory {
 		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow), model);
 	}
@@ -43,13 +45,16 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				lineHeights.push(lineHeight);
 			},
 			finalize: () => {
-				return createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), this.model, lineNumbers, lineHeights, requests, tabSize, injectedTexts, allInlineDecorations);
+				this._container?.remove();
+				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), this.model, lineNumbers, lineHeights, requests, tabSize, injectedTexts, allInlineDecorations);
+				this._container = res.containerDomNode;
+				return res.data;
 			}
 		};
 	}
 }
 
-function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, model: ITextModel, lineNumbers: number[], lineHeights: number[], requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], inlineDecorations: InlineDecoration[][]): (ModelLineProjectionData | null)[] { //  viewLineRenderingData: ViewLineRenderingData[]
+function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, model: ITextModel, lineNumbers: number[], lineHeights: number[], requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], inlineDecorations: InlineDecoration[][]): { data: (ModelLineProjectionData | null)[]; containerDomNode: HTMLElement | undefined } {
 	console.log('createLineBreaks', lineNumbers, requests, tabSize, injectedTextsPerLine, inlineDecorations);
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
@@ -78,7 +83,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, mo
 			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
 		}
 		console.log('early return 1');
-		return result;
+		return { data: result, containerDomNode: undefined };
 	}
 
 	const overallWidth = Math.round(firstLineBreakColumn * fontInfo.typicalHalfwidthCharacterWidth);
@@ -169,7 +174,16 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, mo
 			fontLigatures !== EditorFontLigatures.OFF,
 			null
 		);
+
+		const lineHeight = lineHeights[i];
+		sb.appendString('<div style="height:');
+		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
+		sb.appendString(String(lineHeight));
+		sb.appendString('px;">');
 		const tmp = renderViewLine(renderLineInput, sb);
+		sb.appendString('</div>');
+
 		// const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
@@ -242,10 +256,9 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, mo
 		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
 	}
 
-	containerDomNode.remove();
 	console.log('result : ', result);
 	console.log('return 2');
-	return result;
+	return { data: result, containerDomNode };
 }
 
 const enum Constants {
@@ -363,8 +376,11 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 	if (lineContent.length <= 1) {
 		return null;
 	}
-	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(lineDomNode.children, 0);
+	const outerSpans = <HTMLSpanElement>Array.prototype.slice.call(lineDomNode.children, 0)[0];
+	console.log('outerSpans', outerSpans);
+	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(outerSpans.children, 0);
 	console.log('spans', spans);
+
 	const breakOffsets: number[] = [];
 	try {
 		discoverBreaks(range, spans, lineHeight, charOffsets, spanOffsets, 0, null, lineContent.length - 1, null, breakOffsets);
@@ -383,6 +399,14 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 
 function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: number, charOffsets: number[], spanOffsets: number[], low: number, lowRects: DOMRectList | null, high: number, highRects: DOMRectList | null, result: number[]): void {
 	console.log('discoverBreaks', low, high, lowRects, highRects);
+	const startSpanOffset = spanOffsets[low];
+	const endSpanOffset = spanOffsets[high];
+	const startSpan = spans[startSpanOffset];
+	const endSpan = spans[endSpanOffset];
+	console.log('startSpan', startSpan.firstChild);
+	console.log('endSpan', endSpan.firstChild);
+	console.log('startSpan.offsetTop : ', startSpan.offsetTop);
+	console.log('endSpan.offsetTop : ', endSpan.offsetTop);
 	console.log('charOffsets', charOffsets);
 	if (low === high) {
 		console.log('return 1');
@@ -395,7 +419,11 @@ function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: numb
 	console.log('highRects', highRects);
 	console.log('lowRects[0].top ; ', lowRects[0].top);
 	console.log('highRects[0].top : ', highRects[0].top);
-	if (Math.abs(lowRects[0].top - highRects[0].top) <= lineHeight / 2) {
+	const abs = Math.abs(lowRects[0].top - highRects[0].top);
+	console.log('abs : ', abs);
+	const ceiling = lineHeight / 2;
+	console.log('ceiling : ', ceiling);
+	if (abs <= ceiling) {
 		console.log('return 2');
 		// same line
 		return;
@@ -411,14 +439,13 @@ function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: numb
 
 	const mid = low + ((high - low) / 2) | 0;
 	const midRects = readClientRect(range, spans, charOffsets[mid], spanOffsets[mid], charOffsets[mid + 1], spanOffsets[mid + 1]);
+	console.log('midRects', midRects);
 	discoverBreaks(range, spans, lineHeight, charOffsets, spanOffsets, low, lowRects, mid, midRects, result);
 	discoverBreaks(range, spans, lineHeight, charOffsets, spanOffsets, mid, midRects, high, highRects, result);
 }
 
 function readClientRect(range: Range, spans: HTMLSpanElement[], startCharacterOffset: number, startSpanOffset: number, endCharacterOffset: number, endSpanOffset: number): DOMRectList {
-	console.log('readClientRect', startCharacterOffset, endCharacterOffset);
-	console.log('startSpanOffset', startSpanOffset);
-	console.log('endSpanOffset', endSpanOffset);
+	console.log('readClientRect', startCharacterOffset, startSpanOffset, endCharacterOffset, endSpanOffset);
 	const startNode = spans[startSpanOffset].firstChild!;
 	const endNode = spans[endSpanOffset].firstChild!;
 	console.log('startNode', startNode);
