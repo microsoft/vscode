@@ -51,7 +51,6 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
@@ -621,9 +620,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor, mode: ChatMode): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
-				const configurationService = accessor.get(IConfigurationService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const statusbarService = accessor.get(IStatusbarService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
@@ -636,9 +633,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					const chatWidget = await chatWidgetPromise;
 					chatWidget?.input.setChatMode(mode);
 				}
-
-				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
-				configurationService.updateValue('chat.commandCenter.enabled', true);
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
 				const result = await setup.run();
@@ -680,9 +674,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const viewsDescriptorService = accessor.get(IViewDescriptorService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const statusbarService = accessor.get(IStatusbarService);
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
@@ -704,9 +696,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 					}
 				}
-
-				statusbarService.updateEntryVisibility('chat.statusBarEntry', false);
-				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
 		}
 
