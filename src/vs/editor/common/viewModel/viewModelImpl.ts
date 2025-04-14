@@ -34,9 +34,9 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration, ICustomFontChangeAccessor } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelFontChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, IViewModelLinesFromProjectedModelContext, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
@@ -475,6 +475,24 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}));
 
+		this._register(this.model.onDidChangeFont((e) => {
+			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+			this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
+				for (const change of filteredChanges) {
+					const { decorationId, fontDecoration } = change;
+					if (fontDecoration !== null) {
+						accessor.insertOrChangeCustomFont(decorationId, fontDecoration);
+					} else {
+						accessor.removeCustomFonts(decorationId);
+					}
+				}
+			});
+			if (filteredChanges.length > 0) {
+				const filteredEvent = new textModelEvents.ModelFontChangedEvent(filteredChanges);
+				this._eventDispatcher.emitOutgoingEvent(new ModelFontChangedEvent(filteredEvent));
+			}
+		}));
+
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
@@ -780,7 +798,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public hasFontDecorations(lineNumber: number): boolean {
-		return this.model.getFontDecorations(lineNumber).length > 0;
+		return this._lines.getFontSegmentsForLine(lineNumber).length > 0;
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
