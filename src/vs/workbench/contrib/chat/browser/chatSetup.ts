@@ -1005,8 +1005,8 @@ class ChatSetupController extends Disposable {
 	}
 
 	hasEnterpriseProviderConfigured(): boolean {
-		const setting = this.configurationService.getValue<{ authProvider: unknown }>(defaultChat.completionsAdvancedSetting);
-		return setting.authProvider === defaultChat.enterpriseProviderId;
+		const setting = this.configurationService.getValue<{ authProvider: unknown } | undefined>(defaultChat.completionsAdvancedSetting);
+		return setting?.authProvider === defaultChat.enterpriseProviderId;
 	}
 
 	async setupWithProvider(options: { useEnterpriseProvider: boolean }): Promise<boolean> {
