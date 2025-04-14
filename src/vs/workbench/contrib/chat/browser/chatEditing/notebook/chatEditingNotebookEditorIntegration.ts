@@ -186,6 +186,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 
 			this.changeIndexComputer = new PrefixSumComputer(new Uint32Array(indexes));
+			if (this.changeIndexComputer.getTotalSum() === 0) {
+				this.revertMarkupCellState();
+			}
 		}));
 
 		// Build cell integrations (responsible for navigating changes within a cell and decorating cell text changes)
@@ -426,7 +429,17 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(targetLines.startLineNumber, 0, targetLines.endLineNumberExclusive, 0));
 	}
 
-	blur(change: ICellDiffInfo | undefined) {
+	private revertMarkupCellState() {
+		for (const change of this.sortedCellChanges) {
+			const cellViewModel = this.getCellViewModel(change);
+			if (cellViewModel?.cellKind === CellKind.Markup && cellViewModel.getEditState() === CellEditState.Editing &&
+				(cellViewModel.editStateSource === 'chatEditNavigation' || cellViewModel.editStateSource === 'chatEdit')) {
+				cellViewModel.updateEditState(CellEditState.Preview, 'chatEdit');
+			}
+		}
+	}
+
+	private blur(change: ICellDiffInfo | undefined) {
 		if (!change) {
 			return;
 		}
