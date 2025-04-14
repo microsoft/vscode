@@ -14380,8 +14380,8 @@ declare module 'vscode' {
 		 * can properly apply. Do not use this method to decode content
 		 * in chunks, as that may lead to incorrect results.
 		 *
-		 * Will try to pick an encoding based on settings and the content
-		 * of the buffer (for example byte order marks).
+		 * Will pick an encoding based on settings and the content of the
+		 * buffer (for example byte order marks).
 		 *
 		 * *Note* that if you decode content that is unsupported by the
 		 * encoding, the result may contain substitution characters as
@@ -14395,10 +14395,11 @@ declare module 'vscode' {
 		export function decode(content: Uint8Array): Thenable<string>;
 
 		/**
-		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
-		 * provide the entire content at once to ensure that the encoding
-		 * can properly apply. Do not use this method to decode content
-		 * in chunks, as that may lead to incorrect results.
+		 * Decodes the content from a `Uint8Array` to a `string` using the
+		 * provided encoding. You MUST provide the entire content at once
+		 * to ensure that the encoding can properly apply. Do not use this
+		 * method to decode content in chunks, as that may lead to incorrect
+		 * results.
 		 *
 		 * *Note* that if you decode content that is unsupported by the
 		 * encoding, the result may contain substitution characters as
@@ -14450,7 +14451,7 @@ declare module 'vscode' {
 		/**
 		 * Encodes the content of a `string` to a `Uint8Array`.
 		 *
-		 * Will try to pick an encoding based on settings.
+		 * Will pick an encoding based on settings.
 		 *
 		 * @param content The content to decode as a `string`.
 		 * @returns A thenable that resolves to the encoded `Uint8Array`.
