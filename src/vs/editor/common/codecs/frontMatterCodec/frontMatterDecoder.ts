@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NewLine } from '../linesCodec/tokens/newLine.js';
+import { VALID_SPACE_TOKENS } from './constants.js';
+import { Word } from '../simpleCodec/tokens/index.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
-import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { FormFeed, Space, Tab, VerticalTab, Word } from '../simpleCodec/tokens/index.js';
 import { SimpleDecoder, type TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
 import { PartialFrontMatterRecord, PartialFrontMatterRecordName, PartialFrontMatterRecordNameWithDelimiter } from './parsers/frontMatterRecord.js';
 
@@ -17,14 +16,6 @@ import { PartialFrontMatterRecord, PartialFrontMatterRecordName, PartialFrontMat
  * Tokens produced by this decoder.
  */
 export type TFrontMatterToken = FrontMatterRecord | TSimpleDecoderToken;
-
-/**
- * List of valid "space" tokens that are allowed in between
- * separate records of a Front Matter header.
- */
-const VALID_SPACE_TOKENS = [
-	Space, Tab, CarriageReturn, NewLine, FormFeed, VerticalTab
-];
 
 /**
  * Decoder capable of parsing Front Matter contents from a sequence of simple tokens.

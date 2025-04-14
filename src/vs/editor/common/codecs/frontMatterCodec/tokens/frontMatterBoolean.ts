@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Range } from '../../../core/range.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
-import { Range } from '../../../core/range.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 
 /**
- * TODO: @legomushroom
+ * Token that represents a `boolean` value in a Front Matter header.
  */
 export class FrontMatterBoolean extends FrontMatterValueToken {
 	constructor(
@@ -40,7 +40,7 @@ export class FrontMatterBoolean extends FrontMatterValueToken {
 }
 
 /**
- * TODO: @legomushroom
+ * Try to convert a {@link Word} token to a `boolean` value.
  */
 const asBoolean = (
 	token: Word,
