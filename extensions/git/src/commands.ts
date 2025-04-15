@@ -2002,9 +2002,6 @@ export class CommandCenter {
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 
-		console.log('selectedLines', selectedLines);
-		console.log('indexLineChanges', indexLineChanges);
-
 		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];

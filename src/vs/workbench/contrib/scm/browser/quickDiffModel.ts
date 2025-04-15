@@ -266,24 +266,26 @@ export class QuickDiffModel extends Disposable {
 					for (let index = 0; index < diff.changes.length; index++) {
 						const change2 = diff.changes2[index];
 
+						// The secondary diffs are complimentary to the primary diffs, and
+						// they overlap. We need to remove the secondary quick diffs that
+						// overlap with primary quick diffs that are already in the array.
 						if (quickDiffPrimary && quickDiff.kind === 'secondary') {
-							// For secondary quick diffs, we need to check whether the diff is
-							// present in the primary quick diff. If it is, we need to skip it.
-							// We can do this since the primary quick diff are already present
-							// in the allDiffs array.
-							if (allDiffs.some(d =>
-								d.change2.original.equals(change2.original) &&
-								d.change2.modified.equals(change2.modified))
-							) {
-								// We need to check if the original text of the primary quick diff
-								// is equal to the original text of the secondary quick diff. If it
-								// is, we can skip it.
-								const originalRange = change2.toRangeMapping().originalRange;
-								const originalTextEditorModelPrimary = this._originalEditorModels.get(quickDiffPrimary.originalResource)?.textEditorModel;
-								const originalTextEditorModelSecondary = this._originalEditorModels.get(quickDiff.originalResource)?.textEditorModel;
+							// Check whether the:
+							// 1. the modified line range is equal
+							// 2. the original line range length is equal
+							const primaryQuickDiffChange = allDiffs
+								.find(d => d.change2.modified.equals(change2.modified) &&
+									d.change2.original.length === change2.original.length);
 
-								if (originalTextEditorModelPrimary?.getValueInRange(originalRange) === originalTextEditorModelSecondary?.getValueInRange(originalRange)) {
-									// continue;
+							if (primaryQuickDiffChange) {
+								// Check whether the original content matches
+								const primaryModel = this._originalEditorModels.get(quickDiffPrimary.originalResource)?.textEditorModel;
+								const primaryContent = primaryModel?.getValueInRange(primaryQuickDiffChange.change2.toRangeMapping().originalRange);
+
+								const secondaryModel = this._originalEditorModels.get(quickDiff.originalResource)?.textEditorModel;
+								const secondaryContent = secondaryModel?.getValueInRange(change2.toRangeMapping().originalRange);
+								if (primaryContent === secondaryContent) {
+									continue;
 								}
 							}
 						}
@@ -298,8 +300,6 @@ export class QuickDiffModel extends Disposable {
 					}
 				}
 			}
-
-			console.log(allDiffs);
 
 			const sorted = allDiffs.sort((a, b) => compareChanges(a.change, b.change));
 			const map: Map<string, number[]> = new Map();
