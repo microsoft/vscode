@@ -8,6 +8,7 @@ import { createURI } from '../testUtils/createUri.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ExpectedReference } from '../testUtils/expectedReference.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
@@ -20,9 +21,10 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptMetadataWarning } from '../../../../common/promptSyntax/parsers/promptHeader/diagnostics.js';
+import { PromptToolsMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { PromptToolsMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -238,12 +240,12 @@ suite('TextModelPromptParser', () => {
 	});
 
 	suite('• header', () => {
-		test('• has correct prompt header', async function () {
+		test('• has correct metadata', async function () {
 			const test = createTest(
 				createURI('/absolute/folder/and/a/filename.txt'),
 				[
 					/* 01 */"---",
-					/* 02 */"	tools: true", /* `tools` record with invalid value is ignored */
+					/* 02 */"	something: true", /* unknown metadata record */
 					/* 03 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
 					/* 04 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 05 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
@@ -296,6 +298,238 @@ suite('TextModelPromptParser', () => {
 				tools.toolNames,
 				['tool_name1', 'tool_name2'],
 				`Prompt header must have correct tools metadata.`,
+			);
+		});
+
+		test('• has correct diagnostics', async function () {
+			const test = createTest(
+				createURI('/absolute/folder/and/a/filename.txt'),
+				[
+					/* 01 */"---",
+					/* 02 */"	something: true", /* unknown metadata record */
+					/* 03 */"tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', ,'tool_name2' ] ",
+					/* 04 */"  tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 05 */"tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 06 */"---",
+					/* 07 */"The cactus on my desk has a thriving Instagram account.",
+					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+				],
+			);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+					text: '[text](./foo-bar-baz/another-file.ts)',
+					path: './foo-bar-baz/another-file.ts',
+					startLine: 8,
+					startColumn: 43,
+					pathStartColumn: 50,
+					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				}),
+			]);
+
+			const { header } = test.parser;
+			assertDefined(
+				header,
+				'Prompt header must be defined.',
+			);
+
+			assert.strictEqual(
+				header.metadata.length,
+				1,
+				'Prompt header must have 1 metadata record.',
+			);
+
+			const tools = header.metadata[0];
+			assert(
+				tools instanceof PromptToolsMetadata,
+				`Prompt header must have tools metadata record, got '${tools}'.`,
+			);
+
+			const { diagnostics } = header;
+
+			const diagnostics1 = diagnostics[0];
+			const expectedRange1 = new Range(2, 2, 2, 2 + 15);
+
+			assert(
+				diagnostics1 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #1 to be of 'warning' type, got '${diagnostics1}'.`,
+			);
+
+			assert(
+				diagnostics1
+					.range
+					.equalsRange(expectedRange1),
+				`Expected diagnostic #1 range to be '${expectedRange1}', got '${diagnostics1.range}'.`,
+			);
+
+			assert.strictEqual(
+				diagnostics1.message,
+				'Unknown metadata record \'something\' will be ignored.',
+				`Incorrect message of diagnostic object #1.`,
+			);
+
+			const diagnostics2 = diagnostics[1];
+			const expectedRange2 = new Range(3, 38, 3, 38 + 12);
+
+			assert(
+				diagnostics2 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #2 to be of 'warning' type, got '${diagnostics2}'.`,
+			);
+
+			assert(
+				diagnostics2
+					.range
+					.equalsRange(expectedRange2),
+				`Expected diagnostic #2 range to be '${expectedRange2}', got '${diagnostics2.range}'.`,
+			);
+
+			assert.strictEqual(
+				diagnostics2.message,
+				'Duplicate tool name \'tool_name1\'.',
+				`Incorrect message of diagnostic object #2.`,
+			);
+
+			const diagnostics3 = diagnostics[2];
+			const expectedRange3 = new Range(3, 52, 3, 52 + 4);
+
+			assert(
+				diagnostics3 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #3 to be of 'warning' type, got '${diagnostics3}'.`,
+			);
+
+			assert(
+				diagnostics3
+					.range
+					.equalsRange(expectedRange3),
+				`Expected diagnostic #3 range to be '${expectedRange3}', got '${diagnostics3.range}'.`,
+			);
+
+			assert.strictEqual(
+				diagnostics3.message,
+				'Expected a tool name (string), got \'true\'.',
+				`Incorrect message of diagnostic object #3.`,
+			);
+
+
+			const diagnostics4 = diagnostics[3];
+			const expectedRange4 = new Range(3, 58, 3, 58 + 5);
+
+			assert(
+				diagnostics4 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #4 to be of 'warning' type, got '${diagnostics4}'.`,
+			);
+
+			assert(
+				diagnostics4
+					.range
+					.equalsRange(expectedRange4),
+				`Expected diagnostic #4 range to be '${expectedRange4}', got '${diagnostics4.range}'.`,
+			);
+
+			assert.strictEqual(
+				diagnostics4.message,
+				'Expected a tool name (string), got \'false\'.',
+				`Incorrect message of diagnostic object #4.`,
+			);
+
+
+			const diagnostics5 = diagnostics[4];
+			const expectedRange5 = new Range(3, 65, 3, 65 + 2);
+
+			assert(
+				diagnostics5 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #5 to be of 'warning' type, got '${diagnostics5}'.`,
+			);
+
+			assert(
+				diagnostics5
+					.range
+					.equalsRange(expectedRange5),
+				`Expected diagnostic #5 range to be '${expectedRange5}', got '${diagnostics5.range}'.`,
+			);
+
+			assert.strictEqual(
+				diagnostics5.message,
+				'Tool name cannot be empty.',
+				`Incorrect message of diagnostic object #5.`,
+			);
+
+
+			const diagnostics6 = diagnostics[5];
+			const expectedRange6 = new Range(3, 70, 3, 70 + 12);
+
+			assert.strictEqual(
+				diagnostics6.message,
+				'Duplicate tool name \'tool_name2\'.',
+				`Incorrect message of diagnostic object #6.`,
+			);
+
+			assert(
+				diagnostics6 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #6 to be of 'warning' type, got '${diagnostics6}'.`,
+			);
+
+			assert(
+				diagnostics6
+					.range
+					.equalsRange(expectedRange6),
+				`Expected diagnostic #6 range to be '${expectedRange6}', got '${diagnostics6.range}'.`,
+			);
+
+
+			const diagnostics7 = diagnostics[6];
+			const expectedRange7 = new Range(4, 3, 4, 3 + 37);
+
+			assert.strictEqual(
+				diagnostics7.message,
+				'Duplicate metadata record \'tools\' will be ignored.',
+				`Incorrect message of diagnostic object #7.`,
+			);
+
+			assert(
+				diagnostics7 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #7 to be of 'warning' type, got '${diagnostics7}'.`,
+			);
+
+			assert(
+				diagnostics7
+					.range
+					.equalsRange(expectedRange7),
+				`Expected diagnostic #7 range to be '${expectedRange7}', got '${diagnostics7.range}'.`,
+			);
+
+
+
+			const diagnostics8 = diagnostics[7];
+			const expectedRange8 = new Range(5, 1, 5, 1 + 19);
+
+			assert.strictEqual(
+				diagnostics8.message,
+				'Duplicate metadata record \'tools\' will be ignored.',
+				`Incorrect message of diagnostic object #8.`,
+			);
+
+			assert(
+				diagnostics8 instanceof PromptMetadataWarning,
+				`Expected diagnostic object #8 to be of 'warning' type, got '${diagnostics8}'.`,
+			);
+
+			assert(
+				diagnostics8
+					.range
+					.equalsRange(expectedRange8),
+				`Expected diagnostic #8 range to be '${expectedRange8}', got '${diagnostics8.range}'.`,
+			);
+
+
+			assert.strictEqual(
+				diagnostics.length,
+				8,
+				`Prompt header must have correct number of diagnostic objects.`,
 			);
 		});
 	});

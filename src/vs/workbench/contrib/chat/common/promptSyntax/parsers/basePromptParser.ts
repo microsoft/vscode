@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TopError } from './topError.js';
+import { PromptHeader } from './promptHeader/header.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
@@ -29,7 +30,6 @@ import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCod
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
-import { PromptHeader } from './promptHeader/header.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.

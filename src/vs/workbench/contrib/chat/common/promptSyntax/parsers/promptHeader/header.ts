@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../../../nls.js';
 import { PromptToolsMetadata } from './metadata/tools.js';
-import { localize2 } from '../../../../../../../nls.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
@@ -56,17 +56,7 @@ export class PromptHeader extends Disposable {
 	 * the prompt header.
 	 */
 	public get diagnostics(): readonly TDiagnostic[] {
-		const result = [];
-
-		// collect all issue of the metadata records
-		for (const metadata of this.records) {
-			result.push(...metadata.diagnostics);
-		}
-
-		// then add all issues from this header object itself
-		result.push(...this.issues);
-
-		return result;
+		return this.issues;
 	}
 
 	constructor(
@@ -104,7 +94,7 @@ export class PromptHeader extends Disposable {
 			this.issues.push(
 				new PromptMetadataError(
 					token.range,
-					localize2(
+					localize(
 						'prompt.header.diagnostics.unexpected-token',
 						"Unexpected token '{0}'.",
 						token.text,
@@ -123,7 +113,7 @@ export class PromptHeader extends Disposable {
 			this.issues.push(
 				new PromptMetadataWarning(
 					token.range,
-					localize2(
+					localize(
 						'prompt.header.metadata.diagnostics.duplicate-record',
 						"Duplicate metadata record '{0}' will be ignored.",
 						recordName,
@@ -138,15 +128,9 @@ export class PromptHeader extends Disposable {
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
 			const toolsMetadata = new PromptToolsMetadata(token);
-			const { errorDiagnostics } = toolsMetadata;
+			const { diagnostics } = toolsMetadata;
 
-			// if tools metadata is not valid, copy its error
-			// diagnostic objects and ignore the record
-			if (errorDiagnostics.length !== 0) {
-				this.issues.push(...errorDiagnostics);
-				return;
-			}
-
+			this.issues.push(...diagnostics);
 			this.records.push(toolsMetadata);
 			this.recordNames.add(recordName);
 
@@ -157,7 +141,7 @@ export class PromptHeader extends Disposable {
 		this.issues.push(
 			new PromptMetadataWarning(
 				token.range,
-				localize2(
+				localize(
 					'prompt.header.metadata.diagnostics.unknown-record',
 					"Unknown metadata record '{0}' will be ignored.",
 					recordName,
@@ -173,7 +157,7 @@ export class PromptHeader extends Disposable {
 		this.issues.push(
 			new PromptMetadataError(
 				this.contentsToken.range,
-				localize2(
+				localize(
 					'prompt.header.diagnostics.parsing-error',
 					"Failed to parse prompt header: {0}",
 					error.message,
