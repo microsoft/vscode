@@ -574,7 +574,7 @@ export class NativeEditContext extends AbstractEditContext {
 		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (!this.isFocused() || !isScreenReaderOptimized) {
+			if (!this.isFocused() || !isScreenReaderOptimized || !IME.enabled) {
 				return;
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
