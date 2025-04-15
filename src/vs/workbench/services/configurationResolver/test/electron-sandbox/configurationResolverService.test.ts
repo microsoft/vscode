@@ -101,6 +101,26 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
+	test('does not preserve platform config even when not matched', async () => {
+		const obj = {
+			program: 'osx.sh',
+			windows: {
+				program: 'windows.exe'
+			},
+			linux: {
+				program: 'linux.sh'
+			}
+		};
+		const config: any = await configurationResolverService!.resolveAsync(workspace, obj);
+
+		const expected = isWindows ? 'windows.exe' : isMacintosh ? 'osx.sh' : isLinux ? 'linux.sh' : undefined;
+
+		assert.strictEqual(config.windows, undefined);
+		assert.strictEqual(config.osx, undefined);
+		assert.strictEqual(config.linux, undefined);
+		assert.strictEqual(config.program, expected);
+	});
+
 	test('apples platform specific config', async () => {
 		const expected = isWindows ? 'windows.exe' : isMacintosh ? 'osx.sh' : isLinux ? 'linux.sh' : undefined;
 		const obj = {

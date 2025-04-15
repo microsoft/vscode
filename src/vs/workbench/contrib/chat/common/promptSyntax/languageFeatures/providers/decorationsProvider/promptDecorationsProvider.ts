@@ -12,6 +12,7 @@ import { ProviderInstanceManagerBase } from '../providerInstanceManagerBase.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
 import { registerThemingParticipant } from '../../../../../../../../platform/theme/common/themeService.js';
+import { ITreeSitterParserService } from '../../../../../../../../editor/common/services/treeSitterParserService.js';
 import { FrontMatterHeader } from '../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { DecorationBase, ReactiveDecorationBase, type TDecorationClass, type TChangedDecorator } from './decorations/utils/index.js';
 
@@ -30,7 +31,7 @@ const SUPPORTED_DECORATIONS: readonly TDecorationClass<TDecoratedToken>[] = Obje
 /**
  * Prompt syntax decorations provider for text models.
  */
-export class TextModelPromptDecorator extends ProviderInstanceBase {
+export class PromptDecorator extends ProviderInstanceBase {
 	/**
 	 * Currently active decorations.
 	 */
@@ -39,6 +40,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	constructor(
 		model: ITextModel,
 		@IPromptsService promptsService: IPromptsService,
+		@ITreeSitterParserService private readonly parserService: ITreeSitterParserService,
 	) {
 		super(model, promptsService);
 
@@ -50,6 +52,9 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 
 		this.removeAllDecorations();
 		this.addDecorations(this.parser.tokens);
+
+		const result = this.parserService.getOrInitLanguage('test');
+		console.log('result', result);
 
 		return this;
 	}
@@ -189,8 +194,8 @@ registerThemingParticipant((_theme, collector) => {
 /**
  * Provider for prompt syntax decorators on text models.
  */
-export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<TextModelPromptDecorator> {
+export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<PromptDecorator> {
 	protected override get InstanceClass() {
-		return TextModelPromptDecorator;
+		return PromptDecorator;
 	}
 }

@@ -145,8 +145,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 			name: label(data),
 			icon,
 			value: data,
-			kind: 'diagnostic' as const,
-			range: data.filterRange ? new OffsetRange(data.filterRange.startLineNumber, data.filterRange.endLineNumber) : undefined,
+			kind: 'diagnostic',
 			...data,
 		};
 	}
