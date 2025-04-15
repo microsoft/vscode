@@ -50,7 +50,7 @@ export interface IRunPromptOptions {
 	readonly widget?: IChatWidget;
 	/**
 	 * Whether to create a new chat session and
-	 * attach the prompt to it.
+	 * attach the instructions file to it.
 	 */
 	readonly inNewChat?: boolean;
 
