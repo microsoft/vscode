@@ -11,6 +11,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatModel, IDiagnosticVariableEntryFilterData } from './chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
+import { IToolData } from './languageModelToolsService.js';
 
 export interface IChatVariableData {
 	id: string;
@@ -45,6 +46,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
+	getSelectedTools(sessionId: string): ReadonlyArray<IToolData>;
 }
 
 export interface IDynamicVariable {

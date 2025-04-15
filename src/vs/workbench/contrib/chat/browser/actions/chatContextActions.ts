@@ -55,7 +55,6 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -682,7 +681,6 @@ export class AttachContextAction extends Action2 {
 		const chatAgentService = accessor.get(IChatAgentService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
-		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const clipboardService = accessor.get(IClipboardService);
 		const editorService = accessor.get(IEditorService);
@@ -749,7 +747,7 @@ export class AttachContextAction extends Action2 {
 			}
 		}
 
-		for (const tool of languageModelToolsService.getTools()) {
+		for (const tool of widget.input.selectedToolsModel.tools.get()) {
 			if (tool.canBeReferencedInPrompt) {
 				const item: IToolQuickPickItem = {
 					kind: 'tool',

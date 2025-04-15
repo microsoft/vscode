@@ -11,7 +11,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
-import { ILanguageModelToolsService } from './languageModelToolsService.js';
+import { IToolData } from './languageModelToolsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
@@ -28,12 +28,12 @@ export class ChatRequestParser {
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) { }
 
 	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
+		const toolsByName = new Map<string, IToolData>((this.variableService.getSelectedTools(sessionId)).filter(t => t.toolReferenceName).map(t => [t.toolReferenceName!, t]));
 
 		let lineNumber = 1;
 		let column = 1;
@@ -43,7 +43,7 @@ export class ChatRequestParser {
 			let newPart: IParsedChatRequestPart | undefined;
 			if (previousChar.match(/\s/) || i === 0) {
 				if (char === chatVariableLeader) {
-					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts);
+					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts, toolsByName);
 				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				} else if (char === chatSubcommandLeader) {
@@ -141,7 +141,7 @@ export class ChatRequestParser {
 		return new ChatRequestAgentPart(agentRange, agentEditorRange, agent);
 	}
 
-	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestToolPart | undefined {
+	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, toolsByName: ReadonlyMap<string, IToolData>): ChatRequestAgentPart | ChatRequestToolPart | undefined {
 		const nextVariableMatch = message.match(variableReg);
 		if (!nextVariableMatch) {
 			return;
@@ -151,7 +151,7 @@ export class ChatRequestParser {
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const tool = this.toolsService.getToolByName(name);
+		const tool = toolsByName.get(name);
 		if (tool && tool.canBeReferencedInPrompt) {
 			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id, tool.displayName, tool.icon);
 		}
