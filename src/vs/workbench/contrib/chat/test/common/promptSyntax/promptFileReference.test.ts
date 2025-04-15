@@ -25,9 +25,9 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IFileContentsProviderOptions } from '../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
-import { IFileContentsProviderOptions } from '../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 
 /**
  * Represents a file reference with an expected
@@ -310,7 +310,7 @@ suite('PromptFileReference (Unix)', function () {
 					createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
 					new OpenFailed(
 						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
-						'Failed to open non-existring prompt snippets file',
+						'Failed to open non-existing prompt snippets file',
 					),
 				),
 				new ExpectedReference(
@@ -605,7 +605,7 @@ suite('PromptFileReference (Unix)', function () {
 						createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
 						new OpenFailed(
 							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
-							'Failed to open non-existring prompt snippets file',
+							'Failed to open non-existing prompt snippets file',
 						),
 					),
 					new ExpectedReference(

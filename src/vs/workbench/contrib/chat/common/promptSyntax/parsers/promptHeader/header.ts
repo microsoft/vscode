@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptTools } from './metadata/tools.js';
+import { PromptToolsMetadata } from './metadata/tools.js';
 import { localize2 } from '../../../../../../../nls.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
@@ -16,7 +16,7 @@ import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../edit
 /**
  * Type of all known metadata records inside the prompt header.
  */
-type TMetadataRecord = PromptTools;
+type TMetadataRecord = PromptToolsMetadata;
 
 /**
  * Prompt header holds all metadata records for a prompt.
@@ -28,9 +28,18 @@ export class PromptHeader extends Disposable {
 	private readonly stream: FrontMatterDecoder;
 
 	/**
-	 * List of all unique metadata records inside the prompt header.
+	 * List of all unique well-known metadata records
+	 * inside the prompt header.
 	 */
-	private readonly metadata: TMetadataRecord[];
+	private readonly records: TMetadataRecord[];
+
+	/**
+	 * List of all unique well-known metadata records
+	 * inside the prompt header.
+	 */
+	public get metadata(): readonly TMetadataRecord[] {
+		return this.records;
+	}
 
 	/**
 	 * List of all unique metadata record names.
@@ -50,7 +59,7 @@ export class PromptHeader extends Disposable {
 		const result = [];
 
 		// collect all issue of the metadata records
-		for (const metadata of this.metadata) {
+		for (const metadata of this.records) {
 			result.push(...metadata.diagnostics);
 		}
 
@@ -66,7 +75,7 @@ export class PromptHeader extends Disposable {
 		super();
 
 		this.issues = [];
-		this.metadata = [];
+		this.records = [];
 		this.recordNames = new Set<string>();
 
 		this.stream = this._register(
@@ -127,11 +136,18 @@ export class PromptHeader extends Disposable {
 
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
-		if (PromptTools.isToolsRecord(token)) {
-			this.metadata.push(
-				new PromptTools(token),
-			);
+		if (PromptToolsMetadata.isToolsRecord(token)) {
+			const toolsMetadata = new PromptToolsMetadata(token);
+			const { errorDiagnostics } = toolsMetadata;
 
+			// if tools metadata is not valid, copy its error
+			// diagnostic objects and ignore the record
+			if (errorDiagnostics.length !== 0) {
+				this.issues.push(...errorDiagnostics);
+				return;
+			}
+
+			this.records.push(toolsMetadata);
 			this.recordNames.add(recordName);
 
 			return;

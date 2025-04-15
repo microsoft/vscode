@@ -22,6 +22,7 @@ import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/t
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { PromptToolsMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -234,6 +235,69 @@ suite('TextModelPromptParser', () => {
 				childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
 			}),
 		]);
+	});
+
+	suite('• header', () => {
+		test('• has correct prompt header', async function () {
+			const test = createTest(
+				createURI('/absolute/folder/and/a/filename.txt'),
+				[
+					/* 01 */"---",
+					/* 02 */"	tools: true", /* `tools` record with invalid value is ignored */
+					/* 03 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
+					/* 04 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
+					/* 05 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 06 */"---",
+					/* 07 */"The cactus on my desk has a thriving Instagram account.",
+					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+				],
+			);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+					text: '[text](./foo-bar-baz/another-file.ts)',
+					path: './foo-bar-baz/another-file.ts',
+					startLine: 8,
+					startColumn: 43,
+					pathStartColumn: 50,
+					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				}),
+			]);
+
+			const { header } = test.parser;
+			assertDefined(
+				header,
+				'Prompt header must be defined.',
+			);
+
+			assert.strictEqual(
+				header.metadata.length,
+				1,
+				'Prompt header must have 1 metadata record.',
+			);
+
+			const tools = header.metadata[0];
+			assert(
+				tools instanceof PromptToolsMetadata,
+				`Prompt header must have tools metadata record, got '${tools}'.`,
+			);
+
+			assert.strictEqual(
+				tools.toolNames.length,
+				2,
+				`Prompt header tools metadata must have 2 tool names, got '[${tools.toolNames.join(', ')}]'.`,
+			);
+
+			assert.deepStrictEqual(
+				tools.toolNames,
+				['tool_name1', 'tool_name2'],
+				`Prompt header must have correct tools metadata.`,
+			);
+		});
 	});
 
 	test('gets disposed with the model', async () => {

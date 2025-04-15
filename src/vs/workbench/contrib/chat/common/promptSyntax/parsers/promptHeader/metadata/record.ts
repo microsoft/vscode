@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptMetadataDiagnostic } from '../diagnostics.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
 
 /**
  * Abstract class for all metadata records in the prompt header.
@@ -21,4 +21,24 @@ export abstract class PromptMetadataRecord {
 		 */
 		public readonly range: Range,
 	) { }
+
+	/**
+	 * List of all `error` issue diagnostics.
+	 */
+	public get errorDiagnostics(): readonly PromptMetadataError[] {
+		return this.diagnostics
+			.filter((diagnostic) => {
+				return (diagnostic instanceof PromptMetadataError);
+			});
+	}
+
+	/**
+	 * List of all `warning` issue diagnostics.
+	 */
+	public get warningDiagnostics(): readonly PromptMetadataWarning[] {
+		return this.diagnostics
+			.filter((diagnostic) => {
+				return (diagnostic instanceof PromptMetadataWarning);
+			});
+	}
 }
