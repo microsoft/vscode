@@ -17,7 +17,7 @@ const TOOLS_NAME = 'tools';
 /**
  * Prompt `tools` metadata record inside the prompt header.
  */
-export class PromptTools extends PromptMetadataRecord {
+export class PromptToolsMetadata extends PromptMetadataRecord {
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
@@ -45,12 +45,19 @@ export class PromptTools extends PromptMetadataRecord {
 		return [...this.validToolNames.values()];
 	}
 
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get validValueType(): readonly string[] {
+		return [...this.validToolNames.values()];
+	}
+
 	constructor(
 		private readonly recordToken: FrontMatterRecord,
 	) {
 		// sanity check on the name of the tools record
 		assert(
-			PromptTools.isToolsRecord(recordToken),
+			PromptToolsMetadata.isToolsRecord(recordToken),
 			`Record token must be a tools token, got '${recordToken.nameToken.text}'.`,
 		);
 
@@ -104,7 +111,7 @@ export class PromptTools extends PromptMetadataRecord {
 		// tool name must be a string
 		if ((valueToken instanceof FrontMatterString) === false) {
 			this.issues.push(
-				new PromptMetadataError(
+				new PromptMetadataWarning(
 					valueToken.range,
 					localize2(
 						'prompt.header.metadata.tools.diagnostics.invalid-tool-name-type',
