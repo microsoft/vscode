@@ -121,7 +121,7 @@ export const attachInstructionsFiles = async (
 };
 
 /**
- * Runs the prompt file
+ * Runs the prompt file.
  */
 export const runPromptFile = async (
 	file: URI,
