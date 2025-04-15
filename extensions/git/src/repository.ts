@@ -2018,15 +2018,16 @@ export class Repository implements Disposable {
 			const fileContents = fs.readFileSync(this.gitIgnorePath, { encoding: 'utf8' });
 			// convert each line in the glob file to be a negated pattern separarted by a comma
 			// e.g. *.js -> !*.js, *.ts -> !*.ts
-			const globPatternForIgnored = '{' + fileContents
+			const globPatternForIgnored = fileContents
 				.split('\n')
 				.map(line => line.trim())
 				.filter(line => line && !line.startsWith('#'))
 				.map(pattern => {
 					return `!${pattern}`;
 				})
-				.join(',') + '}';
-			return globPatternForIgnored;
+				.join(',');
+
+			return `{**/*,${globPatternForIgnored}}`;
 		}
 
 		return '**';
