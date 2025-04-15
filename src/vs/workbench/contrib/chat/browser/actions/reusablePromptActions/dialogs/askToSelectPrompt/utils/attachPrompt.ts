@@ -108,16 +108,16 @@ export const attachInstructionsFiles = async (
 
 	const widget = await getChatWidgetObject(options);
 
-	const wasAlreadyAttached: URI[] = [];
+	const wereAlreadyAttached: URI[] = [];
 
 	for (const file of files) {
 		if (widget.attachmentModel.promptInstructions.add(file)) {
-			wasAlreadyAttached.push(file);
+			wereAlreadyAttached.push(file);
 			continue;
 		}
 	}
 
-	return { widget, wasAlreadyAttached };
+	return { widget, wereAlreadyAttached };
 };
 
 /**
