@@ -294,7 +294,7 @@ class QuickDiffWidget extends PeekViewWidget {
 			}
 		}
 		let closestLesserIndex = this._index > 0 ? this._index - 1 : this.model.changes.length - 1;
-		for (let i = closestLesserIndex; i !== this._index; i >= 0 ? i-- : i = this.model.changes.length - 1) {
+		for (let i = closestLesserIndex; i !== this._index; i > 0 ? i-- : i = this.model.changes.length - 1) {
 			if (this.model.changes[i].label === newProvider) {
 				closestLesserIndex = i;
 				break;
