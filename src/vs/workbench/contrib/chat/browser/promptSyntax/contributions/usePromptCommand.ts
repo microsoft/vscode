@@ -110,7 +110,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: INSTRUCTIONS_COMMAND_ID,
-		title: localize('commands.prompts.use.title', "Attach Instructions"),
+		title: localize('commands.instructions.attach.title', "Attach Instructions..."),
 		category: CHAT_CATEGORY
 	},
 	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
