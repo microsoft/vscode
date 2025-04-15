@@ -1971,26 +1971,19 @@ export class CommandCenter {
 			return;
 		}
 
-		const modifiedDocument = textEditor.document;
-		const modifiedUri = modifiedDocument.uri;
+		const modifiedDocument = isGitUri(textEditor.document.uri) && fromGitUri(textEditor.document.uri).ref === ''
+			// Diff Editor (Index)
+			? textEditor.document
+			// Text editor
+			: await workspace.openTextDocument(toGitUri(textEditor.document.uri, ''));
 
-		if (!isGitUri(modifiedUri)) {
-			return;
-		}
-
-		const { ref } = fromGitUri(modifiedUri);
-
-		if (ref !== '') {
-			return;
-		}
-
-		const repository = this.model.getRepository(modifiedUri);
+		const repository = this.model.getRepository(modifiedDocument.uri);
 		if (!repository) {
 			return;
 		}
 
 		const resource = repository.indexGroup.resourceStates
-			.find(r => pathEquals(r.resourceUri.fsPath, modifiedUri.fsPath));
+			.find(r => pathEquals(r.resourceUri.fsPath, modifiedDocument.uri.fsPath));
 		if (!resource) {
 			return;
 		}
@@ -2023,7 +2016,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
+		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
 	}
 
 	@command('git.unstageFile')
