@@ -45,13 +45,6 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 		return [...this.validToolNames.values()];
 	}
 
-	/**
-	 * TODO: @legomushroom
-	 */
-	public get validValueType(): readonly string[] {
-		return [...this.validToolNames.values()];
-	}
-
 	constructor(
 		private readonly recordToken: FrontMatterRecord,
 	) {
