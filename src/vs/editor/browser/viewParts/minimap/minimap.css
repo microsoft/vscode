@@ -17,6 +17,9 @@
 /* END cover the case that slider is visible on mouseover */
 .monaco-editor .minimap-slider .minimap-slider-horizontal {
 	background: var(--vscode-minimapSlider-background);
+	transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: 150ms;
 }
 .monaco-editor .minimap-slider:hover .minimap-slider-horizontal {
 	background: var(--vscode-minimapSlider-hoverBackground);
