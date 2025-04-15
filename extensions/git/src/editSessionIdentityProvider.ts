@@ -13,11 +13,12 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 	private providerRegistration: vscode.Disposable;
 
 	constructor(private model: Model) {
-		this.providerRegistration = vscode.workspace.registerEditSessionIdentityProvider('file', this);
-
-		vscode.workspace.onWillCreateEditSessionIdentity((e) => {
-			e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder));
-		});
+		this.providerRegistration = vscode.Disposable.from(
+			vscode.workspace.registerEditSessionIdentityProvider('file', this),
+			vscode.workspace.onWillCreateEditSessionIdentity((e) => {
+				e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder));
+			})
+		);
 	}
 
 	dispose() {
