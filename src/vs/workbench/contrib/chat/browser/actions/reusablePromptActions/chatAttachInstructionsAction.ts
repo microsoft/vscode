@@ -19,7 +19,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
+import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
 import { ISelectInstructionsOptions, askToSelectInstructions } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
