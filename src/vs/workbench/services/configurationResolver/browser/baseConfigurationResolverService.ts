@@ -144,10 +144,6 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	}
 
 	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
-		// First resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAsync(folder, config);
-
-		// Then resolve input variables in the order in which they are encountered
 		const parsed = ConfigurationResolverExpression.parse(config);
 		await this.resolveWithInteraction(folder, parsed, section, variables, target);
 
