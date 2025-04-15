@@ -46,7 +46,7 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 		}
 
 		/* __GDPR__
-			"tsServerRequest.trace" : {
+			"typeScriptExtension.trace" : {
 				"owner": "dirkb",
 				"${include}": [
 					"${TypeScriptCommonProperties}"
