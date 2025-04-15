@@ -152,4 +152,7 @@ declare module 'vscode' {
 		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
 	}
 
+	export namespace lm {
+		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token?: CancellationToken): Thenable<LanguageModelToolResult2>;
+	}
 }
