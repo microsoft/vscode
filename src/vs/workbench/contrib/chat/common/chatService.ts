@@ -258,6 +258,11 @@ export interface IChatToolInvocationSerialized {
 	kind: 'toolInvocationSerialized';
 }
 
+export interface IChatExtensionsContent {
+	extensions: string[];
+	kind: 'extensions';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -278,6 +283,7 @@ export type IChatProgress =
 	| IChatConfirmation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
+	| IChatExtensionsContent
 	| IChatUndoStop;
 
 export interface IChatFollowup {

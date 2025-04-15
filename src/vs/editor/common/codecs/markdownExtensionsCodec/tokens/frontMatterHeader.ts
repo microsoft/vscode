@@ -43,6 +43,13 @@ export class FrontMatterHeader extends MarkdownExtensionsToken {
 	}
 
 	/**
+	 * Content token of the Front Matter header.
+	 */
+	public get contentToken(): Text {
+		return this.content;
+	}
+
+	/**
 	 * Check if this token is equal to another one.
 	 */
 	public override equals<T extends BaseToken>(other: T): boolean {
@@ -69,8 +76,12 @@ export class FrontMatterHeader extends MarkdownExtensionsToken {
 		contentTokens: readonly TSimpleDecoderToken[],
 		endMarkerTokens: readonly TMarkerToken[],
 	): FrontMatterHeader {
+		const range = BaseToken.fullRange(
+			[...startMarkerTokens, ...endMarkerTokens],
+		);
+
 		return new FrontMatterHeader(
-			BaseToken.fullRange([...startMarkerTokens, ...endMarkerTokens]),
+			range,
 			FrontMatterMarker.fromTokens(startMarkerTokens),
 			Text.fromTokens(contentTokens),
 			FrontMatterMarker.fromTokens(endMarkerTokens),
