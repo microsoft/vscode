@@ -58,12 +58,14 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	private readonly _references: IPromptReference[] = [];
 
 	/**
-	 * TODO: @legomushroom
+	 * Reference to the prompt header object that holds metadata associated
+	 * with the prompt.
 	 */
 	private promptHeader?: PromptHeader;
 
 	/**
-	 * TODO: @legomushroom
+	 * Reference to the prompt header object that holds metadata associated
+	 * with the prompt.
 	 */
 	public get header(): PromptHeader | undefined {
 		return this.promptHeader;
@@ -144,7 +146,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		await this.stream.settled;
 
-		// TODO: @legomushroom
+		// if prompt header exists, also wait for it to be settled
 		if (this.promptHeader) {
 			await this.promptHeader.settled;
 		}
@@ -240,6 +242,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		delete this._errorCondition;
 		this.receivedTokens = [];
 
+		// cleanup current prompt header object
 		this.promptHeader?.dispose();
 		delete this.promptHeader;
 
@@ -268,6 +271,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 				this.receivedTokens.push(token);
 			}
 
+			// if a prompt header token received, create a new prompt header instance
 			if (token instanceof FrontMatterHeader) {
 				this.promptHeader = new PromptHeader(token.contentToken);
 				this.promptHeader.start();
