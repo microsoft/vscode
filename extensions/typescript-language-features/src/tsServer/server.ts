@@ -187,7 +187,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		const seq = request.seq;
 		const callback = this._callbacks.peek(seq);
 		if (callback?.traceId !== undefined) {
-			this._telemetryReporter.logTraceEvent('TSServerRequest.cancel', callback.traceId, JSON.stringify({ command, cancelled: true }));
+			this._telemetryReporter.logTraceEvent('TSServer.tryCancelRequest', callback.traceId, JSON.stringify({ command, cancelled: true }));
 		}
 		try {
 			if (this._requestQueue.tryDeletePendingRequest(seq)) {
@@ -211,7 +211,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 			return;
 		}
 		if (callback.traceId !== undefined) {
-			this._telemetryReporter.logTraceEvent('TSServerRequest.response', callback.traceId, JSON.stringify({ command: response.command, success: response.success, performanceData: response.performanceData }));
+			this._telemetryReporter.logTraceEvent('TSServerRequest.dispatchResponse', callback.traceId, JSON.stringify({ command: response.command, success: response.success, performanceData: response.performanceData }));
 		}
 		this._tracer.traceResponse(this._serverId, response, callback);
 		if (response.success) {
@@ -271,7 +271,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		this._requestQueue.enqueue(requestInfo);
 		if (typeof args.$traceId === 'string') {
 			const queueLength = this._requestQueue.length - 1;
-			this._telemetryReporter.logTraceEvent('TSServerRequest.enqueue', args.$traceId, JSON.stringify({ command, queueLength }));
+			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', args.$traceId, JSON.stringify({ command, queueLength }));
 		}
 		this.sendNextRequests();
 
@@ -298,7 +298,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		try {
 			this.write(serverRequest);
 			if (typeof serverRequest.arguments?.$traceId === 'string') {
-				this._telemetryReporter.logTraceEvent('TSServerRequest.send', serverRequest.arguments.$traceId, JSON.stringify({ command: serverRequest.command }));
+				this._telemetryReporter.logTraceEvent('TSServer.sendRequest', serverRequest.arguments.$traceId, JSON.stringify({ command: serverRequest.command }));
 			}
 		} catch (err) {
 			const callback = this.fetchCallback(serverRequest.seq);
