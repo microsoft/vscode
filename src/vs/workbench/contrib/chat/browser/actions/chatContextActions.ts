@@ -61,7 +61,7 @@ import { isQuickChat } from '../chatWidget.js';
 import { createFolderQuickPick, createMarkersQuickPick } from '../contrib/chatDynamicVariables.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
-import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/ attachInstructionsCommand.js';
+import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/attachInstructionsCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { runAttachInstructionsAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
 

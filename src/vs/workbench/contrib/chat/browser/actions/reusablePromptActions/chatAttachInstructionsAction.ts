@@ -55,7 +55,7 @@ class AttachInstructionsAction extends Action2 {
 	constructor() {
 		super({
 			id: ATTACH_INSTRUCTIONS_ACTION_ID,
-			title: localize2('workbench.action.chat.attach.instructions.label', "Attach Instructions"),
+			title: localize2('attach-instructions.capitalized.ellipses', "Attach Instructions..."),
 			f1: false,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,

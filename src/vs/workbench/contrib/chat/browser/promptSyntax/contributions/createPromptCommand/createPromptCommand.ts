@@ -64,13 +64,12 @@ const command = async (
 		return;
 	}
 
-	const content = type === 'instructions' ?
-		localize(
+	const content = (type === 'instructions')
+		? localize(
 			'workbench.command.instructions.create.initial-content',
 			"Add instructions...",
-		) :
-
-		localize(
+		)
+		: localize(
 			'workbench.command.prompt.create.initial-content',
 			"Add prompt contents...",
 		);

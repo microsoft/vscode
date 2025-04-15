@@ -23,7 +23,7 @@ export const SUPER_KEY_NAME = (isWindows || isLinux) ? 'Ctrl' : '⌘';
 export const ALT_KEY_NAME = (isWindows || isLinux) ? 'Alt' : '⌥';
 
 /**
- * A special quick pick item that links to the prompt documentation.
+ * A special quick pick item that links to the documentation of prompt file.
  */
 export const PROMPT_DOCS_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 	type: 'item',

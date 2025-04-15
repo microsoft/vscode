@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../constants.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../constants.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
@@ -133,8 +133,12 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	}
 }
 
+/**
+ * Check if provided language ID is either
+ * the `prompt` or `instructions` one.
+ */
 const isPromptOrInstructionsFile = (
-	languageId: string
+	languageId: string,
 ): boolean => {
 	return (languageId === PROMPT_LANGUAGE_ID) || (languageId === INSTRUCTIONS_LANGUAGE_ID);
 };
@@ -154,7 +158,7 @@ const isPromptFileModel = (
 		return false;
 	}
 
-	if (!isPromptOrInstructionsFile(model.getLanguageId())) {
+	if (isPromptOrInstructionsFile(model.getLanguageId()) === false) {
 		return false;
 	}
 

@@ -6,12 +6,12 @@
 import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
-import { PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { basename, extUri } from '../../../../../../../../base/common/resources.js';
-import { IPromptsService, TPromptsStorage, TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
+import { IPromptsService, TPromptsStorage, TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**

@@ -22,7 +22,7 @@ import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants
 /**
  * Command ID of the "Attach Instructions" command.
  */
-export const INSTRUCTIONS_COMMAND_ID = 'workbench.command.instructions.use';
+export const INSTRUCTIONS_COMMAND_ID = 'workbench.command.instructions.attach';
 
 /**
  * Keybinding of the "Use Instructions" command.
@@ -110,7 +110,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: INSTRUCTIONS_COMMAND_ID,
-		title: localize('commands.instructions.attach.title', "Attach Instructions..."),
+		title: localize('attach-instructions.capitalized.ellipses', "Attach Instructions..."),
 		category: CHAT_CATEGORY
 	},
 	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
