@@ -1971,19 +1971,16 @@ export class CommandCenter {
 			return;
 		}
 
-		const modifiedDocument = isGitUri(textEditor.document.uri) && fromGitUri(textEditor.document.uri).ref === ''
-			// Diff Editor (Index)
-			? textEditor.document
-			// Text editor
-			: await workspace.openTextDocument(toGitUri(textEditor.document.uri, ''));
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
 
-		const repository = this.model.getRepository(modifiedDocument.uri);
+		const repository = this.model.getRepository(modifiedUri);
 		if (!repository) {
 			return;
 		}
 
 		const resource = repository.indexGroup.resourceStates
-			.find(r => pathEquals(r.resourceUri.fsPath, modifiedDocument.uri.fsPath));
+			.find(r => pathEquals(r.resourceUri.fsPath, modifiedUri.fsPath));
 		if (!resource) {
 			return;
 		}
@@ -2011,12 +2008,24 @@ export class CommandCenter {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(invertLineChange);
-
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
-		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
+		if (modifiedUri.scheme === 'file') {
+			// Editor
+			const changes = indexLineChanges
+				.filter(c => !selectedDiffs.some(d =>
+					d.originalStartLineNumber === c.originalStartLineNumber &&
+					d.originalEndLineNumber === c.originalEndLineNumber &&
+					d.modifiedStartLineNumber === c.modifiedStartLineNumber &&
+					d.modifiedEndLineNumber === c.modifiedEndLineNumber));
+			await this._unstageChanges(textEditor, changes);
+			return;
+		}
+
+		const selectedDiffsInverted = selectedDiffs.map(invertLineChange);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffsInverted: ${JSON.stringify(selectedDiffsInverted)}`);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, selectedDiffsInverted);
 		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
 	}
 
@@ -2053,20 +2062,26 @@ export class CommandCenter {
 			return;
 		}
 
-		const repository = this.model.getRepository(textEditor.document.uri);
-		if (!repository) {
+		changes.splice(index, 1);
+		await this._unstageChanges(textEditor, changes);
+	}
+
+	private async _unstageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
 			return;
 		}
 
-		const originalUri = toGitUri(textEditor.document.uri, 'HEAD');
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 
-		const modifiedDocumentUri = toGitUri(textEditor.document.uri, '');
-		const modifiedDocument = await workspace.openTextDocument(modifiedDocumentUri);
+		const invertedChanges = changes.map(invertLineChange);
+		const result = applyLineChanges(originalDocument, modifiedDocument, invertedChanges);
 
-		const invertedChange = invertLineChange(changes[index]);
-		const result = applyLineChanges(modifiedDocument, originalDocument, [invertedChange]);
-		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
 	}
 
 	@command('git.clean')
