@@ -125,7 +125,7 @@ suite('TextModelPromptParser', () => {
 		);
 	};
 
-	test('core logic #1', async () => {
+	test('• core logic #1', async () => {
 		const test = createTest(
 			createURI('/foo/bar.md'),
 			[
@@ -136,11 +136,11 @@ suite('TextModelPromptParser', () => {
 				/* 05 */"Sometimes, the best code is the one you never have to write.",
 				/* 06 */"A lone kangaroo once hopped into the local cafe, seeking free Wi-Fi.",
 				/* 07 */"Critical #file:./folder/binary.file thinking is like coffee; best served strong [md link](/etc/hosts/random-file.txt) and without sugar.",
-				/* 08 */"Music is the mind’s way of doodling in the air.",
+				/* 08 */"Music is the mind's way of doodling in the air.",
 				/* 09 */"Stargazing is just turning your eyes into cosmic explorers.",
 				/* 10 */"Never trust a balloon salesman who hates birthdays.",
 				/* 11 */"Running backward can be surprisingly enlightening.",
-				/* 12 */"There’s an art to whispering loudly.",
+				/* 12 */"There's an art to whispering loudly.",
 			],
 		);
 
@@ -175,7 +175,7 @@ suite('TextModelPromptParser', () => {
 		]);
 	});
 
-	test('core logic #2', async () => {
+	test('• core logic #2', async () => {
 		const test = createTest(
 			createURI('/absolute/folder/and/a/filename.txt'),
 			[
@@ -300,7 +300,7 @@ suite('TextModelPromptParser', () => {
 		});
 	});
 
-	test('gets disposed with the model', async () => {
+	test('• gets disposed with the model', async () => {
 		const test = createTest(
 			createURI('/some/path/file.prompt.md'),
 			[
@@ -321,7 +321,7 @@ suite('TextModelPromptParser', () => {
 		);
 	});
 
-	test('toString() implementation', async () => {
+	test('• toString() implementation', async () => {
 		const modelUri = createURI('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,
