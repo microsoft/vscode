@@ -147,6 +147,15 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const onlyBoundary = (this._options.renderWhitespace === 'boundary');
 		const onlyTrailing = (this._options.renderWhitespace === 'trailing');
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
+		const middotWidth = this._options.middotWidth;
+		const wsmiddotWidth = this._options.wsmiddotWidth;
+		const spaceWidth = this._options.spaceWidth;
+		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
+		const middotDiff = Math.abs(middotWidth - spaceWidth);
+
+		// U+2E31 - WORD SEPARATOR MIDDLE DOT
+		// U+00B7 - MIDDLE DOT
+		const renderSpaceCharCode = (wsmiddotDiff < middotDiff ? 0x2E31 : 0xB7);
 
 		const canUseHalfwidthRightwardsArrow = this._options.canUseHalfwidthRightwardsArrow;
 
@@ -206,18 +215,10 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				continue;
 			}
 
-			const position = new Position(lineNumber, charIndex + 1);
-			const visibleRange = ctx.visibleRangeForPosition(position);
+			const visibleRange = ctx.visibleRangeForPosition(new Position(lineNumber, charIndex + 1));
 			if (!visibleRange) {
 				continue;
 			}
-			const fontInfo = ctx.getFontInfoForPosition(position);
-			const spaceWidth = fontInfo.spaceWidth;
-			const middotWidth = fontInfo.middotWidth;
-			const wsmiddotWidth = fontInfo.wsmiddotWidth;
-			const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
-			const middotDiff = Math.abs(middotWidth - spaceWidth);
-			const renderSpaceCharCode = (wsmiddotDiff < middotDiff ? 0x2E31 : 0xB7);
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
@@ -236,7 +237,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 
 		if (USE_SVG) {
-			const spaceWidth = this._options.spaceWidth;
 			maxLeft = Math.round(maxLeft + spaceWidth);
 			return (
 				`<svg style="bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`

@@ -113,6 +113,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 	private _cursorSurroundingLinesStyle: 'default' | 'all';
 	private _canUseLayerHinting: boolean;
 	private _viewLineOptions: ViewLineOptions;
+	private _modifiedViewLineOptions: ViewLineOptions;
 
 	// --- width
 	private _maxLineWidth: number;
@@ -142,12 +143,31 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+		this._modifiedViewLineOptions = new ViewLineOptions(conf, this._context.theme.type, true);
 
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
 		this._visibleLines = new VisibleLinesCollection(this._context, {
-			createLine: () => new ViewLine(viewGpuContext, context, this._viewLineOptions),
+			createLine: (lineNumber: number) => {
+				const hasFontDecorations = context.viewModel.hasFontDecorations(lineNumber);
+				if (hasFontDecorations) {
+					return new ViewLine(viewGpuContext, context, this._modifiedViewLineOptions);
+				}
+				return new ViewLine(viewGpuContext, context, this._viewLineOptions);
+			},
 		});
+		this._register(context.viewModel.model.onDidChangeFont((e) => {
+			for (const change of e.changes) {
+				const lineNumber = change.lineNumber;
+				const fonts = context.viewModel.model.getFontDecorations(lineNumber);
+				const viewLine = this._visibleLines.getVisibleLine(lineNumber);
+				if (fonts.length > 0) {
+					viewLine.onOptionsChanged(this._modifiedViewLineOptions);
+				} else {
+					viewLine.onOptionsChanged(this._viewLineOptions);
+				}
+			}
+		}));
 		this.domNode = this._visibleLines.domNode;
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
@@ -220,14 +240,21 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const conf = this._context.configuration;
 
 		const newViewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+		const newModifiedViewLineOptions = new ViewLineOptions(conf, this._context.theme.type, true);
 		if (!this._viewLineOptions.equals(newViewLineOptions)) {
 			this._viewLineOptions = newViewLineOptions;
+			this._modifiedViewLineOptions = newModifiedViewLineOptions;
 
 			const startLineNumber = this._visibleLines.getStartLineNumber();
 			const endLineNumber = this._visibleLines.getEndLineNumber();
 			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 				const line = this._visibleLines.getVisibleLine(lineNumber);
-				line.onOptionsChanged(this._viewLineOptions);
+				const hasFontDecorations = this._context.viewModel.hasFontDecorations(lineNumber);
+				if (hasFontDecorations) {
+					line.onOptionsChanged(this._modifiedViewLineOptions);
+				} else {
+					line.onOptionsChanged(this._viewLineOptions);
+				}
 			}
 			return true;
 		}
