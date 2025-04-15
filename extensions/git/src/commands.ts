@@ -2001,6 +2001,10 @@ export class CommandCenter {
 		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+
+		console.log('selectedLines', selectedLines);
+		console.log('indexLineChanges', indexLineChanges);
+
 		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];
@@ -2041,6 +2045,32 @@ export class CommandCenter {
 		await repository.revert(resources);
 	}
 
+	@command('git.unstageChange')
+	async unstageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
+		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+		if (!textEditor) {
+			return;
+		}
+
+		const repository = this.model.getRepository(textEditor.document.uri);
+		if (!repository) {
+			return;
+		}
+
+		const originalUri = toGitUri(textEditor.document.uri, 'HEAD');
+		const originalDocument = await workspace.openTextDocument(originalUri);
+
+		const modifiedDocumentUri = toGitUri(textEditor.document.uri, '');
+		const modifiedDocument = await workspace.openTextDocument(modifiedDocumentUri);
+
+		const invertedChange = invertLineChange(changes[index]);
+		const result = applyLineChanges(modifiedDocument, originalDocument, [invertedChange]);
+		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
+	}
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {

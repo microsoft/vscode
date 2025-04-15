@@ -283,7 +283,7 @@ export class QuickDiffModel extends Disposable {
 								const originalTextEditorModelSecondary = this._originalEditorModels.get(quickDiff.originalResource)?.textEditorModel;
 
 								if (originalTextEditorModelPrimary?.getValueInRange(originalRange) === originalTextEditorModelSecondary?.getValueInRange(originalRange)) {
-									continue;
+									// continue;
 								}
 							}
 						}
@@ -298,6 +298,9 @@ export class QuickDiffModel extends Disposable {
 					}
 				}
 			}
+
+			console.log(allDiffs);
+
 			const sorted = allDiffs.sort((a, b) => compareChanges(a.change, b.change));
 			const map: Map<string, number[]> = new Map();
 			for (let i = 0; i < sorted.length; i++) {
