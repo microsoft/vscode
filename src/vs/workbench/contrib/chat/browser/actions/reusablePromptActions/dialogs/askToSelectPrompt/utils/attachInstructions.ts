@@ -7,10 +7,9 @@ import { IChatWidget, showChatView } from '../../../../../chat.js';
 import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
-import { IChatAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
+import { IChatAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
-import { IRunPromptOptions } from './runPrompt.js';
 
 /**
  * Options for the {@link attachInstructionsFiles} function.
@@ -34,11 +33,17 @@ export interface IAttachOptions {
  * Return value of the {@link attachInstructionsFiles} function.
  */
 interface IAttachResult {
+	/**
+	 * Chat widget instance files were attached to.
+	 */
 	readonly widget: IChatWidget;
-	readonly wereAlreadyAttached: readonly URI[];
+
+	/**
+	 * List of instruction files that were already
+	 * attached to the chat input.
+	 */
+	readonly alreadyAttached: readonly URI[];
 }
-
-
 
 /**
  * Attaches provided instructions to a chat input.
@@ -50,16 +55,16 @@ export const attachInstructionsFiles = async (
 
 	const widget = await getChatWidgetObject(options);
 
-	const wereAlreadyAttached: URI[] = [];
+	const alreadyAttached: URI[] = [];
 
 	for (const file of files) {
 		if (widget.attachmentModel.promptInstructions.add(file)) {
-			wereAlreadyAttached.push(file);
+			alreadyAttached.push(file);
 			continue;
 		}
 	}
 
-	return { widget, wereAlreadyAttached };
+	return { widget, alreadyAttached };
 };
 
 /**
@@ -69,7 +74,7 @@ export const attachInstructionsFiles = async (
  * @throws if failed to reveal a chat widget.
  */
 export const getChatWidgetObject = async (
-	options: IAttachOptions | IRunPromptOptions,
+	options: IAttachOptions,
 ): Promise<IChatWidget> => {
 	const { widget, inNewChat } = options;
 
@@ -84,10 +89,11 @@ export const getChatWidgetObject = async (
 };
 
 /**
- * Opens a chat session, or reveals an existing one.
+ * Reveals an existing one or creates a new one based on
+ * the provided `createNew` flag.
  */
 const showChat = async (
-	options: IAttachOptions | IRunPromptOptions,
+	options: IAttachOptions,
 	createNew: boolean = false,
 ): Promise<IChatWidget> => {
 	const { commandService, viewsService } = options;

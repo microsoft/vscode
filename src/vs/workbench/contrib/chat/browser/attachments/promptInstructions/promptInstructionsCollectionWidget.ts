@@ -98,7 +98,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 			// register the new child widget
 			this.children.push(widget);
 
-			// if parent node is present - append the wiget to it, otherwise wait
+			// if parent node is present - append the widget to it, otherwise wait
 			// until the `render` method will be called
 			if (this.parentNode) {
 				this.parentNode.appendChild(widget.domNode);

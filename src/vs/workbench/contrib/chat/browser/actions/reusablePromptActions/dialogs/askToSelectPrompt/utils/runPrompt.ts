@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { detachPrompt } from './detachPrompt.js';
 import { IChatWidget } from '../../../../../chat.js';
+import { getChatWidgetObject } from './attachInstructions.js';
 import { URI } from '../../../../../../../../../base/common/uri.js';
+import { extUri } from '../../../../../../../../../base/common/resources.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
-import { detachPrompt } from './detachPrompt.js';
-import { getChatWidgetObject } from './attachInstructions.js';
-import { extUri } from '../../../../../../../../../base/common/resources.js';
-
 
 /**
  * Options for the {@link runPromptFile} function.
@@ -37,7 +36,6 @@ export interface IRunPromptOptions {
 interface IRunPromptResult {
 	readonly widget: IChatWidget;
 }
-
 
 /**
  * Runs the prompt file.

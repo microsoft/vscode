@@ -9,7 +9,7 @@ import { LanguageSelector } from '../../../../../editor/common/languageSelector.
  * Documentation link for the reusable prompts feature.
  */
 export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
-export const INSTRUCTIONS_DOCUMENTATION_URL = PROMPT_DOCUMENTATION_URL; // TODO: instructions specific link
+export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
 
 /**
  * Language ID for the reusable prompt syntax.

@@ -16,7 +16,7 @@ export const createPlaceholderText = (
 	const { widget } = options;
 
 	let text = localize(
-		'commands.select-dialog.instructions.placeholder',
+		'commands.instructions.select-dialog.placeholder',
 		'Select instructions files to attach',
 	);
 
@@ -24,13 +24,13 @@ export const createPlaceholderText = (
 	// modifier that can be leveraged by users to alter the command behavior
 	if (widget === undefined) {
 		const superModifierNote = localize(
-			'commands.select-dialog.super-modifier-note',
+			'commands.instructions.select-dialog.super-modifier-note',
 			'{0}-key to use in new chat',
 			SUPER_KEY_NAME,
 		);
 
 		text += localize(
-			'commands.select-dialog.modifier-notes',
+			'commands.instructions.select-dialog.modifier-notes',
 			' (hold {0})',
 			superModifierNote,
 		);
