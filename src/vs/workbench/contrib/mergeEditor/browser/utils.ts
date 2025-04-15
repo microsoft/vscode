@@ -77,10 +77,6 @@ export function* join<TLeft, TRight>(
 	}
 }
 
-export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
-	return ([] as any[]).concat(...arrays);
-}
-
 export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined {
 	return arr[index];
 }

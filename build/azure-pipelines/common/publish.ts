@@ -20,7 +20,7 @@ import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, Contai
 import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
-function e(name: string): string {
+export function e(name: string): string {
 	const result = process.env[name];
 
 	if (typeof result !== 'string') {
@@ -583,7 +583,7 @@ const azdoFetchOptions = {
 	}
 };
 
-async function requestAZDOAPI<T>(path: string): Promise<T> {
+export async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
 
@@ -600,7 +600,7 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 	}
 }
 
-interface Artifact {
+export interface Artifact {
 	readonly name: string;
 	readonly resource: {
 		readonly downloadUrl: string;

@@ -37,9 +37,8 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
-import { chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -51,7 +50,7 @@ export const $ = dom.$;
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
 	description?: string;
-	state?: WorkingSetEntryState;
+	state?: ModifiedFileEntryState;
 	excluded?: boolean;
 }
 
@@ -402,10 +401,10 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 		if (data.state !== undefined) {
 			if (templateData.actionBarContainer) {
-				if (data.state === WorkingSetEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
+				if (data.state === ModifiedFileEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
 					templateData.actionBarContainer.classList.add('modified');
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
-				} else if (data.state !== WorkingSetEntryState.Modified) {
+				} else if (data.state !== ModifiedFileEntryState.Modified) {
 					templateData.actionBarContainer.classList.remove('modified');
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 				}
@@ -464,18 +463,14 @@ registerAction2(class AddToChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const variablesService = accessor.get(IChatVariablesService);
-
 		if (!resource) {
 			return;
 		}
 
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
+		if (widget) {
+			widget.attachmentModel.addFile(resource);
 		}
-
-		variablesService.attachContext('file', resource, widget.location);
 	}
 });
 

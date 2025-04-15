@@ -14,8 +14,6 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -32,7 +30,8 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
+import { ChatConfiguration } from '../common/constants.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -53,7 +52,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _tools = new Map<string, IToolEntry>();
 	private _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
-	private readonly _ctxPickableToolsCount: IContextKey<number>;
 
 	private _callsByRequestId = new Map<string, IDisposable[]>();
 
@@ -84,8 +82,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}));
 
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
+				this._onDidChangeToolsScheduler.schedule();
+			}
+		}));
+
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
-		this._ctxPickableToolsCount = ChatContextKeys.Tools.pickableToolsCount.bindTo(_contextKeyService);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -95,7 +98,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		this._tools.set(toolData.id, { data: toolData });
 		this._ctxToolsCount.set(this._tools.size);
-		this._ctxPickableToolsCount.set(Iterable.reduce(this._tools.values(), (pre, cur) => pre + (cur.data.supportsToolPicker ? 1 : 0), 0));
 		this._onDidChangeToolsScheduler.schedule();
 
 		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
@@ -103,7 +105,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let store: DisposableStore | undefined;
 		if (toolData.inputSchema) {
 			store = new DisposableStore();
-			const schemaUrl = URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolData.id}` }).toString();
+			const schemaUrl = createToolSchemaUri(toolData.id).toString();
 			jsonSchemaRegistry.registerSchema(schemaUrl, toolData.inputSchema, store);
 			store.add(jsonSchemaRegistry.registerSchemaAssociation(schemaUrl, `/lm/tool/${toolData.id}/tool_input.json`));
 		}
@@ -112,7 +114,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			store?.dispose();
 			this._tools.delete(toolData.id);
 			this._ctxToolsCount.set(this._tools.size);
-			this._ctxPickableToolsCount.set(Iterable.reduce(this._tools.values(), (pre, cur) => pre + (cur.data.supportsToolPicker ? 1 : 0), 0));
 			this._refreshAllToolContextKeys();
 			this._onDidChangeToolsScheduler.schedule();
 		});
@@ -143,7 +144,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getTools(): Iterable<Readonly<IToolData>> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
-		return Iterable.filter(toolDatas, toolData => !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when));
+		const extensionToolsEnabled = this._configurationService.getValue(ChatConfiguration.ExtensionToolsEnabled);
+		return Iterable.filter(
+			toolDatas,
+			toolData => {
+				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
+				const satisfiesExternalToolCheck = toolData.source.type === 'extension' && !extensionToolsEnabled ?
+					!toolData.source.isExternalTool :
+					true;
+				return satisfiesWhenClause && satisfiesExternalToolCheck;
+			});
 	}
 
 	getTool(id: string): IToolData | undefined {
@@ -299,7 +309,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
 				});
-			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId}: ${toErrorMessage(err)}. With parameters ${JSON.stringify(dto.parameters)}`);
+			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
@@ -375,7 +385,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
-		const config = this._configurationService.inspect<boolean | string[]>('chat.tools.autoApprove');
+		const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
 
 		// If we know the tool runs at a global level, only consider the global config.
 		// If we know the tool runs at a workspace level, use those specific settings when appropriate.
@@ -387,7 +397,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		return value === true || (Array.isArray(value) && value.includes(toolId));
+		return value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
 	}
 
 	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {

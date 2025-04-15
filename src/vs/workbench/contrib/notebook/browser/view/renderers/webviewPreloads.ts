@@ -8,6 +8,7 @@ import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type * as webviewMessages from './webviewMessages.js';
 import type { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 import type * as rendererApi from 'vscode-notebook-renderer';
+import type { NotebookCellOutputTransferData } from '../../../../../../platform/dnd/browser/dnd.js';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -2914,6 +2915,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.addEventListener('mouseleave', () => {
 				postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', { id: outputId });
 			});
+
+			// Add drag handler
+			this.element.addEventListener('dragstart', (e: DragEvent) => {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const outputData: NotebookCellOutputTransferData = {
+					outputId: this.outputId,
+				};
+
+				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
+			});
 		}
 
 		public dispose() {
@@ -2933,6 +2947,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
+
+				const imageMimeTypes = ['image/png', 'image/jpeg', 'image/svg'];
+				if (!imageMimeTypes.includes(content.output.mime)) {
+					this.element.draggable = false;
+				}
+
 				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();

@@ -35,7 +35,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -394,7 +394,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	private readonly _modifiedUris = derived<URI[]>(this, (r) => {
 		const uri = this._currentEntries.read(r);
-		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === WorkingSetEntryState.Modified).map(entry => entry.modifiedURI);
+		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
 	public readonly onDidChange = Event.any(
@@ -420,7 +420,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		}
 		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
 		if (isModified) {
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			return {
 				weight: 1000,
 				letter: Codicon.diffModified,
@@ -445,11 +445,12 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 
+		const parsed = parseChatMultiDiffUri(uri);
 		const thisSession = derived(this, r => {
-			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === parsed.chatSessionId);
 		});
 
-		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);
+		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession, parsed.showPreviousChanges);
 	}
 }
 
@@ -461,6 +462,21 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 		}
 		const entries = currentSession.entries.read(reader);
 		return entries.map((entry) => {
+			if (this._showPreviousChanges) {
+				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined);
+				const entryDiff = entryDiffObs?.read(reader);
+				if (entryDiff) {
+					return new MultiDiffEditorItem(
+						entryDiff.originalURI,
+						entryDiff.modifiedURI,
+						undefined,
+						{
+							[chatEditingResourceContextKey.key]: entry.entryId,
+						},
+					);
+				}
+			}
+
 			return new MultiDiffEditorItem(
 				entry.originalURI,
 				entry.modifiedURI,
@@ -479,6 +495,7 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 	};
 
 	constructor(
-		private readonly _currentSession: IObservable<IChatEditingSession | undefined>
+		private readonly _currentSession: IObservable<IChatEditingSession | undefined>,
+		private readonly _showPreviousChanges: boolean
 	) { }
 }

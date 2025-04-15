@@ -363,6 +363,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 			].some(setting => e.affectsConfiguration(setting))) {
+
 				// Show Command Center if command center actions enabled
 				const shareEnabled = e.affectsConfiguration('workbench.experimental.share.enabled') && this.configurationService.getValue<boolean>('workbench.experimental.share.enabled');
 				const navigationControlEnabled = e.affectsConfiguration('workbench.navigationControl.enabled') && this.configurationService.getValue<boolean>('workbench.navigationControl.enabled');
@@ -1047,10 +1048,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreViewlet');
 
-			const viewlet = await this.paneCompositeService.openPaneComposite(this.state.initialization.views.containerToRestore.sideBar, ViewContainerLocation.Sidebar);
-			if (!viewlet) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar); // fallback to default viewlet as needed
-			}
+			await this.openViewContainer(ViewContainerLocation.Sidebar, this.state.initialization.views.containerToRestore.sideBar);
 
 			mark('code/didRestoreViewlet');
 		})());
@@ -1067,10 +1065,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestorePanel');
 
-			const panel = await this.paneCompositeService.openPaneComposite(this.state.initialization.views.containerToRestore.panel, ViewContainerLocation.Panel);
-			if (!panel) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id, ViewContainerLocation.Panel); // fallback to default panel as needed
-			}
+			await this.openViewContainer(ViewContainerLocation.Panel, this.state.initialization.views.containerToRestore.panel);
 
 			mark('code/didRestorePanel');
 		})());
@@ -1087,10 +1082,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreAuxiliaryBar');
 
-			const viewlet = await this.paneCompositeService.openPaneComposite(this.state.initialization.views.containerToRestore.auxiliaryBar, ViewContainerLocation.AuxiliaryBar);
-			if (!viewlet) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar); // fallback to default viewlet as needed
-			}
+			await this.openViewContainer(ViewContainerLocation.AuxiliaryBar, this.state.initialization.views.containerToRestore.auxiliaryBar);
 
 			mark('code/didRestoreAuxiliaryBar');
 		})());
@@ -1119,6 +1111,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.whenRestoredPromise.complete();
 			});
 		});
+	}
+
+	private async openViewContainer(location: ViewContainerLocation, id: string, focus?: boolean): Promise<void> {
+		let viewContainer = await this.paneCompositeService.openPaneComposite(id, location, focus);
+		if (viewContainer) {
+			return;
+		}
+
+		// fallback to default view container
+		viewContainer = await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(location)?.id, location, focus);
+		if (viewContainer) {
+			return;
+		}
+
+		// finally try to just open the first visible view container
+		await this.paneCompositeService.openPaneComposite(this.paneCompositeService.getVisiblePaneCompositeIds(location).at(0), location, focus);
 	}
 
 	registerPart(part: Part): IDisposable {
@@ -1234,32 +1242,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true; // cannot hide editor part in auxiliary windows
 		}
 
-		if (this.initialized) {
-			switch (part) {
-				case Parts.TITLEBAR_PART:
-					return this.workbenchGrid.isViewVisible(this.titleBarPartView);
-				case Parts.SIDEBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
-				case Parts.PANEL_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN);
-				case Parts.AUXILIARYBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN);
-				case Parts.STATUSBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN);
-				case Parts.ACTIVITYBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN);
-				case Parts.EDITOR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN);
-				case Parts.BANNER_PART:
-					return this.workbenchGrid.isViewVisible(this.bannerPartView);
-				default:
-					return false; // any other part cannot be hidden
-			}
-		}
-
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
+				return this.initialized ?
+					this.workbenchGrid.isViewVisible(this.titleBarPartView) :
+					shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 			case Parts.SIDEBAR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
 			case Parts.PANEL_PART:
@@ -1272,6 +1259,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN);
 			case Parts.EDITOR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN);
+			case Parts.BANNER_PART:
+				return this.initialized ? this.workbenchGrid.isViewVisible(this.bannerPartView) : false;
 			default:
 				return false; // any other part cannot be hidden
 		}
@@ -1381,14 +1370,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.setPanelHidden(true, true);
 			this.setAuxiliaryBarHidden(true, true);
-			this.setSideBarHidden(true, true);
+			this.setSideBarHidden(true);
 
 			if (config.hideActivityBar) {
-				this.setActivityBarHidden(true, true);
+				this.setActivityBarHidden(true);
 			}
 
 			if (config.hideStatusBar) {
-				this.setStatusBarHidden(true, true);
+				this.setStatusBarHidden(true);
 			}
 
 			if (config.hideLineNumbers) {
@@ -1413,13 +1402,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// Activity Bar
 				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR)) {
 					const zenModeHideActivityBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_ACTIVITYBAR);
-					this.setActivityBarHidden(zenModeHideActivityBar, true);
+					this.setActivityBarHidden(zenModeHideActivityBar);
 				}
 
 				// Status Bar
 				if (e.affectsConfiguration(ZenModeSettings.HIDE_STATUSBAR)) {
 					const zenModeHideStatusBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_STATUSBAR);
-					this.setStatusBarHidden(zenModeHideStatusBar, true);
+					this.setStatusBarHidden(zenModeHideStatusBar);
 				}
 
 				// Center Layout
@@ -1462,15 +1451,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (zenModeExitInfo.wasVisible.sideBar) {
-				this.setSideBarHidden(false, true);
+				this.setSideBarHidden(false);
 			}
 
 			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
-				this.setActivityBarHidden(false, true);
+				this.setActivityBarHidden(false);
 			}
 
 			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
-				this.setStatusBarHidden(false, true);
+				this.setStatusBarHidden(false);
 			}
 
 			if (zenModeExitInfo.transitionedToCenteredEditorLayout) {
@@ -1509,7 +1498,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeZenMode.fire(this.isZenModeActive());
 	}
 
-	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setStatusBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, hidden);
 
 		// Adjust CSS
@@ -1569,13 +1558,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange((visible) => {
 				if (part === sideBar) {
-					this.setSideBarHidden(!visible, true);
+					this.setSideBarHidden(!visible);
 				} else if (part === panelPart) {
 					this.setPanelHidden(!visible, true);
 				} else if (part === auxiliaryBarPart) {
 					this.setAuxiliaryBarHidden(!visible, true);
 				} else if (part === editorPart) {
-					this.setEditorHidden(!visible, true);
+					this.setEditorHidden(!visible);
 				}
 				this._onDidChangePartVisibility.fire();
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
@@ -1753,7 +1742,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setActivityBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
@@ -1762,7 +1751,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
 	}
 
-	private setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setEditorHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
 
 		// Adjust CSS
@@ -1792,7 +1781,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		]);
 	}
 
-	private setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setSideBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, hidden);
 
 		// Adjust CSS
@@ -1812,10 +1801,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar, true);
-				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar, true);
-				}
+				this.openViewContainer(ViewContainerLocation.Sidebar, viewletToOpen, true);
 			}
 		}
 
@@ -1900,7 +1886,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	setPanelAlignment(alignment: PanelAlignment, skipLayout?: boolean): void {
+	setPanelAlignment(alignment: PanelAlignment): void {
 
 		// Panel alignment only applies to a panel in the top/bottom position
 		if (!isHorizontal(this.getPanelPosition())) {
@@ -1960,11 +1946,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				const focus = !skipLayout;
-				const panel = this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel, focus);
-				if (!panel) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id, ViewContainerLocation.Panel, focus);
-				}
+				this.openViewContainer(ViewContainerLocation.Panel, panelToOpen, !skipLayout);
 			}
 		}
 
@@ -2063,11 +2045,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (viewletToOpen) {
-				const focus = !skipLayout;
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.AuxiliaryBar, focus);
-				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar, focus);
-				}
+				this.openViewContainer(ViewContainerLocation.AuxiliaryBar, viewletToOpen, !skipLayout);
 			}
 		}
 
@@ -2075,9 +2053,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.auxiliaryBarPartView, !hidden);
 	}
 
-	setPartHidden(hidden: boolean, part: Exclude<SINGLE_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
-	setPartHidden(hidden: boolean, part: Exclude<MULTI_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>, targetWindow: Window): void;
-	setPartHidden(hidden: boolean, part: Parts, targetWindow: Window = mainWindow): void {
+	setPartHidden(hidden: boolean, part: Parts): void {
 		switch (part) {
 			case Parts.ACTIVITYBAR_PART:
 				return this.setActivityBarHidden(hidden);
@@ -2636,6 +2612,8 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 }
 
 enum WorkbenchLayoutSettings {
+	AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility',
+	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
@@ -2643,8 +2621,8 @@ enum WorkbenchLayoutSettings {
 }
 
 enum LegacyWorkbenchLayoutSettings {
-	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
-	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State
+	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', 	// Deprecated to UI State
+	SIDEBAR_POSITION = 'workbench.sideBar.location', 	// Deprecated to UI State
 }
 
 class LayoutStateModel extends Disposable {
@@ -2714,11 +2692,22 @@ class LayoutStateModel extends Disposable {
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Set dynamic defaults: part sizing and side bar visibility
-		LayoutStateKeys.PANEL_POSITION.defaultValue = positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom');
+		const workbenchState = this.contextService.getWorkbenchState();
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
+			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
+				case 'visible':
+					return false;
+				case 'visibleInWorkspace':
+					return workbenchState === WorkbenchState.EMPTY;
+				default:
+					return true;
+			}
+		})();
 		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? isHorizontal(LayoutStateKeys.PANEL_POSITION.defaultValue)) ? mainContainerDimension.height / 3 : mainContainerDimension.width / 4;
-		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		LayoutStateKeys.PANEL_POSITION.defaultValue = positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom');
 
 		// Apply all defaults
 		for (key in LayoutStateKeys) {
@@ -2803,7 +2792,7 @@ class LayoutStateModel extends Disposable {
 	}
 
 	private isActivityBarHidden(): boolean {
-		const oldValue = this.configurationService.getValue<boolean | undefined>('workbench.activityBar.visible');
+		const oldValue = this.configurationService.getValue<boolean | undefined>(WorkbenchLayoutSettings.ACTIVITY_BAR_VISIBLE);
 		if (oldValue !== undefined) {
 			return !oldValue;
 		}

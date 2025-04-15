@@ -95,7 +95,7 @@ export class ChatSelectedTools extends Disposable {
 					override render(container: HTMLElement): void {
 						this.options.icon = false;
 						this.options.label = true;
-						container.classList.add('chat-mcp');
+						container.classList.add('chat-mcp', 'chat-attachment-button');
 						super.render(container);
 					}
 
@@ -105,17 +105,17 @@ export class ChatSelectedTools extends Disposable {
 
 							const { enabled, count } = toolsCount.read(r);
 
-							if (count === 0) {
-								super.updateLabel();
-								return;
-							}
-
-							const message = enabled !== count
-								? localize('tool.1', "{0} {1} of {2}", '$(tools)', enabled, count)
-								: localize('tool.0', "{0} {1}", '$(tools)', count);
+							const message = count === 0
+								? '$(tools)'
+								: enabled !== count
+									? localize('tool.1', "{0} {1} of {2}", '$(tools)', enabled, count)
+									: localize('tool.0', "{0} {1}", '$(tools)', count);
 
 							reset(this.label, ...renderLabelWithIcons(message));
-							onDidRender.fire();
+
+							if (this.element?.isConnected) {
+								onDidRender.fire();
+							}
 						}));
 					}
 

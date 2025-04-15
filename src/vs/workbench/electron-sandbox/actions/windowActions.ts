@@ -28,6 +28,9 @@ import { KeybindingWeight } from '../../../platform/keybinding/common/keybinding
 import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
+import { IsAuxiliaryTitleBarContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
+import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 export class CloseWindowAction extends Action2 {
 
@@ -418,3 +421,87 @@ export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: S
 
 	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };
+
+export class ToggleWindowAlwaysOnTopAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleWindowAlwaysOnTop';
+
+	constructor() {
+		super({
+			id: ToggleWindowAlwaysOnTopAction.ID,
+			title: localize2('toggleWindowAlwaysOnTop', "Toggle Window Always on Top"),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const targetWindow = getActiveWindow();
+		if (!isAuxiliaryWindow(targetWindow.window)) {
+			return; // Currently, we only support toggling always on top for auxiliary windows
+		}
+
+		return nativeHostService.toggleWindowAlwaysOnTop({ targetWindowId: getActiveWindow().vscodeWindowId });
+	}
+}
+
+export class EnableWindowAlwaysOnTopAction extends Action2 {
+
+	static readonly ID = 'workbench.action.enableWindowAlwaysOnTop';
+
+	constructor() {
+		super({
+			id: EnableWindowAlwaysOnTopAction.ID,
+			title: localize('enableWindowAlwaysOnTop', "Set Always on Top"),
+			icon: Codicon.pin,
+			menu: {
+				id: MenuId.LayoutControlMenu,
+				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext.toNegated(), IsAuxiliaryTitleBarContext),
+				order: 1
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const targetWindow = getActiveWindow();
+		if (!isAuxiliaryWindow(targetWindow.window)) {
+			return; // Currently, we only support toggling always on top for auxiliary windows
+		}
+
+		return nativeHostService.setWindowAlwaysOnTop(true, { targetWindowId: targetWindow.vscodeWindowId });
+	}
+}
+
+export class DisableWindowAlwaysOnTopAction extends Action2 {
+
+	static readonly ID = 'workbench.action.disableWindowAlwaysOnTop';
+
+	constructor() {
+		super({
+			id: DisableWindowAlwaysOnTopAction.ID,
+			title: localize('disableWindowAlwaysOnTop', "Unset Always on Top"),
+			icon: Codicon.pin,
+			toggled: { condition: IsWindowAlwaysOnTopContext, icon: Codicon.pinned },
+			menu: {
+				id: MenuId.LayoutControlMenu,
+				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryTitleBarContext),
+				order: 1
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const targetWindow = getActiveWindow();
+		if (!isAuxiliaryWindow(targetWindow.window)) {
+			return; // Currently, we only support toggling always on top for auxiliary windows
+		}
+
+		return nativeHostService.setWindowAlwaysOnTop(false, { targetWindowId: targetWindow.vscodeWindowId });
+	}
+}

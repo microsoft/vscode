@@ -202,6 +202,10 @@ export class OffsetRange implements IOffsetRange {
 export class OffsetRangeSet {
 	private readonly _sortedRanges: OffsetRange[] = [];
 
+	public get ranges(): OffsetRange[] {
+		return [...this._sortedRanges];
+	}
+
 	public addRange(range: OffsetRange): void {
 		let i = 0;
 		while (i < this._sortedRanges.length && this._sortedRanges[i].endExclusive < range.start) {

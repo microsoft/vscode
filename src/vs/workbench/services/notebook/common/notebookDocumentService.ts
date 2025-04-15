@@ -79,17 +79,18 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 	const outputId = params.get('outputId') ?? undefined;
 	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
 	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
-
-	if (parsedCell?.notebook === undefined || parsedCell?.handle === undefined) {
-		throw new Error('Invalid cell URI');
-	}
+	const notebookUri = parsedCell ? parsedCell.notebook : uri.with({
+		scheme: params.get('notebookScheme') || Schemas.file,
+		fragment: null,
+		query: null,
+	});
 
 	return {
-		notebook: parsedCell.notebook,
+		notebook: notebookUri,
 		openIn: openIn,
 		outputId: outputId,
 		outputIndex: outputIndex,
-		cellHandle: parsedCell.handle,
+		cellHandle: parsedCell?.handle,
 		cellFragment: uri.fragment,
 	};
 }

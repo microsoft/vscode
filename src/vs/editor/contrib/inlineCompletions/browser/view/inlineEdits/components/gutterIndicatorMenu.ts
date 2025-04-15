@@ -6,7 +6,7 @@
 import { ChildNode, LiveElement, n } from '../../../../../../../base/browser/dom.js';
 import { ActionBar, IActionBarOptions } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { KeybindingLabel } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../../../../base/common/keybindings.js';
@@ -18,7 +18,8 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { nativeHoverDelegate } from '../../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
-import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { defaultKeybindingLabelStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder, keybindingLabelBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
@@ -192,9 +193,16 @@ function option(props: {
 		}, [ThemeIcon.isThemeIcon(props.icon) ? renderIcon(props.icon) : props.icon.map(icon => renderIcon(icon))]),
 		n.elem('span', {}, [props.title]),
 		n.div({
-			style: { marginLeft: 'auto', opacity: '0.6' },
+			style: { marginLeft: 'auto' },
 			ref: elem => {
-				const keybindingLabel = store.add(new KeybindingLabel(elem, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions }));
+				const keybindingLabel = store.add(new KeybindingLabel(elem, OS, {
+					disableTitle: true,
+					...defaultKeybindingLabelStyles,
+					keybindingLabelShadow: undefined,
+					keybindingLabelBackground: asCssVariable(keybindingLabelBackground),
+					keybindingLabelBorder: 'transparent',
+					keybindingLabelBottomBorder: undefined,
+				}));
 				store.add(autorun(reader => {
 					keybindingLabel.set(props.keybinding.read(reader));
 				}));

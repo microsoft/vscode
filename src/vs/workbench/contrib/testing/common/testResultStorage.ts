@@ -49,18 +49,19 @@ const currentRevision = 1;
 export abstract class BaseTestResultStorage extends Disposable implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly stored = this._register(new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
-		key: 'storedTestResults',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.MACHINE
-	}, this.storageService));
+	protected readonly stored: StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>;
 
 	constructor(
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.stored = this._register(new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
+			key: 'storedTestResults',
+			scope: StorageScope.WORKSPACE,
+			target: StorageTarget.MACHINE
+		}, storageService));
 	}
 
 	/**

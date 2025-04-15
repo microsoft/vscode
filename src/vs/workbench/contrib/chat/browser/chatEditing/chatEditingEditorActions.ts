@@ -13,7 +13,7 @@ import { ctxHasEditorModification, ctxHasRequestInProgress, ctxReviewModeEnabled
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -80,7 +81,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					ctxHasEditorModification,
-					EditorContextKeys.focus
+					ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)
 				),
 			},
 			f1: true,
@@ -128,7 +129,7 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	while (true) {
 		idx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
 		newEntry = entries[idx];
-		if (newEntry.state.get() === WorkingSetEntryState.Modified) {
+		if (newEntry.state.get() === ModifiedFileEntryState.Modified) {
 			break;
 		} else if (newEntry === entry) {
 			return false;
@@ -233,8 +234,8 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 				icon: _accept ? Codicon.check : Codicon.discard,
 				f1: true,
 				keybinding: {
-					when: EditorContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
 						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
@@ -247,11 +248,11 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 		);
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void {
+	override async runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> {
 		if (this._accept) {
-			ctrl.acceptNearestChange(args[0]);
+			await ctrl.acceptNearestChange(args[0]);
 		} else {
-			ctrl.rejectNearestChange(args[0]);
+			await ctrl.rejectNearestChange(args[0]);
 		}
 	}
 }

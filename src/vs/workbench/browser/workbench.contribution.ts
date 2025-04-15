@@ -533,10 +533,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
 				]
 			},
+			'workbench.secondarySideBar.defaultVisibility': {
+				'type': 'string',
+				'enum': ['hidden', 'visibleInWorkspace', 'visible'],
+				'default': 'hidden',
+				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows opened for the first time."),
+				'enumDescriptions': [
+					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
+					localize('workbench.secondarySideBar.defaultVisibility.visibleInWorkspace', "The secondary side bar is visible by default if a workspace is opened."),
+					localize('workbench.secondarySideBar.defaultVisibility.visible', "The secondary side bar is visible by default.")
+				]
+			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary sidebar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
+				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary side bar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
 			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
