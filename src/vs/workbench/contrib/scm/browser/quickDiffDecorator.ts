@@ -333,7 +333,8 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 			.monaco-editor .dirty-diff-modified-secondary,
 			.monaco-editor .dirty-diff-modified-pattern,
 			.monaco-editor .dirty-diff-modified-secondary-pattern,
-			.monaco-editor .dirty-diff-deleted {
+			.monaco-editor .dirty-diff-deleted,
+			.monaco-editor .dirty-diff-deleted-secondary {
 				opacity: ${state.visibility === 'always' ? 1 : 0};
 			}
 		`;

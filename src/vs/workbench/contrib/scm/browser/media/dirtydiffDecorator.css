@@ -136,7 +136,22 @@
 	pointer-events: none;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:after {
+.monaco-editor .dirty-diff-deleted-secondary:after {
+	content: '';
+	position: absolute;
+	bottom: -4px;
+	box-sizing: border-box;
+	width: 4px;
+	height: 0;
+	z-index: 9;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	border-left: 4px solid var(--vscode-editorGutter-deletedSecondaryBackground);
+	pointer-events: none;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:after,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted-secondary:after {
 	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, opacity 0.5s;
 }
 
@@ -147,7 +162,15 @@
 	bottom: 0;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:before {
+.monaco-editor .dirty-diff-deleted-secondary:before {
+	background: var(--vscode-editorGutter-deletedSecondaryBackground);
+	margin-left: 3px;
+	height: 0;
+	bottom: 0;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:before,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted-secondary:before {
 	transition: height 80ms linear;
 }
 

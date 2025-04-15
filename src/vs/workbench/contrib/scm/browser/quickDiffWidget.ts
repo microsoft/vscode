@@ -513,7 +513,8 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 					left: -6px;
 				}
 
-				.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after {
+				.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after,
+				.monaco-editor .margin-view-overlays .dirty-diff-deleted-secondary:hover::after {
 					bottom: 0;
 					border-top-width: 0;
 					border-bottom-width: 0;
