@@ -51,7 +51,7 @@ suite('middleScroll', () => {
 				middleScrollController.scrollPane();
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 'n');
-				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(-2));
+				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(-2.5));
 				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(0));
 
 				middleScrollController.dispose();
@@ -68,8 +68,8 @@ suite('middleScroll', () => {
 				middleScrollController.scrollPane();
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 'ne');
-				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(-2));
-				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(3));
+				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(-2.5));
+				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(2.5));
 
 				middleScrollController.dispose();
 			});
@@ -86,7 +86,7 @@ suite('middleScroll', () => {
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 'e');
 				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(0));
-				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(3));
+				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(2.5));
 
 				middleScrollController.dispose();
 			});
@@ -102,8 +102,8 @@ suite('middleScroll', () => {
 				middleScrollController.scrollPane();
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 'se');
-				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(3));
-				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(3));
+				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(2.5));
+				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(2.5));
 
 				middleScrollController.dispose();
 			});
@@ -119,7 +119,7 @@ suite('middleScroll', () => {
 				middleScrollController.scrollPane();
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 's');
-				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(3));
+				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(2.5));
 				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(0));
 
 				middleScrollController.dispose();
@@ -136,8 +136,8 @@ suite('middleScroll', () => {
 				middleScrollController.scrollPane();
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 'sw');
-				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(3));
-				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(-2));
+				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(2.5));
+				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(-2.5));
 
 				middleScrollController.dispose();
 			});
@@ -154,7 +154,7 @@ suite('middleScroll', () => {
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 'w');
 				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(0));
-				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(-2));
+				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(-2.5));
 
 				middleScrollController.dispose();
 			});
@@ -170,8 +170,8 @@ suite('middleScroll', () => {
 				middleScrollController.scrollPane();
 
 				assert.equal(getActiveWindow().document.body.getAttribute('data-scroll-direction'), 'nw');
-				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(-2));
-				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(-2));
+				assert.ok(setScrollTopSpy.lastCall.calledWithExactly(-2.5));
+				assert.ok(setScrollLeftSpy.lastCall.calledWithExactly(-2.5));
 
 				middleScrollController.dispose();
 			});
