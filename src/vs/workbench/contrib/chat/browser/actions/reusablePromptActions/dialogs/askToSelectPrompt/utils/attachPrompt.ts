@@ -130,14 +130,12 @@ export const runPromptFile = async (
 
 	const widget = await getChatWidgetObject(options);
 
-	let wasAlreadyAttached: boolean = false;
-
-	if (isAttachedAsCurrentPrompt(file, widget)) {
-		wasAlreadyAttached = true;
-	} else {
-		if (widget.attachmentModel.promptInstructions.add(file)) {
-			wasAlreadyAttached = true;
-		}
+	let wasAlreadyAttached = true;
+	if (isAttachedAsCurrentPrompt(file, widget) === false) {
+		wasAlreadyAttached = widget
+			.attachmentModel
+			.promptInstructions
+			.add(file);
 	}
 
 	// submit the prompt immediately
