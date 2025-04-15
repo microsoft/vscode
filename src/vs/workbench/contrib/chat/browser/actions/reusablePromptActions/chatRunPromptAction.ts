@@ -13,6 +13,7 @@ import { ILocalizedString, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
@@ -21,10 +22,9 @@ import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensi
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
-import { runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
 
 /**
  * Condition for the `Run Current Prompt` action.

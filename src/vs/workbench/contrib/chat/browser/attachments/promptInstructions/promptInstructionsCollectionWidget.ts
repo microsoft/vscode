@@ -6,12 +6,12 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { InstructionsAttachmentWidget } from './promptInstructionsWidget.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { InstructionsAttachmentWidget } from './promptInstructionsWidget.js';
+import { getPromptFileType } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { getPromptFileType } from '../../../../../../platform/prompts/common/constants.js';
 
 /**
  * Widget for a collection of prompt instructions attachments.
@@ -71,7 +71,9 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	 * Check if any of the attachments is a prompt file.
 	 */
 	public get hasPromptFile(): boolean {
-		return this.references.some((uri) => getPromptFileType(uri) === 'prompt');
+		return this.references.some((uri) => {
+			return getPromptFileType(uri) === 'prompt';
+		});
 	}
 
 	constructor(
