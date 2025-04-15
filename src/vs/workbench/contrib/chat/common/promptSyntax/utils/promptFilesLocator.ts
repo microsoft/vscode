@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TPromptsType } from '../service/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -14,7 +15,6 @@ import { basename, dirname, extUri } from '../../../../../../base/common/resourc
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { getFileExtension as getPromptFileExtension, isPromptOrInstructionsFile, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
-import { TPromptsType } from '../service/types.js';
 
 /**
  * Utility class to locate prompt files.
