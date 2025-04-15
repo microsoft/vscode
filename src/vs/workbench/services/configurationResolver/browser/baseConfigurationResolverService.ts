@@ -180,9 +180,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			else if (this._contributedVariables.has(variable.inner)) {
 				result = { value: await this._contributedVariables.get(variable.inner)!() };
 			}
-			// Not something we can handle
 			else {
-				continue;
+				// Fallback to parent evaluation
+				const resolvedValue = await this.evaluateSingleVariable(variable, folder?.uri);
+				if (resolvedValue === undefined) {
+					// Not something we can handle
+					continue;
+				}
+				result = typeof resolvedValue === 'string' ? { value: resolvedValue } : resolvedValue;
 			}
 
 			if (result === undefined) {
