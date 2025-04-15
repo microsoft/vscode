@@ -26,7 +26,7 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	 * Interval reference that is used to periodically send
 	 * tokens to the stream in the background.
 	 */
-	private interval: NodeJS.Timeout | undefined;
+	private interval: ReturnType<typeof setInterval> | undefined;
 
 	/**
 	 * Number of tokens left to be sent.
