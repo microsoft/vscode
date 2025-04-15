@@ -504,12 +504,12 @@ export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput 
 	/**
 	 * The right hand side editor to open inside a side-by-side editor.
 	 */
-	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly primary: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 
 	/**
 	 * The left hand side editor to open inside a side-by-side editor.
 	 */
-	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly secondary: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 }
 
 /**
@@ -524,12 +524,12 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly original: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly original: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 
 	/**
 	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modified: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 }
 
 export interface ITextResourceDiffEditorInput extends IBaseTextResourceEditorInput {
@@ -537,12 +537,12 @@ export interface ITextResourceDiffEditorInput extends IBaseTextResourceEditorInp
 	/**
 	 * The left hand side text editor to open inside a diff editor.
 	 */
-	readonly original: ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly original: Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 
 	/**
 	 * The right hand side text editor to open inside a diff editor.
 	 */
-	readonly modified: ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modified: Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 }
 
 /**
@@ -571,7 +571,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
 	readonly goToFileResource?: URI;
 }
-export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
+export type IResourceMergeEditorInputSide = (Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>) & { detail?: string };
 
 /**
  * A resource merge editor input compares multiple editors
@@ -595,12 +595,12 @@ export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The base common ancestor of the file to merge.
 	 */
-	readonly base: IResourceEditorInput | ITextResourceEditorInput;
+	readonly base: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>;
 
 	/**
 	 * The resulting output of the merge.
 	 */
-	readonly result: IResourceEditorInput | ITextResourceEditorInput;
+	readonly result: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>;
 }
 
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
