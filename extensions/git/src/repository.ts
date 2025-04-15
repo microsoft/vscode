@@ -2806,7 +2806,7 @@ export class Repository implements Disposable {
 
 export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 	readonly visible: boolean = true;
-	readonly label = l10n.t('Git local changes (index + working tree)');
+	readonly label = l10n.t('Git local changes (index)');
 
 	constructor(
 		private readonly _repository: Repository,
