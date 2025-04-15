@@ -36,17 +36,25 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		return this._editor;
 	}
 
+	private get scrollOnMiddleClick() {
+		return this._editor.getOptions().get(EditorOption.scrollOnMiddleClick);
+	}
 
 	constructor(editor: ICodeEditor) {
 		super();
 		this._editor = editor;
 
 		this.editorMouseDown = this.editorMouseDown.bind(this);
-		this.editorMouseUp = this.editorMouseUp.bind(this);
+		this.windowMouseDown = this.windowMouseDown.bind(this);
+		this.windowMouseUp = this.windowMouseUp.bind(this);
 		this.windowMouseMove = this.windowMouseMove.bind(this);
 
+		this.getWindow().addEventListener('mouseup', this.windowMouseUp, { capture: true, passive: true });
+		this.getWindow().addEventListener('mousedown', this.windowMouseDown, { passive: true });
 		this._register(this._editor.onMouseDown(this.editorMouseDown));
-		this._register(this._editor.onMouseUp(this.editorMouseUp));
+
+		this._register(toDisposable(() => this.getWindow().removeEventListener('mouseup', this.windowMouseUp, { capture: true })));
+		this._register(toDisposable(() => this.getWindow().removeEventListener('mousedown', this.windowMouseDown)));
 		this._register(toDisposable(() => this.stopScroll()));
 	}
 
@@ -98,6 +106,11 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		if (this.scrolling) {
 			this.stopScroll();
 		}
+
+		if (!this.dot) {
+			this.createDot();
+		}
+
 		this.scrolling = true;
 		this.moving = false;
 		this.getWindow().document.body.classList.add('scroll-editor-on-middle-click-editor');
@@ -110,7 +123,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		this.y = y;
 		this.currentX = x;
 		this.currentY = y;
-		this.getWindow().addEventListener('mousemove', this.windowMouseMove, { capture: true });
+		this.getWindow().addEventListener('mousemove', this.windowMouseMove, { capture: true, passive: true });
 		this.scrollPane();
 	}
 
@@ -135,36 +148,31 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	}
 
 	editorMouseDown(e: IEditorMouseEvent) {
-		if (!this._editor.getOptions().get(EditorOption.scrollOnMiddleClick)) {
-			return;
-		}
-
-		if (this.scrolling) {
-			if (e.event.middleButton) {
-				e.event.stopPropagation();
-				e.event.preventDefault();
-			}
-			this.stopScroll();
-		} else {
-			if (!this.dot) {
-				this.createDot();
-			}
-			if (e.event.middleButton) {
-				e.event.stopPropagation();
-				e.event.preventDefault();
-				this.startScroll(e.event.posx, e.event.posy);
-			}
+		if (!this.scrolling && this.scrollOnMiddleClick && e.event.middleButton) {
+			e.event.stopPropagation();
+			e.event.preventDefault();
+			this.startScroll(e.event.posx, e.event.posy);
 		}
 	}
 
-	editorMouseUp() {
+	windowMouseDown() {
+		if (this.scrolling) {
+			this.stopScroll();
+		}
+	}
+
+	windowMouseUp() {
 		if (this.moving) {
 			this.stopScroll();
 		}
 	}
 
 	windowMouseMove(e: MouseEvent) {
-		this.setCurrent(e.pageX, e.pageY);
+		if (!this.scrollOnMiddleClick) {
+			this.stopScroll();
+		} else {
+			this.setCurrent(e.pageX, e.pageY);
+		}
 	}
 
 	createDot() {
