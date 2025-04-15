@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptMetadataRecord } from './record.js';
-import { localize2 } from '../../../../../../../../nls.js';
+import { localize } from '../../../../../../../../nls.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
 import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
@@ -73,7 +73,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			this.issues.push(
 				new PromptMetadataError(
 					valueToken.range,
-					localize2(
+					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-value-type',
 						"Value of the '{0}' metadata must be '{1}', got '{2}.",
 						TOOLS_NAME,
@@ -106,9 +106,9 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			this.issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
-					localize2(
+					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-tool-name-type',
-						"Expected a tool name ({0}), got '{2}'.",
+						"Expected a tool name ({0}), got '{1}'.",
 						'string',
 						valueToken.text,
 					),
@@ -124,7 +124,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			this.issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
-					localize2(
+					localize(
 						'prompt.header.metadata.tools.diagnostics.empty-tool-name',
 						"Tool name cannot be empty.",
 					),
@@ -139,9 +139,9 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			this.issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
-					localize2(
+					localize(
 						'prompt.header.metadata.tools.diagnostics.duplicate-tool-name',
-						"Duplicate tool name {0}.",
+						"Duplicate tool name '{0}'.",
 						cleanToolName,
 					),
 				),
