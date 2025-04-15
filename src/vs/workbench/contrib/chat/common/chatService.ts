@@ -482,9 +482,9 @@ export interface IChatSendRequestOptions {
 	confirmation?: string;
 
 	/**
-	 * Flag to indicate whether a prompt instructions attachment is present.
+	 * Flag to indicate whether a prompt file attachment is present.
 	 */
-	hasInstructionAttachments?: boolean;
+	hasPromptFileAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

@@ -82,7 +82,7 @@ const isAttachedAsCurrentPrompt = (
 		return false;
 	}
 
-	if (implicitContext.isInstructions === false) {
+	if (implicitContext.isPromptFile === false) {
 		return false;
 	}
 
