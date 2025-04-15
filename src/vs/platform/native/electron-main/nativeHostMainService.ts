@@ -750,6 +750,25 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
+
+	async getScreenShot2(windowId: number | undefined, x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined> {
+		const window = this.windowById(windowId, windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+
+		const zoomFactor = await window.win.webContents.getZoomFactor();
+		const bounds = {
+			x: Math.floor(x * zoomFactor),
+			y: Math.floor(y * zoomFactor),
+			width: Math.floor(width * zoomFactor),
+			height: Math.floor(height * zoomFactor)
+		};
+		const captured = await window.win.webContents.capturePage(bounds);
+		const buf = captured?.toJPEG(95);
+		return buf && VSBuffer.wrap(buf);
+	}
+
 	//#endregion
 
 

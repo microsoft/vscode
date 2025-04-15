@@ -130,6 +130,8 @@ export interface IHostService {
 	 */
 	getScreenshot(): Promise<VSBuffer | undefined>;
 
+	getScreenShot2(x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined>;
+
 	//#endregion
 
 	//#region Native Handle

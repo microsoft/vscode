@@ -2,7 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-restricted-globals */
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
@@ -29,6 +31,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -64,7 +67,7 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { runAttachPromptAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
+import { registerReusablePromptActions, runAttachPromptAction } from './reusablePromptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -79,7 +82,7 @@ export function registerChatContextActions() {
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
 	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
-	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IReusablePromptQuickPickItem | IFolderQuickPickItem | IDiagnosticsQuickPickItem;
+	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IReusablePromptQuickPickItem | IFolderQuickPickItem | IDiagnosticsQuickPickItem | IElementQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -222,6 +225,12 @@ interface IScreenShotQuickPickItem extends IQuickPickItem {
 
 interface IDiagnosticsQuickPickItem extends IQuickPickItem {
 	kind: 'diagnostic';
+	id: string;
+	icon?: ThemeIcon;
+}
+
+interface IElementQuickPickItem extends IQuickPickItem {
+	kind: 'element';
 	id: string;
 	icon?: ThemeIcon;
 }
@@ -493,7 +502,7 @@ export class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, quickInputService: IQuickInputService, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, isInBackground?: boolean, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, quickInputService: IQuickInputService, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, layoutService: ILayoutService, chatWidgetService: IChatWidgetService, isInBackground?: boolean, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
@@ -647,6 +656,27 @@ export class AttachContextAction extends Action2 {
 						// Apply the original icon with the new name
 						fullName: selection
 					});
+				} else if (attachmentPick.kind === 'element') {
+					const elementInfo = await startElementSelection(layoutService, hostService);
+					toAttach.push({
+						id: 'element-' + Date.now(),
+						name: elementInfo.displayName,
+						fullName: elementInfo.displayName,
+						value: elementInfo.html + '/n' + elementInfo.css,
+						kind: 'element',
+						icon: ThemeIcon.fromId(Codicon.layout.id),
+					}, {
+						id: 'element-screenshot-' + Date.now(),
+						name: 'Element Screenshot',
+						fullName: 'Element Screenshot',
+						kind: 'image',
+						value: elementInfo.screenshot
+					});
+
+					if (chatWidgetService.lastFocusedWidget) {
+						chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 }, text: elementInfo.html + elementInfo.css }]);
+					}
+
 				} else if (attachmentPick.kind === 'tool') {
 					toAttach.push({
 						id: attachmentPick.id,
@@ -695,6 +725,8 @@ export class AttachContextAction extends Action2 {
 		const textModelService = accessor.get(ITextModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
+		const layoutService = accessor.get(ILayoutService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -725,6 +757,14 @@ export class AttachContextAction extends Action2 {
 					: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
 			});
 		}
+
+		// Add Element selector quick pick item
+		quickPickItems.push({
+			kind: 'element',
+			label: localize('chatContext.element', 'UI Element...'),
+			id: 'element-selector',
+			iconClass: ThemeIcon.asClassName(Codicon.layout),
+		});
 
 		if (widget.viewModel?.sessionId) {
 			const agentPart = widget.parsedInput.parts.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
@@ -863,7 +903,7 @@ export class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', context?.placeholder);
+		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, layoutService, chatWidgetService, instantiationService, '', context?.placeholder);
 	}
 
 	private async _showDiagnosticsPick(instantiationService: IInstantiationService, onBackgroundAccept: (item: IChatContextQuickPickItem[]) => void): Promise<IDiagnosticsQuickPickItemWithFilter | undefined> {
@@ -880,9 +920,9 @@ export class AttachContextAction extends Action2 {
 		return filter && convert(filter);
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, instantiationService: IInstantiationService, query: string = '', placeholder?: string) {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, layoutService: ILayoutService, chatWidgetService: IChatWidgetService, instantiationService: IInstantiationService, query: string = '', placeholder?: string) {
 		const attach = (isBackgroundAccept: boolean, ...items: IChatContextQuickPickItem[]) => {
-			this._attachContext(widget, quickInputService, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, isBackgroundAccept, ...items);
+			this._attachContext(widget, quickInputService, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, layoutService, chatWidgetService, isBackgroundAccept, ...items);
 		};
 
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
@@ -895,12 +935,12 @@ export class AttachContextAction extends Action2 {
 				}
 
 				if (!item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', placeholder);
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, layoutService, chatWidgetService, instantiationService, '', placeholder);
 					return;
 				}
 
 				if ('prefix' in item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, item.prefix, placeholder);
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, layoutService, chatWidgetService, instantiationService, item.prefix, placeholder);
 				} else {
 					if (!clipboardService) {
 						return;
@@ -981,3 +1021,83 @@ export class AttachContextAction extends Action2 {
  * Register all actions related to reusable prompt files.
  */
 registerReusablePromptActions();
+
+async function startElementSelection(layoutService: ILayoutService, hostService: IHostService): Promise<{ displayName: string; html: string; css: string; screenshot: Uint8Array }> {
+	return new Promise((resolve) => {
+		const overlay = document.createElement('div');
+		overlay.className = 'ui-element-selection-overlay';
+
+
+		const elementTitle = document.createElement('code');
+		elementTitle.className = 'ui-element-selection-title monaco-editor';
+		// elementTitle.style.setProperty('font-family', 'var(--monaco-monospace-font)');
+		overlay.appendChild(elementTitle);
+
+		const targetWindow = layoutService.mainContainer.ownerDocument.body;
+		targetWindow.appendChild(overlay);
+
+		let currentElement: HTMLElement | null = null;
+		let x = 0;
+		let y = 0;
+		let width = 0;
+		let height = 0;
+
+		let displayName = '';
+
+		function updateOverlay(element: HTMLElement) {
+			const rect = element.getBoundingClientRect();
+			x = rect.left + window.scrollX;
+			y = rect.top + window.scrollY;
+			width = rect.width;
+			height = rect.height;
+			overlay.style.top = `${rect.top + window.scrollY}px`;
+			overlay.style.left = `${rect.left + window.scrollX}px`;
+			overlay.style.width = `${rect.width}px`;
+			overlay.style.height = `${rect.height}px`;
+
+			const elementType = element.tagName.toLowerCase();
+			const elementClass = element.className ? `.${element.className.split(' ')[0]}` : '';
+			const elementId = element.id ? `#${element.id}` : '';
+			displayName = `${elementType}${elementId}${elementClass}`;
+			const titleEl = overlay.querySelector('code');
+			if (titleEl) {
+				titleEl.textContent = displayName;
+			}
+		}
+
+		async function captureScreenshot(x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined> {
+			return hostService.getScreenShot2(x, y, width, height);
+		}
+
+		function onMouseOver(event: MouseEvent) {
+			currentElement = event.target as HTMLElement;
+			updateOverlay(currentElement);
+		}
+
+		async function onClick(event: MouseEvent) {
+			event.preventDefault();
+			event.stopPropagation();
+
+			if (currentElement) {
+				document.removeEventListener('mouseover', onMouseOver);
+				document.removeEventListener('click', onClick, true);
+
+				const html = currentElement.outerHTML;
+				const computedStyle = window.getComputedStyle(currentElement);
+				const css = Array.from(computedStyle)
+					.map(key => `${key}: ${computedStyle.getPropertyValue(key)};`)
+					.join('\n');
+
+				overlay.remove();
+				// Wait a frame to ensure the overlay is gone from the screen
+				await new Promise(resolve => requestAnimationFrame(resolve));
+
+				const screenshot = await captureScreenshot(x, y, width, height);
+				resolve({ displayName, html, css, screenshot: screenshot ? screenshot.buffer : new Uint8Array() });
+			}
+		}
+
+		document.addEventListener('mouseover', onMouseOver);
+		document.addEventListener('click', onClick, true);
+	});
+}
