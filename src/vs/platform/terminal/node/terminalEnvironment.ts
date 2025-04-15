@@ -15,7 +15,7 @@ import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } fro
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
-import { chmod, realpathSync } from 'fs';
+import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
 
 export function getWindowsBuildNumber(): number {
@@ -232,6 +232,21 @@ export async function getShellIntegrationInjection(
 					const chmodAsync = promisify(chmod);
 					await chmodAsync(zdotdir, 0o1700);
 				} catch (err) {
+					if (err.message.includes('ENOENT')) {
+						try {
+							mkdirSync(zdotdir);
+						} catch (err) {
+							logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
+							return undefined;
+						}
+						try {
+							const chmodAsync = promisify(chmod);
+							await chmodAsync(zdotdir, 0o1700);
+						} catch {
+							logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+							return undefined;
+						}
+					}
 					logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
 					return undefined;
 				}
