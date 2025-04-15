@@ -23,7 +23,7 @@ abstract class ExpectedDiagnostic extends PromptMetadataDiagnostic {
 			`Expected message '${this.message}', got '${other.message}'.`,
 		);
 
-		assert.strictEqual(
+		assert(
 			this.range
 				.equalsRange(other.range),
 			`Expected range '${this.range}', got '${other.range}'.`,
@@ -58,24 +58,31 @@ abstract class ExpectedDiagnostic extends PromptMetadataDiagnostic {
 			`Unknown diagnostic type '${other}'.`,
 		);
 	}
-
-	/**
-	 * Returns a string representation of this object.
-	 */
-	public toString(): string {
-		return `expected-diagnostic/${this}`;
-	}
 }
 
 /**
  * Expected warning diagnostic object for testing purposes.
  */
-export class ExpectedDiagnosticWarning extends ExpectedDiagnostic { }
+export class ExpectedDiagnosticWarning extends ExpectedDiagnostic {
+	/**
+	 * Returns a string representation of this object.
+	 */
+	public override toString(): string {
+		return `expected-diagnostic/warning(${this.message})${this.range}`;
+	}
+}
 
 /**
  * Expected error diagnostic object for testing purposes.
  */
-export class ExpectedDiagnosticError extends ExpectedDiagnostic { }
+export class ExpectedDiagnosticError extends ExpectedDiagnostic {
+	/**
+	 * Returns a string representation of this object.
+	 */
+	public override toString(): string {
+		return `expected-diagnostic/error(${this.message})${this.range}`;
+	}
+}
 
 /**
  * Type for any expected diagnostic object.
