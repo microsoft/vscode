@@ -15,6 +15,7 @@ import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, throttle } from './decorators';
 import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule } from './git';
+import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -24,7 +25,6 @@ import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
-import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -834,6 +834,10 @@ export class Repository implements Disposable {
 		return this.repository.dotGit;
 	}
 
+	get gitIgnorePath(): string {
+		return `${this.repository.root}${path.sep}.gitignore`;
+	}
+
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
@@ -859,7 +863,8 @@ export class Repository implements Disposable {
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
-		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
+		const globValues = this.getGitIgnoreGlobValues();
+		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), globValues));
 		this.disposables.push(repositoryWatcher);
 
 		const onRepositoryFileChange = anyEvent(repositoryWatcher.onDidChange, repositoryWatcher.onDidCreate, repositoryWatcher.onDidDelete);
@@ -2008,6 +2013,26 @@ export class Repository implements Disposable {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
+	getGitIgnoreGlobValues(): string {
+		if (fs.existsSync(this.gitIgnorePath)) {
+			const fileContents = fs.readFileSync(this.gitIgnorePath, { encoding: 'utf8' });
+			// convert each line in the glob file to be a negated pattern separarted by a comma
+			// e.g. *.js -> !*.js, *.ts -> !*.ts
+			const globPatternForIgnored = '{' + fileContents
+				.split('\n')
+				.map(line => line.trim())
+				.filter(line => line && !line.startsWith('#'))
+				.map(pattern => {
+					return `!${pattern}`;
+				})
+				.join(',') + '}';
+			return globPatternForIgnored;
+		}
+
+		return '**';
+	}
+
+
 	async apply(patch: string, reverse?: boolean): Promise<void> {
 		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
 	}
@@ -2050,15 +2075,14 @@ export class Repository implements Disposable {
 
 	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
-			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
 				.map(uri => relativePath(this.repository.root, uri.fsPath)
 					.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
 				.join('\n');
 
-			const document = await new Promise(c => fs.exists(ignoreFile, c))
-				? await workspace.openTextDocument(ignoreFile)
-				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
+			const document = await new Promise(c => fs.exists(this.gitIgnorePath, c))
+				? await workspace.openTextDocument(this.gitIgnorePath)
+				: await workspace.openTextDocument(Uri.file(this.gitIgnorePath).with({ scheme: 'untitled' }));
 
 			await window.showTextDocument(document);
 
