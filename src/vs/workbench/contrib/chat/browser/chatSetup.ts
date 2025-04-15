@@ -173,9 +173,9 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void): Promise<IChatAgentResult> {
-		return this.instantiationService.invokeFunction(async accessor => {
-			const chatService = accessor.get(IChatService);						// use accessor for lazy loading
-			const languageModelsService = accessor.get(ILanguageModelsService);	// of chat related services
+		return this.instantiationService.invokeFunction(async accessor /* using accessor for lazy loading */ => {
+			const chatService = accessor.get(IChatService);
+			const languageModelsService = accessor.get(ILanguageModelsService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -334,9 +334,9 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			}
 		}));
 
-		let success = undefined;
+		let result: IChatSetupResult | undefined = undefined;
 		try {
-			success = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run();
+			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run();
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 		} finally {
@@ -344,9 +344,14 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		}
 
 		// User has agreed to run the setup
-		if (typeof success === 'boolean') {
-			if (success) {
-				if (requestModel) {
+		if (typeof result?.success === 'boolean') {
+			if (result.success) {
+				if (result.dialogSkipped) {
+					progress({
+						kind: 'progressMessage',
+						content: new MarkdownString(localize('copilotSetupSuccess', "Copilot setup finished successfully."))
+					});
+				} else if (requestModel) {
 					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
 				}
 			} else {
@@ -376,6 +381,11 @@ enum ChatSetupStrategy {
 	SetupWithEnterpriseProvider = 3
 }
 
+interface IChatSetupResult {
+	readonly success: boolean | undefined;
+	readonly dialogSkipped: boolean;
+}
+
 class ChatSetup {
 
 	private static instance: ChatSetup | undefined = undefined;
@@ -390,7 +400,9 @@ class ChatSetup {
 		return instance;
 	}
 
-	private pendingRun: Promise<boolean | undefined> | undefined = undefined;
+	private pendingRun: Promise<IChatSetupResult> | undefined = undefined;
+
+	private skipDialogOnce = false;
 
 	private constructor(
 		private readonly context: ChatEntitlementContext,
@@ -405,7 +417,11 @@ class ChatSetup {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	async run(): Promise<boolean | undefined> {
+	skipDialog(): void {
+		this.skipDialogOnce = true;
+	}
+
+	async run(): Promise<IChatSetupResult> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
@@ -419,9 +435,12 @@ class ChatSetup {
 		}
 	}
 
-	private async doRun(): Promise<boolean | undefined> {
+	private async doRun(): Promise<IChatSetupResult> {
+		const dialogSkipped = this.skipDialogOnce;
+		this.skipDialogOnce = false;
+
 		let setupStrategy: ChatSetupStrategy;
-		if (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+		if (dialogSkipped || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
 		} else {
 			setupStrategy = await this.showDialog();
@@ -449,7 +468,7 @@ class ChatSetup {
 			success = false;
 		}
 
-		return success;
+		return { success, dialogSkipped };
 	}
 
 	private async showDialog(): Promise<ChatSetupStrategy> {
@@ -636,8 +655,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				}
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
-				const result = await setup.run();
-				if (result === false && !lifecycleService.willShutdown) {
+				const { success } = await setup.run();
+				if (success === false && !lifecycleService.willShutdown) {
 					const { confirmed } = await dialogService.confirm({
 						type: Severity.Error,
 						message: localize('setupErrorDialog', "Copilot setup failed. Would you like to try again?"),
@@ -672,6 +691,29 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const commandService = accessor.get(ICommandService);
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			}
+		}
+
+		class ChatSetupTriggerWithoutDialogAction extends Action2 {
+
+			constructor() {
+				super({
+					id: 'workbench.action.chat.triggerSetupWithoutDialog',
+					title: CHAT_SETUP_ACTION_LABEL,
+					precondition: chatSetupTriggerContext
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const viewsService = accessor.get(IViewsService);
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const instantiationService = accessor.get(IInstantiationService);
+
+				await context.update({ hidden: false });
+
+				const chatWidget = await showCopilotView(viewsService, layoutService);
+				ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
+				chatWidget?.acceptInput(localize('setupCopilot', "Set up Copilot."));
 			}
 		}
 
@@ -777,6 +819,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupFromAccountsAction);
+		registerAction2(ChatSetupTriggerWithoutDialogAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
 	}
