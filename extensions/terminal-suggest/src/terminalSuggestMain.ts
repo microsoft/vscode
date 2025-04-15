@@ -322,6 +322,8 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 	switch (shellType) {
 		case 'bash':
 			return TerminalShellType.Bash;
+		case 'gitbash':
+			return TerminalShellType.Bash;
 		case 'zsh':
 			return TerminalShellType.Zsh;
 		case 'pwsh':
