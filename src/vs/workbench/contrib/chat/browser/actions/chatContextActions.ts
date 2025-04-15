@@ -547,6 +547,7 @@ export class AttachContextAction extends Action2 {
 							fullName: pick.label,
 							value: resizedImage,
 							kind: 'image',
+							references: [{ reference: pick.resource, kind: 'reference' }]
 						});
 					}
 				} else {
@@ -1089,8 +1090,8 @@ async function startElementSelection(layoutService: ILayoutService, hostService:
 					.join('\n');
 
 				overlay.remove();
-				// Wait a frame to ensure the overlay is gone from the screen
-				await new Promise(resolve => requestAnimationFrame(resolve));
+				// Wait longer than just one frame to ensure the overlay is fully gone
+				await new Promise(resolve => setTimeout(resolve, 100));
 
 				const screenshot = await captureScreenshot(x, y, width, height);
 				resolve({ displayName, html, css, screenshot: screenshot ? screenshot.buffer : new Uint8Array() });

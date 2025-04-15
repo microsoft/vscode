@@ -1881,6 +1881,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: absolute;
 	pointer-events: none;
 	border: 2px solid red;
+	background-color: rgba(255, 0, 0, 0.1);
 	z-index: 9999;
 	transition: all 0.1s ease-out;
 }
