@@ -287,6 +287,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 							showPointer: true
 						},
 						position: {
+							forcePosition: true,
 							hoverPosition: this._terminalConfigurationService.config.tabs.location === 'left' ? HoverPosition.RIGHT : HoverPosition.LEFT
 						}
 					}, { groupId: 'terminal-tabs-list' });
