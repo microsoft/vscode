@@ -461,6 +461,7 @@ class ChatStatusDashboard extends Disposable {
 	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string, overageLabel?: (overage: number) => string): (quota: IQuotaSnapshot) => void {
 		const quotaText = $('span.quota-percentage');
 		const quotaBit = $('div.quota-bit');
+		const overageIndicator = $('span.overage-indicator');
 
 		const quotaIndicator = container.appendChild($('div.quota-indicator', undefined,
 			$('div.quota-label', undefined,
@@ -469,10 +470,11 @@ class ChatStatusDashboard extends Disposable {
 			),
 			$('div.quota-bar', undefined,
 				quotaBit
+			),
+			$('div.overage', undefined,
+				overageIndicator
 			)
 		));
-
-		const overrageIndicator = container.appendChild($('div.overrage-indicator'));
 
 		const update = (quota: IQuotaSnapshot) => {
 			quotaIndicator.classList.remove('error');
@@ -492,10 +494,18 @@ class ChatStatusDashboard extends Disposable {
 				quotaIndicator.classList.add('warning');
 			}
 
-			if (overageLabel && quota.overageEnabled && quota.overageCount > 0) {
-				overrageIndicator.textContent = overageLabel(quota.overageCount);
+			if (overageLabel) {
+				if (quota.overageEnabled) {
+					if (quota.overageCount > 0) {
+						overageIndicator.textContent = overageLabel(quota.overageCount);
+					} else {
+						overageIndicator.textContent = localize('additionalUsageEnabled', "Additional usage is enabled.");
+					}
+				} else {
+					overageIndicator.textContent = localize('additionalUsageDisabled', "Additional usage is disabled.");
+				}
 			} else {
-				overrageIndicator.textContent = '';
+				overageIndicator.textContent = '';
 			}
 		};
 
