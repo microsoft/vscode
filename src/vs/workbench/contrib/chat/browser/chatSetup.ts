@@ -94,9 +94,9 @@ const ToolsAgentWhen = ContextKeyExpr.and(
 	ContextKeyExpr.not(`previewFeaturesDisabled`) // Set by extension
 );
 
-class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
+class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgentImplementation } {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -125,9 +125,9 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					break;
 			}
 
-			const disposable = new DisposableStore();
+			const disposables = new DisposableStore();
 
-			disposable.add(chatAgentService.registerAgent(id, {
+			disposables.add(chatAgentService.registerAgent(id, {
 				id,
 				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
@@ -137,19 +137,17 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
-				metadata: {
-					helpTextPrefix: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE
-				},
+				metadata: { helpTextPrefix: SetupChatAgent.SETUP_NEEDED_MESSAGE },
 				description,
 				extensionId: nullExtensionDescription.identifier,
 				extensionDisplayName: nullExtensionDescription.name,
 				extensionPublisherId: nullExtensionDescription.publisher
 			}));
 
-			const agent = disposable.add(instantiationService.createInstance(SetupChatAgentImplementation, context, controller, location));
-			disposable.add(chatAgentService.registerAgentImplementation(id, agent));
+			const agent = disposables.add(instantiationService.createInstance(SetupChatAgent, context, controller, location));
+			disposables.add(chatAgentService.registerAgentImplementation(id, agent));
 
-			return { agent, disposable };
+			return { agent, disposable: disposables };
 		});
 	}
 
@@ -366,7 +364,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		else {
 			progress({
 				kind: 'markdownContent',
-				content: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE,
+				content: SetupChatAgent.SETUP_NEEDED_MESSAGE,
 			});
 		}
 
@@ -575,34 +573,35 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
-		const registration = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
+		const agentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
 
 		const updateRegistration = () => {
 			const disabled = context.state.hidden;
-			if (!disabled && !registration.value) {
-				const disposables = registration.value = new DisposableStore();
+			if (!disabled && !agentDisposables.value) {
+				const disposables = agentDisposables.value = new DisposableStore();
 
 				// Panel Agents
+				const panelAgentDisposables = disposables.add(new DisposableStore());
 				for (const mode of [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent]) {
-					const { agent, disposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
-					disposables.add(disposable);
-					disposables.add(agent.onUnresolvableError(() => {
+					const { agent, disposable } = SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
+					panelAgentDisposables.add(disposable);
+					panelAgentDisposables.add(agent.onUnresolvableError(() => {
 						// An unresolvable error from our agent registrations means that
 						// Copilot is unhealthy for some reason. We clear our panel
 						// registration to give Copilot a chance to show a custom message
 						// to the user from the views and stop pretending as if there was
 						// a functional agent.
 						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-						disposable.dispose();
+						panelAgentDisposables.dispose();
 					}));
 				}
 
 				// Inline Agents
-				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
-				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-				disposables.add(SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
-			} else if (disabled && registration.value) {
-				registration.clear();
+				disposables.add(SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
+				disposables.add(SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
+				disposables.add(SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
+			} else if (disabled && agentDisposables.value) {
+				agentDisposables.clear();
 			}
 		};
 
