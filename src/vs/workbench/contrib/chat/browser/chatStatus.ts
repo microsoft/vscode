@@ -312,7 +312,7 @@ class ChatStatusDashboard extends Disposable {
 
 			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat")) : undefined;
 			const freeCompletionsQuotaIndicator = freeCompletionsQuota ? this.createQuotaIndicator(this.element, freeCompletionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), overageCount => localize('overrageDisplay', "{0} requests used additionally.", overageCount)) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), overageCount => localize('overrageDisplay', "{0} additional requests used.", overageCount)) : undefined;
 
 			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
 			if (resetDate) {
