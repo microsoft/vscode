@@ -42,7 +42,6 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPa
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
@@ -887,7 +886,6 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
 	) {
 		super();
 
@@ -908,7 +906,7 @@ class ToolCompletions extends Disposable {
 				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
 				const usedToolNames = new Set(usedTools.map(v => v.toolName));
 				const toolItems: CompletionItem[] = [];
-				toolItems.push(...Array.from(toolsService.getTools())
+				toolItems.push(...widget.input.selectedToolsModel.tools.get()
 					.filter(t => t.canBeReferencedInPrompt)
 					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
 					.map((t): CompletionItem => {
