@@ -532,6 +532,19 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+export interface ITextResourceDiffEditorInput extends IBaseTextResourceEditorInput {
+
+	/**
+	 * The left hand side text editor to open inside a diff editor.
+	 */
+	readonly original: ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The right hand side text editor to open inside a diff editor.
+	 */
+	readonly modified: ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+}
+
 /**
  * A resource list diff editor input compares multiple resources side by side
  * highlighting the differences.
