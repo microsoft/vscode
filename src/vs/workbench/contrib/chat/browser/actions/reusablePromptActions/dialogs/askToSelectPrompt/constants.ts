@@ -8,9 +8,9 @@ import { URI } from '../../../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
-import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { isLinux, isWindows } from '../../../../../../../../base/common/platform.js';
 import { IQuickInputButton, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 
 /**
  * Name of the `"super"` key based on the current OS.
