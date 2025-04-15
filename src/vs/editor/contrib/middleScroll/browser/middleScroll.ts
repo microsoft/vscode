@@ -65,16 +65,16 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		const diffTop = (this.currentY - this.y);
 		let moveTop = 0;
 		if (diffTop > this.threshold) {
-			moveTop = Math.round((diffTop - this.threshold) / this.speed);
+			moveTop = (diffTop - this.threshold) / this.speed;
 		} else if (diffTop < -this.threshold) {
-			moveTop = Math.round((diffTop + this.threshold) / this.speed);
+			moveTop = (diffTop + this.threshold) / this.speed;
 		}
 		const diffLeft = (this.currentX - this.x);
 		let moveLeft = 0;
 		if (diffLeft > this.threshold) {
-			moveLeft = Math.round((diffLeft - this.threshold) / this.speed);
+			moveLeft = (diffLeft - this.threshold) / this.speed;
 		} else if (diffLeft < -this.threshold) {
-			moveLeft = Math.round((diffLeft + this.threshold) / this.speed);
+			moveLeft = (diffLeft + this.threshold) / this.speed;
 		}
 
 		let direction = '';
