@@ -101,7 +101,7 @@ import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
-import './promptSyntax/contributions/usePromptCommand.js';
+import './promptSyntax/contributions/ attachInstructionsCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 
 // Register configuration

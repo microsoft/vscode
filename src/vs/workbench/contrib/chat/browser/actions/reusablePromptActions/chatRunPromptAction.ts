@@ -14,7 +14,6 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { runPromptFile } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
@@ -25,6 +24,7 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -44,6 +44,7 @@ const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
  * Action ID for the `Run Current Prompt` action.
  */
 const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
+
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -184,6 +185,7 @@ export const getActivePromptFileUri = (
 	}
 	return undefined;
 };
+
 
 /**
  * Action ID for the `Run Current Prompt In New Chat` action.
