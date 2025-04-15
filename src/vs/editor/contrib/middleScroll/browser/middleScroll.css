@@ -6,6 +6,7 @@
 .scroll-editor-on-middle-click-dot {
 	cursor: all-scroll;
 	position: absolute;
+	z-index: 1;
 	background-color: white;
 	opacity: 0.5;
 	width: 5px;
