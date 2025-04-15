@@ -82,6 +82,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 
 		this._register(this._editorObs.editor.onMouseMove((e: IEditorMouseEvent) => {
+			const state = this._state.get();
+			if (state === undefined) { return; }
+
 			const el = this._iconRef.element;
 			const rect = el.getBoundingClientRect();
 			const rectangularArea = Rect.fromLeftTopWidthHeight(rect.left, rect.top, rect.width, rect.height);
@@ -435,7 +438,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 			style: {
 				cursor: 'pointer',
-				zIndex: '1000',
+				zIndex: '20',
 				position: 'absolute',
 				backgroundColor: this._gutterIndicatorStyles.map(v => v.background),
 				['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),

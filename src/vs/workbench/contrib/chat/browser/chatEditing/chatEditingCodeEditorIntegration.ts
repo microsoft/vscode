@@ -582,7 +582,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		return closestWidget;
 	}
 
-	async rejectNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async rejectNearestChange(closestWidget?: IModifiedFileEntryChangeHunk): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.reject();
@@ -590,7 +590,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}
 	}
 
-	async acceptNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async acceptNearestChange(closestWidget?: IModifiedFileEntryChangeHunk): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.accept();
@@ -628,8 +628,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			// DIFF editor
 			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
-				original: { resource: this._entry.originalURI, options: { selection: undefined } },
-				modified: { resource: this._entry.modifiedURI, options: { selection } },
+				original: { resource: this._entry.originalURI },
+				modified: { resource: this._entry.modifiedURI },
+				options: { selection },
 				label: defaultAgentName
 					? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
 					: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))

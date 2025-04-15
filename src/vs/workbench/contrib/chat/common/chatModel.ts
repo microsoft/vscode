@@ -31,22 +31,34 @@ import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownCont
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 
-export interface IBaseChatRequestVariableEntry {
+interface IBaseChatRequestVariableEntry {
 	id: string;
 	fullName?: string;
 	icon?: ThemeIcon;
 	name: string;
 	modelDescription?: string;
+
+	/**
+	 * The offset-range in the prompt. This means this entry has been explicitly typed out
+	 * by the user.
+	 */
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 
-	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
-	kind?: never;
-	isFile?: boolean;
-	isDirectory?: boolean;
-	isTool?: boolean;
 	omittedState?: OmittedState;
+}
+
+export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
+	kind: 'generic';
+}
+
+export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
+	kind: 'directory';
+}
+
+export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
+	kind: 'file';
 }
 
 export const enum OmittedState {
@@ -55,15 +67,20 @@ export const enum OmittedState {
 	Full,
 }
 
-export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'tool';
+}
+
+export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'implicit';
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
+	readonly isPrompt: boolean;
 	enabled: boolean;
 }
 
-export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'paste';
 	code: string;
 	language: string;
@@ -79,20 +96,26 @@ export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVar
 	} | undefined;
 }
 
-export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface ISymbolVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'symbol';
 	readonly value: Location;
 	readonly symbolKind: SymbolKind;
 }
 
-export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface ICommandResultVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'command';
 }
 
-export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'image';
 	readonly isPasted?: boolean;
 	readonly isURL?: boolean;
+	readonly mimeType?: string;
+}
+
+export interface INotebookOutputVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'notebookOutput';
+	readonly outputIndex?: number;
 	readonly mimeType?: string;
 }
 
@@ -122,8 +145,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 			name: label(data),
 			icon,
 			value: data,
-			kind: 'diagnostic' as const,
-			range: data.filterRange ? new OffsetRange(data.filterRange.startLineNumber, data.filterRange.endLineNumber) : undefined,
+			kind: 'diagnostic',
 			...data,
 		};
 	}
@@ -159,11 +181,13 @@ export namespace IDiagnosticVariableEntryFilterData {
 	}
 }
 
-export interface IDiagnosticVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'>, IDiagnosticVariableEntryFilterData {
+export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry, IDiagnosticVariableEntryFilterData {
 	readonly kind: 'diagnostic';
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry;
+export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
+	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
+	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -175,6 +199,10 @@ export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is ICh
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
 	return obj.kind === 'image';
+}
+
+export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
+	return obj.kind === 'notebookOutput';
 }
 
 export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
@@ -1038,6 +1066,7 @@ export interface ISerializableChatRequestData {
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 	timestamp?: number;
+	confirmation?: string;
 }
 
 export interface IExportableChatData {
@@ -1125,6 +1154,10 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 			// A bug led to not porting creationDate properly, and that was copied to lastMessageDate, so fix that up if missing.
 			raw.lastMessageDate = getLastYearDate();
 		}
+	}
+
+	if ((raw.initialLocation as any) === 'editing-session') {
+		raw.initialLocation = ChatAgentLocation.Panel;
 	}
 }
 
@@ -1413,7 +1446,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					message: parsedRequest,
 					variableData,
 					timestamp: raw.timestamp ?? -1,
-					restoredId: raw.requestId
+					restoredId: raw.requestId,
+					confirmation: raw.confirmation,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
@@ -1463,6 +1497,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			// Old variables format
 			if (v && 'values' in v && Array.isArray(v.values)) {
 				return {
+					kind: 'generic',
 					id: v.id ?? '',
 					name: v.name,
 					value: v.values[0]?.value,
@@ -1751,7 +1786,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences,
 					codeCitations: r.response?.codeCitations,
-					timestamp: r.timestamp
+					timestamp: r.timestamp,
+					confirmation: r.confirmation,
 				};
 			}),
 		};

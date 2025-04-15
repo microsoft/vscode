@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChatWidget, showChatView } from '../../../../../chat.js';
+import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
+import { extUri } from '../../../../../../../../../base/common/resources.js';
+import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
-import { assertDefined, WithUriValue } from '../../../../../../../../../base/common/types.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
 /**
- * Options for the {@link attachPrompts} function.
+ * Options for the {@link attachPrompt} function.
  */
 export interface IAttachPromptOptions {
 	/**
@@ -24,27 +26,78 @@ export interface IAttachPromptOptions {
 	 */
 	readonly inNewChat?: boolean;
 
+	/**
+	 * Whether to skip attaching provided prompt if it is
+	 * already attached as an implicit  "current file" context.
+	 */
+	readonly skipIfImplicitlyAttached?: boolean;
+
 	readonly viewsService: IViewsService;
 	readonly commandService: ICommandService;
 }
 
 /**
- * Attaches provided prompts to a chat input.
+ * Return value of the {@link attachPrompt} function.
  */
-export const attachPrompts = async (
-	files: readonly WithUriValue<Object>[],
-	options: IAttachPromptOptions,
-): Promise<IChatWidget> => {
-	const widget = await getChatWidgetObject(options);
+interface IAttachResult {
+	readonly widget: IChatWidget;
+	readonly wasAlreadyAttached: boolean;
+}
 
-	for (const file of files) {
-		widget
-			.attachmentModel
-			.promptInstructions
-			.add(file.value);
+/**
+ * Check if provided uri is already attached to chat
+ * input as an implicit  "current file" context.
+ */
+const isAttachedAsCurrentPrompt = (
+	promptUri: URI,
+	widget: IChatWidget,
+): boolean => {
+	const { implicitContext } = widget.input;
+	if (implicitContext === undefined) {
+		return false;
 	}
 
-	return widget;
+	if (implicitContext.isPrompt === false) {
+		return false;
+	}
+
+	if (implicitContext.enabled === false) {
+		return false;
+	}
+
+	assertDefined(
+		implicitContext.value,
+		'Prompt value must always be defined.',
+	);
+
+	const uri = URI.isUri(implicitContext.value)
+		? implicitContext.value
+		: implicitContext.value.uri;
+
+	return extUri.isEqual(promptUri, uri);
+};
+
+/**
+ * Attaches provided prompts to a chat input.
+ */
+export const attachPrompt = async (
+	file: URI,
+	options: IAttachPromptOptions,
+): Promise<IAttachResult> => {
+	const { skipIfImplicitlyAttached } = options;
+
+	const widget = await getChatWidgetObject(options);
+
+	if (skipIfImplicitlyAttached && isAttachedAsCurrentPrompt(file, widget)) {
+		return { widget, wasAlreadyAttached: true };
+	}
+
+	const wasAlreadyAttached = widget
+		.attachmentModel
+		.promptInstructions
+		.add(file);
+
+	return { widget, wasAlreadyAttached };
 };
 
 /**

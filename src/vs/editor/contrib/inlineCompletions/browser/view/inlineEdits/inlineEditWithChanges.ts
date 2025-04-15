@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
+import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { AbstractText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { Command } from '../../../../../common/languages.js';
@@ -16,6 +17,14 @@ export class InlineEditWithChanges {
 
 	public get originalLineRange() { return this.lineEdit.lineRange; }
 	public get modifiedLineRange() { return this.lineEdit.toLineEdit().getNewLineRanges()[0]; }
+
+	public get displayRange() {
+		return this.originalText.lineRange.intersect(
+			this.originalLineRange.join(
+				LineRange.ofLength(this.originalLineRange.startLineNumber, this.lineEdit.newLines.length)
+			)
+		)!;
+	}
 
 	constructor(
 		public readonly originalText: AbstractText,

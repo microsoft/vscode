@@ -125,7 +125,8 @@ class ToggleChatModeAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.inQuickChat.negate(),
 					),
 					group: 'navigation',
 				},
@@ -169,7 +170,7 @@ class ToggleChatModeAction extends Action2 {
 			} else {
 				const confirmation = await dialogService.confirm({
 					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to continue?"),
+					message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
 					primaryButton: localize('agent.newSession.confirm', "Yes"),
 					type: 'info'
 				});
@@ -419,7 +420,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			fullName: codebaseTool.displayName ?? '',
 			value: undefined,
 			icon: ThemeIcon.isThemeIcon(codebaseTool.icon) ? codebaseTool.icon : undefined,
-			isTool: true
+			kind: 'tool'
 		});
 		widget.acceptInput();
 	}

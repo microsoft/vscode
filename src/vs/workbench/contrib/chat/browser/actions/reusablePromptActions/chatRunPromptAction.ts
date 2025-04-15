@@ -3,26 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IChatWidget } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { runAttachPromptAction } from './chatAttachPromptAction.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { ILocalizedString, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { TEXT_FILE_EDITOR_ID } from '../../../../files/common/files.js';
+import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
+import { attachPrompt } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
+import { detachPrompt } from './dialogs/askToSelectPrompt/utils/detachPrompt.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getActivePromptUri } from '../../promptSyntax/contributions/usePromptCommand.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+
+/**
+ * Condition for the `Run Current Prompt` action.
+ */
+const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
+	ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+	ResourceContextKey.HasResource,
+	ResourceContextKey.LangId.isEqualTo(PROMPT_LANGUAGE_ID),
+);
+
+/**
+ * Keybinding of the action.
+ */
+const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
+
+/**
+ * Action ID for the `Run Current Prompt` action.
+ */
+const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -69,7 +91,10 @@ abstract class RunPromptBaseAction extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: options.icon,
 			keybinding: {
-				when: EditorContextKeys.editorTextFocus,
+				when: ContextKeyExpr.and(
+					EditorContextKeys.editorTextFocus,
+					EDITOR_ACTIONS_CONDITION,
+				),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: options.keybinding,
 			},
@@ -92,7 +117,8 @@ abstract class RunPromptBaseAction extends Action2 {
 		resource: URI | undefined,
 		inNewChat: boolean,
 		accessor: ServicesAccessor,
-	): Promise<void> {
+	): Promise<IChatWidget> {
+		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 
 		resource ||= getActivePromptUri(accessor);
@@ -101,36 +127,28 @@ abstract class RunPromptBaseAction extends Action2 {
 			'Cannot find URI resource for an active text editor.',
 		);
 
-		return await runAttachPromptAction({
+		const { widget, wasAlreadyAttached } = await attachPrompt(
 			resource,
-			inNewChat,
-			skipSelectionDialog: true,
-		}, commandService);
+			{
+				inNewChat,
+				skipIfImplicitlyAttached: true,
+				commandService,
+				viewsService,
+			},
+		);
+
+		// submit the prompt immediately
+		await widget.acceptInput();
+
+		// detach the prompt immediately, unless was attached
+		// before the action was executed
+		if (wasAlreadyAttached === false) {
+			await detachPrompt(resource, { widget });
+		}
+
+		return widget;
 	}
 }
-
-/**
- * Condition for the `Run Current Prompt` action.
- */
-const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
-	ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-	ResourceContextKey.HasResource,
-	ContextKeyExpr.regex(
-		ResourceContextKey.Filename.key,
-		/\.prompt\.md|copilot-instructions\.md$/,
-	),
-	ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
-);
-
-/**
- * Keybinding of the action.
- */
-const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
-
-/**
- * Action ID for the `Run Current Prompt` action.
- */
-const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
 
 /**
  * The default `Run Current Prompt` action.
@@ -155,7 +173,7 @@ class RunCurrentPromptAction extends RunPromptBaseAction {
 	public override async run(
 		accessor: ServicesAccessor,
 		resource: URI | undefined,
-	): Promise<void> {
+	): Promise<IChatWidget> {
 		return await super.execute(
 			resource,
 			false,
@@ -195,7 +213,7 @@ class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 	public override async run(
 		accessor: ServicesAccessor,
 		resource: URI,
-	): Promise<void> {
+	): Promise<IChatWidget> {
 		return await super.execute(
 			resource,
 			true,

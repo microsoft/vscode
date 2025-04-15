@@ -27,6 +27,7 @@ import { ConfigurationService } from '../../../../../../platform/configuration/c
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
+import { IFileContentsProviderOptions } from '../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 
 /**
  * Represents a file reference with an expected
@@ -75,7 +76,9 @@ class TestPromptFileReference extends Disposable {
 	/**
 	 * Run the test.
 	 */
-	public async run() {
+	public async run(
+		options: Partial<IFileContentsProviderOptions> = {},
+	) {
 		// create the files structure on the disk
 		await (this.initService.createInstance(MockFilesystem, this.fileStructure)).mock();
 
@@ -90,7 +93,7 @@ class TestPromptFileReference extends Disposable {
 			this.initService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
-				[],
+				options,
 			),
 		).start();
 
@@ -481,5 +484,150 @@ suite('PromptFileReference (Unix)', function () {
 		));
 
 		await test.run();
+	});
+
+	suite('• options', () => {
+		test('• allowNonPromptFiles', async function () {
+			if (isWindows) {
+				this.skip();
+			}
+
+			const rootFolderName = 'resolves-nested-file-references';
+			const rootFolder = `/${rootFolderName}`;
+			const rootUri = URI.file(rootFolder);
+
+			const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				/**
+				 * The file structure to be created on the disk for the test.
+				 */
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'file1.prompt.md',
+							contents: '## Some Header\nsome contents\n ',
+						},
+						{
+							name: 'file2.md',
+							contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!\n ',
+						},
+						{
+							name: 'folder1',
+							children: [
+								{
+									name: 'file3.prompt.md',
+									contents: `\n[](./some-other-folder/non-existing-folder)\n\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
+								},
+								{
+									name: 'some-other-folder',
+									children: [
+										{
+											name: 'file4.prompt.md',
+											contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\n\nand some\n non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
+										},
+										{
+											name: 'file.txt',
+											contents: 'contents of a non-prompt-snippet file',
+										},
+										{
+											name: 'yetAnotherFolder🤭',
+											children: [
+												{
+													name: 'another-file.prompt.md',
+													contents: `[](${rootFolder}/folder1/some-other-folder)\nanother-file.prompt.md contents\t [#file:file.txt](../file.txt)`,
+												},
+												{
+													name: 'one_more_file_just_in_case.prompt.md',
+													contents: 'one_more_file_just_in_case.prompt.md contents',
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				}],
+				/**
+				 * The root file path to start the resolve process from.
+				 */
+				URI.file(`/${rootFolderName}/file2.md`),
+				/**
+				 * The expected references to be resolved.
+				 */
+				[
+					new ExpectedReference(
+						rootUri,
+						createTestFileReference('folder1/file3.prompt.md', 2, 14),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1'),
+						createTestFileReference(
+							`./some-other-folder/non-existing-folder`,
+							2,
+							1,
+						),
+						new OpenFailed(
+							URI.joinPath(rootUri, './folder1/some-other-folder/non-existing-folder'),
+							'Reference to non-existing file cannot be opened.',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1'),
+						createTestFileReference(
+							`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
+							3,
+							26,
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						createTestFileReference('.', 1, 1),
+						new FolderReference(
+							URI.joinPath(rootUri, './folder1/some-other-folder'),
+							'This folder is not a prompt file!',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
+						createTestFileReference('../file.txt', 2, 35),
+						new NotPromptFile(
+							URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
+							'Ughh oh, that is not a prompt file!',
+						),
+					),
+					new ExpectedReference(
+						rootUri,
+						createTestFileReference('./folder1/some-other-folder/file4.prompt.md', 3, 14),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
+						new OpenFailed(
+							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
+							'Failed to open non-existring prompt snippets file',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						createTestFileReference('./some-non-prompt-file.md', 5, 13),
+						new OpenFailed(
+							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
+							'Oh no!',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './some-other-folder/folder1'),
+						createTestFileReference('../../folder1', 5, 48),
+						new FolderReference(
+							URI.joinPath(rootUri, './folder1'),
+							'Uggh ohh!',
+						),
+					),
+				]
+			));
+
+			await test.run({ allowNonPromptFiles: true });
+		});
 	});
 });

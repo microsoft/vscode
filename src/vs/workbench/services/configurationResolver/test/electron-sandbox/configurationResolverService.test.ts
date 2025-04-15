@@ -101,6 +101,26 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
+	test('does not preserve platform config even when not matched', async () => {
+		const obj = {
+			program: 'osx.sh',
+			windows: {
+				program: 'windows.exe'
+			},
+			linux: {
+				program: 'linux.sh'
+			}
+		};
+		const config: any = await configurationResolverService!.resolveAsync(workspace, obj);
+
+		const expected = isWindows ? 'windows.exe' : isMacintosh ? 'osx.sh' : isLinux ? 'linux.sh' : undefined;
+
+		assert.strictEqual(config.windows, undefined);
+		assert.strictEqual(config.osx, undefined);
+		assert.strictEqual(config.linux, undefined);
+		assert.strictEqual(config.program, expected);
+	});
+
 	test('apples platform specific config', async () => {
 		const expected = isWindows ? 'windows.exe' : isMacintosh ? 'osx.sh' : isLinux ? 'linux.sh' : undefined;
 		const obj = {
@@ -315,6 +335,17 @@ suite('Configuration Resolver Service', () => {
 		} else {
 			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for key1 xyz');
 		}
+	});
+
+	test('recursively resolve variables', async () => {
+		const configurationService = new TestConfigurationService({
+			key1: 'key1=${config:key2}',
+			key2: 'key2=${config:key3}',
+			key3: 'we did it!',
+		});
+
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
+		assert.strictEqual(await service.resolveAsync(workspace, '${config:key1}'), 'key1=key2=we did it!');
 	});
 
 	test('substitute many env variable and a configuration variable', async () => {
@@ -958,5 +989,25 @@ suite('ConfigurationResolverExpression', () => {
 		assert.strictEqual(unresolved.length, 1);
 		assert.strictEqual(unresolved[0].name, 'env');
 		assert.strictEqual(unresolved[0].arg, 'HOME${env:USER}');
+	});
+
+	test('resolves nested values', () => {
+		const expr = ConfigurationResolverExpression.parse({
+			name: '${env:REDIRECTED}',
+			'key that is ${env:REDIRECTED}': 'cool!',
+		});
+
+		for (const r of expr.unresolved()) {
+			if (r.arg === 'REDIRECTED') {
+				expr.resolve(r, 'username: ${env:USERNAME}');
+			} else if (r.arg === 'USERNAME') {
+				expr.resolve(r, 'testuser');
+			}
+		}
+
+		assert.deepStrictEqual(expr.toObject(), {
+			name: 'username: testuser',
+			'key that is username: testuser': 'cool!'
+		});
 	});
 });

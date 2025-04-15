@@ -17,15 +17,15 @@ import { cancelPreviousCalls } from '../../../../../../base/common/decorators/ca
 /**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
  *
- * - implement the {@linkcode getContentsStream} method to provide the contents stream
+ * - implement the {@link getContentsStream} method to provide the contents stream
  *   of a prompt; this method should throw a `ResolveError` or its derivative if the contents
  *   cannot be parsed for any reason
- * - fire a {@linkcode TChangeEvent} event on the {@linkcode onChangeEmitter} event when
+ * - fire a {@link TChangeEvent} event on the {@link onChangeEmitter} event when
  * 	 prompt contents change
  * - misc:
- *   - provide the {@linkcode uri} property that represents the URI of a prompt that
+ *   - provide the {@link uri} property that represents the URI of a prompt that
  *     the contents are for
- *   - implement the {@linkcode toString} method to return a string representation of this
+ *   - implement the {@link toString} method to return a string representation of this
  *     provider type to aid with debugging/tracing
  */
 export abstract class PromptContentsProviderBase<
@@ -65,7 +65,7 @@ export abstract class PromptContentsProviderBase<
 
 	/**
 	 * Event emitter for the prompt contents change event.
-	 * See {@linkcode onContentChanged} for more details.
+	 * See {@link onContentChanged} for more details.
 	 */
 	private readonly onContentChangedEmitter = this._register(new Emitter<VSBufferReadableStream | ResolveError>());
 
@@ -76,7 +76,7 @@ export abstract class PromptContentsProviderBase<
 	 *
 	 * `Note!` this field is meant to be used by the external consumers of the prompt
 	 *         contents provider that the classes that extend this abstract class.
-	 *         Please use the {@linkcode onChangeEmitter} event to provide a change
+	 *         Please use the {@link onChangeEmitter} event to provide a change
 	 *         event in your prompt contents implementation instead.
 	 */
 	public readonly onContentChanged = this.onContentChangedEmitter.event;
