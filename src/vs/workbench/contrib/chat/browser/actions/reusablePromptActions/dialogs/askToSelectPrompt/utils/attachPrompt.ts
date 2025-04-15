@@ -39,7 +39,6 @@ interface IAttachResult {
 	readonly wasAlreadyAttached: URI[];
 }
 
-
 /**
  * Options for the {@link runPromptFile} function.
  */
