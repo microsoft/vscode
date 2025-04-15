@@ -6,17 +6,18 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { InstructionsAttachmentWidget } from './instructionsWidget.js';
+import { InstructionsAttachmentWidget } from './promptInstructionsWidget.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { getPromptFileType } from '../../../../../../platform/prompts/common/constants.js';
 
 /**
  * Widget for a collection of prompt instructions attachments.
  * See {@linkcode InstructionsAttachmentWidget}.
  */
-export class InstructionsAttachmentsCollectionWidget extends Disposable {
+export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * List of child instruction attachment widgets.
 	 */
@@ -64,6 +65,13 @@ export class InstructionsAttachmentsCollectionWidget extends Disposable {
 	 */
 	public get empty(): boolean {
 		return this.children.length === 0;
+	}
+
+	/**
+	 * Check if any of the attachments is a prompt file.
+	 */
+	public get hasPromptFile(): boolean {
+		return this.references.some((uri) => getPromptFileType(uri) === 'prompt');
 	}
 
 	constructor(
