@@ -302,7 +302,7 @@ class ChatStatusDashboard extends Disposable {
 		if (freeChatQuota || freeCompletionsQuota || premiumChatQuota) {
 			const limitedPlan = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
 
-			addSeparator(limitedPlan ? localize('limitedUsageTitle', "Copilot Free Plan Usage") : localize('proUsageTitle', "Copilot Premium Usage"), toAction({
+			addSeparator(limitedPlan ? localize('limitedUsageTitle', "Copilot Free Plan Usage") : localize('proUsageTitle', "Copilot Usage"), toAction({
 				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Copilot"),
 				tooltip: localize('quotaTooltip', "Manage Copilot"),
@@ -312,7 +312,7 @@ class ChatStatusDashboard extends Disposable {
 
 			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat messages")) : undefined;
 			const freeCompletionsQuotaIndicator = freeCompletionsQuota ? this.createQuotaIndicator(this.element, freeCompletionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat messages"), overageCount => localize('overrageDisplay', "{0} messages over limit", overageCount)) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat messages"), overageCount => localize('overrageDisplay', "{0} messages payed per request.", overageCount)) : undefined;
 
 			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
 			if (resetDate) {
