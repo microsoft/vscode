@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
+import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -103,15 +103,25 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// sanity check to make sure we don't miss a new
 		// prompt type that could be added in the future
 		assert(
-			storage === 'local' || storage === 'user',
-			`Unknown prompt storage '${storage}'.`,
+			type === 'prompt' || type === 'instructions',
+			`Unknown prompt type '${type}'.`,
 		);
 
-		const prompts = (storage === 'user')
-			? [this.userDataService.currentProfile.promptsHome]
-			: this.fileLocator.getConfigBasedSourceFolders();
+		if (storage === 'local') {
+			return this.fileLocator
+				.getConfigBasedSourceFolders()
+				.map(addType(storage, type));
+		}
 
-		return prompts.map(addType(storage, type));
+		if (storage === 'user') {
+			return [this.userDataService.currentProfile.promptsHome]
+				.map(addType(storage, type));
+		}
+
+		assertNever(
+			storage,
+			`Unknown prompt storage type '${storage}'.`,
+		);
 	}
 }
 
