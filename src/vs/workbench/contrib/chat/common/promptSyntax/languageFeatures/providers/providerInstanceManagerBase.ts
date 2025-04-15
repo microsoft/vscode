@@ -136,7 +136,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 const isPromptOrInstructionsFile = (
 	languageId: string
 ): boolean => {
-	return languageId === PROMPT_LANGUAGE_ID || languageId === INSTRUCTIONS_LANGUAGE_ID;
+	return (languageId === PROMPT_LANGUAGE_ID) || (languageId === INSTRUCTIONS_LANGUAGE_ID);
 };
 
 /**
