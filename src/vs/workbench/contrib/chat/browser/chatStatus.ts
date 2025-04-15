@@ -310,13 +310,13 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat messages")) : undefined;
+			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat")) : undefined;
 			const freeCompletionsQuotaIndicator = freeCompletionsQuota ? this.createQuotaIndicator(this.element, freeCompletionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat messages"), overageCount => localize('overrageDisplay', "{0} messages payed per request.", overageCount)) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), overageCount => localize('overrageDisplay', "{0} requests used additionally.", overageCount)) : undefined;
 
 			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
 			if (resetDate) {
-				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(resetDate))));
+				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", this.dateFormatter.value.format(resetDate))));
 			}
 
 			if (freeChatQuota?.percentRemaining === 0 || freeCompletionsQuota?.percentRemaining === 0 || (premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
@@ -502,7 +502,11 @@ class ChatStatusDashboard extends Disposable {
 						overageIndicator.textContent = localize('additionalUsageEnabled', "Additional usage is enabled.");
 					}
 				} else {
-					overageIndicator.textContent = localize('additionalUsageDisabled', "Additional usage is disabled.");
+					if (quota.overageCount > 0) {
+						overageIndicator.textContent = overageLabel(quota.overageCount);
+					} else {
+						overageIndicator.textContent = localize('additionalUsageDisabled', "Additional usage is disabled.");
+					}
 				}
 			} else {
 				overageIndicator.textContent = '';
