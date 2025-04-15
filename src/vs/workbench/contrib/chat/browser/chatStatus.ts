@@ -302,8 +302,8 @@ class ChatStatusDashboard extends Disposable {
 		if (freeChatQuota || freeCompletionsQuota || premiumChatQuota) {
 			const limitedPlan = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
 
-			addSeparator(limitedPlan ? localize('limitedUsageTitle', "Copilot Free Plan Usage") : localize('proUsageTitle', "Copilot Pro Plan Usage"), toAction({
-				id: 'workbench.action.openChatSettings',
+			addSeparator(limitedPlan ? localize('limitedUsageTitle', "Copilot Free Plan Usage") : localize('proUsageTitle', "Copilot Premium Usage"), toAction({
+				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Copilot"),
 				tooltip: localize('quotaTooltip', "Manage Copilot"),
 				class: ThemeIcon.asClassName(Codicon.settings),
@@ -312,16 +312,16 @@ class ChatStatusDashboard extends Disposable {
 
 			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat messages")) : undefined;
 			const freeCompletionsQuotaIndicator = freeCompletionsQuota ? this.createQuotaIndicator(this.element, freeCompletionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium Chat messages"), overageCount => localize('overrageDisplay', "{0} messages over limit", overageCount)) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat messages"), overageCount => localize('overrageDisplay', "{0} messages over limit", overageCount)) : undefined;
 
 			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
 			if (resetDate) {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(resetDate))));
 			}
 
-			if (freeChatQuota?.percentRemaining === 0 || freeCompletionsQuota?.percentRemaining === 0) {
+			if (freeChatQuota?.percentRemaining === 0 || freeCompletionsQuota?.percentRemaining === 0 || (premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
 				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				upgradePlanButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
+				upgradePlanButton.label = limitedPlan ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Additional Usage");
 				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 
@@ -478,7 +478,7 @@ class ChatStatusDashboard extends Disposable {
 			quotaIndicator.classList.remove('error');
 			quotaIndicator.classList.remove('warning');
 
-			let usedPercentage = 100 - quota.percentRemaining;
+			let usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			if (usedPercentage === 0) {
 				usedPercentage = 1; // indicate minimal usage as 1%
 			}
