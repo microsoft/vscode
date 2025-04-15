@@ -8,7 +8,6 @@ import { IChatWidget } from '../../../../../chat.js';
 import { getChatWidgetObject } from './attachInstructions.js';
 import { URI } from '../../../../../../../../../base/common/uri.js';
 import { extUri } from '../../../../../../../../../base/common/resources.js';
-import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
@@ -48,7 +47,7 @@ export const runPromptFile = async (
 	const widget = await getChatWidgetObject(options);
 
 	let wasAlreadyAttached = true;
-	if (isAttachedAsCurrentPrompt(file, widget) === false) {
+	if (isSetInImplicitContext(file, widget) === false) {
 		wasAlreadyAttached = widget
 			.attachmentModel
 			.promptInstructions
@@ -68,10 +67,9 @@ export const runPromptFile = async (
 };
 
 /**
- * Check if provided uri is already attached to chat
- * input as an implicit  "current file" context.
+ * Check if provided uri is already set as the implicit context
  */
-const isAttachedAsCurrentPrompt = (
+const isSetInImplicitContext = (
 	promptUri: URI,
 	widget: IChatWidget,
 ): boolean => {
@@ -80,18 +78,19 @@ const isAttachedAsCurrentPrompt = (
 		return false;
 	}
 
-	if (implicitContext.isPromptFile === false) {
+	if (implicitContext.value === undefined) {
+		// the user turned off implicit context in the settings
 		return false;
 	}
 
 	if (implicitContext.enabled === false) {
+		// the user disabled the implicit context in the chat view
 		return false;
 	}
 
-	assertDefined(
-		implicitContext.value,
-		'Prompt value must always be defined.',
-	);
+	if (implicitContext.isPromptFile === false) {
+		return false;
+	}
 
 	const uri = URI.isUri(implicitContext.value)
 		? implicitContext.value

@@ -224,11 +224,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if (setting === 'first' && !isFirstInteraction) {
-				widget.input.implicitContext.setValue(undefined, false, languageId);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
 				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
 			} else if (setting === 'never') {
-				widget.input.implicitContext.setValue(undefined, false, languageId);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}
 	}
@@ -305,7 +305,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._isSelection;
 	}
 
-	private _onDidChangeValue = new Emitter<void>();
+	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
 	private _value: Location | URI | undefined;
