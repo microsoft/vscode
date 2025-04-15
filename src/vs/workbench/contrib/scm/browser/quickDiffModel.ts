@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextModel, shouldSynchronizeModel } from '../../../../editor/common/model.js';
-import { compareChanges, getModifiedEndLineNumber, IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
+import { compareChanges, compareQuickDiff, getModifiedEndLineNumber, IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { ISCMRepository, ISCMService } from '../common/scm.js';
 import { sortedDiff, equals } from '../../../../base/common/arrays.js';
@@ -245,10 +245,14 @@ export class QuickDiffModel extends Disposable {
 				return Promise.resolve({ changes: [], mapChanges: new Map() }); // disposed
 			}
 
-			const filteredToDiffable = originalURIs.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource));
-			if (filteredToDiffable.length === 0) {
+			const quickDiffs = originalURIs
+				.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource))
+				.sort(compareQuickDiff);
+			if (quickDiffs.length === 0) {
 				return Promise.resolve({ changes: [], mapChanges: new Map() }); // All files are too large
 			}
+
+			const quickDiffPrimary = quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
 
 			const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
 			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
@@ -256,10 +260,34 @@ export class QuickDiffModel extends Disposable {
 				: ignoreTrimWhitespaceSetting !== 'false';
 
 			const allDiffs: QuickDiffChange[] = [];
-			for (const quickDiff of filteredToDiffable) {
+			for (const quickDiff of quickDiffs) {
 				const diff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
 				if (diff.changes && diff.changes2 && diff.changes.length === diff.changes2.length) {
 					for (let index = 0; index < diff.changes.length; index++) {
+						const change2 = diff.changes2[index];
+
+						if (quickDiffPrimary && quickDiff.kind === 'secondary') {
+							// For secondary quick diffs, we need to check whether the diff is
+							// present in the primary quick diff. If it is, we need to skip it.
+							// We can do this since the primary quick diff are already present
+							// in the allDiffs array.
+							if (allDiffs.some(d =>
+								d.change2.original.equals(change2.original) &&
+								d.change2.modified.equals(change2.modified))
+							) {
+								// We need to check if the original text of the primary quick diff
+								// is equal to the original text of the secondary quick diff. If it
+								// is, we can skip it.
+								const originalRange = change2.toRangeMapping().originalRange;
+								const originalTextEditorModelPrimary = this._originalEditorModels.get(quickDiffPrimary.originalResource)?.textEditorModel;
+								const originalTextEditorModelSecondary = this._originalEditorModels.get(quickDiff.originalResource)?.textEditorModel;
+
+								if (originalTextEditorModelPrimary?.getValueInRange(originalRange) === originalTextEditorModelSecondary?.getValueInRange(originalRange)) {
+									continue;
+								}
+							}
+						}
+
 						allDiffs.push({
 							label: quickDiff.label,
 							original: quickDiff.originalResource,

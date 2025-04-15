@@ -970,7 +970,7 @@
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && resourceScheme == git"
+        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && (resourceScheme == file || resourceScheme == git)"
       },
       {
         "command": "git.revertSelectedRanges",
@@ -1075,7 +1075,7 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == git"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && (resourceScheme == file || resourceScheme == git)"
         },
         {
           "command": "git.clean",

@@ -182,3 +182,16 @@ export function lineIntersectsChange(lineNumber: number, change: IChange): boole
 
 	return lineNumber >= change.modifiedStartLineNumber && lineNumber <= (change.modifiedEndLineNumber || change.modifiedStartLineNumber);
 }
+
+export function compareQuickDiff(a: QuickDiff, b: QuickDiff): number {
+	if (a.kind === 'primary') {
+		return -1;
+	} else if (b.kind === 'primary') {
+		return 1;
+	} else if (a.kind === 'secondary') {
+		return -1;
+	} else if (b.kind === 'secondary') {
+		return 1;
+	}
+	return 0;
+}
