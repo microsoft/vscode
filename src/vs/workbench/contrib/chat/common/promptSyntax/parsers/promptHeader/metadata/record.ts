@@ -4,15 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptMetadataDiagnostic } from '../diagnostics.js';
-import { FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { Range } from '../../../../../../../../editor/common/core/range.js';
 
 /**
  * Abstract class for all metadata records in the prompt header.
  */
-// TODO: @legomushroom - can drop the extension of `FrontMatterToken`?
-export abstract class PromptMetadataToken extends FrontMatterToken {
+export abstract class PromptMetadataRecord {
 	/**
 	 * List of diagnostic objects related to this metadata record.
 	 */
 	abstract readonly diagnostics: readonly PromptMetadataDiagnostic[];
+
+	constructor(
+		/**
+		 * Full range of the metadata's record text in the prompt header.
+		 */
+		public readonly range: Range,
+	) { }
 }

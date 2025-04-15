@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptMetadataToken } from './metadataToken.js';
+import { PromptMetadataRecord } from './record.js';
 import { localize2 } from '../../../../../../../../nls.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
@@ -17,7 +17,7 @@ const TOOLS_NAME = 'tools';
 /**
  * Prompt `tools` metadata record inside the prompt header.
  */
-export class PromptTools extends PromptMetadataToken {
+export class PromptTools extends PromptMetadataRecord {
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
@@ -170,13 +170,5 @@ export class PromptTools extends PromptMetadataToken {
 		}
 
 		return false;
-	}
-
-	public override get text(): string {
-		return this.recordToken.text;
-	}
-
-	public override toString(): string {
-		return `prompt - tools(${this.shortText()})${this.range}`;
 	}
 }
