@@ -317,16 +317,22 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 			}
 			.monaco-editor .dirty-diff-added-pattern,
 			.monaco-editor .dirty-diff-added-pattern:before,
+			.monaco-editor .dirty-diff-added-secondary-pattern,
+			.monaco-editor .dirty-diff-added-secondary-pattern:before,
 			.monaco-editor .dirty-diff-modified-pattern,
-			.monaco-editor .dirty-diff-modified-pattern:before {
+			.monaco-editor .dirty-diff-modified-pattern:before,
+			.monaco-editor .dirty-diff-modified-secondary-pattern,
+			.monaco-editor .dirty-diff-modified-secondary-pattern:before {
 				background-size: ${state.width}px ${state.width}px;
 			}
 			.monaco-editor .dirty-diff-added,
 			.monaco-editor .dirty-diff-added-secondary,
 			.monaco-editor .dirty-diff-added-pattern,
+			.monaco-editor .dirty-diff-added-secondary-pattern,
 			.monaco-editor .dirty-diff-modified,
 			.monaco-editor .dirty-diff-modified-secondary,
 			.monaco-editor .dirty-diff-modified-pattern,
+			.monaco-editor .dirty-diff-modified-secondary-pattern,
 			.monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};
 			}

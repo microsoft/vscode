@@ -53,6 +53,15 @@
 	transform: translateX(3px);
 }
 
+.monaco-editor .dirty-diff-added-secondary-pattern {
+	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-addedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+	background-repeat: repeat-y;
+}
+
+.monaco-editor .dirty-diff-added-secondary-pattern:before {
+	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-addedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+	transform: translateX(3px);
+}
 .monaco-editor .dirty-diff-modified {
 	border-left-color: var(--vscode-editorGutter-modifiedBackground);
 	border-left-style: solid;
@@ -76,22 +85,40 @@
 	background-repeat: repeat-y;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added,
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added-pattern,
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified,
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified-pattern {
-	transition: opacity 0.5s;
-}
-
 .monaco-editor .dirty-diff-modified-pattern:before {
 	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-modifiedBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedBackground) 50%, var(--vscode-editorGutter-modifiedBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 	transform: translateX(3px);
 }
 
+.monaco-editor .dirty-diff-modified-secondary-pattern {
+	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-modifiedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+	background-repeat: repeat-y;
+}
+
+.monaco-editor .dirty-diff-modified-secondary-pattern:before {
+	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-modifiedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+	transform: translateX(3px);
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added-secondary,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added-pattern,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added-secondary-pattern,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified-secondary,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified-pattern,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified-secondary-pattern {
+	transition: opacity 0.5s;
+}
+
 .monaco-editor .margin:hover .dirty-diff-added,
+.monaco-editor .margin:hover .dirty-diff-added-secondary,
 .monaco-editor .margin:hover .dirty-diff-added-pattern,
+.monaco-editor .margin:hover .dirty-diff-added-secondary-pattern,
 .monaco-editor .margin:hover .dirty-diff-modified,
-.monaco-editor .margin:hover .dirty-diff-modified-pattern {
+.monaco-editor .margin:hover .dirty-diff-modified-secondary,
+.monaco-editor .margin:hover .dirty-diff-modified-pattern,
+.monaco-editor .margin:hover .dirty-diff-modified-secondary-pattern {
 	opacity: 1;
 }
 
