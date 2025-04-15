@@ -36,7 +36,7 @@ export interface IAttachOptions {
  */
 interface IAttachResult {
 	readonly widget: IChatWidget;
-	readonly wasAlreadyAttached: URI[];
+	readonly wereAlreadyAttached: readonly URI[];
 }
 
 /**
