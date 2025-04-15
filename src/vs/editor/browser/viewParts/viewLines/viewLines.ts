@@ -14,7 +14,7 @@ import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, Vis
 import { VisibleLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { DomReadingContext } from './domReadingContext.js';
-import { ViewLine } from './viewLine.js';
+import { RenderViewLineType, ViewLine } from './viewLine.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -163,8 +163,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const viewLine = this._visibleLines.getVisibleLine(lineNumber);
 				if (fonts.length > 0) {
 					viewLine.onOptionsChanged(this._modifiedViewLineOptions);
+					viewLine.rerenderLineType(RenderViewLineType.Regular);
 				} else {
 					viewLine.onOptionsChanged(this._viewLineOptions);
+					viewLine.rerenderLineType(RenderViewLineType.Fast);
 				}
 			}
 		}));
