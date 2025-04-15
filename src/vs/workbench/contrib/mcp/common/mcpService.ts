@@ -98,7 +98,7 @@ export class McpService extends Disposable implements IMcpService {
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
-					source: { type: 'mcp', collectionId: server.collection.id, definitionId: server.definition.id },
+					source: { type: 'mcp', label: server.definition.label, collectionId: server.collection.id, definitionId: server.definition.id },
 					icon: Codicon.tools,
 					displayName: tool.definition.name,
 					toolReferenceName: tool.definition.name,

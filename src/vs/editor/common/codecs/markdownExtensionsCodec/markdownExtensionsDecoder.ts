@@ -86,12 +86,11 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 			// if current parser can be converted into a valid Front Matter
 			// header, then emit it and reset the current parser object
 			if (this.current instanceof PartialFrontMatterHeader) {
-				const maybeHeader = this.current.asFrontMatterHeader();
-				if (maybeHeader) {
-					this._onData.fire(maybeHeader);
-					delete this.current;
-					return;
-				}
+				this._onData.fire(
+					this.current.asFrontMatterHeader(),
+				);
+				delete this.current;
+				return;
 			}
 
 		} catch (_error) {

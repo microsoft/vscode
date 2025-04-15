@@ -62,8 +62,8 @@ export namespace ChatContextKeys {
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
 
-	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
-	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
+	export const freeChatQuotaExceeded = new RawContextKey<boolean>('freeChatQuotaExceeded', false, true);
+	export const freeCompletionsQuotaExceeded = new RawContextKey<boolean>('freeCompletionsQuotaExceeded', false, true);
 
 	export const Editing = {
 		agentModeDisallowed: new RawContextKey<boolean>('chatAgentModeDisallowed', undefined, { type: 'boolean', description: localize('chatAgentModeDisallowed', "True when agent mode is not allowed.") }), // experiment-driven disablement

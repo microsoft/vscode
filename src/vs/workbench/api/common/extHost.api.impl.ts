@@ -27,7 +27,7 @@ import { ExtensionDescriptionRegistry } from '../../services/extensions/common/e
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2, AISearchKeyword } from '../../services/search/common/searchExtTypes.js';
 import { CandidatePortSource, ExtHostContext, ExtHostLogLevelServiceShape, MainContext } from './extHost.protocol.js';
 import { ExtHostRelatedInformation } from './extHostAiRelatedInformation.js';
 import { ExtHostApiCommands } from './extHostApiCommands.js';
@@ -1826,6 +1826,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExcludeSettingOptions: ExcludeSettingOptions,
 			TextSearchContext2: TextSearchContext2,
 			TextSearchMatch2: TextSearchMatch2,
+			AISearchKeyword: AISearchKeyword,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 			McpSSEServerDefinition: extHostTypes.McpSSEServerDefinition,

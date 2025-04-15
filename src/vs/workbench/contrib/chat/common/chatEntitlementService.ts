@@ -8,7 +8,7 @@ import { Barrier } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -58,18 +58,6 @@ export enum ChatSentiment {
 	Installed = 3
 }
 
-export interface IChatQuotas {
-	readonly chatQuotaExceeded: boolean;
-	readonly completionsQuotaExceeded: boolean;
-	readonly quotaResetDate: Date | undefined;
-
-	readonly chatTotal?: number;
-	readonly completionsTotal?: number;
-
-	readonly chatRemaining?: number;
-	readonly completionsRemaining?: number;
-}
-
 export interface IChatEntitlementService {
 
 	_serviceBrand: undefined;
@@ -81,7 +69,7 @@ export interface IChatEntitlementService {
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
 
-	readonly quotas: IChatQuotas;
+	readonly quotas: IQuotas;
 
 	update(token: CancellationToken): Promise<void>;
 
@@ -108,7 +96,7 @@ const defaultChat = {
 
 interface IChatQuotasAccessor {
 	clearQuotas(): void;
-	acceptQuotas(quotas: IChatQuotas): void;
+	acceptQuotas(quotas: IQuotas): void;
 }
 
 export class ChatEntitlementService extends Disposable implements IChatEntitlementService {
@@ -126,8 +114,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	) {
 		super();
 
-		this.chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
-		this.completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+		this.freeChatQuotaExceededContextKey = ChatContextKeys.freeChatQuotaExceeded.bindTo(this.contextKeyService);
+		this.freeCompletionsQuotaExceededContextKey = ChatContextKeys.freeCompletionsQuotaExceeded.bindTo(this.contextKeyService);
 
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
@@ -194,81 +182,66 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
-	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
+	private _quotas: IQuotas = {};
 	get quotas() { return this._quotas; }
 
-	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
-	private readonly completionsQuotaExceededContextKey: IContextKey<boolean>;
+	private readonly freeChatQuotaExceededContextKey: IContextKey<boolean>;
+	private readonly freeCompletionsQuotaExceededContextKey: IContextKey<boolean>;
 
 	private ExtensionQuotaContextKeys = {
-		chatQuotaExceeded: defaultChat.chatQuotaExceededContext,
-		completionsQuotaExceeded: defaultChat.completionsQuotaExceededContext,
+		freeChatQuotaExceeded: defaultChat.chatQuotaExceededContext,
+		freeCompletionsQuotaExceeded: defaultChat.completionsQuotaExceededContext,
 	};
 
 	private registerListeners(): void {
-		const chatQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.chatQuotaExceeded]);
-		const completionsQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.completionsQuotaExceeded]);
+		const quotaExceededSet = new Set([this.ExtensionQuotaContextKeys.freeChatQuotaExceeded, this.ExtensionQuotaContextKeys.freeCompletionsQuotaExceeded]);
 
+		const cts = this._register(new MutableDisposable<CancellationTokenSource>());
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			let changed = false;
-			if (e.affectsSome(chatQuotaExceededSet)) {
-				const newChatQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.chatQuotaExceeded);
-				if (typeof newChatQuotaExceeded === 'boolean' && newChatQuotaExceeded !== this._quotas.chatQuotaExceeded) {
-					this._quotas = {
-						...this._quotas,
-						chatQuotaExceeded: newChatQuotaExceeded,
-					};
-					changed = true;
+			if (e.affectsSome(quotaExceededSet)) {
+				if (cts.value) {
+					cts.value.cancel();
 				}
-			}
-
-			if (e.affectsSome(completionsQuotaExceededSet)) {
-				const newCompletionsQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.completionsQuotaExceeded);
-				if (typeof newCompletionsQuotaExceeded === 'boolean' && newCompletionsQuotaExceeded !== this._quotas.completionsQuotaExceeded) {
-					this._quotas = {
-						...this._quotas,
-						completionsQuotaExceeded: newCompletionsQuotaExceeded,
-					};
-					changed = true;
-				}
-			}
-
-			if (changed) {
-				this.updateContextKeys();
-				this._onDidChangeQuotaExceeded.fire();
+				cts.value = new CancellationTokenSource();
+				this.update(cts.value.token);
 			}
 		}));
 	}
 
-	acceptQuotas(quotas: IChatQuotas): void {
+	acceptQuotas(quotas: IQuotas): void {
 		const oldQuota = this._quotas;
 		this._quotas = quotas;
 		this.updateContextKeys();
 
-		if (
-			oldQuota.chatQuotaExceeded !== this._quotas.chatQuotaExceeded ||
-			oldQuota.completionsQuotaExceeded !== this._quotas.completionsQuotaExceeded
-		) {
+		const { changed: freeChatChanged } = this.compareQuotas(oldQuota.freeChat, quotas.freeChat);
+		const { changed: freeCompletionsChanged } = this.compareQuotas(oldQuota.freeCompletions, quotas.freeCompletions);
+		const { changed: premiumChatChanged } = this.compareQuotas(oldQuota.premiumChat, quotas.premiumChat);
+
+		if (freeChatChanged.exceeded || freeCompletionsChanged.exceeded || premiumChatChanged.exceeded) {
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (
-			oldQuota.chatRemaining !== this._quotas.chatRemaining ||
-			oldQuota.completionsRemaining !== this._quotas.completionsRemaining
-		) {
+		if (freeChatChanged.remaining || freeCompletionsChanged.remaining || premiumChatChanged.remaining) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 	}
 
+	private compareQuotas(oldQuota: IQuotaSnapshot | undefined, newQuota: IQuotaSnapshot | undefined): { changed: { exceeded: boolean; remaining: boolean } } {
+		return {
+			changed: {
+				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
+				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
+			}
+		};
+	}
+
 	clearQuotas(): void {
-		if (this.quotas.chatQuotaExceeded || this.quotas.completionsQuotaExceeded) {
-			this.acceptQuotas({ chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined });
-		}
+		this.acceptQuotas({});
 	}
 
 	private updateContextKeys(): void {
-		this.chatQuotaExceededContextKey.set(this._quotas.chatQuotaExceeded);
-		this.completionsQuotaExceededContextKey.set(this._quotas.completionsQuotaExceeded);
+		this.freeChatQuotaExceededContextKey.set(this._quotas.freeChat?.percentRemaining === 0);
+		this.freeCompletionsQuotaExceededContextKey.set(this._quotas.freeCompletions?.percentRemaining === 0);
 	}
 
 	//#endregion
@@ -316,12 +289,17 @@ type EntitlementEvent = {
 	quotaResetDate: string | undefined;
 };
 
-interface IEntitlementsResponse {
-	readonly access_type_sku: string;
-	readonly assigned_date: string;
-	readonly can_signup_for_limited: boolean;
-	readonly chat_enabled: boolean;
-	readonly analytics_tracking_id: string;
+interface IQuotaSnapshotResponse {
+	readonly quotaType: 'free_completions' | 'free_chat' | 'premium_chat';
+	readonly timestamp: string;
+	readonly resetDate: string;
+	readonly entitlement: number;
+	readonly percentRemaining: number;
+	readonly isOveragePermitted: boolean;
+	readonly currentOverageCount: number;
+}
+
+interface ILegacyQuotaSnapshotResponse {
 	readonly limited_user_quotas?: {
 		readonly chat: number;
 		readonly completions: number;
@@ -333,19 +311,35 @@ interface IEntitlementsResponse {
 	readonly limited_user_reset_date: string;
 }
 
+interface IEntitlementsResponse extends ILegacyQuotaSnapshotResponse {
+	readonly access_type_sku: string;
+	readonly assigned_date: string;
+	readonly can_signup_for_limited: boolean;
+	readonly chat_enabled: boolean;
+	readonly analytics_tracking_id: string;
+	readonly quota_snapshot?: IQuotaSnapshotResponse[]; // TODO@bpasero validate how this is in real
+}
+
 interface IEntitlements {
 	readonly entitlement: ChatEntitlement;
 	readonly quotas?: IQuotas;
 }
 
+export interface IQuotaSnapshot {
+	readonly total: number;
+	readonly percentRemaining: number;
+
+	readonly overageEnabled: boolean;
+	readonly overageCount: number;
+
+	readonly snapshotDate: string;
+	readonly resetDate: string;
+}
+
 interface IQuotas {
-	readonly chatTotal?: number;
-	readonly completionsTotal?: number;
-
-	readonly chatRemaining?: number;
-	readonly completionsRemaining?: number;
-
-	readonly resetDate?: string;
+	freeChat?: IQuotaSnapshot;
+	freeCompletions?: IQuotaSnapshot;
+	premiumChat?: IQuotaSnapshot;
 }
 
 export class ChatEntitlementRequests extends Disposable {
@@ -560,18 +554,9 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement = ChatEntitlement.Unavailable;
 		}
 
-		const chatRemaining = entitlementsResponse.limited_user_quotas?.chat;
-		const completionsRemaining = entitlementsResponse.limited_user_quotas?.completions;
-
 		const entitlements: IEntitlements = {
 			entitlement,
-			quotas: {
-				chatTotal: entitlementsResponse.monthly_quotas?.chat,
-				completionsTotal: entitlementsResponse.monthly_quotas?.completions,
-				chatRemaining: typeof chatRemaining === 'number' ? Math.max(0, chatRemaining) : undefined,
-				completionsRemaining: typeof completionsRemaining === 'number' ? Math.max(0, completionsRemaining) : undefined,
-				resetDate: entitlementsResponse.limited_user_reset_date
-			}
+			quotas: this.toQuotas(entitlementsResponse)
 		};
 
 		this.logService.trace(`[chat entitlement]: resolved to ${entitlements.entitlement}, quotas: ${JSON.stringify(entitlements.quotas)}`);
@@ -584,6 +569,61 @@ export class ChatEntitlementRequests extends Disposable {
 		});
 
 		return entitlements;
+	}
+
+	private toQuotas(response: IEntitlementsResponse): IQuotas {
+		const quotas: IQuotas = {};
+
+		// New Quota Snapshot
+		if (response.quota_snapshot) {
+			for (const rawQuotaSnapshot of response.quota_snapshot) {
+				const quotaSnapshot: IQuotaSnapshot = {
+					total: rawQuotaSnapshot.entitlement,
+					percentRemaining: rawQuotaSnapshot.percentRemaining,
+					resetDate: rawQuotaSnapshot.resetDate,
+					snapshotDate: rawQuotaSnapshot.timestamp,
+					overageEnabled: rawQuotaSnapshot.isOveragePermitted,
+					overageCount: rawQuotaSnapshot.currentOverageCount
+				};
+
+				switch (rawQuotaSnapshot.quotaType) {
+					case 'free_chat':
+						quotas.freeChat = quotaSnapshot;
+						break;
+					case 'premium_chat':
+						quotas.premiumChat = quotaSnapshot;
+						break;
+					case 'free_completions':
+						quotas.freeCompletions = quotaSnapshot;
+						break;
+				}
+			}
+		}
+
+		// Legacy Free SKU Quota
+		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
+			quotas.freeChat = {
+				total: response.monthly_quotas.chat,
+				percentRemaining: Math.round((response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100),
+				resetDate: response.limited_user_reset_date,
+				snapshotDate: `${new Date()}`,
+				overageEnabled: false,
+				overageCount: 0
+			};
+		}
+
+		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
+			quotas.freeCompletions = {
+				total: response.monthly_quotas.completions,
+				percentRemaining: Math.round((response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100),
+				resetDate: response.limited_user_reset_date,
+				snapshotDate: `${new Date()}`,
+				overageEnabled: false,
+				overageCount: 0
+			};
+		}
+
+		return quotas;
 	}
 
 	private async request(url: string, type: 'GET', body: undefined, session: AuthenticationSession, token: CancellationToken): Promise<IRequestContext | undefined>;
@@ -614,15 +654,7 @@ export class ChatEntitlementRequests extends Disposable {
 		this.context.update({ entitlement: this.state.entitlement });
 
 		if (state.quotas) {
-			this.chatQuotasAccessor.acceptQuotas({
-				chatQuotaExceeded: typeof state.quotas.chatRemaining === 'number' ? state.quotas.chatRemaining <= 0 : false,
-				completionsQuotaExceeded: typeof state.quotas.completionsRemaining === 'number' ? state.quotas.completionsRemaining <= 0 : false,
-				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined,
-				chatTotal: state.quotas.chatTotal,
-				completionsTotal: state.quotas.completionsTotal,
-				chatRemaining: state.quotas.chatRemaining,
-				completionsRemaining: state.quotas.completionsRemaining
-			});
+			this.chatQuotasAccessor.acceptQuotas(state.quotas);
 		}
 	}
 

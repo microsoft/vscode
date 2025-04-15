@@ -42,11 +42,10 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPa
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertProblemAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -564,30 +563,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		});
 
-		// Problems completions, we just attach all problems in this case
-		this.registerVariableCompletions(SelectAndInsertProblemAction.Name, ({ widget, range, position, model }, token) => {
-			const stats = markerService.getStatistics();
-			if (!stats.errors && !stats.warnings) {
-				return null;
-			}
-
-			const result: CompletionList = { suggestions: [] };
-
-			const completedText = `${chatVariableLeader}${SelectAndInsertProblemAction.Name}:`;
-			const afterTextRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + completedText.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}${SelectAndInsertProblemAction.Name}`,
-				insertText: completedText,
-				documentation: localize('pickProblemsLabel', "Problems in your workspace"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertProblemAction.ID, title: SelectAndInsertProblemAction.ID, arguments: [{ widget, range: afterTextRange }] },
-				sortText: 'z'
-			});
-
-			return result;
-		});
-
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -911,7 +886,6 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
 	) {
 		super();
 
@@ -932,14 +906,22 @@ class ToolCompletions extends Disposable {
 				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
 				const usedToolNames = new Set(usedTools.map(v => v.toolName));
 				const toolItems: CompletionItem[] = [];
-				toolItems.push(...Array.from(toolsService.getTools())
+				toolItems.push(...widget.input.selectedToolsModel.tools.get()
 					.filter(t => t.canBeReferencedInPrompt)
 					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
 					.map((t): CompletionItem => {
+						const source = t.source;
+						const detail = source.type === 'mcp'
+							? localize('desc', "MCP Server: {0}", source.label)
+							: source.type === 'extension'
+								? source.label
+								: undefined;
+
 						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
 						return {
 							label: withLeader,
 							range,
+							detail,
 							insertText: withLeader + ' ',
 							documentation: t.userDescription,
 							kind: CompletionItemKind.Text,

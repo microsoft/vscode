@@ -2909,9 +2909,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.left = left + 'px';
 			this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 
-			// Make output draggable
-			this.element.draggable = true;
-
 			this.element.addEventListener('mouseenter', () => {
 				postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', { id: outputId });
 			});
@@ -2950,6 +2947,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
+
+				const imageMimeTypes = ['image/png', 'image/jpeg', 'image/svg'];
+				if (!imageMimeTypes.includes(content.output.mime)) {
+					this.element.draggable = false;
+				}
+
 				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();

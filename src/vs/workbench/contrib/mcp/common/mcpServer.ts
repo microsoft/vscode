@@ -250,7 +250,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			const serverTools = this.toolsFromServer.read(reader);
 			const definitions = serverTools ?? this.toolsFromCache ?? [];
 			const prefix = toolPrefix.read(reader);
-			return definitions.map(def => new McpTool(this, prefix, def));
+			return definitions.map(def => new McpTool(this, prefix, def)).sort((a, b) => a.compare(b));
 		});
 	}
 
@@ -482,6 +482,10 @@ export class McpTool implements IMcpTool {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		return this._server.callOn(h => h.callTool({ name, arguments: params }), token);
+	}
+
+	compare(other: IMcpTool): number {
+		return this._definition.name.localeCompare(other.definition.name);
 	}
 }
 
