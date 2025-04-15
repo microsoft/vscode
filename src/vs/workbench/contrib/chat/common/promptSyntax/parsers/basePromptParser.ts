@@ -16,9 +16,9 @@ import { IPromptReference, IResolveError, ITopError } from './types.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
-import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
@@ -28,6 +28,8 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
+import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { PromptHeader } from './promptHeader/header.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -54,6 +56,18 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * List of file references in the current branch of the file reference tree.
 	 */
 	private readonly _references: IPromptReference[] = [];
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private promptHeader?: PromptHeader;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get header(): PromptHeader | undefined {
+		return this.promptHeader;
+	}
 
 	/**
 	 * The event is fired when lines or their content change.
@@ -129,6 +143,11 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		);
 
 		await this.stream.settled;
+
+		// TODO: @legomushroom
+		if (this.promptHeader) {
+			await this.promptHeader.settled;
+		}
 
 		return this;
 	}
@@ -221,6 +240,9 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		delete this._errorCondition;
 		this.receivedTokens = [];
 
+		this.promptHeader?.dispose();
+		delete this.promptHeader;
+
 		// dispose all currently existing references
 		this.disposeReferences();
 
@@ -244,6 +266,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			// store all markdown and prompt token references
 			if ((token instanceof MarkdownToken) || (token instanceof PromptToken)) {
 				this.receivedTokens.push(token);
+			}
+
+			if (token instanceof FrontMatterHeader) {
+				this.promptHeader = new PromptHeader(token.contentToken);
+				this.promptHeader.start();
+				return;
 			}
 
 			// try to convert a prompt variable with data token into a file reference
