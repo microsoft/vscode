@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatRequestVariableData, IChatRequestVariableEntry } from '../../common/chatModel.js';
-import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
@@ -12,11 +10,5 @@ export class MockChatVariablesService implements IChatVariablesService {
 
 	getDynamicVariables(sessionId: string): readonly IDynamicVariable[] {
 		return [];
-	}
-
-	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableData {
-		return {
-			variables: []
-		};
 	}
 }

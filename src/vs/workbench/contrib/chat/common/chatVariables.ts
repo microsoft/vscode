@@ -9,8 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatModel.js';
-import { IParsedChatRequest } from './chatParserTypes.js';
+import { IChatModel, IDiagnosticVariableEntryFilterData } from './chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
 
 export interface IChatVariableData {
@@ -46,11 +45,6 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
-
-	/**
-	 * Resolves all variables that occur in `prompt`
-	 */
-	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableData;
 }
 
 export interface IDynamicVariable {
