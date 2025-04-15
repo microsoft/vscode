@@ -625,13 +625,15 @@ export function registerChatActions() {
 			const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
 			let message: string;
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
-			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
-			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
+			const freeChatQuotaExceeded = chatEntitlementService.quotas.freeChat?.percentRemaining === 0;
+			const freeCompletionsQuotaExceeded = chatEntitlementService.quotas.freeCompletions?.percentRemaining === 0;
+			const quotaResetDate = new Date(chatEntitlementService.quotas.freeChat?.resetDate ?? chatEntitlementService.quotas.freeCompletions?.resetDate ?? Date.now()); // the two dates should really be the same for limited plan users
+			if (freeChatQuotaExceeded && !freeCompletionsQuotaExceeded) {
+				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
+			} else if (freeCompletionsQuotaExceeded && !freeChatQuotaExceeded) {
+				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
 			} else {
-				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
+				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
 			}
 
 			const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to additional models");
@@ -766,7 +768,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			});
 
 			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
+			const freeChatQuotaExceeded = chatEntitlementService.quotas.freeChat?.percentRemaining === 0;
+			const freeCompletionsQuotaExceeded = chatEntitlementService.quotas.freeCompletions?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
@@ -777,12 +780,12 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
 					primaryActionIcon = Codicon.copilotNotConnected;
-				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
+				} else if (freeChatQuotaExceeded || freeCompletionsQuotaExceeded) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					if (chatQuotaExceeded && !completionsQuotaExceeded) {
-						primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-						primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
+					if (freeChatQuotaExceeded && !freeCompletionsQuotaExceeded) {
+						primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages limit reached. Click for details.");
+					} else if (freeCompletionsQuotaExceeded && !freeChatQuotaExceeded) {
+						primaryActionTitle = localize('completionsQuotaExceededButton', "Copilot Free plan code completions limit reached. Click for details.");
 					} else {
 						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 					}
