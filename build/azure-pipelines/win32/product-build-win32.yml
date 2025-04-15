@@ -257,21 +257,7 @@ steps:
           $Version = $PackageJson.version
 
           $ClientArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$Version.zip"
-          $ServerArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
-          $WebArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
-
-          $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe"
-          $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe"
-
-          mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SystemSetupPath
-          mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $UserSetupPath
-
           echo "##vso[task.setvariable variable=CLIENT_PATH]$ClientArchivePath"
-          echo "##vso[task.setvariable variable=SERVER_PATH]$ServerArchivePath"
-          echo "##vso[task.setvariable variable=WEB_PATH]$WebArchivePath"
-
-          echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
-          echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
         condition: succeededOrFailed()
         displayName: Move setup packages
 
@@ -289,42 +275,42 @@ steps:
         condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
         displayName: Publish archive
 
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
-          targetPath: $(SERVER_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
-          sbomPackageVersion: $(Build.SourceVersion)
-        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
-        displayName: Publish server archive
+      #- task: 1ES.PublishPipelineArtifact@1
+      #  inputs:
+      #    targetPath: $(SERVER_PATH)
+      #    artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+      #    sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
+      #    sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
+      #    sbomPackageVersion: $(Build.SourceVersion)
+      #  condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+      #  displayName: Publish server archive
 
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
-          targetPath: $(WEB_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
-          sbomPackageVersion: $(Build.SourceVersion)
-        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
-        displayName: Publish web server archive
+      #- task: 1ES.PublishPipelineArtifact@1
+      #  inputs:
+      #    targetPath: $(WEB_PATH)
+      #    artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+      #    sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
+      #    sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
+      #    sbomPackageVersion: $(Build.SourceVersion)
+      #  condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+      #  displayName: Publish web server archive
 
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
-          targetPath: $(SYSTEM_SETUP_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
-          sbomPackageVersion: $(Build.SourceVersion)
-        condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
-        displayName: Publish system setup
+      #- task: 1ES.PublishPipelineArtifact@1
+      #  inputs:
+      #    targetPath: $(SYSTEM_SETUP_PATH)
+      #    artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+      #    sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+      #    sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
+      #    sbomPackageVersion: $(Build.SourceVersion)
+      #  condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
+      #  displayName: Publish system setup
 
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
-          targetPath: $(USER_SETUP_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
-          sbomPackageVersion: $(Build.SourceVersion)
-        condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
-        displayName: Publish user setup
+      #- task: 1ES.PublishPipelineArtifact@1
+      #  inputs:
+      #    targetPath: $(USER_SETUP_PATH)
+      #    artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+      #    sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+      #    sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
+      #    sbomPackageVersion: $(Build.SourceVersion)
+      #  condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
+      #  displayName: Publish user setup
