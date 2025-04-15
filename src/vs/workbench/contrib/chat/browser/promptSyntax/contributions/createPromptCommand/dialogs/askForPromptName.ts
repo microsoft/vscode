@@ -17,7 +17,7 @@ export const askForPromptFileName = async (
 ): Promise<string | undefined> => {
 	const placeHolder = type === 'instructions' ?
 		localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file") :
-		localize('askForPromptFileName.placeholder', "Enter the name of the prompts file");
+		localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
 
 	const result = await quickInputService.input({ placeHolder });
 	if (!result) {
