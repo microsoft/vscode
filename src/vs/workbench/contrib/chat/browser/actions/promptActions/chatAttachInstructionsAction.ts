@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IChatWidget } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { IChatWidget } from '../../chat.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
