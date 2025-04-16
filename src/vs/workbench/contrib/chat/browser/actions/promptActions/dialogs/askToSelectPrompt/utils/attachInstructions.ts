@@ -7,8 +7,8 @@ import { IChatWidget, showChatView } from '../../../../../chat.js';
 import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
-import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { IAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
+import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
 /**

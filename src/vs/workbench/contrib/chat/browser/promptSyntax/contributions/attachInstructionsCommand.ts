@@ -9,15 +9,15 @@ import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { runAttachInstructionsAction } from '../../actions/promptActions/index.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { runAttachInstructionsAction } from '../../actions/reusablePromptActions/index.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
-import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 /**
  * Command ID of the "Attach Instructions" command.

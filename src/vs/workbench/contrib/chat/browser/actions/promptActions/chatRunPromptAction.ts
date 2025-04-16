@@ -6,30 +6,30 @@
 import { IChatWidget } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { OS } from '../../../../../../base/common/platform.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { ILocalizedString, localize, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
-import { IRunPromptOptions, runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../../nls.js';
+import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
+import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IRunPromptOptions, runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
-import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
-import { OS } from '../../../../../../base/common/platform.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -218,19 +218,21 @@ class RunSelectedPromptAction extends Action2 {
 
 		const result = await pickers.selectPromptFile({ promptFiles, placeholder });
 
-		if (result !== undefined) {
-			const { promptFile, keyMods } = result;
-			const runPromptOptions: IRunPromptOptions = {
-				inNewChat: keyMods.ctrlCmd,
-				viewsService,
-				commandService,
-			};
-			const { widget } = await runPromptFile(
-				promptFile,
-				runPromptOptions,
-			);
-			widget.focusInput();
+		if (result === undefined) {
+			return;
 		}
+
+		const { promptFile, keyMods } = result;
+		const runPromptOptions: IRunPromptOptions = {
+			inNewChat: keyMods.ctrlCmd,
+			viewsService,
+			commandService,
+		};
+		const { widget } = await runPromptFile(
+			promptFile,
+			runPromptOptions,
+		);
+		widget.focusInput();
 	}
 }
 

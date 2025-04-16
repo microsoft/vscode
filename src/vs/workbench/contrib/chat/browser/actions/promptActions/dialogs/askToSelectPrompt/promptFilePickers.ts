@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
-import { dirname, extUri } from '../../../../../../../../base/common/resources.js';
+import { OS } from '../../../../../../../../base/common/platform.js';
+import { assert } from '../../../../../../../../base/common/assert.js';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
+import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
 import { IPromptPath } from '../../../../../common/promptSyntax/service/types.js';
+import { dirname, extUri } from '../../../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
 import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
-import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
-import { localize } from '../../../../../../../../nls.js';
-import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../../../../base/common/codicons.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
 import { getCleanPromptName } from '../../../../../../../../platform/prompts/common/constants.js';
 import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
-import { OS } from '../../../../../../../../base/common/platform.js';
-import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
+import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -108,7 +108,6 @@ const DELETE_BUTTON: IQuickInputButton = Object.freeze({
 
 
 export class PromptFilePickers {
-
 	constructor(
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
