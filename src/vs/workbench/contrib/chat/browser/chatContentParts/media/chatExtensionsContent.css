@@ -12,3 +12,16 @@
 .chat-extensions-content-part .extension-list-item {
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 }
+
+.chat-extensions-content-part .loading-extensions-element {
+	line-height: 18px;
+	padding: 4px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	user-select: none;
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.chat-extensions-content-part .loading-extensions-element .loading-message {
+	padding-left: 4px;
+}
