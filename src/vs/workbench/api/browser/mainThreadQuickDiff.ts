@@ -28,7 +28,6 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 			label,
 			rootUri: URI.revive(rootUri),
 			selector,
-			isSCM: false,
 			visible,
 			kind: 'contributed',
 			getOriginalResource: async (uri: URI) => {

@@ -336,7 +336,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 			this._quickDiff = this._quickDiffService.addQuickDiffProvider({
 				label: features.quickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
-				isSCM: true,
 				visible: true,
 				kind: 'primary',
 				getOriginalResource: async (uri: URI) => {
@@ -357,7 +356,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 			this._stagedQuickDiff = this._quickDiffService.addQuickDiffProvider({
 				label: features.secondaryQuickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
-				isSCM: true,
 				visible: true,
 				kind: 'secondary',
 				getOriginalResource: async (uri: URI) => {
