@@ -51,9 +51,9 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				],
-				"point" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", comment: "The trace point." },
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", comment: "The traceId is used to correlate the request with other trace points." },
-				"data": { "classification": "SystemMetaData", "purpose": "FeatureInsight", comment: "Additional data" }
+				"point" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The trace point." },
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The traceId is used to correlate the request with other trace points." },
+				"data": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Additional data" }
 			}
 		*/
 		this.logTelemetry('typeScriptExtension.trace', event);
