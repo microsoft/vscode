@@ -9,11 +9,11 @@ import { ResourceLabels } from '../../../../../browser/labels.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { InstructionsAttachmentWidget } from './promptInstructionsWidget.js';
+import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 
 /**
  * Widget for a collection of prompt instructions attachments.
