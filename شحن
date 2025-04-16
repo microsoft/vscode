@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wy Plus Store</title>
+  <style>
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background-color: #f9fff9;
+      color: #0E2A47;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background-color: #0E2A47;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+    header img {
+      width: 120px;
+      margin-top: 1rem;
+    }
+    .services {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+      padding: 2rem;
+    }
+    .card {
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .card h3 {
+      color: #2B8543;
+    }
+    .form-section {
+      background-color: #e6f6ea;
+      padding: 2rem;
+    }
+    form {
+      max-width: 400px;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    input, select, textarea {
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+    button {
+      background-color: #4CD964;
+      color: white;
+      border: none;
+      padding: 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .card-image {
+      width: 100%;
+      max-width: 300px;
+      margin: 2rem auto;
+      display: block;
+    }
+    footer {
+      text-align: center;
+      padding: 1.5rem 1rem;
+      background-color: #0E2A47;
+      color: white;
+    }
+    .social-links a {
+      color: white;
+      margin: 0 10px;
+      font-size: 1.5rem;
+      text-decoration: none;
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  <header>
+    <h1>Wy Plus Store</h1>
+    <p>شحن ألعاب - بطاقات - خدمات رقمية</p>
+    <img src="store-logo.png" alt="شعار المتجر">
+  </header>  <section class="services">
+    <div class="card"><h3>شدات PUBG</h3></div>
+    <div class="card"><h3>جواهر Free Fire</h3></div>
+    <div class="card"><h3>LOL: Wild Rift</h3></div>
+    <div class="card"><h3>نقاط FIFA</h3></div>
+    <div class="card"><h3>بطاقات iTunes</h3></div>
+    <div class="card"><h3>فيزا شرق الأوسط</h3></div>
+    <div class="card"><h3>والمزيد...</h3></div>
+  </section>  <img src="card-image.png" alt="صورة كرت تعبئة" class="card-image">  <section class="form-section">
+    <h2 style="text-align:center;">نموذج الطلب</h2>
+    <form action="https://wa.me/0943911665" method="get" target="_blank">
+      <input type="text" name="playername" placeholder="اسم المستخدم في اللعبة أو الـ ID" required>
+      <select name="service">
+        <option value="PUBG">شدات PUBG</option>
+        <option value="Free Fire">جواهر Free Fire</option>
+        <option value="LOL">Wild Rift</option>
+        <option value="FIFA">نقاط FIFA</option>
+        <option value="iTunes">بطاقة iTunes</option>
+        <option value="Visa">بطاقة فيزا شرق الأوسط</option>
+        <option value="Other">أخرى</option>
+      </select>
+      <select name="cardtype">
+        <option value="libyana">كرت ليبيانا</option>
+        <option value="madar">كرت المدار</option>
+      </select>
+      <input type="text" name="cardcode" placeholder="رقم كرت التعبئة" required>
+      <textarea name="notes" placeholder="ملاحظات إضافية (اختياري)"></textarea>
+      <button type="submit">أرسل الطلب عبر واتساب</button>
+    </form>
+  </section>  <footer>
+    <p>تابعنا على وسائل التواصل الاجتماعي:</p>
+    <div class="social-links">
+      <a href="#"><i class="fab fa-facebook"></i></a>
+      <a href="#"><i class="fab fa-instagram"></i></a>
+      <a href="#"><i class="fab fa-telegram"></i></a>
+      <a href="https://wa.me/0943911665"><i class="fab fa-whatsapp"></i></a>
+    </div>
+    <p>جميع الحقوق محفوظة &copy; Wy Plus Store 2025</p>
+  </footer>
+</body>
+</html>
