@@ -158,20 +158,6 @@ const renderTurn = (
 /**
  * TODO: @legomushroom
  */
-// TODO: @legomushroom - re-running /save command does not find the correct tools
-const renderTools = (
-	tools: readonly string[],
-): string => {
-	const toolStrings = tools.map((tool) => {
-		return `'${tool}'`;
-	});
-
-	return `tools: [${toolStrings.join(', ')}]`;
-};
-
-/**
- * TODO: @legomushroom
- */
 const renderPrompt = (
 	turns: readonly ITurn[],
 ): string => {
@@ -191,12 +177,42 @@ const renderPrompt = (
 	}
 
 	return [
-		// TODO: @legomushroom - if tools are empty, don't render the header?
 		// TODO: @legomushroom - pretty print the copilot responses
-		'---',
-		renderTools([...tools]),
-		'---',
+		renderHeader(tools),
 		...turnStrings,
+	].join('\n');
+};
+
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - re-running /save command does not find the correct tools
+const renderTools = (
+	tools: Set<string>,
+): string => {
+	const toolStrings = [...tools].map((tool) => {
+		return `'${tool}'`;
+	});
+
+	return `tools: [${toolStrings.join(', ')}]`;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const renderHeader = (
+	tools: Set<string>,
+): string => {
+	// skip rendering the header if no tools provided
+	if (tools.size === 0) {
+		return '';
+	}
+
+	return [
+		'---',
+		renderTools(tools),
+		'---',
 	].join('\n');
 };
 
