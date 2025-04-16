@@ -75,7 +75,7 @@ const toMarker = (
 ): IMarkerData => {
 	if (diagnostic instanceof PromptMetadataWarning) {
 		return {
-			message: diagnostic.message.toString(),
+			message: diagnostic.message,
 			severity: MarkerSeverity.Warning,
 			...diagnostic.range,
 		};
@@ -83,7 +83,7 @@ const toMarker = (
 
 	if (diagnostic instanceof PromptMetadataError) {
 		return {
-			message: diagnostic.message.toString(),
+			message: diagnostic.message,
 			severity: MarkerSeverity.Error,
 			...diagnostic.range,
 		};
