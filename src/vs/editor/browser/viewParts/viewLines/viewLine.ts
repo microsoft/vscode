@@ -190,6 +190,7 @@ export class ViewLine implements IVisibleLine {
 		const output = renderViewLine(renderLineInput, sb);
 
 		sb.appendString('</div>');
+		console.log('renderLine');
 		console.log('lineNumber : ', lineNumber);
 
 		let renderedViewLine: IRenderedViewLine | null = null;
