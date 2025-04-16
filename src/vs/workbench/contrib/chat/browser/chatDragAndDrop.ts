@@ -285,7 +285,7 @@ export class ChatDragAndDrop extends Themable {
 			const resource = URI.parse(url);
 
 			if (IMAGE_DATA_REGEX.test(url)) {
-				return { data: await convertStringToUInt8Array(url), name: createDisplayName(), resource };
+				return { data: convertStringToUInt8Array(url), name: createDisplayName(), resource };
 			}
 
 			if (URL_REGEX.test(url)) {

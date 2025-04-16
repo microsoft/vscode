@@ -3,45 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, EventType, getActiveDocument, getWindowId, ModifierKeyEmitter, onDidRegisterWindow, trackFocus } from '../../../../base/browser/dom.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { memoize } from '../../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IHostService } from './host.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IEditorService } from '../../editor/common/editorService.js';
+import { parseLineAndColumnAware } from '../../../../base/common/extpath.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { isUndefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from '../../../../platform/window/common/window.js';
-import { isResourceEditorInput, pathsToEditors } from '../../../common/editor.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IFileToOpen, IOpenEmptyWindowOptions, IOpenWindowOptions, IPathData, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../../../platform/window/common/window.js';
+import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { whenEditorClosed } from '../../../browser/editor.js';
 import { IWorkspace, IWorkspaceProvider } from '../../../browser/web.api.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
-import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isResourceEditorInput, pathsToEditors } from '../../../common/editor.js';
+import { IEditorService } from '../../editor/common/editorService.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
-import { memoize } from '../../../../base/common/decorators.js';
-import { parseLineAndColumnAware } from '../../../../base/common/extpath.js';
-import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
-import { IWorkspaceEditingService } from '../../workspaces/common/workspaceEditing.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
 import { BrowserLifecycleService } from '../../lifecycle/browser/lifecycleService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { BeforeShutdownEvent, ILifecycleService, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
 import { getWorkspaceIdentifier } from '../../workspaces/browser/workspaces.js';
-import { localize } from '../../../../nls.js';
-import Severity from '../../../../base/common/severity.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { DomEmitter } from '../../../../base/browser/event.js';
-import { isUndefined } from '../../../../base/common/types.js';
-import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { coalesce } from '../../../../base/common/arrays.js';
-import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
-import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
-import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { URI } from '../../../../base/common/uri.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IWorkspaceEditingService } from '../../workspaces/common/workspaceEditing.js';
+import { IHostService } from './host.js';
 
 enum HostShutdownReason {
 
@@ -96,6 +96,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		this.registerListeners();
 	}
+
 
 	private registerListeners(): void {
 
@@ -627,6 +628,81 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 			// Draw the portion of the video (x, y) with the specified width and height
 			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+			// Convert the canvas to a Blob (JPEG format), use .95 for quality
+			const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95));
+			if (!blob) {
+				throw new Error('Failed to create blob from canvas');
+			}
+
+			const buf = await blob.bytes();
+			return VSBuffer.wrap(buf);
+
+		} catch (error) {
+			console.error('Error taking screenshot:', error);
+			return undefined;
+		} finally {
+			store.dispose();
+			if (stream) {
+				for (const track of stream.getTracks()) {
+					track.stop();
+				}
+			}
+		}
+	}
+
+	async getScreenShot2(x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined> {
+		// Gets a screenshot from the browser. This gets the screenshot via the browser's display
+		// media API which will typically offer a picker of all available screens and windows for
+		// the user to select. Using the video stream provided by the display media API, this will
+		// capture a single frame of the video and convert it to a JPEG image, cropped to the specified dimensions.
+		const store = new DisposableStore();
+
+		// Create a video element to play the captured screen source
+		const video = document.createElement('video');
+		store.add(toDisposable(() => video.remove()));
+		let stream: MediaStream | undefined;
+		try {
+			// Create a stream from the screen source (capture screen without audio)
+			stream = await navigator.mediaDevices.getDisplayMedia({
+				audio: false,
+				video: true
+			});
+
+			// Set the stream as the source of the video element
+			video.srcObject = stream;
+			video.play();
+
+			// Wait for the video to load properly before capturing the screenshot
+			await Promise.all([
+				new Promise<void>(r => store.add(addDisposableListener(video, 'loadedmetadata', () => r()))),
+				new Promise<void>(r => store.add(addDisposableListener(video, 'canplaythrough', () => r())))
+			]);
+
+			// Create a temporary canvas to hold the full screenshot
+			const tempCanvas = document.createElement('canvas');
+			tempCanvas.width = video.videoWidth;
+			tempCanvas.height = video.videoHeight;
+			const tempCtx = tempCanvas.getContext('2d');
+			if (!tempCtx) {
+				return undefined;
+			}
+
+			// Draw the full video frame to the temporary canvas
+			tempCtx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+
+			// Create the main canvas with the crop dimensions
+			const canvas = document.createElement('canvas');
+			canvas.width = width;
+			canvas.height = height;
+
+			const ctx = canvas.getContext('2d');
+			if (!ctx) {
+				return undefined;
+			}
+
+			// Draw only the specified portion to our main canvas
+			ctx.drawImage(tempCanvas, x, y, width, height, 0, 0, width, height);
 
 			// Convert the canvas to a Blob (JPEG format), use .95 for quality
 			const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95));

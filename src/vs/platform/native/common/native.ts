@@ -149,6 +149,7 @@ export interface ICommonNativeHostService {
 
 	// Screenshots
 	getScreenshot(): Promise<VSBuffer | undefined>;
+	getScreenShot2(x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
