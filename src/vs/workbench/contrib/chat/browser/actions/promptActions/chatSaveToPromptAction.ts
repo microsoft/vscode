@@ -25,7 +25,12 @@ import { IUntitledTextEditorService } from '../../../../../services/untitled/com
 const SAVE_TO_PROMPT_ACTION_ID = 'workbench.action.chat.save-to-prompt';
 
 /**
- * TODO: @legomushroom
+ * Name of the in-chat slash command associated with this action.
+ */
+export const SAVE_TO_PROMPT_SLASH_COMMAND_NAME = 'save';
+
+/**
+ * Options for the {@link SaveToPromptAction} action.
  */
 interface ISaveToPromptActionOptions {
 	/**
@@ -89,19 +94,19 @@ class SaveToPromptAction extends Action2 {
 
 			const { response } = responseModel;
 
-			const usedTools = new Set<string>();
+			const tools = new Set<string>();
 			for (const record of response.value) {
 				if (('toolId' in record) === false) {
 					continue;
 				}
 
-				usedTools.add(record.toolId);
+				tools.add(record.toolId);
 			}
 
 			turns.push({
 				request: message.text,
 				response: response.getMarkdown(),
-				tools: [...usedTools],
+				tools,
 			});
 		}
 
@@ -119,7 +124,8 @@ class SaveToPromptAction extends Action2 {
 }
 
 /**
- * TODO: @legomushroom
+ * Check if provided message belongs to the `save to prompt` slash
+ * command itself that was run in the chat to invoke this action.
  */
 const isSaveToPromptSlashCommand = (
 	message: IParsedChatRequest,
@@ -142,12 +148,7 @@ const isSaveToPromptSlashCommand = (
 };
 
 /**
- * TODO: @legomushroom
- */
-export const SAVE_TO_PROMPT_SLASH_COMMAND_NAME = 'save';
-
-/**
- * TODO: @legomushroom
+ * Render the response part of a `request`/`response` turn pair.
  */
 const renderResponse = (
 	response: string,
@@ -166,7 +167,7 @@ const renderResponse = (
 };
 
 /**
- * TODO: @legomushroom
+ * Render a single `request`/`response` turn of the chat session.
  */
 const renderTurn = (
 	turn: ITurn,
@@ -177,30 +178,33 @@ const renderTurn = (
 };
 
 /**
- * TODO: @legomushroom
+ * Render the entire chat session as a markdown prompt.
  */
 const renderPrompt = (
 	turns: readonly ITurn[],
 ): string => {
-	const tools = new Set<string>();
 	const content: string[] = [];
+	const allTools = new Set<string>();
 
-	// TODO: @legomushroom - remove double rendering of turns
-	for (const turn of [...turns, ...turns]) {
+	// render each turn and collect tool names
+	// that were used in the each turn
+	for (const turn of turns) {
 		content.push(renderTurn(turn));
 
 		// collect all used tools into a set of strings
 		for (const tool of turn.tools) {
-			tools.add(tool);
+			allTools.add(tool);
 		}
 	}
 
 	const result = [];
 
-	if (tools.size !== 0) {
-		result.push(renderHeader(tools));
+	// add prompt header
+	if (allTools.size !== 0) {
+		result.push(renderHeader(allTools));
 	}
 
+	// add chat request/response turns
 	result.push(
 		content.join('\n'),
 	);
@@ -213,7 +217,7 @@ const renderPrompt = (
 
 
 /**
- * TODO: @legomushroom
+ * Render the `tools` metadata inside prompt header.
  */
 // TODO: @legomushroom - re-running /save command does not find the correct tools
 const renderTools = (
@@ -227,7 +231,7 @@ const renderTools = (
 };
 
 /**
- * TODO: @legomushroom
+ * Render prompt header.
  */
 const renderHeader = (
 	tools: Set<string>,
@@ -245,16 +249,19 @@ const renderHeader = (
 };
 
 /**
- * TODO: @legomushroom
+ * Interface for a single `request`/`response` turn
+ * of a chat session.
  */
 interface ITurn {
 	request: string;
 	response: string;
-	tools: string[];
+	tools: Set<string>;
 }
 
 /**
- * TODO: @legomushroom
+ * Runs the `Save To Prompt` action with provided options. We export this
+ * function instead of {@link SAVE_TO_PROMPT_ACTION_ID} directly to
+ * encapsulate/enforce the correct options to be passed to the action.
  */
 export const runSaveToPromptAction = async (
 	options: ISaveToPromptActionOptions,
