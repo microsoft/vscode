@@ -769,7 +769,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 
 			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
 			const freeChatQuotaExceeded = chatEntitlementService.quotas.freeChat?.percentRemaining === 0;
-			const freeCompletionsQuotaExceeded = chatEntitlementService.quotas.freeCompletions?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
@@ -780,15 +779,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
 					primaryActionIcon = Codicon.copilotNotConnected;
-				} else if (freeChatQuotaExceeded || freeCompletionsQuotaExceeded) {
+				} else if (freeChatQuotaExceeded) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					if (freeChatQuotaExceeded && !freeCompletionsQuotaExceeded) {
-						primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages limit reached. Click for details.");
-					} else if (freeCompletionsQuotaExceeded && !freeChatQuotaExceeded) {
-						primaryActionTitle = localize('completionsQuotaExceededButton', "Copilot Free plan code completions limit reached. Click for details.");
-					} else {
-						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
-					}
+					primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages limit reached. Click for details.");
 					primaryActionIcon = Codicon.copilotWarning;
 				}
 			}
