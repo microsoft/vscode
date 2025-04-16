@@ -93,21 +93,16 @@ export function toLineRanges(selections: readonly Selection[], textDocument: Tex
 }
 
 export function getModifiedRange(textDocument: TextDocument, diff: LineChange): Range {
-	try {
-		if (diff.modifiedEndLineNumber === 0) {
-			if (diff.modifiedStartLineNumber === 0) {
-				return new Range(textDocument.lineAt(diff.modifiedStartLineNumber).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
-			} else if (textDocument.lineCount === diff.modifiedStartLineNumber) {
-				return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end);
-			} else {
-				return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
-			}
+	if (diff.modifiedEndLineNumber === 0) {
+		if (diff.modifiedStartLineNumber === 0) {
+			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
+		} else if (textDocument.lineCount === diff.modifiedStartLineNumber) {
+			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end);
 		} else {
-			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, textDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
 		}
-	} catch (e) {
-		console.log(e);
-		return new Range(0, 0, 0, 0);
+	} else {
+		return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, textDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
 	}
 }
 
@@ -191,7 +186,7 @@ export function toLineChanges(diffInformation: TextEditorDiffInformation): LineC
 }
 
 export function getIndexDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
-	// Diff Editor (Index)
+	// Diff Editor (Index) | Text Editor
 	return textEditor.diffInformation?.find(diff =>
 		diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === 'HEAD');
 }

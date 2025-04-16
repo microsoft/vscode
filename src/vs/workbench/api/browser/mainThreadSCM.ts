@@ -355,7 +355,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (features.hasSecondaryQuickDiffProvider && !this._stagedQuickDiff) {
 			this._stagedQuickDiff = this._quickDiffService.addQuickDiffProvider({
-				label: features.stagedQuickDiffLabel ?? this.label,
+				label: features.secondaryQuickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
 				isSCM: true,
 				visible: true,
@@ -365,7 +365,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 						return null;
 					}
 
-					const result = await this.proxy.$provideStagedOriginalResource(this.handle, uri, CancellationToken.None);
+					const result = await this.proxy.$provideSecondaryOriginalResource(this.handle, uri, CancellationToken.None);
 					return result && URI.revive(result);
 				}
 			});

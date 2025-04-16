@@ -602,8 +602,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		checkProposedApiEnabled(this._extension, 'quickDiffProvider');
 
 		this._secondaryQuickDiffProvider = secondaryQuickDiffProvider;
-		const stagedQuickDiffLabel = secondaryQuickDiffProvider?.label;
-		this.#proxy.$updateSourceControl(this.handle, { hasSecondaryQuickDiffProvider: !!secondaryQuickDiffProvider, stagedQuickDiffLabel });
+		const secondaryQuickDiffLabel = secondaryQuickDiffProvider?.label;
+		this.#proxy.$updateSourceControl(this.handle, { hasSecondaryQuickDiffProvider: !!secondaryQuickDiffProvider, secondaryQuickDiffLabel });
 	}
 
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
@@ -959,9 +959,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			.then<UriComponents | null>(r => r || null);
 	}
 
-	$provideStagedOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
+	$provideSecondaryOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
 		const uri = URI.revive(uriComponents);
-		this.logService.trace('ExtHostSCM#$provideStagedOriginalResource', sourceControlHandle, uri.toString());
+		this.logService.trace('ExtHostSCM#$provideSecondaryOriginalResource', sourceControlHandle, uri.toString());
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
