@@ -100,7 +100,8 @@ export class EditTool implements IToolImpl {
 		const result = await this.codeMapperService.mapCode({
 			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.explanation }],
 			location: 'tool',
-			chatRequestId: invocation.chatRequestId
+			chatRequestId: invocation.chatRequestId,
+			chatRequestModel: invocation.modelId,
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
