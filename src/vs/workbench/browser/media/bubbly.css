@@ -229,3 +229,14 @@
 	justify-content: center;
 	display: flex !important;
 }
+
+/* Remove borders from some of the parts which aren't bubbly */
+
+/* Status bar */
+.part.statusbar.status-border-top::after {
+	background-color: transparent !important;
+}
+
+.part.auxiliarybar {
+	border-left: none !important;
+}
