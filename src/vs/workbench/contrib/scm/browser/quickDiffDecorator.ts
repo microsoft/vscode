@@ -160,7 +160,7 @@ class QuickDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: quickDiff.kind === 'primary'
+						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
 							? pattern.added ? this.addedPatternOptions : this.addedOptions
 							: pattern.added ? this.addedSecondaryPatternOptions : this.addedSecondaryOptions
 					});
@@ -171,7 +171,9 @@ class QuickDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
 							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
 						},
-						options: quickDiff.kind === 'primary' ? this.deletedOptions : this.deletedSecondaryOptions
+						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
+							? this.deletedOptions
+							: this.deletedSecondaryOptions
 					});
 					break;
 				case ChangeType.Modify:
@@ -180,7 +182,7 @@ class QuickDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: quickDiff.kind === 'primary'
+						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
 							? pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
 							: pattern.modified ? this.modifiedSecondaryPatternOptions : this.modifiedSecondaryOptions
 					});
