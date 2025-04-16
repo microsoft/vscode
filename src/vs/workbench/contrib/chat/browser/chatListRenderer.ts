@@ -818,7 +818,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (this.shouldShowWorkingProgress(element, partsToRender)) {
 			const isPaused = element.model.isPaused.get();
-			partsToRender.push({ kind: 'working', isPaused });
+			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
 
 		return { content: partsToRender, moreContentAvailable };
