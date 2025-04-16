@@ -310,13 +310,13 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat")) : undefined;
+			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat messages")) : undefined;
 			const freeCompletionsQuotaIndicator = freeCompletionsQuota ? this.createQuotaIndicator(this.element, freeCompletionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), overageCount => localize('overrageDisplay', "{0} additional requests used.", overageCount)) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat messages"), overageCount => localize('overrageDisplay', "{0} additional messages used.", overageCount)) : undefined;
 
 			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
 			if (resetDate) {
-				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", this.dateFormatter.value.format(resetDate))));
+				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits reset {0}.", this.dateFormatter.value.format(resetDate))));
 			}
 
 			if (freeChatQuota?.percentRemaining === 0 || freeCompletionsQuota?.percentRemaining === 0 || (premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
