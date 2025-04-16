@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-restricted-globals */
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
@@ -1025,17 +1025,21 @@ registerReusablePromptActions();
 
 async function startElementSelection(layoutService: ILayoutService, hostService: IHostService): Promise<{ displayName: string; html: string; css: string; screenshot: Uint8Array }> {
 	return new Promise((resolve) => {
+		// Find the Simple Browser iframe first
+		const simpleBrowserIframe = document.querySelector('.content iframe') as HTMLIFrameElement;
+		if (!simpleBrowserIframe || !simpleBrowserIframe.contentDocument) {
+			return;
+		}
+
 		const overlay = document.createElement('div');
 		overlay.className = 'ui-element-selection-overlay';
 
-
 		const elementTitle = document.createElement('code');
 		elementTitle.className = 'ui-element-selection-title monaco-editor';
-		// elementTitle.style.setProperty('font-family', 'var(--monaco-monospace-font)');
 		overlay.appendChild(elementTitle);
 
-		const targetWindow = layoutService.mainContainer.ownerDocument.body;
-		targetWindow.appendChild(overlay);
+		// Add overlay to the iframe's document instead of main window
+		simpleBrowserIframe.contentDocument.body.appendChild(overlay);
 
 		let currentElement: HTMLElement | null = null;
 		let x = 0;
@@ -1045,16 +1049,29 @@ async function startElementSelection(layoutService: ILayoutService, hostService:
 
 		let displayName = '';
 
+		async function captureScreenshot(x: number, y: number, width: number, height: number) {
+			return hostService.getScreenShot2(x, y, width, height);
+		}
+
 		function updateOverlay(element: HTMLElement) {
 			const rect = element.getBoundingClientRect();
-			x = rect.left + window.scrollX;
-			y = rect.top + window.scrollY;
+			const iframeRect = simpleBrowserIframe.getBoundingClientRect();
+
+			// Adjust coordinates relative to the iframe
+			x = rect.left - iframeRect.left;
+			y = rect.top - iframeRect.top;
 			width = rect.width;
 			height = rect.height;
-			overlay.style.top = `${rect.top + window.scrollY}px`;
-			overlay.style.left = `${rect.left + window.scrollX}px`;
-			overlay.style.width = `${rect.width}px`;
-			overlay.style.height = `${rect.height}px`;
+
+			overlay.style.top = `${y}px`;
+			overlay.style.left = `${x}px`;
+			overlay.style.width = `${width}px`;
+			overlay.style.height = `${height}px`;
+
+			// Only allow selecting elements within the iframe content
+			if (!element.closest('.content iframe')) {
+				return;
+			}
 
 			const elementType = element.tagName.toLowerCase();
 			const elementClass = element.className ? `.${element.className.split(' ')[0]}` : '';
@@ -1066,11 +1083,11 @@ async function startElementSelection(layoutService: ILayoutService, hostService:
 			}
 		}
 
-		async function captureScreenshot(x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined> {
-			return hostService.getScreenShot2(x, y, width, height);
-		}
-
 		function onMouseOver(event: MouseEvent) {
+			// Only handle events from within the iframe
+			if (!event.target || !(event.target as HTMLElement).closest('.content iframe')) {
+				return;
+			}
 			currentElement = event.target as HTMLElement;
 			updateOverlay(currentElement);
 		}
@@ -1079,9 +1096,10 @@ async function startElementSelection(layoutService: ILayoutService, hostService:
 			event.preventDefault();
 			event.stopPropagation();
 
-			if (currentElement) {
-				document.removeEventListener('mouseover', onMouseOver);
-				document.removeEventListener('click', onClick, true);
+			if (currentElement && currentElement.closest('.content iframe')) {
+				// Clean up event listeners
+				simpleBrowserIframe.contentDocument?.removeEventListener('mouseover', onMouseOver);
+				simpleBrowserIframe.contentDocument?.removeEventListener('click', onClick, true);
 
 				const html = currentElement.outerHTML;
 				const computedStyle = window.getComputedStyle(currentElement);
@@ -1098,7 +1116,8 @@ async function startElementSelection(layoutService: ILayoutService, hostService:
 			}
 		}
 
-		document.addEventListener('mouseover', onMouseOver);
-		document.addEventListener('click', onClick, true);
+		// Add event listeners to the iframe's document instead of main window
+		simpleBrowserIframe.contentDocument.addEventListener('mouseover', onMouseOver);
+		simpleBrowserIframe.contentDocument.addEventListener('click', onClick, true);
 	});
 }
