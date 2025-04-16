@@ -15,7 +15,7 @@ export const enum ExtensionGalleryResourceType {
 	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
 	ExtensionResourceUri = 'ExtensionResourceUriTemplate',
-	ReportIssueUri = 'ReportIssueUri',
+	ContactSupportUri = 'ContactSupportUri',
 }
 
 export const enum Flag {
@@ -57,6 +57,10 @@ export interface IExtensionGalleryManifest {
 		readonly signing?: {
 			readonly allPublicRepositorySigned: boolean;
 			readonly allPrivateRepositorySigned?: boolean;
+		};
+		readonly extensions?: {
+			readonly includePublicExtensions?: boolean;
+			readonly includePrivateExtensions?: boolean;
 		};
 	};
 }
