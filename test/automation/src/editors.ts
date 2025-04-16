@@ -5,7 +5,6 @@
 
 import { Quality } from './application';
 import { Code } from './code';
-import { wait } from './playwrightDriver';
 
 export class Editors {
 
@@ -32,9 +31,7 @@ export class Editors {
 			await this.code.waitAndClick(`.tabs-container div.tab[data-resource-name$="${fileName}"]`);
 
 			try {
-				await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+1' : 'ctrl+1');
-				await wait(100);
-				await this.waitForEditorFocus(fileName, 50 /* 50 retries * 100ms delay = 5s */);
+				await this.waitForEditorFocus(fileName, 5 /* 5 retries * 100ms delay = 0.5s */);
 				return;
 			} catch (e) {
 				error = e;
