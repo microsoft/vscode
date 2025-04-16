@@ -224,10 +224,12 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public rerenderLineType(otherType: RenderViewLineType): void {
+		console.log('rerenderLineType otherType : ', otherType);
 		if (!this._renderedViewLine) {
 			return;
 		}
 		const currentType = this._renderedViewLine.type;
+		console.log('currentType : ', currentType);
 		if (currentType === otherType) {
 			return;
 		}

@@ -147,26 +147,32 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
+		const viewModel = context.viewModel;
+		const model = viewModel.model;
 		this._visibleLines = new VisibleLinesCollection(this._context, {
 			createLine: (lineNumber: number) => {
-				const hasFontDecorations = context.viewModel.hasFontDecorations(lineNumber);
+				const hasFontDecorations = viewModel.hasFontDecorations(lineNumber);
 				if (hasFontDecorations) {
 					return new ViewLine(viewGpuContext, context, this._modifiedViewLineOptions);
 				}
 				return new ViewLine(viewGpuContext, context, this._viewLineOptions);
 			},
 		});
-		this._register(context.viewModel.model.onDidChangeFont((e) => {
+		this._register(model.onDidChangeFont((e) => {
 			for (const change of e.changes) {
 				const lineNumber = change.lineNumber;
-				const fonts = context.viewModel.model.getFontDecorations(lineNumber);
-				const viewLine = this._visibleLines.getVisibleLine(lineNumber);
-				if (fonts.length > 0) {
-					viewLine.onOptionsChanged(this._modifiedViewLineOptions);
-					viewLine.rerenderLineType(RenderViewLineType.Regular);
-				} else {
-					viewLine.onOptionsChanged(this._viewLineOptions);
-					viewLine.rerenderLineType(RenderViewLineType.Fast);
+				const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
+				for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+					const fonts = context.viewModel.model.getFontDecorations(lineNumber);
+					console.log('onDidChangeFont', lineNumber, fonts);
+					const viewLine = this._visibleLines.getVisibleLine(lineNumber);
+					if (fonts.length > 0) {
+						viewLine.onOptionsChanged(this._modifiedViewLineOptions);
+						viewLine.rerenderLineType(RenderViewLineType.Regular);
+					} else {
+						viewLine.onOptionsChanged(this._viewLineOptions);
+						viewLine.rerenderLineType(RenderViewLineType.Fast);
+					}
 				}
 			}
 		}));
