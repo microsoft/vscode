@@ -149,10 +149,31 @@ export const SAVE_TO_PROMPT_SLASH_COMMAND_NAME = 'save';
 /**
  * TODO: @legomushroom
  */
+const renderResponse = (
+	response: string,
+): string => {
+	// if response starts with a code block, add an extra new line
+	// before it, to prevent full blockquote from being be broken
+	const delimiter = (response.startsWith('```'))
+		? '\n>'
+		: ' ';
+
+	// add `>` to the beginning of each line of the response
+	// so it looks like a blockquote citing Copilot
+	const quotedResponse = response.replaceAll('\n', '\n> ');
+
+	return `> Copilot:${delimiter}${quotedResponse}`;
+};
+
+/**
+ * TODO: @legomushroom
+ */
 const renderTurn = (
 	turn: ITurn,
 ): string => {
-	return `${turn.request}\n> Copilot: ${turn.response}`;
+	const { request, response } = turn;
+
+	return `\n${request}\n\n${renderResponse(response)}`;
 };
 
 /**
@@ -162,13 +183,11 @@ const renderPrompt = (
 	turns: readonly ITurn[],
 ): string => {
 	const tools = new Set<string>();
-	const turnStrings: string[] = [];
+	const content: string[] = [];
 
-	for (const turn of turns) {
-		turnStrings.push(
-			'', // extra empty line between turns
-			renderTurn(turn),
-		);
+	// TODO: @legomushroom - remove double rendering of turns
+	for (const turn of [...turns, ...turns]) {
+		content.push(renderTurn(turn));
 
 		// collect all used tools into a set of strings
 		for (const tool of turn.tools) {
@@ -176,11 +195,20 @@ const renderPrompt = (
 		}
 	}
 
-	return [
-		// TODO: @legomushroom - pretty print the copilot responses
-		renderHeader(tools),
-		...turnStrings,
-	].join('\n');
+	const result = [];
+
+	if (tools.size !== 0) {
+		result.push(renderHeader(tools));
+	}
+
+	result.push(
+		content.join('\n'),
+	);
+
+	// add trailing empty line
+	result.push('');
+
+	return result.join('\n');
 };
 
 
