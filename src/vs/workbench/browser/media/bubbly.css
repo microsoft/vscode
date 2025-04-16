@@ -1,4 +1,4 @@
-/* Base - bubbly parts */
+/* Bubbly parts */
 .bubbly-part {
 	box-sizing: border-box;
 }
@@ -18,6 +18,11 @@
 .bubbly-part .bubbly-editor-content {
 	border-radius: 10px;
 	box-sizing: border-box;
+}
+
+/* Base UI elements */
+.monaco-inputbox {
+	border-radius: 6px;
 }
 
 /* Styles - Panel (bottom bar) */
