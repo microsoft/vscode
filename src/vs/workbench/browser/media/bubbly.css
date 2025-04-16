@@ -1,0 +1,156 @@
+.bubbly-part {
+	border-radius: 12px;
+	box-sizing: border-box;
+	margin: 5px;
+}
+
+.split-view-view:has(> .bubbly-part) {
+	background: var(--vscode-sideBar-background);
+}
+
+.bubbly-part .bubbly-editor-content {
+	border-radius: 10px;
+	box-sizing: border-box;
+}
+
+/* Panel styling */
+
+.bubbly-part .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
+	text-transform: none !important;
+}
+
+.bubbly-part.part.panel .action-item {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-radius: 8px;
+	padding: 2px;
+	box-sizing: border-box;
+	height: 80% !important;
+}
+
+.bubbly-part.part.panel .actions-container {
+	gap: 2px;
+}
+
+.bubbly-part .action-item:has(.monaco-select-box), .action-item:has(.monaco-inputbox) {
+	padding: 0 !important;
+	background: none !important;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.bubbly-part .action-item .monaco-select-box, .action-item .monaco-inputbox {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+/* Sash */
+/* Globally, we will hide the sash */
+.monaco-split-view2 > .sash-container > .monaco-sash {
+	color: transparent;
+	background: transparent;
+}
+
+/* Editor tabs/files */
+
+.bubbly-part .bubbly-editor-parent {
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+}
+
+.monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+	align-items: center;
+	gap: 3px;
+}
+
+.monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container {
+	height: calc(var(--editor-group-tab-height) + var(--editor-group-tab-padding) * 2);
+	align-items: center;
+	margin-left: 4px;
+	margin-right: 4px;
+	padding-left: 4px;
+	padding-right: 4px;
+}
+
+.monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	border-radius: 10px;
+	margin-left: 3px;
+	margin-right: 3px;
+	align-items: center;
+	border: 1px solid transparent !important;
+}
+
+.monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	background-color: var(--vscode-tab-unfocusedActiveBackground);
+	border: 1px solid var(--tab-border-top-color, transparent) !important;
+}
+.monaco-workbench .bubbly-part.part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	background: transparent;
+	/*box-shadow: 0px 0px 3px 1px var(--tab-border-top-color)*/
+}
+
+.monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .editor-actions {
+	padding-left: 6px;
+	padding-right: 6px;
+	gap: 3px;
+	border-radius: 6px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	margin-right: 8px;
+}
+
+.bubbly-part .tab-border-top-container {
+	height: 0 !important;
+	background-color: none !important;
+}
+
+.bubbly-part .tab-border-bottom-container {
+	background: none !important;
+}
+
+.bubbly-part .tabs-and-actions-container {
+	background: var(--vscode-editor-background);
+}
+
+.bubbly-part .tab {
+	border-right: none !important;
+}
+
+/* Sidebar stylings */
+
+.bubbly-part .pane-header {
+	background-color: transparent !important;
+}
+
+.bubbly-part {
+	border: none !important;
+}
+
+.bubbly-part .composite {
+	border: none !important;
+}
+
+.bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar  .actions-container {
+	gap: 2px;
+}
+
+.bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .codicon {
+	width: 22px;
+	height: 26px;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	border-radius: 6px;
+}
+
+.bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .codicon {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+	border: 1px solid var(--vscode-activityBarTop-activeBorder);
+}
+
+.bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
+	height: 0;
+	width: 0;
+}
+
+.bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
+	left: 0;
+	position: relative;
+}

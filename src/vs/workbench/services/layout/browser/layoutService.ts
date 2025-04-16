@@ -30,6 +30,13 @@ export const enum Parts {
 	PEAROVERLAY_PART = 'workbench.parts.pearoverlay'
 }
 
+export const bubblyParts = new Set([
+	Parts.SIDEBAR_PART,
+	Parts.PANEL_PART,
+	Parts.EDITOR_PART,
+	Parts.PEAROVERLAY_PART
+] as string[]);
+
 export const enum ZenModeSettings {
 	SHOW_TABS = 'zenMode.showTabs',
 	HIDE_LINENUMBERS = 'zenMode.hideLineNumbers',

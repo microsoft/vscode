@@ -10,7 +10,7 @@ import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition }
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
+import { bubblyParts, IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
 import { assertIsDefined } from '../../base/common/types.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 
@@ -76,10 +76,14 @@ export abstract class Part extends Component implements ISerializableView {
 	 */
 	create(parent: HTMLElement, options?: object): void {
 		this.parent = parent;
+		const isBubbly = bubblyParts.has(this.getId());
+		if (isBubbly)
+			this.parent.classList.add('bubbly-part');
+
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
-		this.partLayout = new PartLayout(this.options, this.contentArea);
+		this.partLayout = new PartLayout(this.options, this.contentArea, isBubbly);
 
 		this.updateStyles();
 	}
@@ -234,9 +238,13 @@ class PartLayout {
 	private headerVisible: boolean = false;
 	private footerVisible: boolean = false;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
+	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined, private isBubbly: boolean = false) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
+		if (this.isBubbly) {
+			height = height - 10;
+			width = width - 10;
+		}
 
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
