@@ -67,8 +67,8 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 		};
 	}
 
-	private isQuickDiff(diff: { originalResource?: URI; label?: string; isSCM?: boolean }): diff is QuickDiff {
-		return !!diff.originalResource && (typeof diff.label === 'string') && (typeof diff.isSCM === 'boolean');
+	private isQuickDiff(diff: { originalResource?: URI; label?: string }): diff is QuickDiff {
+		return !!diff.originalResource && (typeof diff.label === 'string');
 	}
 
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
@@ -76,18 +76,19 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
 			.sort(createProviderComparer(uri));
 
-		const diffs = await Promise.all(providers.map(async provider => {
+		const quickDiffs = await Promise.all(providers.map(async provider => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
-			const diff: Partial<QuickDiff> = {
-				originalResource: scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined,
+			const originalResource = scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined;
+
+			return {
+				originalResource,
 				label: provider.label,
-				isSCM: provider.isSCM,
 				visible: provider.visible,
 				kind: provider.kind
-			};
-			return diff;
+			} satisfies Partial<QuickDiff>;
 		}));
-		return diffs.filter<QuickDiff>(this.isQuickDiff);
+
+		return quickDiffs.filter(this.isQuickDiff);
 	}
 }
 
