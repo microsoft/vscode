@@ -313,13 +313,13 @@
 	font-weight: unset;
 }
 
-.interactive-item-container .value .rendered-markdown {
-	/* Codicons next to text need to be aligned with the text */
-	.codicon {
-		position: relative;
-		top: 2px;
-	}
+/* Codicons next to text need to be aligned with the text */
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) .codicon {
+	position: relative;
+	top: 2px;
+}
 
+.interactive-item-container .value .rendered-markdown {
 	.chat-codeblock-pill-widget .codicon {
 		top: -1px;
 	}

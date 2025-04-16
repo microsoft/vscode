@@ -45,6 +45,7 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLangua
 import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 
 const $ = dom.$;
 
@@ -104,6 +105,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					const hideEmptyCodeblock = $('div');
 					hideEmptyCodeblock.style.display = 'none';
 					return hideEmptyCodeblock;
+				}
+				if (languageId === 'vscode-extensions') {
+					const chatExtensions = this._register(instantiationService.createInstance(ChatExtensionsContentPart, { kind: 'extensions', extensions: text.split(',') }));
+					this._register(chatExtensions.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+					return chatExtensions.domNode;
 				}
 				const globalIndex = globalCodeBlockIndexStart++;
 				const thisPartIndex = thisPartCodeBlockIndexStart++;
