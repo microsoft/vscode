@@ -8,6 +8,7 @@ import { createURI } from '../testUtils/createUri.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ExpectedReference } from '../testUtils/expectedReference.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
@@ -17,9 +18,11 @@ import { randomBoolean } from '../../../../../../../base/test/common/testUtils.j
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptToolsMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
@@ -95,6 +98,39 @@ class TextModelPromptParserTest extends Disposable {
 			`[${this.model.uri}] Unexpected number of references.`,
 		);
 	}
+
+	/**
+	 * Validate list of diagnostic objects of the prompt header.
+	 */
+	public async validateHeaderDiagnostics(
+		expectedDiagnostics: readonly TExpectedDiagnostic[],
+	) {
+		await this.parser.allSettled();
+
+		const { header } = this.parser;
+		assertDefined(
+			header,
+			'Prompt header must be defined.',
+		);
+		const { diagnostics } = header;
+
+		for (let i = 0; i < expectedDiagnostics.length; i++) {
+			const diagnostic = diagnostics[i];
+
+			assertDefined(
+				diagnostic,
+				`Expected diagnostic #${i} be ${expectedDiagnostics[i]}, got 'undefined'.`,
+			);
+
+			expectedDiagnostics[i].validateEqual(diagnostic);
+		}
+
+		assert.strictEqual(
+			expectedDiagnostics.length,
+			diagnostics.length,
+			`Expected '${expectedDiagnostics.length}' diagnostic objects, got '${diagnostics.length}'.`,
+		);
+	}
 }
 
 suite('TextModelPromptParser', () => {
@@ -124,7 +160,7 @@ suite('TextModelPromptParser', () => {
 		);
 	};
 
-	test('core logic #1', async () => {
+	test('• core logic #1', async () => {
 		const test = createTest(
 			createURI('/foo/bar.md'),
 			[
@@ -135,11 +171,11 @@ suite('TextModelPromptParser', () => {
 				/* 05 */"Sometimes, the best code is the one you never have to write.",
 				/* 06 */"A lone kangaroo once hopped into the local cafe, seeking free Wi-Fi.",
 				/* 07 */"Critical #file:./folder/binary.file thinking is like coffee; best served strong [md link](/etc/hosts/random-file.txt) and without sugar.",
-				/* 08 */"Music is the mind’s way of doodling in the air.",
+				/* 08 */"Music is the mind's way of doodling in the air.",
 				/* 09 */"Stargazing is just turning your eyes into cosmic explorers.",
 				/* 10 */"Never trust a balloon salesman who hates birthdays.",
 				/* 11 */"Running backward can be surprisingly enlightening.",
-				/* 12 */"There’s an art to whispering loudly.",
+				/* 12 */"There's an art to whispering loudly.",
 			],
 		);
 
@@ -174,7 +210,7 @@ suite('TextModelPromptParser', () => {
 		]);
 	});
 
-	test('core logic #2', async () => {
+	test('• core logic #2', async () => {
 		const test = createTest(
 			createURI('/absolute/folder/and/a/filename.txt'),
 			[
@@ -236,7 +272,154 @@ suite('TextModelPromptParser', () => {
 		]);
 	});
 
-	test('gets disposed with the model', async () => {
+	suite('• header', () => {
+		test('• has correct metadata', async function () {
+			const test = createTest(
+				createURI('/absolute/folder/and/a/filename.txt'),
+				[
+					/* 01 */"---",
+					/* 02 */"	something: true", /* unknown metadata record */
+					/* 03 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
+					/* 04 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
+					/* 05 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 06 */"---",
+					/* 07 */"The cactus on my desk has a thriving Instagram account.",
+					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+				],
+			);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+					text: '[text](./foo-bar-baz/another-file.ts)',
+					path: './foo-bar-baz/another-file.ts',
+					startLine: 8,
+					startColumn: 43,
+					pathStartColumn: 50,
+					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				}),
+			]);
+
+			const { header } = test.parser;
+			assertDefined(
+				header,
+				'Prompt header must be defined.',
+			);
+
+			assert.strictEqual(
+				header.metadata.length,
+				1,
+				'Prompt header must have 1 metadata record.',
+			);
+
+			const tools = header.metadata[0];
+			assert(
+				tools instanceof PromptToolsMetadata,
+				`Prompt header must have tools metadata record, got '${tools}'.`,
+			);
+
+			assert.strictEqual(
+				tools.toolNames.length,
+				2,
+				`Prompt header tools metadata must have 2 tool names, got '[${tools.toolNames.join(', ')}]'.`,
+			);
+
+			assert.deepStrictEqual(
+				tools.toolNames,
+				['tool_name1', 'tool_name2'],
+				`Prompt header must have correct tools metadata.`,
+			);
+		});
+
+		test('• has correct diagnostics', async function () {
+			const test = createTest(
+				createURI('/absolute/folder/and/a/filename.txt'),
+				[
+					/* 01 */"---",
+					/* 02 */"	something: true", /* unknown metadata record */
+					/* 03 */"tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', ,'tool_name2' ] ",
+					/* 04 */"  tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 05 */"tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 06 */"---",
+					/* 07 */"The cactus on my desk has a thriving Instagram account.",
+					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+				],
+			);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+					text: '[text](./foo-bar-baz/another-file.ts)',
+					path: './foo-bar-baz/another-file.ts',
+					startLine: 8,
+					startColumn: 43,
+					pathStartColumn: 50,
+					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				}),
+			]);
+
+			const { header } = test.parser;
+			assertDefined(
+				header,
+				'Prompt header must be defined.',
+			);
+
+			assert.strictEqual(
+				header.metadata.length,
+				1,
+				'Prompt header must have 1 metadata record.',
+			);
+
+			const tools = header.metadata[0];
+			assert(
+				tools instanceof PromptToolsMetadata,
+				`Prompt header must have tools metadata record, got '${tools}'.`,
+			);
+
+			await test.validateHeaderDiagnostics([
+				new ExpectedDiagnosticWarning(
+					new Range(2, 2, 2, 2 + 15),
+					'Unknown metadata record \'something\' will be ignored.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 38, 3, 38 + 12),
+					'Duplicate tool name \'tool_name1\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 52, 3, 52 + 4),
+					'Expected a tool name (string), got \'true\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 58, 3, 58 + 5),
+					'Expected a tool name (string), got \'false\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 65, 3, 65 + 2),
+					'Tool name cannot be empty.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 70, 3, 70 + 12),
+					'Duplicate tool name \'tool_name2\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(4, 3, 4, 3 + 37),
+					'Duplicate metadata record \'tools\' will be ignored.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(5, 1, 5, 1 + 19),
+					'Duplicate metadata record \'tools\' will be ignored.',
+				),
+			]);
+		});
+	});
+
+	test('• gets disposed with the model', async () => {
 		const test = createTest(
 			createURI('/some/path/file.prompt.md'),
 			[
@@ -257,7 +440,7 @@ suite('TextModelPromptParser', () => {
 		);
 	});
 
-	test('toString() implementation', async () => {
+	test('• toString() implementation', async () => {
 		const modelUri = createURI('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,

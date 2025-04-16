@@ -13,17 +13,16 @@ import { ILocalizedString, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { attachPrompt } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
-import { detachPrompt } from './dialogs/askToSelectPrompt/utils/detachPrompt.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { getActivePromptUri } from '../../promptSyntax/contributions/usePromptCommand.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 
@@ -45,6 +44,7 @@ const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
  * Action ID for the `Run Current Prompt` action.
  */
 const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
+
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -121,30 +121,20 @@ abstract class RunPromptBaseAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 
-		resource ||= getActivePromptUri(accessor);
+		resource ||= getActivePromptFileUri(accessor);
 		assertDefined(
 			resource,
 			'Cannot find URI resource for an active text editor.',
 		);
 
-		const { widget, wasAlreadyAttached } = await attachPrompt(
+		const { widget } = await runPromptFile(
 			resource,
 			{
 				inNewChat,
-				skipIfImplicitlyAttached: true,
 				commandService,
 				viewsService,
 			},
 		);
-
-		// submit the prompt immediately
-		await widget.acceptInput();
-
-		// detach the prompt immediately, unless was attached
-		// before the action was executed
-		if (wasAlreadyAttached === false) {
-			await detachPrompt(resource, { widget });
-		}
 
 		return widget;
 	}
@@ -181,6 +171,21 @@ class RunCurrentPromptAction extends RunPromptBaseAction {
 		);
 	}
 }
+
+/**
+ * Gets `URI` of a prompt file open in an active editor instance, if any.
+ */
+export const getActivePromptFileUri = (
+	accessor: ServicesAccessor,
+): URI | undefined => {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const model = codeEditorService.getActiveCodeEditor()?.getModel();
+	if (model?.getLanguageId() === PROMPT_LANGUAGE_ID) {
+		return model.uri;
+	}
+	return undefined;
+};
+
 
 /**
  * Action ID for the `Run Current Prompt In New Chat` action.

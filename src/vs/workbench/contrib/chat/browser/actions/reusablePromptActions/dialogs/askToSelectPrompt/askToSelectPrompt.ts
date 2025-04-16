@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DOCS_OPTION } from './constants.js';
 import { IChatWidget } from '../../../../chat.js';
-import { attachPrompt } from './utils/attachPrompt.js';
+import { attachInstructionsFiles } from './utils/attachInstructions.js';
 import { handleButtonClick } from './utils/handleButtonClick.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
 import { createPromptPickItem } from './utils/createPromptPickItem.js';
 import { createPlaceholderText } from './utils/createPlaceholderText.js';
 import { extUri } from '../../../../../../../../base/common/resources.js';
@@ -24,9 +22,9 @@ import { ICommandService } from '../../../../../../../../platform/commands/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
- * Options for the {@link askToSelectPrompt} function.
+ * Options for the {@link askToSelectInstructions} function.
  */
-export interface ISelectPromptOptions {
+export interface ISelectInstructionsOptions {
 	/**
 	 * Prompt resource `URI` to attach to the chat input, if any.
 	 * If provided the resource will be pre-selected in the prompt picker dialog,
@@ -58,24 +56,19 @@ export interface ISelectPromptOptions {
 }
 
 /**
- * Shows the prompt selection dialog to the user that allows to select a prompt file(s).
+ * Shows the instructions selection dialog to the user that allows to select a instructions file(s).
  *
- * If {@link ISelectPromptOptions.resource resource} is provided, the dialog will have
+ * If {@link ISelectInstructionsOptions.resource resource} is provided, the dialog will have
  * the resource pre-selected in the prompts list.
  */
-export const askToSelectPrompt = async (
-	options: ISelectPromptOptions,
+export const askToSelectInstructions = async (
+	options: ISelectInstructionsOptions,
 ): Promise<void> => {
 	const { promptFiles, resource, quickInputService, labelService } = options;
 
 	const fileOptions = promptFiles.map((promptFile) => {
 		return createPromptPickItem(promptFile, labelService);
 	});
-
-	/**
-	 * Add a link to the documentation to the end of prompts list.
-	 */
-	fileOptions.push(DOCS_OPTION);
 
 	// if a resource is provided, create an `activeItem` for it to pre-select
 	// it in the UI, and sort the list so the active item appears at the top
@@ -94,7 +87,8 @@ export const askToSelectPrompt = async (
 				uri: resource,
 				// "user" prompts are always registered in the prompts list, hence it
 				// should be safe to assume that `resource` is not "user" prompt here
-				type: 'local',
+				storage: 'local',
+				type: 'instructions',
 			}, labelService);
 			fileOptions.push(activeItem);
 		}
@@ -132,8 +126,8 @@ export const askToSelectPrompt = async (
 	quickPick.canAcceptInBackground = true;
 	quickPick.matchOnDescription = true;
 	quickPick.items = fileOptions;
+	quickPick.canSelectMany = true;
 
-	const { openerService } = options;
 	return await new Promise<void>(resolve => {
 		const disposables = new DisposableStore();
 
@@ -155,27 +149,9 @@ export const askToSelectPrompt = async (
 			const { selectedItems } = quickPick;
 			const { keyMods } = quickPick;
 
-			// sanity check to confirm our expectations
-			assert(
-				selectedItems.length === 1,
-				`Only one item can be accepted, got '${selectedItems.length}'.`,
-			);
-
-			const selectedOption = selectedItems[0];
-
-			// whether user selected the docs link option
-			const docsSelected = (selectedOption === DOCS_OPTION);
-
-			// if documentation item was selected, open its link in a browser
-			if (docsSelected) {
-				// note that opening a file in editor also hides(disposes) the dialog
-				await openerService.open(selectedOption.value);
-				return;
-			}
-
-			// otherwise attach the selected prompt to a chat input
-			const attachResult = await attachPrompt(
-				selectedOption.value,
+			// otherwise attach the selected instructions file to a chat input
+			const attachResult = await attachInstructionsFiles(
+				selectedItems.map(item => item.value),
 				{
 					...options,
 					inNewChat: keyMods.ctrlCmd,

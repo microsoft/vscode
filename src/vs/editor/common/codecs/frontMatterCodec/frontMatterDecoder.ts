@@ -5,6 +5,7 @@
 
 import { VALID_SPACE_TOKENS } from './constants.js';
 import { Word } from '../simpleCodec/tokens/index.js';
+import { TokenStream } from '../utils/tokenStream.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';
@@ -28,8 +29,14 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 	private current?: PartialFrontMatterRecordName | PartialFrontMatterRecordNameWithDelimiter | PartialFrontMatterRecord;
 
 	constructor(
-		stream: ReadableStream<VSBuffer>,
+		stream: ReadableStream<VSBuffer> | TokenStream<TSimpleDecoderToken>,
 	) {
+		if (stream instanceof TokenStream) {
+			super(stream);
+
+			return;
+		}
+
 		super(new SimpleDecoder(stream));
 	}
 

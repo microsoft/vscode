@@ -6,16 +6,15 @@
 import { IChatWidget, showChatView } from '../../../../../chat.js';
 import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
-import { extUri } from '../../../../../../../../../base/common/resources.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
-import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
+import { IChatAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
 /**
- * Options for the {@link attachPrompt} function.
+ * Options for the {@link attachInstructionsFiles} function.
  */
-export interface IAttachPromptOptions {
+export interface IAttachOptions {
 	/**
 	 * Chat widget instance to attach the prompt to.
 	 */
@@ -26,88 +25,56 @@ export interface IAttachPromptOptions {
 	 */
 	readonly inNewChat?: boolean;
 
-	/**
-	 * Whether to skip attaching provided prompt if it is
-	 * already attached as an implicit  "current file" context.
-	 */
-	readonly skipIfImplicitlyAttached?: boolean;
-
 	readonly viewsService: IViewsService;
 	readonly commandService: ICommandService;
 }
 
 /**
- * Return value of the {@link attachPrompt} function.
+ * Return value of the {@link attachInstructionsFiles} function.
  */
 interface IAttachResult {
+	/**
+	 * Chat widget instance files were attached to.
+	 */
 	readonly widget: IChatWidget;
-	readonly wasAlreadyAttached: boolean;
+
+	/**
+	 * List of instruction files that were already
+	 * attached to the chat input.
+	 */
+	readonly alreadyAttached: readonly URI[];
 }
 
 /**
- * Check if provided uri is already attached to chat
- * input as an implicit  "current file" context.
+ * Attaches provided instructions to a chat input.
  */
-const isAttachedAsCurrentPrompt = (
-	promptUri: URI,
-	widget: IChatWidget,
-): boolean => {
-	const { implicitContext } = widget.input;
-	if (implicitContext === undefined) {
-		return false;
-	}
-
-	if (implicitContext.isPrompt === false) {
-		return false;
-	}
-
-	if (implicitContext.enabled === false) {
-		return false;
-	}
-
-	assertDefined(
-		implicitContext.value,
-		'Prompt value must always be defined.',
-	);
-
-	const uri = URI.isUri(implicitContext.value)
-		? implicitContext.value
-		: implicitContext.value.uri;
-
-	return extUri.isEqual(promptUri, uri);
-};
-
-/**
- * Attaches provided prompts to a chat input.
- */
-export const attachPrompt = async (
-	file: URI,
-	options: IAttachPromptOptions,
+export const attachInstructionsFiles = async (
+	files: URI[],
+	options: IAttachOptions,
 ): Promise<IAttachResult> => {
-	const { skipIfImplicitlyAttached } = options;
 
 	const widget = await getChatWidgetObject(options);
 
-	if (skipIfImplicitlyAttached && isAttachedAsCurrentPrompt(file, widget)) {
-		return { widget, wasAlreadyAttached: true };
+	const alreadyAttached: URI[] = [];
+
+	for (const file of files) {
+		if (widget.attachmentModel.promptInstructions.add(file)) {
+			alreadyAttached.push(file);
+			continue;
+		}
 	}
 
-	const wasAlreadyAttached = widget
-		.attachmentModel
-		.promptInstructions
-		.add(file);
-
-	return { widget, wasAlreadyAttached };
+	return { widget, alreadyAttached };
 };
 
 /**
- * Gets a chat widget based on the provided {@link IChatAttachPromptActionOptions.widget widget}
+ * Gets a chat widget based on the provided {@link IChatAttachInstructionsActionOptions.widget widget}
  * reference and the `inNewChat` flag.
  *
  * @throws if failed to reveal a chat widget.
  */
-const getChatWidgetObject = async (
-	options: IAttachPromptOptions,
+export const getChatWidgetObject = async (
+	options: IAttachOptions,
 ): Promise<IChatWidget> => {
 	const { widget, inNewChat } = options;
 
@@ -122,10 +89,11 @@ const getChatWidgetObject = async (
 };
 
 /**
- * Opens a chat session, or reveals an existing one.
+ * Reveals an existing one or creates a new one based on
+ * the provided `createNew` flag.
  */
 const showChat = async (
-	options: IAttachPromptOptions,
+	options: IAttachOptions,
 	createNew: boolean = false,
 ): Promise<IChatWidget> => {
 	const { commandService, viewsService } = options;

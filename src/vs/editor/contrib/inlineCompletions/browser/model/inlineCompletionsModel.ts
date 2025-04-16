@@ -315,7 +315,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		const providers = changeSummary.provider ? [changeSummary.provider] : this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel);
 
-		return this._source.fetch(providers, cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion);
+		return this._source.fetch(providers, cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider);
 	});
 
 	public async trigger(tx?: ITransaction, options?: { onlyFetchInlineEdits?: boolean; noDelay?: boolean }): Promise<void> {

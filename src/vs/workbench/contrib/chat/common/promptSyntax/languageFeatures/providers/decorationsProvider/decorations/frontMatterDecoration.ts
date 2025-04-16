@@ -28,7 +28,7 @@ export enum CssClassNames {
  */
 export const BACKGROUND_COLOR: ColorIdentifier = registerColor(
 	'prompt.frontMatter.background',
-	{ dark: darken(editorBackground, 0.2), light: darken(editorBackground, 0.2), hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: darken(editorBackground, 0.2), light: darken(editorBackground, 0.05), hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('chat.prompt.frontMatter.background.description', "Background color of a Front Matter header block."),
 );
 
@@ -37,7 +37,7 @@ export const BACKGROUND_COLOR: ColorIdentifier = registerColor(
  */
 export const INACTIVE_BACKGROUND_COLOR: ColorIdentifier = registerColor(
 	'prompt.frontMatter.inactiveBackground',
-	{ dark: darken(editorBackground, 0.1), light: darken(editorBackground, 0.1), hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: darken(editorBackground, 0.1), light: darken(editorBackground, 0.025), hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('chat.prompt.frontMatter.inactiveBackground.description', "Background color of an inactive Front Matter header block."),
 );
 

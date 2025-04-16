@@ -6,7 +6,7 @@
 import { BaseToken } from '../../baseToken.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Colon, Word, Dash, Space, Tab } from '../../simpleCodec/tokens/index.js';
-import { FrontMatterToken, FrontMatterValueToken } from '../tokens/frontMatterToken.js';
+import { FrontMatterToken, FrontMatterValueToken, TValueTypeName } from '../tokens/frontMatterToken.js';
 
 /**
  * Type for tokens that can be used inside a record name.
@@ -14,7 +14,8 @@ import { FrontMatterToken, FrontMatterValueToken } from '../tokens/frontMatterTo
 export type TNameToken = Word | Dash;
 
 /**
- * Type for tokens that can be used as "space" inside a record.
+ * Type for tokens that can be used as "space" in-between record
+ * name, delimiter and value.
  */
 export type TSpaceToken = Space | Tab;
 
@@ -87,11 +88,41 @@ export class FrontMatterRecordDelimiter extends FrontMatterToken {
  */
 export class FrontMatterRecord extends FrontMatterToken {
 	constructor(
-		public readonly tokens: readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken],
+		private readonly tokens: readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken<TValueTypeName>],
 	) {
 		super(
 			BaseToken.fullRange(tokens),
 		);
+	}
+
+	/**
+	 * Token that represent `name` of the record.
+	 *
+	 * E.g., `tools` in the example below:
+	 *
+	 * ```
+	 * ---
+	 * tools: ['value']
+	 * ---
+	 * ```
+	 */
+	public get nameToken(): FrontMatterRecordName {
+		return this.tokens[0];
+	}
+
+	/**
+	 * Token that represent `value` of the record.
+	 *
+	 * E.g., `['value']` in the example below:
+	 *
+	 * ```
+	 * ---
+	 * tools: ['value']
+	 * ---
+	 * ```
+	 */
+	public get valueToken(): FrontMatterValueToken<TValueTypeName> {
+		return this.tokens[2];
 	}
 
 	/**

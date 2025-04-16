@@ -107,12 +107,12 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _loadingCount = observableValue(this, 0);
 	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
-	public fetch(providers: InlineCompletionsProvider[], position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>): Promise<boolean> {
+	public fetch(providers: InlineCompletionsProvider[], position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
 
-		if (this._updateOperation.value?.request.satisfies(request)) {
+		if (!providerhasChangedCompletion && this._updateOperation.value?.request.satisfies(request)) {
 			return this._updateOperation.value.promise;
 		} else if (target?.request?.satisfies(request)) {
 			return Promise.resolve(true);

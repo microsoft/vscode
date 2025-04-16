@@ -9,32 +9,30 @@ import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
-import { runAttachPromptAction } from '../../actions/reusablePromptActions/index.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { runAttachInstructionsAction } from '../../actions/reusablePromptActions/index.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 
 /**
- * Command ID of the "Use Prompt" command.
+ * Command ID of the "Attach Instructions" command.
  */
-export const COMMAND_ID = 'workbench.command.prompts.use';
+export const INSTRUCTIONS_COMMAND_ID = 'workbench.command.instructions.attach';
 
 /**
- * Keybinding of the "Use Prompt" command.
+ * Keybinding of the "Use Instructions" command.
  * The `cmd + /` is the current keybinding for 'attachment', so we use
- * the `alt` key modifier to convey the "prompt attachment" action.
+ * the `alt` key modifier to convey the "instructions attachment" action.
  */
-const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
+const INSTRUCTIONS_COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
 
 /**
- * Implementation of the "Use Prompt" command. The command works in the following way.
+ * Implementation of the "Use Instructions" command. The command works in the following way.
  *
  * When executed, it tries to see if a `prompt file` was open in the active code editor
  * (see {@link IChatAttachPromptActionOptions.resource resource}), and if a chat input
@@ -56,14 +54,14 @@ const command = async (
 ): Promise<void> => {
 	const commandService = accessor.get(ICommandService);
 
-	await runAttachPromptAction({
-		resource: getActivePromptUri(accessor),
+	await runAttachInstructionsAction({
+		resource: getActiveInstructionsFileUri(accessor),
 		widget: getFocusedChatWidget(accessor),
 	}, commandService);
 };
 
 /**
- * Get chat widget reference to attach prompt to.
+ * Get chat widget reference to attach instructions to.
  */
 export function getFocusedChatWidget(accessor: ServicesAccessor): IChatWidget | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
@@ -82,69 +80,37 @@ export function getFocusedChatWidget(accessor: ServicesAccessor): IChatWidget | 
 }
 
 /**
- * Gets active editor instance, if any.
+ * Gets `URI` of a instructions file open in an active editor instance, if any.
  */
-export function getActiveCodeEditor(accessor: ServicesAccessor): IActiveCodeEditor | undefined {
-	const editorService = accessor.get(IEditorService);
-	const { activeTextEditorControl } = editorService;
-
-	if (isCodeEditor(activeTextEditorControl) && activeTextEditorControl.hasModel()) {
-		return activeTextEditorControl;
-	}
-
-	if (isDiffEditor(activeTextEditorControl)) {
-		const originalEditor = activeTextEditorControl.getOriginalEditor();
-		if (!originalEditor.hasModel()) {
-			return undefined;
-		}
-
-		return originalEditor;
-	}
-
-	return undefined;
-}
-
-/**
- * Gets `URI` of a prompt file open in an active editor instance, if any.
- */
-export const getActivePromptUri = (
+export const getActiveInstructionsFileUri = (
 	accessor: ServicesAccessor,
 ): URI | undefined => {
-	const activeEditor = getActiveCodeEditor(accessor);
-	if (!activeEditor) {
-		return undefined;
-	}
-
-	const model = activeEditor.getModel();
-	if (model.getLanguageId() === PROMPT_LANGUAGE_ID) {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const model = codeEditorService.getActiveCodeEditor()?.getModel();
+	if (model?.getLanguageId() === INSTRUCTIONS_LANGUAGE_ID) {
 		return model.uri;
 	}
-
-	if (isPromptFile(model.uri)) {
-		return model.uri;
-	}
-
 	return undefined;
 };
 
 /**
- * Register the "Use Prompt" command with its keybinding.
+ * Register the "Attach Instructions" command with its keybinding.
  */
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: COMMAND_ID,
+	id: INSTRUCTIONS_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: COMMAND_KEY_BINDING,
+	primary: INSTRUCTIONS_COMMAND_KEY_BINDING,
 	handler: command,
 	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
 
 /**
- * Register the "Use Prompt" command in the `command palette`.
+ * Register the "Use Instructions" command in the `command palette`.
  */
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: COMMAND_ID,
-		title: localize('commands.prompts.use.title', "Use Prompt"),
+		id: INSTRUCTIONS_COMMAND_ID,
+		title: localize('attach-instructions.capitalized.ellipses', "Attach Instructions..."),
 		category: CHAT_CATEGORY
 	},
 	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)

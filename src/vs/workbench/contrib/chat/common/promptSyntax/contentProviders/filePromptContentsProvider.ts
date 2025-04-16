@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
@@ -114,7 +114,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 			// if URI doesn't point to a prompt file, don't try to resolve it,
 			// unless the `allowNonPromptFiles` option is set to `true`
-			if ((allowNonPromptFiles !== true) && (isPromptFile(this.uri) === false)) {
+			if ((allowNonPromptFiles !== true) && (isPromptOrInstructionsFile(this.uri) === false)) {
 				throw new NotPromptFile(this.uri);
 			}
 

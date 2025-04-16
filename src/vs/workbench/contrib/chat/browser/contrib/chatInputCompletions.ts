@@ -27,7 +27,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
@@ -451,7 +450,7 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
-	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:]*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:-]*`, 'g'); // MUST be using `g`-flag
 
 	private readonly queryBuilder: QueryBuilder;
 
@@ -468,7 +467,6 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@IMarkerService markerService: IMarkerService,
 	) {
 		super();
 
