@@ -25,7 +25,16 @@ function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffPr
 		const bIsParent = isEqualOrParent(uri, b.rootUri!);
 
 		if (aIsParent && bIsParent) {
-			return a.rootUri!.fsPath.length - b.rootUri!.fsPath.length;
+			if (a.kind === 'primary') {
+				return -1;
+			} else if (b.kind === 'primary') {
+				return 1;
+			} else if (a.kind === 'secondary') {
+				return -1;
+			} else if (b.kind === 'secondary') {
+				return 1;
+			}
+			return 0;
 		} else if (aIsParent) {
 			return -1;
 		} else if (bIsParent) {
@@ -73,7 +82,8 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 				originalResource: scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined,
 				label: provider.label,
 				isSCM: provider.isSCM,
-				visible: provider.visible
+				visible: provider.visible,
+				kind: provider.kind
 			};
 			return diff;
 		}));

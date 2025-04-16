@@ -1974,16 +1974,6 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (!isGitUri(modifiedUri)) {
-			return;
-		}
-
-		const { ref } = fromGitUri(modifiedUri);
-
-		if (ref !== '') {
-			return;
-		}
-
 		const repository = this.model.getRepository(modifiedUri);
 		if (!repository) {
 			return;
@@ -2008,6 +1998,7 @@ export class CommandCenter {
 		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+
 		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];
@@ -2017,13 +2008,25 @@ export class CommandCenter {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(invertLineChange);
-
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
-		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
+		if (modifiedUri.scheme === 'file') {
+			// Editor
+			const changes = indexLineChanges
+				.filter(c => !selectedDiffs.some(d =>
+					d.originalStartLineNumber === c.originalStartLineNumber &&
+					d.originalEndLineNumber === c.originalEndLineNumber &&
+					d.modifiedStartLineNumber === c.modifiedStartLineNumber &&
+					d.modifiedEndLineNumber === c.modifiedEndLineNumber));
+			await this._unstageChanges(textEditor, changes);
+			return;
+		}
+
+		const selectedDiffsInverted = selectedDiffs.map(invertLineChange);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffsInverted: ${JSON.stringify(selectedDiffsInverted)}`);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, selectedDiffsInverted);
+		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
 	}
 
 	@command('git.unstageFile')
@@ -2048,6 +2051,38 @@ export class CommandCenter {
 		await repository.revert(resources);
 	}
 
+	@command('git.unstageChange')
+	async unstageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
+		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+		if (!textEditor) {
+			return;
+		}
+
+		changes.splice(index, 1);
+		await this._unstageChanges(textEditor, changes);
+	}
+
+	private async _unstageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
+		const originalDocument = await workspace.openTextDocument(originalUri);
+
+		const invertedChanges = changes.map(invertLineChange);
+		const result = applyLineChanges(originalDocument, modifiedDocument, invertedChanges);
+
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
+	}
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
