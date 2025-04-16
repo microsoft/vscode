@@ -12,7 +12,7 @@ declare module 'vscode' {
 	}
 
 	export interface SourceControl {
-		stagedQuickDiffProvider?: QuickDiffProvider;
+		secondaryQuickDiffProvider?: QuickDiffProvider;
 	}
 
 	export interface QuickDiffProvider {

@@ -890,7 +890,7 @@ export class Repository implements Disposable {
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
 		this._sourceControl.quickDiffProvider = this;
-		this._sourceControl.stagedQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
+		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
 
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;

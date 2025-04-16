@@ -353,7 +353,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			this._quickDiff = undefined;
 		}
 
-		if (features.hasStagedQuickDiffProvider && !this._stagedQuickDiff) {
+		if (features.hasSecondaryQuickDiffProvider && !this._stagedQuickDiff) {
 			this._stagedQuickDiff = this._quickDiffService.addQuickDiffProvider({
 				label: features.stagedQuickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
@@ -361,7 +361,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 				visible: true,
 				kind: 'secondary',
 				getOriginalResource: async (uri: URI) => {
-					if (!this.features.hasStagedQuickDiffProvider) {
+					if (!this.features.hasSecondaryQuickDiffProvider) {
 						return null;
 					}
 
@@ -369,7 +369,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 					return result && URI.revive(result);
 				}
 			});
-		} else if (features.hasStagedQuickDiffProvider === false && this._stagedQuickDiff) {
+		} else if (features.hasSecondaryQuickDiffProvider === false && this._stagedQuickDiff) {
 			this._stagedQuickDiff.dispose();
 			this._stagedQuickDiff = undefined;
 		}

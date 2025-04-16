@@ -1561,7 +1561,7 @@ export interface SCMProviderFeatures {
 	hasHistoryProvider?: boolean;
 	hasQuickDiffProvider?: boolean;
 	quickDiffLabel?: string;
-	hasStagedQuickDiffProvider?: boolean;
+	hasSecondaryQuickDiffProvider?: boolean;
 	stagedQuickDiffLabel?: string;
 	count?: number;
 	commitTemplate?: string;
