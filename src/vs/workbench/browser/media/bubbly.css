@@ -163,7 +163,6 @@
 
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .codicon {
 	background: var(--vscode-toolbar-hoverBackground) !important;
-	border: 1px solid var(--vscode-activityBarTop-activeBorder);
 }
 
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
