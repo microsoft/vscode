@@ -8,6 +8,7 @@ import { IChatWidget } from '../../../../../chat.js';
 import { getChatWidgetObject } from './attachInstructions.js';
 import { URI } from '../../../../../../../../../base/common/uri.js';
 import { extUri } from '../../../../../../../../../base/common/resources.js';
+import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
@@ -67,7 +68,7 @@ export const runPromptFile = async (
 };
 
 /**
- * Check if provided uri is already set as the implicit context
+ * Check if provided uri is already set as the implicit context.
  */
 const isSetInImplicitContext = (
 	promptUri: URI,
@@ -75,11 +76,6 @@ const isSetInImplicitContext = (
 ): boolean => {
 	const { implicitContext } = widget.input;
 	if (implicitContext === undefined) {
-		return false;
-	}
-
-	if (implicitContext.value === undefined) {
-		// the user turned off implicit context in the settings
 		return false;
 	}
 
@@ -91,6 +87,13 @@ const isSetInImplicitContext = (
 	if (implicitContext.isPromptFile === false) {
 		return false;
 	}
+
+	// we expect all implicit prompt file attachments
+	// to have the `value` property to be present
+	assertDefined(
+		implicitContext.value,
+		'Prompt value must always be defined.',
+	);
 
 	const uri = URI.isUri(implicitContext.value)
 		? implicitContext.value
