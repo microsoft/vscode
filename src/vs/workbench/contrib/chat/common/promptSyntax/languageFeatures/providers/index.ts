@@ -17,7 +17,7 @@ import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } f
 /**
  * Whether to enable decorations in the prompt editor.
  */
-export const DECORATIONS_ENABLED = false;
+export const DECORATIONS_ENABLED = true;
 
 /**
  * Register all language features related to reusable prompts files.
