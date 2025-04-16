@@ -99,15 +99,11 @@ const overlayStates = {
 	},
 	overlay_closed_creator_active: {
 		overlayContainer: {
-			display: "block",
-			zIndex: "998",
-			position: "absolute",
-			top: "0",
-			left: "0",
-			height: "5vh",
+			display: "none",
+			zIndex: "-10",
 		},
 		topOfBody: {
-			height: "5vh",
+			height: "0vh",
 			display: "block",
 		},
 		blurElement: {
@@ -126,7 +122,7 @@ const overlayStates = {
 			opacity: "0",
 		},
 		webview: {
-			transform: "translateY(-95%)",
+			transform: "translateY(-100%)",
 			transition: "transform 500ms cubic-bezier(0.4, 0, 0.2, 1)",
 		},
 	},
