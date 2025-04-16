@@ -19,18 +19,53 @@ export class CloseCreatorOverlayAction extends Action2 {
 				value: "Close Creator View Popup",
 				original: "Close Creator View Popup",
 			},
-			f1: true,
-			keybinding: {
-				weight: 210,
-				primary: KeyCode.Escape,
-				// when: PearAICreatorVisibleContext,
-			},
+			f1: false,
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
 		const creatorOverlayService = accessor.get(ICreatorOverlayService);
 		creatorOverlayService.hide();
+	}
+}
+
+export class OpenCreatorOverlayAction extends Action2 {
+	static readonly ID = "workbench.action.openCreatorView";
+
+	constructor() {
+		super({
+			id: OpenCreatorOverlayAction.ID,
+			title: {
+				value: "Open Creator View Popup",
+				original: "Open Creator View Popup",
+			},
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const creatorOverlayService = accessor.get(ICreatorOverlayService);
+		creatorOverlayService.show();
+	}
+}
+
+export class ProgressCreatorModeAction extends Action2 {
+	static readonly ID = "workbench.action.progressCreatorToNextStage";
+
+	constructor() {
+		super({
+			id: ProgressCreatorModeAction.ID,
+			title: {
+				value: "Progress Creator Mode",
+				original: "Progress Creator Mode",
+			},
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const creatorOverlayService = accessor.get(ICreatorOverlayService);
+		creatorOverlayService.progressToNextStage();
 	}
 }
 
@@ -93,7 +128,9 @@ export class UnlockCreatorOverlayAction extends Action2 {
 }
 
 // Register all actions
+registerAction2(OpenCreatorOverlayAction);
 registerAction2(CloseCreatorOverlayAction);
+registerAction2(ProgressCreatorModeAction);
 registerAction2(ToggleCreatorOverlayAction);
 registerAction2(LockCreatorOverlayAction);
 registerAction2(UnlockCreatorOverlayAction);

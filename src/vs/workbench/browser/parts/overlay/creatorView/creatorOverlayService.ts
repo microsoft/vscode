@@ -45,6 +45,11 @@ export interface ICreatorOverlayService extends IDisposable {
 	toggle(): void;
 
 	/**
+	 * Hides the overlay and
+	 */
+	progressToNextStage(): void;
+
+	/**
 	 * Returns true if the Creator view popup is visible.
 	 */
 	isVisible(): boolean;
@@ -186,8 +191,8 @@ export class CreatorOverlayService
 		return this._creatorOverlayPart.isLocked;
 	}
 
-	hideOverlayLoadingMessage(): void {
-		this._creatorOverlayPart.hideOverlayLoadingMessage();
+	progressToNextStage(): void {
+		this._creatorOverlayPart.progressToNextStage();
 	}
 
 	override dispose(): void {
