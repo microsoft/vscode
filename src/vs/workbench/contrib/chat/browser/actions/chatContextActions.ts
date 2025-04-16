@@ -63,7 +63,7 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/attachInstructionsCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { runAttachInstructionsAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
+import { runAttachInstructionsAction, registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -978,4 +978,4 @@ export class AttachContextAction extends Action2 {
 /**
  * Register all actions related to reusable prompt files.
  */
-registerReusablePromptActions();
+registerPromptActions();
