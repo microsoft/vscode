@@ -556,7 +556,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 		sb.appendString('px;width:1000000px;">');
 
 		const line = lineTokens.getLineContent();
-		const isBasicASCII = strings.isBasicASCII(line);
+		const isBasicASCII = strings.isBasicASCII(line); //
 		const containsRTL = strings.containsRTL(line);
 
 		renderViewLine(new RenderLineInput(

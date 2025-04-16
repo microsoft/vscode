@@ -8,15 +8,18 @@ import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { BareFontInfo, FontInfo } from '../../../../common/config/fontInfo.js';
+import { EditorFontLigatures, EditorOption } from '../../../../common/config/editorOptions.js';
+import { FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
+import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
+import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
+import { RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { ttPolicy } from '../../../../contrib/inlineCompletions/browser/view/ghostText/ghostTextView.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ariaLabelForScreenReaderContent, ISimpleModel, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
@@ -29,7 +32,7 @@ export class ScreenReaderSupport {
 	private _contentHeight: number = 1;
 	private _divWidth: number = 1;
 	private _fontInfo!: FontInfo;
-	private _accessibilityPageSize: number = 1;
+	// private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
@@ -62,7 +65,7 @@ export class ScreenReaderSupport {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this.writeScreenReaderContent();
+			// this.writeScreenReaderContent();
 		}
 	}
 
@@ -74,7 +77,7 @@ export class ScreenReaderSupport {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		// this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
 	}
 
@@ -100,7 +103,7 @@ export class ScreenReaderSupport {
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		this.writeScreenReaderContent();
+		this.writeScreenReaderContent(ctx);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
 	}
 
@@ -126,7 +129,7 @@ export class ScreenReaderSupport {
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const position = this._primarySelection.getPosition();
 		const positionLineNumber = position.lineNumber;
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) + 300 - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
@@ -137,30 +140,26 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		// const fontInfo = this._context.viewModel.getFontInfoForPosition(position);
-		const fontInfo = this._fontInfo;
 		const lineNumberWithinState = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
 		const scrollTop = lineNumberWithinState * lineHeight;
-		const left = this._computeLeftOffset(position, this._primaryCursorVisibleRange, fontInfo);
-		applyFontInfo(this._domNode, fontInfo);
-		this._doRender(scrollTop, top, left, this._divWidth, lineHeight);
+		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 
-	private _computeLeftOffset(primaryCursorPosition: Position, primaryCursorVisibleRange: HorizontalPosition, fontInfo: BareFontInfo): number {
-		let left = this._contentLeft;
-		const canvas = document.createElement('canvas');
-		const context = canvas.getContext('2d');
-		if (context) {
-			context.font = `${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`;
-			const rangeBeforeCursor = new Range(primaryCursorPosition.lineNumber, 1, primaryCursorPosition.lineNumber, primaryCursorPosition.column);
-			const contentBeforeCursor = this._context.viewModel.getValueInRange(rangeBeforeCursor, EndOfLinePreference.TextDefined);
-			const widthOfTextBeforeCursor = context.measureText(contentBeforeCursor).width;
-			left += primaryCursorVisibleRange.left - widthOfTextBeforeCursor;
-		}
-		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
-		canvas.remove();
-		return left - scrollLeft;
-	}
+	// private _computeLeftOffset(primaryCursorPosition: Position, primaryCursorVisibleRange: HorizontalPosition, fontInfo: BareFontInfo): number {
+	// 	let left = this._contentLeft;
+	// 	const canvas = document.createElement('canvas');
+	// 	const context = canvas.getContext('2d');
+	// 	if (context) {
+	// 		context.font = `${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`;
+	// 		const rangeBeforeCursor = new Range(primaryCursorPosition.lineNumber, 1, primaryCursorPosition.lineNumber, primaryCursorPosition.column);
+	// 		const contentBeforeCursor = this._context.viewModel.getValueInRange(rangeBeforeCursor, EndOfLinePreference.TextDefined);
+	// 		const widthOfTextBeforeCursor = context.measureText(contentBeforeCursor).width;
+	// 		left += primaryCursorVisibleRange.left - widthOfTextBeforeCursor;
+	// 	}
+	// 	const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
+	// 	canvas.remove();
+	// 	return left - scrollLeft;
+	// }
 
 	private _renderAtTopLeft(): void {
 		this._doRender(0, 0, 0, this._contentWidth, 1);
@@ -191,7 +190,7 @@ export class ScreenReaderSupport {
 		}
 	}
 
-	public writeScreenReaderContent(): void {
+	public writeScreenReaderContent(ctx: RenderingContext): void {
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
@@ -204,11 +203,58 @@ export class ScreenReaderSupport {
 			if (endPosition.column === 1 && this._primarySelection.getEndPosition().equals(endPosition)) {
 				value += '\n';
 			}
-			if (this._domNode.domNode.textContent !== value) {
-				this.setIgnoreSelectionChangeTime('setValue');
-				this._domNode.domNode.textContent = value;
-			}
-			this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
+			const options = this._context.configuration.options;
+			const fontInfo = options.get(EditorOption.fontInfo);
+			const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
+			const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
+			const fontLigatures = options.get(EditorOption.fontLigatures)
+			const disableMonospaceOptimizations = options.get(EditorOption.disableMonospaceOptimizations);
+			const viewLineNumber = this._screenReaderContentState.startPositionWithinEditor.lineNumber;
+			const lineData = ctx.viewportData.getViewLineRenderingData(viewLineNumber);
+			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewLineNumber);
+			const viewMaxColumn = this._context.viewModel.getLineMaxColumn(viewLineNumber);
+			const modelRange = this._context.viewModel.coordinatesConverter.convertViewRangeToModelRange(new Range(viewLineNumber, 1, viewLineNumber, viewMaxColumn));
+			const inelineDecorations = this._context.viewModel.getInlineDecorationsInModelRange(modelRange);
+			const actualInlineDecorations = LineDecoration.filter(inelineDecorations, modelRange.startLineNumber, 0, Infinity);
+			const sb = new StringBuilder(10000);
+			console.log('lineNumber', viewLineNumber);
+			console.log('actualInlineDecorations', actualInlineDecorations);
+			const renderLineInput = new RenderLineInput(
+				(fontInfo.isMonospace && !disableMonospaceOptimizations),
+				fontInfo.canUseHalfwidthRightwardsArrow,
+				lineData.content,
+				lineData.continuesWithWrappedLine,
+				lineData.isBasicASCII,
+				lineData.containsRTL,
+				lineData.minColumn - 1,
+				lineData.tokens,
+				actualInlineDecorations,
+				lineData.tabSize,
+				lineData.startVisibleColumn,
+				fontInfo.spaceWidth,
+				fontInfo.middotWidth,
+				fontInfo.wsmiddotWidth,
+				stopRenderingLineAfter,
+				'none',
+				renderControlCharacters,
+				fontLigatures !== EditorFontLigatures.OFF,
+				null
+			);
+			sb.appendString('<div style="height:');
+			sb.appendString(String(lineHeight));
+			sb.appendString('px;line-height:');
+			sb.appendString(String(lineHeight));
+			sb.appendString('px;">');
+			renderViewLine(renderLineInput, sb);
+			sb.appendString('</div>');
+
+			const html = sb.build();
+			const trustedhtml = ttPolicy?.createHTML(html) ?? html;
+			this.setIgnoreSelectionChangeTime('setValue');
+			this._domNode.domNode.innerHTML = trustedhtml as string;
+			this._domNode.domNode.classList.add('monaco-editor');
+			console.log('this._domNode.domNode', this._domNode.domNode);
+			// this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -238,7 +284,7 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, 1, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {

@@ -29,7 +29,8 @@ export interface IViewModelLines extends IDisposable {
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
-	getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
+	getInlineDecorationsOnModelLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
+	getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
@@ -146,7 +147,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		for (let i = 0; i < lineCount; i++) {
 			const lineNumber = i + 1;
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
-			const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+			const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
 			const lineHeight = this.context.getLineHeightForLineNumber(lineNumber);
 			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
@@ -180,8 +181,12 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		const modelRange = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+	public getInlineDecorationsOnModelLine(modelLineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
+		const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
+		return this.getInlineDecorationsInModelRange(modelRange, onlyMinimapDecorations, onlyMarginDecorations);
+	}
+
+	public getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
 		const modelDecorations = this._getDecorationsInModelRange(modelRange, this._editorId, filterValidationDecorations(this.config.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const inlineDecorations: InlineDecoration[] = [];
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
@@ -1182,7 +1187,11 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return new IdentityCoordinatesConverter(this);
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[] {
+	public getInlineDecorationsOnModelLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[] {
+		return [];
+	}
+
+	public getInlineDecorationsInModelRange(modelRange: Range): InlineDecoration[] {
 		return [];
 	}
 
