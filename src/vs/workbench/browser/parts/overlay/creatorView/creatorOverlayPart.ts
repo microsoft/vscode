@@ -24,15 +24,142 @@ import { URI } from "../../../../../base/common/uri.js";
 import { ExtensionIdentifier } from "../../../../../platform/extensions/common/extensions.js";
 import { IEditorGroupsService } from "../../../../../workbench/services/editor/common/editorGroupsService.js";
 import { Emitter } from "../../../../../base/common/event.js";
-import { CommandEmitter } from '../../../../../platform/commands/browser/commandEmitter.js';
+import { CommandEmitter } from "../../../../../platform/commands/browser/commandEmitter.js";
 
 const CREATOR_VIEW_ID = "pearai.creatorView";
 const CREATOR_OVERLAY_TITLE = "pearai.creatorOverlayView";
 
-const CREATOR_OPEN_OVERLAY_HEIGHT = 90;
-const CREATOR_OPEN_OVERLAY_CLOSED_HEIGHT = 5;
-
 const ENTER_CREATOR_MODE_BTN_IDENTIFIER = ".creator-mode-button";
+
+type OverlayState = {
+	[key: string]: {
+		[key: string]: Partial<CSSStyleDeclaration>;
+	};
+};
+
+const overlayStates = {
+	closed: {
+		overlayContainer: {
+			display: "none",
+			zIndex: "-10",
+		},
+		topOfBody: {
+			height: "0vh",
+			display: "block",
+		},
+		blurElement: {
+			opacity: "0",
+			display: "none",
+		},
+		exitButton: {
+			width: "110px",
+			opacity: "1",
+		},
+		exitButtonIcon: {
+			opacity: "0",
+			left: "6px",
+			transform: "none",
+		},
+		exitButtonText: {
+			opacity: "1",
+		},
+		webview: {
+			transform: "translateY(-100%)",
+			transition: "transform 500ms cubic-bezier(0.4, 0, 0.2, 1)",
+		},
+	},
+	open: {
+		overlayContainer: {
+			display: "block",
+			zIndex: "998",
+		},
+		topOfBody: {
+			height: "90vh",
+			display: "block",
+		},
+		blurElement: {
+			opacity: "1",
+			display: "block",
+		},
+		exitButton: {
+			width: "30px",
+		},
+		exitButtonIcon: {
+			opacity: "1",
+			left: "50%",
+			transform: "translateX(-50%)",
+		},
+		exitButtonText: {
+			opacity: "0",
+		},
+		webview: {
+			transform: "translateY(0%)",
+			transition: "transform 500ms cubic-bezier(0.4, 0, 0.2, 1)",
+		},
+	},
+	overlay_closed_creator_active: {
+		overlayContainer: {
+			display: "block",
+			zIndex: "998",
+			position: "absolute",
+			top: "0",
+			left: "0",
+			height: "5vh",
+		},
+		topOfBody: {
+			height: "5vh",
+			display: "block",
+		},
+		blurElement: {
+			opacity: "0",
+			display: "none",
+		},
+		exitButton: {
+			width: "30px",
+		},
+		exitButtonIcon: {
+			opacity: "1",
+			left: "50%",
+			transform: "translateX(-50%)",
+		},
+		exitButtonText: {
+			opacity: "0",
+		},
+		webview: {
+			transform: "translateY(-95%)",
+			transition: "transform 500ms cubic-bezier(0.4, 0, 0.2, 1)",
+		},
+	},
+	loading: {
+		overlayContainer: {
+			display: "none",
+			zIndex: "-10",
+		},
+		topOfBody: {
+			height: "0",
+			display: "none",
+		},
+		blurElement: {
+			opacity: "0",
+			display: "none",
+		},
+		exitButton: {
+			width: "110px",
+		},
+		exitButtonIcon: {
+			opacity: "0",
+			left: "6px",
+			transform: "none",
+		},
+		exitButtonText: {
+			opacity: "1",
+		},
+		webview: {
+			transform: "translateY(-100%)",
+			transition: "transform 500ms cubic-bezier(0.4, 0, 0.2, 1)",
+		},
+	},
+} as const satisfies OverlayState;
 
 export class CreatorOverlayPart extends Part {
 	static readonly ID = "workbench.parts.pearcreatoroverlay";
@@ -48,7 +175,7 @@ export class CreatorOverlayPart extends Part {
 	private _webviewService: WebviewService | undefined;
 	private closeHandler: ((event: MouseEvent) => void) | undefined;
 
-	private state: "loading" | "open" | "closed" | "overlay_closed_creator_active" = "loading";
+	private state: keyof typeof overlayStates = "loading";
 	private _isLocked: boolean = false;
 	private initializedWebview: boolean = false;
 
@@ -305,6 +432,10 @@ export class CreatorOverlayPart extends Part {
 		this.overlayContainer.classList.add("pearcreatoroverlay-part-container");
 		this.overlayContainer.style.backgroundColor = "transparent";
 
+		// setting the styling to whatever the current state is
+		const currentState = overlayStates[this.state];
+		Object.assign(this.overlayContainer.style, currentState.overlayContainer);
+
 		// The container must be at the top level of the document
 		document.body.appendChild(this.overlayContainer);
 
@@ -342,31 +473,35 @@ export class CreatorOverlayPart extends Part {
 				throw new Error("webviewElement is not initialized");
 			}
 
-			// Create animation elements if they don't exist
-			const topOfBodyElement = this.getTopOfBodyElement();
-			const blurryElement = this.getBlurOverlayElement();
-
-			// Before animation, ensure the elements are visible but at starting position
-			topOfBodyElement.style.display = "block";
-			topOfBodyElement.style.height = "0";
-			blurryElement.style.display = "block";
-			blurryElement.style.opacity = "0";
-
 			if (this.state === "open" || !this.overlayContainer) {
 				this.openInProgress = false;
 				return;
 			}
 
-			console.log("Opening overlay view");
-			this.state = "open";
-
-			// Show our overlay container
-			this.overlayContainer.style.display = "block";
-			this.overlayContainer.style.zIndex = "998"; // Match existing CSS
-
-			// Mount the webview to our overlay container - this is the key
-			console.log("Mounting webview to overlay container");
 			this.webviewElement.mountTo(this.overlayContainer, getActiveWindow());
+
+			console.log("Opening overlay view");
+			await new Promise<void>((resolve) => {
+				let resolved = false;
+				setTimeout(() => {
+					if (!resolved) {
+						console.error("Timeout on webview, didn't load in time");
+						resolve();
+					}
+				}, 1500);
+				this.webviewElement!.onMessage(async (e) => {
+					if (
+						e.message.messageType === "loaded" ||
+						e.message.messageType === "pong"
+					) {
+						resolved = true;
+						resolve();
+					}
+				});
+				this.webviewElement!.postMessage({ messageType: "ping" });
+			});
+			this.sendThemeColorsToWebview();
+			this.sendStateToWebview("open");
 
 			// Remove previous click handler if exists
 			if (this.closeHandler) {
@@ -390,53 +525,76 @@ export class CreatorOverlayPart extends Part {
 
 			this.focus();
 
-			await new Promise<void>((resolve) => {
-				let resolved = false;
-				setTimeout(() => {
-					if (!resolved) {
-						console.error("Timeout on webview, didn't load in time");
-						this.sendThemeColorsToWebview();
-						resolve();
-					}
-				}, 1500);
-				this.webviewElement!.postMessage({ messageType: "ping" });
-				this.webviewElement!.onMessage(async (e) => {
-					if (
-						e.message.messageType === "loaded" ||
-						e.message.messageType === "pong"
-					) {
-						this.sendThemeColorsToWebview();
-						resolved = true;
-						resolve();
-					}
-				});
-			});
-			this.updateEnterCreatorButton("down");
-			await this.handleSlideAnimation(CREATOR_OPEN_OVERLAY_HEIGHT, true); // Use 90vh for full overlay with blur
+			await this.handleStateTransition("open");
 		} finally {
 			this.openInProgress = false;
 		}
 	}
 
 	/**
-	 * Closes the creator overlay, but doesn't exit creator mode
+	 * This handles the vscode command to enter creator mode
+	 * This relies on the submodule sending the plan to roo code, then the submodule is to call this to hide the overlay
+	 * but keeping top right hand corner exit creator mode button active
 	 */
-	private closeOverlay() {
+	progressToNextStage() {
+		this.handleStateTransition("overlay_closed_creator_active").then(() => {
+			this.state = "overlay_closed_creator_active";
+
+			// Apply creator active state styles
+			const activeState = overlayStates.overlay_closed_creator_active;
+
+			// Apply container styles
+			if (this.overlayContainer) {
+				Object.assign(
+					this.overlayContainer.style,
+					activeState.overlayContainer,
+				);
+			}
+
+			// Apply top body styles
+			const topOfBodyElement = this.getTopOfBodyElement();
+			Object.assign(topOfBodyElement.style, activeState.topOfBody);
+
+			// Apply blur element styles
+			const blurryElement = this.getBlurOverlayElement();
+			Object.assign(blurryElement.style, activeState.blurElement);
+
+			CommandEmitter.emit("workbench.action.enterCreatorMode");
+		});
+	}
+
+	/**
+	 * Close exits the creator mode in it's entirety
+	 */
+	private close() {
+		if (this.state === "overlay_closed_creator_active") {
+			CommandEmitter.emit("workbench.action.exitCreatorMode");
+			// TODO: exit the creator mode view
+		}
 		return new Promise<void>((resolve) => {
 			if (this.isLocked || this.state === "closed" || !this.overlayContainer) {
 				return;
 			}
 
 			// Add a slide-up animation when closing
-			this.handleSlideAnimation(0, false).then(() => {
+			this.handleStateTransition("closed").then(() => {
+				const closedState = overlayStates.closed;
 
-				// Hide our overlay container (which hides the webview)
-				this.overlayContainer!.style.display = "none";
-				this.overlayContainer!.style.zIndex = "-10"; // Reset to original value
+				// Apply container styles
+				if (this.overlayContainer) {
+					Object.assign(
+						this.overlayContainer.style,
+						closedState.overlayContainer,
+					);
+				}
 
-				// Hide animation elements
+				// Apply top body styles
 				const topOfBodyElement = this.getTopOfBodyElement();
-				topOfBodyElement.style.height = "0";
+				Object.assign(topOfBodyElement.style, closedState.topOfBody);
+
+				// Apply blur element styles
+				const blurryElement = this.getBlurOverlayElement();
+				Object.assign(blurryElement.style, closedState.blurElement);
 
 				// Focus the active editor
 				this._editorGroupsService.activeGroup.focus();
@@ -448,34 +606,7 @@ export class CreatorOverlayPart extends Part {
 		});
 	}
 
-	/**
-	 * This handles the vscode command to enter creator mode
-	 * This relies on the submodule sending the plan to roo code, then the submodule is to call this to hide the overlay
-	 * but keeping top right hand corner exit creator mode button active
-	 */
-	progressToNextStage() {
-		this.handleSlideAnimation(CREATOR_OPEN_OVERLAY_CLOSED_HEIGHT, false).then(() => {
-			this.state = "overlay_closed_creator_active";
-			CommandEmitter.emit("workbench.action.enterCreatorMode");
-		})
-	}
-
-	/**
-	 * Close exits the creator mode in it's entirety
-	 */
-	private close() {
-		this.updateEnterCreatorButton("up");
-		if(this.state === "overlay_closed_creator_active") {
-			CommandEmitter.emit("workbench.action.exitCreatorMode");
-			// TODO: exit the creator mode view
-		} else if(this.state === "open") {
-			this.closeOverlay().then(() => {
-				this.state = "closed";
-			})
-		}
-	}
-
-	private updateEnterCreatorButton(direction: "up" | "down") {
+	private updateEnterCreatorButton() {
 		const enterCreatorButton = document.querySelector(
 			ENTER_CREATOR_MODE_BTN_IDENTIFIER,
 		) as HTMLElement;
@@ -499,27 +630,17 @@ export class CreatorOverlayPart extends Part {
 			return;
 		}
 
-		if (direction === "up") {
-			// Fade out the icon and reset its position
-			iconElement.style.opacity = "0";
-			iconElement.style.left = "6px";
-			iconElement.style.transform = "none";
+		// Use the predefined states based on direction
+		const buttonState = overlayStates[this.state];
 
-			// Expand the button width and show text
-			enterCreatorButton.style.width = "110px"; // Changed from auto to fixed width
-			textElement.style.opacity = "1";
-		} else {
-			// Fade out the text first (faster transition set in createCreatorModeButton)
-			textElement.style.opacity = "0";
+		// Apply the state
+		enterCreatorButton.style.width = buttonState.exitButton.width;
 
-			// Collapse the button width
-			enterCreatorButton.style.width = "30px"; // Changed from 20px to 30px
+		// Apply icon styles
+		Object.assign(iconElement.style, buttonState.exitButtonIcon);
 
-			// Move the icon to center position and fade it in
-			iconElement.style.left = "50%";
-			iconElement.style.transform = "translateX(-50%)";
-			iconElement.style.opacity = "1";
-		}
+		// Apply text styles
+		Object.assign(textElement.style, buttonState.exitButtonText);
 	}
 
 	focus(): void {
@@ -545,7 +666,7 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	toggle(): void {
-		switch(this.state) {
+		switch (this.state) {
 			case "overlay_closed_creator_active":
 			case "open":
 				this.close();
@@ -583,6 +704,7 @@ export class CreatorOverlayPart extends Part {
 			topOfBodyElement.style.position = "relative";
 			topOfBodyElement.style.top = "0";
 			topOfBodyElement.style.left = "0";
+			topOfBodyElement.style.height = "0vh";
 			topOfBodyElement.style.width = "100%";
 			topOfBodyElement.style.display = "block";
 			topOfBodyElement.style.overflow = "hidden";
@@ -601,6 +723,7 @@ export class CreatorOverlayPart extends Part {
 			.getColor("editor.background");
 		topOfBodyElement.style.backgroundColor =
 			backgroundColor?.toString() || "#1E1E1E";
+
 
 		return topOfBodyElement;
 	}
@@ -678,50 +801,98 @@ export class CreatorOverlayPart extends Part {
 		return blurOverlayElement;
 	}
 
-	private handleSlideAnimation(targetVh: number, showBlur: boolean): Promise<void> {
-		return new Promise((resolve) => {
-			// Post message to webview for animation
-			if (this.webviewElement) {
-				try {
-					this.webviewElement.postMessage({
-						messageType: "overlayAnimation",
-						data: { targetHeightOffset: targetVh - CREATOR_OPEN_OVERLAY_HEIGHT },
-					});
-				} catch (e) {
-					console.warn("Failed to post animation message to webview:", e);
+	private async handleStateTransition(
+		targetState: keyof typeof overlayStates,
+	): Promise<void> {
+		// Get the target state configuration
+		const stateConfig = overlayStates[targetState];
+
+		// Update the state first
+		this.state = targetState;
+		this.updateEnterCreatorButton();
+
+		// Send both the target state and overlay states to the webview
+		this.sendStateToWebview(targetState);
+
+		// Create the container element for slide animation
+		const topOfBodyElement = this.getTopOfBodyElement();
+		const blurryElement = this.getBlurOverlayElement();
+
+		// Set initial height based on current state
+		const currentHeight = topOfBodyElement.style.height;
+		topOfBodyElement.style.height = currentHeight || "0";
+
+		// Force layout reflow before starting animation
+		void topOfBodyElement.offsetWidth;
+
+		// Apply the state styles
+		Object.assign(this.overlayContainer!.style, stateConfig.overlayContainer);
+		Object.assign(topOfBodyElement.style, stateConfig.topOfBody);
+		Object.assign(blurryElement.style, stateConfig.blurElement);
+
+		// Update the enter creator button if it exists
+		const enterCreatorButton = document.querySelector(
+			ENTER_CREATOR_MODE_BTN_IDENTIFIER,
+		) as HTMLElement;
+
+		if (enterCreatorButton) {
+			// Find the text and icon elements within the button
+			const textElement = enterCreatorButton.querySelector(
+				'span:not([style*="position: absolute"])',
+			) as HTMLElement;
+			const iconElement = enterCreatorButton.querySelector(
+				'span[style*="position: absolute"]',
+			) as HTMLElement;
+
+			if (textElement && iconElement && stateConfig.exitButton) {
+				// Apply the button styles
+				Object.assign(enterCreatorButton.style, {
+					width: stateConfig.exitButton.width,
+				});
+
+				// Apply icon styles if they exist
+				if (stateConfig.exitButtonIcon) {
+					Object.assign(iconElement.style, stateConfig.exitButtonIcon);
+				}
+
+				// Apply text styles if they exist
+				if (stateConfig.exitButtonText) {
+					Object.assign(textElement.style, stateConfig.exitButtonText);
 				}
 			}
+		}
 
-			// Create the container element for slide animation
-			const topOfBodyElement = this.getTopOfBodyElement();
-			const blurryElement = this.getBlurOverlayElement();
+		console.log(
+			"Animation started - transitioning to state:",
+			targetState,
+			"height:",
+			stateConfig.topOfBody.height,
+		);
 
-			// Set initial height based on current state
-			const currentHeight = topOfBodyElement.style.height;
-			topOfBodyElement.style.height = currentHeight || "0";
-
-			// Force layout reflow before starting animation
-			void topOfBodyElement.offsetWidth;
-
-			if (!topOfBodyElement || !topOfBodyElement.parentNode) {
-				console.warn("topOfBodyElement not found in request animation frame");
-				return resolve();
-			}
-
-			// Animate to target height
-			topOfBodyElement.style.height = `${targetVh}vh`;
-
-			// Animate blur effect
-			blurryElement.style.opacity = showBlur ? "1" : "0";
-
-			console.log(
-				"Animation started - height change to:",
-				`${targetVh}vh, blur: ${showBlur}`,
-			);
-
+		await new Promise<void>((resolve) => {
 			// Set a single timeout for animation completion
 			setTimeout(() => resolve(), 500); // Match the transition duration
 		});
+
+		// Hiding the overlay container after we've done all the animations
+		if (this.overlayContainer) {
+			// Apply all container styles from the state config
+			Object.assign(this.overlayContainer.style, stateConfig.overlayContainer);
+		}
+	}
+
+	private sendStateToWebview(targetState?: keyof typeof overlayStates) {
+		if (this.webviewElement) {
+			this.webviewElement.postMessage({
+				messageType: "stateUpdate",
+				data: {
+					targetState: targetState ?? this.state,
+					overlayStates,
+				},
+			});
+		} else {
+			throw new Error("Webview element not initialized");
+		}
 	}
 
 	toJSON(): object {
