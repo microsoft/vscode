@@ -1,3 +1,4 @@
+/* Base - bubbly parts */
 .bubbly-part {
 	border-radius: 12px;
 	box-sizing: border-box;
@@ -13,8 +14,7 @@
 	box-sizing: border-box;
 }
 
-/* Panel styling */
-
+/* Panel (bottom bar) */
 .bubbly-part .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
 	text-transform: none !important;
 }
@@ -43,6 +43,20 @@
 	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
+.bubbly-part.part.panel {
+	background: var(--vscode-editor-background) !important;
+	--vscode-panel-background: var(--vscode-editor-background);
+}
+
+/* Style the terminal to be the same color as panel*/
+.bubbly-part .terminal .xterm-scrollable-element {
+	background-color: var(--vscode-editor-background) !important;
+}
+
+.bubbly-part .terminal-wrapper {
+	background: var(--vscode-editor-background);
+}
+
 /* Sash */
 /* Globally, we will hide the sash */
 .monaco-split-view2 > .sash-container > .monaco-sash {
@@ -50,8 +64,7 @@
 	background: transparent;
 }
 
-/* Editor tabs/files */
-
+/* Editor - tabs/files */
 .bubbly-part .bubbly-editor-parent {
 	background: var(--vscode-editorGroupHeader-tabsBackground);
 }
