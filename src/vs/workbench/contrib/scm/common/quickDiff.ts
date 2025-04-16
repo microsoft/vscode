@@ -70,7 +70,6 @@ export interface QuickDiffProvider {
 	label: string;
 	rootUri: URI | undefined;
 	selector?: LanguageSelector;
-	isSCM: boolean;
 	visible: boolean;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 	getOriginalResource(uri: URI): Promise<URI | null>;
@@ -79,7 +78,6 @@ export interface QuickDiffProvider {
 export interface QuickDiff {
 	label: string;
 	originalResource: URI;
-	isSCM: boolean;
 	visible: boolean;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 }
