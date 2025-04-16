@@ -223,7 +223,7 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 					flags,
 				},
 				signing: {
-					allRepositorySigned: true,
+					allPublicRepositorySigned: true,
 				}
 			}
 		};
