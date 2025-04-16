@@ -12,13 +12,12 @@ import { Range } from '../core/range.js';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides.js';
 import { ModelDecorationOptions } from '../model/textModel.js';
-import { LineFontSegment, LineInjectedText } from '../textModelEvents.js';
+import { LineInjectedText } from '../textModelEvents.js';
 import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
-import { ICoordinatesConverter, ICustomFontChangeAccessor, InlineDecoration, InlineDecorationType, ViewLineData } from '../viewModel.js';
-import { CustomFontsManager } from './customFontsManager.js';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { isModelDecorationVisible } from './viewModelDecorations.js';
 
@@ -37,10 +36,6 @@ export interface IViewModelLines extends IDisposable {
 	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
 	onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
 	acceptVersionId(versionId: number): void;
-	changeCustomFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void;
-	getFontInfoForPosition(position: Position): FontInfo;
-	getFontSegmentsForLine(lineNumber: number): LineFontSegment[];
-	hasFontDecorations(lineNumber: number): boolean;
 
 	getViewLineCount(): number;
 	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
@@ -75,8 +70,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private _validModelVersionId: number;
 
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	private readonly _customFontsManager: CustomFontsManager;
+	// private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
 
 	private fontInfo: FontInfo;
 	private tabSize: number;
@@ -93,7 +87,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
 	private hiddenAreasDecorationIds!: string[];
-
 	private config: IEditorConfiguration;
 	private coordinatesConverter: ICoordinatesConverter;
 	private context: IViewModelLinesFromProjectedModelContext;
@@ -117,7 +110,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.context = context;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		// this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
 		this.config = config;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
@@ -125,7 +118,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
-		this._customFontsManager = new CustomFontsManager(fontInfo);
 		this.coordinatesConverter = new CoordinatesConverter(this);
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -136,22 +128,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
 		return this.coordinatesConverter;
-	}
-
-	public changeCustomFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void {
-		this._customFontsManager.changeFonts(callback);
-	}
-
-	public getFontInfoForPosition(position: Position): FontInfo {
-		return this._customFontsManager.getFontForPosition(position);
-	}
-
-	public getFontSegmentsForLine(lineNumber: number): LineFontSegment[] {
-		return this._customFontsManager.getFontSegmentsForLine(lineNumber);
-	}
-
-	public hasFontDecorations(lineNumber: number): boolean {
-		return this._customFontsManager.hasFontDecorations(lineNumber);
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
@@ -1200,20 +1176,6 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public dispose(): void {
-	}
-
-	public changeCustomFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void { }
-
-	public getFontInfoForPosition(position: Position): FontInfo {
-		return this.defaultFontInfo;
-	}
-
-	public getFontSegmentsForLine(lineNumber: number): LineFontSegment[] {
-		return [];
-	}
-
-	public hasFontDecorations(lineNumber: number): boolean {
-		return false;
 	}
 
 	public createCoordinatesConverter(): ICoordinatesConverter {

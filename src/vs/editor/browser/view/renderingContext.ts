@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FontInfo } from '../../common/config/fontInfo.js';
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
-import { ViewContext } from '../../common/viewModel/viewContext.js';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
@@ -76,13 +74,11 @@ export abstract class RestrictedRenderingContext {
 export class RenderingContext extends RestrictedRenderingContext {
 	_renderingContextBrand: void = undefined;
 
-	private readonly _context: ViewContext;
 	private readonly _viewLines: IViewLines;
 	private readonly _viewLinesGpu?: IViewLines;
 
-	constructor(viewContext: ViewContext, viewportData: ViewportData, viewLines: IViewLines, viewLinesGpu?: IViewLines) {
-		super(viewContext.viewLayout, viewportData);
-		this._context = viewContext;
+	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines, viewLinesGpu?: IViewLines) {
+		super(viewLayout, viewportData);
 		this._viewLines = viewLines;
 		this._viewLinesGpu = viewLinesGpu;
 	}
@@ -104,10 +100,6 @@ export class RenderingContext extends RestrictedRenderingContext {
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
 		return this._viewLines.visibleRangeForPosition(position) ?? this._viewLinesGpu?.visibleRangeForPosition(position) ?? null;
-	}
-
-	public getFontInfoForPosition(position: Position): FontInfo {
-		return this._context.viewModel.getFontInfoForPosition(position);
 	}
 }
 

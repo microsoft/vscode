@@ -601,7 +601,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
-	fontSize: 'font-size:min({0}px, var(--vscode-max-font-size, {0}px));',
+	fontSize: 'font-size:{0};',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',

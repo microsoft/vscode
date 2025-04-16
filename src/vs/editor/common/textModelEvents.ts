@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FontInfo } from './config/fontInfo.js';
 import { IRange } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
@@ -227,18 +226,6 @@ export class FontDecoration {
 }
 
 /**
- * An event describing that a model has been reset to a new value.
- * @internal
- */
-export class LineFontSegment {
-	constructor(
-		public readonly startColumn: number,
-		public readonly endColumn: number,
-		public readonly fontInfo: FontInfo,
-	) { }
-}
-
-/**
  * An event describing that a line has changed in a model.
  * @internal
  */
@@ -263,6 +250,7 @@ export class ModelRawLineChanged {
 		this.injectedText = injectedText;
 	}
 }
+
 
 /**
  * An event describing that a line height has changed in the model.

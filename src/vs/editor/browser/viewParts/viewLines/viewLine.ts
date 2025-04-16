@@ -50,7 +50,6 @@ let monospaceAssumptionsAreValid = true;
 export class ViewLine implements IVisibleLine {
 
 	public static readonly CLASS_NAME = 'view-line';
-	// public static MAX_FONT_SIZE_VARIABLE_NAME = '--vscode-max-font-size';
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
@@ -193,7 +192,7 @@ export class ViewLine implements IVisibleLine {
 		console.log('renderViewLine sb : ', sb.build());
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		const fontDecorationsExistOnLine = this._viewContext.viewModel.hasFontDecorations(lineNumber);
+		const fontDecorationsExistOnLine = this._viewContext.viewModel.model.getFontDecorations(lineNumber).length > 0;
 		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,

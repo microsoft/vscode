@@ -71,7 +71,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, mo
 		}
 	}
 	const options = config.options;
-	const fontInfo = config.options.get(EditorOption.fontInfo);
+	const fontInfo = options.get(EditorOption.fontInfo);
 	const wrappingIndent = options.get(EditorOption.wrappingIndent);
 	const firstLineBreakColumn = options.get(EditorOption.wrappingInfo).wrappingColumn;
 	const wordBreak = options.get(EditorOption.wordBreak);

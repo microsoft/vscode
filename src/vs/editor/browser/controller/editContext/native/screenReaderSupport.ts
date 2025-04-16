@@ -137,7 +137,8 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const fontInfo = this._context.viewModel.getFontInfoForPosition(position);
+		// const fontInfo = this._context.viewModel.getFontInfoForPosition(position);
+		const fontInfo = this._fontInfo;
 		const lineNumberWithinState = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
 		const scrollTop = lineNumberWithinState * lineHeight;
 		const left = this._computeLeftOffset(position, this._primaryCursorVisibleRange, fontInfo);

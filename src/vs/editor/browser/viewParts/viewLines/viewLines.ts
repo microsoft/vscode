@@ -151,7 +151,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const model = viewModel.model;
 		this._visibleLines = new VisibleLinesCollection(this._context, {
 			createLine: (lineNumber: number) => {
-				const hasFontDecorations = viewModel.hasFontDecorations(lineNumber);
+				const hasFontDecorations = model.getFontDecorations(lineNumber).length > 0;
 				if (hasFontDecorations) {
 					return new ViewLine(viewGpuContext, context, this._modifiedViewLineOptions);
 				}
@@ -257,7 +257,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			const endLineNumber = this._visibleLines.getEndLineNumber();
 			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 				const line = this._visibleLines.getVisibleLine(lineNumber);
-				const hasFontDecorations = this._context.viewModel.hasFontDecorations(lineNumber);
+				const hasFontDecorations = this._context.viewModel.model.getFontDecorations(lineNumber).length > 0;
 				if (hasFontDecorations) {
 					line.onOptionsChanged(this._modifiedViewLineOptions);
 				} else {

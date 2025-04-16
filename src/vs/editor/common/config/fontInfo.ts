@@ -150,22 +150,6 @@ export class BareFontInfo {
 		return fontFamily;
 	}
 
-	/**
-	 * @internal
-	 */
-	public equals(other: BareFontInfo): boolean {
-		return (
-			this.pixelRatio === other.pixelRatio
-			&& this.fontFamily === other.fontFamily
-			&& this.fontWeight === other.fontWeight
-			&& this.fontSize === other.fontSize
-			&& this.fontFeatureSettings === other.fontFeatureSettings
-			&& this.fontVariationSettings === other.fontVariationSettings
-			&& this.lineHeight === other.lineHeight
-			&& this.letterSpacing === other.letterSpacing
-		);
-	}
-
 	private static _wrapInQuotes(fontFamily: string): string {
 		if (/[,"']/.test(fontFamily)) {
 			// Looks like the font family might be already escaped
@@ -232,7 +216,7 @@ export class FontInfo extends BareFontInfo {
 	/**
 	 * @internal
 	 */
-	public override equals(other: FontInfo): boolean {
+	public equals(other: FontInfo): boolean {
 		return (
 			this.fontFamily === other.fontFamily
 			&& this.fontWeight === other.fontWeight
