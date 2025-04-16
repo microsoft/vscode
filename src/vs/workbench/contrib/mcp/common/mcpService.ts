@@ -100,7 +100,7 @@ export class McpService extends Disposable implements IMcpService {
 					id: tool.id,
 					source: { type: 'mcp', label: server.definition.label, collectionId: server.collection.id, definitionId: server.definition.id },
 					icon: Codicon.tools,
-					displayName: tool.definition.name,
+					displayName: tool.definition.annotations?.title || tool.definition.name,
 					toolReferenceName: tool.definition.name,
 					modelDescription: tool.definition.description ?? '',
 					userDescription: tool.definition.description ?? '',
@@ -228,14 +228,17 @@ class McpToolImplementation implements IToolImpl {
 			this._productService.nameShort
 		);
 
+		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
+		const title = tool.definition.annotations?.title || ('`' + tool.definition.name + '`');
+
 		return {
-			confirmationMessages: {
-				title: localize('msg.title', "Run `{0}`", tool.definition.name, server.definition.label),
+			confirmationMessages: needsConfirmation ? {
+				title: localize('msg.title', "Run {0}", title),
 				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
 				allowAutoConfirm: true,
-			},
-			invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
-			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label)),
+			} : undefined,
+			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
+			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
 			toolSpecificData: {
 				kind: 'input',
 				rawInput: parameters
