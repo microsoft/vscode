@@ -82,68 +82,38 @@ class QuickDiffDecorator extends Disposable {
 		const minimap = decorations === 'all' || decorations === 'minimap';
 
 		const diffAdded = nls.localize('diffAdded', 'Added lines');
-		this.addedOptions = QuickDiffDecorator.createDecoration('dirty-diff-added', diffAdded, {
+		const diffAddedOptions = {
 			gutter,
 			overview: { active: overview, color: overviewRulerAddedForeground },
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
-		});
-		this.addedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-added-secondary', diffAdded, {
-			gutter,
-			overview: { active: overview, color: overviewRulerAddedForeground },
-			minimap: { active: minimap, color: minimapGutterAddedBackground },
-			isWholeLine: true
-		});
-		this.addedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added-pattern', diffAdded, {
-			gutter,
-			overview: { active: overview, color: overviewRulerAddedForeground },
-			minimap: { active: minimap, color: minimapGutterAddedBackground },
-			isWholeLine: true
-		});
-		this.addedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added-secondary-pattern', diffAdded, {
-			gutter,
-			overview: { active: overview, color: overviewRulerAddedForeground },
-			minimap: { active: minimap, color: minimapGutterAddedBackground },
-			isWholeLine: true
-		});
+		};
+		this.addedOptions = QuickDiffDecorator.createDecoration('dirty-diff-added primary', diffAdded, diffAddedOptions);
+		this.addedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added primary pattern', diffAdded, diffAddedOptions);
+		this.addedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary', diffAdded, diffAddedOptions);
+		this.addedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary pattern', diffAdded, diffAddedOptions);
+
 		const diffModified = nls.localize('diffModified', 'Changed lines');
-		this.modifiedOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified', diffModified, {
+		const diffModifiedOptions = {
 			gutter,
 			overview: { active: overview, color: overviewRulerModifiedForeground },
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
-		});
-		this.modifiedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified-secondary', diffModified, {
-			gutter,
-			overview: { active: overview, color: overviewRulerModifiedForeground },
-			minimap: { active: minimap, color: minimapGutterModifiedBackground },
-			isWholeLine: true
-		});
-		this.modifiedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified-pattern', diffModified, {
-			gutter,
-			overview: { active: overview, color: overviewRulerModifiedForeground },
-			minimap: { active: minimap, color: minimapGutterModifiedBackground },
-			isWholeLine: true
-		});
-		this.modifiedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified-secondary-pattern', diffModified, {
-			gutter,
-			overview: { active: overview, color: overviewRulerModifiedForeground },
-			minimap: { active: minimap, color: minimapGutterModifiedBackground },
-			isWholeLine: true
-		});
+		};
+		this.modifiedOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified primary', diffModified, diffModifiedOptions);
+		this.modifiedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified primary pattern', diffModified, diffModifiedOptions);
+		this.modifiedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary', diffModified, diffModifiedOptions);
+		this.modifiedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary pattern', diffModified, diffModifiedOptions);
+
 		const diffDeleted = nls.localize('diffDeleted', 'Removed lines');
-		this.deletedOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted', diffDeleted, {
+		const diffDeletedOptions = {
 			gutter,
 			overview: { active: overview, color: overviewRulerDeletedForeground },
 			minimap: { active: minimap, color: minimapGutterDeletedBackground },
 			isWholeLine: false
-		});
-		this.deletedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted-secondary', diffDeleted, {
-			gutter,
-			overview: { active: overview, color: overviewRulerDeletedForeground },
-			minimap: { active: minimap, color: minimapGutterDeletedBackground },
-			isWholeLine: false
-		});
+		};
+		this.deletedOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted primary', diffDeleted, diffDeletedOptions);
+		this.deletedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted secondary', diffDeleted, diffDeletedOptions);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.diffDecorationsGutterPattern')) {
@@ -310,31 +280,18 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		this.viewState = state;
 		this.stylesheet.textContent = `
 			.monaco-editor .dirty-diff-added,
-			.monaco-editor .dirty-diff-added-secondary,
-			.monaco-editor .dirty-diff-modified,
-			.monaco-editor .dirty-diff-modified-secondary {
+			.monaco-editor .dirty-diff-modified {
 				border-left-width:${state.width}px;
 			}
-			.monaco-editor .dirty-diff-added-pattern,
-			.monaco-editor .dirty-diff-added-pattern:before,
-			.monaco-editor .dirty-diff-added-secondary-pattern,
-			.monaco-editor .dirty-diff-added-secondary-pattern:before,
-			.monaco-editor .dirty-diff-modified-pattern,
-			.monaco-editor .dirty-diff-modified-pattern:before,
-			.monaco-editor .dirty-diff-modified-secondary-pattern,
-			.monaco-editor .dirty-diff-modified-secondary-pattern:before {
+			.monaco-editor .dirty-diff-added.pattern,
+			.monaco-editor .dirty-diff-added.pattern:before,
+			.monaco-editor .dirty-diff-modified.pattern,
+			.monaco-editor .dirty-diff-modified.pattern:before {
 				background-size: ${state.width}px ${state.width}px;
 			}
 			.monaco-editor .dirty-diff-added,
-			.monaco-editor .dirty-diff-added-secondary,
-			.monaco-editor .dirty-diff-added-pattern,
-			.monaco-editor .dirty-diff-added-secondary-pattern,
 			.monaco-editor .dirty-diff-modified,
-			.monaco-editor .dirty-diff-modified-secondary,
-			.monaco-editor .dirty-diff-modified-pattern,
-			.monaco-editor .dirty-diff-modified-secondary-pattern,
-			.monaco-editor .dirty-diff-deleted,
-			.monaco-editor .dirty-diff-deleted-secondary {
+			.monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};
 			}
 		`;
