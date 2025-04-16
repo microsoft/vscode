@@ -34,7 +34,8 @@ export const enum TerminalShellType {
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
-	Python = 'python'
+	Python = 'python',
+	GitBash = 'gitbash',
 }
 
 const isWindows = osIsWindows();
@@ -323,7 +324,7 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 		case 'bash':
 			return TerminalShellType.Bash;
 		case 'gitbash':
-			return TerminalShellType.Bash;
+			return TerminalShellType.GitBash;
 		case 'zsh':
 			return TerminalShellType.Zsh;
 		case 'pwsh':
