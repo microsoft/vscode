@@ -9,11 +9,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { ILocalizedString, localize2 } from '../../../../../../nls.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../../nls.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
-import { runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
+import { IRunPromptOptions, runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
@@ -25,6 +25,11 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
+import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
+import { OS } from '../../../../../../base/common/platform.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -45,6 +50,10 @@ const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
  */
 const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
 
+/**
+ * Action ID for the `Run Prompt...` action.
+ */
+const RUN_SELECTED_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt';
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -172,6 +181,60 @@ class RunCurrentPromptAction extends RunPromptBaseAction {
 	}
 }
 
+class RunSelectedPromptAction extends Action2 {
+	constructor() {
+		super({
+			id: RUN_SELECTED_PROMPT_ACTION_ID,
+			title: localize2('run-prompt.capitalized.ellipses', "Run Prompt..."),
+			icon: Codicon.bookmark,
+			f1: true,
+			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			keybinding: {
+				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: COMMAND_KEY_BINDING,
+			},
+			category: CHAT_CATEGORY,
+		});
+	}
+
+	public override async run(
+		accessor: ServicesAccessor,
+	): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const promptsService = accessor.get(IPromptsService);
+		const commandService = accessor.get(ICommandService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const pickers = instaService.createInstance(PromptFilePickers);
+
+		// find all prompt files in the user workspace
+		const promptFiles = await promptsService.listPromptFiles('prompt');
+		const placeholder = localize(
+			'commands.prompt.select-dialog.placeholder',
+			'Select the prompt file to run (hold {0}-key to use in new chat)',
+			UILabelProvider.modifierLabels[OS].ctrlKey
+		);
+
+		const result = await pickers.selectPromptFile({ promptFiles, placeholder });
+
+		if (result !== undefined) {
+			const { promptFile, keyMods } = result;
+			const runPromptOptions: IRunPromptOptions = {
+				inNewChat: keyMods.ctrlCmd,
+				viewsService,
+				commandService,
+			};
+			const { widget } = await runPromptFile(
+				promptFile,
+				runPromptOptions,
+			);
+			widget.focusInput();
+		}
+	}
+}
+
+
 /**
  * Gets `URI` of a prompt file open in an active editor instance, if any.
  */
@@ -233,4 +296,5 @@ class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 export const registerRunPromptActions = () => {
 	registerAction2(RunCurrentPromptAction);
 	registerAction2(RunCurrentPromptInNewChatAction);
+	registerAction2(RunSelectedPromptAction);
 };

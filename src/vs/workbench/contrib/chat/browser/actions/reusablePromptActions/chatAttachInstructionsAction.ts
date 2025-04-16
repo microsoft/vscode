@@ -4,23 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CHAT_CATEGORY } from '../chatActions.js';
-import { localize2 } from '../../../../../../nls.js';
+import { localize, localize2 } from '../../../../../../nls.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
-import { ISelectInstructionsOptions, askToSelectInstructions } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IChatWidget } from '../../chat.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -30,14 +28,21 @@ const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions
 /**
  * Options for the {@link AttachInstructionsAction} action.
  */
-export interface IChatAttachInstructionsActionOptions extends Pick<
-	ISelectInstructionsOptions, 'resource' | 'widget'
-> {
+export interface IAttachInstructionsActionOptions {
+
 	/**
-	 * Whether to create a new chat panel or open
-	 * an existing one (if present).
+	 * Target chat widget reference to attach the instruction to. If the reference is
+	 * provided, the command will attach the instruction as attachment of the widget.
+	 * Otherwise, the command will re-use an existing one.
 	 */
-	inNewChat?: boolean;
+	readonly widget?: IChatWidget;
+
+	/**
+	 * Instruction resource `URI` to attach to the chat input, if any.
+	 * If provided the resource will be pre-selected in the prompt picker dialog,
+	 * otherwise the dialog will show the prompts list without any pre-selection.
+	 */
+	readonly resource?: URI;
 
 	/**
 	 * Whether to skip the instructions files selection dialog.
@@ -45,7 +50,7 @@ export interface IChatAttachInstructionsActionOptions extends Pick<
 	 * Note! if this option is set to `true`, the {@link resource}
 	 * option `must be defined`.
 	 */
-	skipSelectionDialog?: boolean;
+	readonly skipSelectionDialog?: boolean;
 }
 
 /**
@@ -64,30 +69,28 @@ class AttachInstructionsAction extends Action2 {
 
 	public override async run(
 		accessor: ServicesAccessor,
-		options: IChatAttachInstructionsActionOptions,
+		options: IAttachInstructionsActionOptions,
 	): Promise<void> {
-		const fileService = accessor.get(IFileService);
-		const labelService = accessor.get(ILabelService);
 		const viewsService = accessor.get(IViewsService);
-		const openerService = accessor.get(IOpenerService);
-		const dialogService = accessor.get(IDialogService);
 		const promptsService = accessor.get(IPromptsService);
 		const commandService = accessor.get(ICommandService);
-		const quickInputService = accessor.get(IQuickInputService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const pickers = instaService.createInstance(PromptFilePickers);
 
 		const { skipSelectionDialog, resource } = options;
+
+		const attachOptions: IAttachOptions = {
+			widget: options.widget,
+			viewsService,
+			commandService,
+		};
 
 		if (skipSelectionDialog === true) {
 			assertDefined(
 				resource,
 				'Resource must be defined when skipping prompt selection dialog.',
 			);
-
-			const attachOptions: IAttachOptions = {
-				...options,
-				viewsService,
-				commandService,
-			};
 
 			const { widget } = await attachInstructionsFiles(
 				[resource],
@@ -101,18 +104,20 @@ class AttachInstructionsAction extends Action2 {
 
 		// find all prompt files in the user workspace
 		const promptFiles = await promptsService.listPromptFiles('instructions');
+		const placeholder = localize(
+			'commands.instructions.select-dialog.placeholder',
+			'Select instructions files to attach',
+		);
 
-		await askToSelectInstructions({
-			...options,
-			promptFiles,
-			fileService,
-			viewsService,
-			labelService,
-			dialogService,
-			openerService,
-			commandService,
-			quickInputService,
-		});
+		const instructions = await pickers.selectInstructionsFiles({ promptFiles, placeholder });
+
+		if (instructions !== undefined) {
+			const { widget } = await attachInstructionsFiles(
+				instructions,
+				attachOptions,
+			);
+			widget.focusInput();
+		}
 	}
 }
 
@@ -122,7 +127,7 @@ class AttachInstructionsAction extends Action2 {
  * encapsulate/enforce the correct options to be passed to the action.
  */
 export const runAttachInstructionsAction = async (
-	options: IChatAttachInstructionsActionOptions,
+	options: IAttachInstructionsActionOptions,
 	commandService: ICommandService,
 ): Promise<void> => {
 	return await commandService.executeCommand(
