@@ -42,6 +42,31 @@ suite('SSEParser', () => {
 		assert.strictEqual(receivedEvents[0].type, 'custom');
 		assert.strictEqual(receivedEvents[0].data, 'hello world');
 	});
+	test('handles events with explicit event type (CRLF)', () => {
+		parser.feed(toUint8Array('event: custom\r\ndata: hello world\r\n\r\n'));
+
+		assert.strictEqual(receivedEvents.length, 1);
+		assert.strictEqual(receivedEvents[0].type, 'custom');
+		assert.strictEqual(receivedEvents[0].data, 'hello world');
+	});
+	test('stream processing chunks', () => {
+		for (const lf of ['\n', '\r\n', '\r']) {
+			const message = toUint8Array(`event: custom${lf}data: hello world${lf}${lf}event: custom2${lf}data: hello world2${lf}${lf}`);
+			for (let chunkSize = 1; chunkSize < 5; chunkSize++) {
+				receivedEvents.length = 0;
+
+				for (let i = 0; i < message.length; i += chunkSize) {
+					const chunk = message.slice(i, i + chunkSize);
+					parser.feed(chunk);
+				}
+
+				assert.deepStrictEqual(receivedEvents, [
+					{ type: 'custom', data: 'hello world' },
+					{ type: 'custom2', data: 'hello world2' }
+				], `Failed for chunk size ${chunkSize} and line ending ${JSON.stringify(lf)}`);
+			}
+		}
+	});
 	test('handles events with ID', () => {
 		parser.feed(toUint8Array('event: custom\ndata: hello\nid: 123\n\n'));
 
