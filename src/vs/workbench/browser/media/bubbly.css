@@ -1,8 +1,14 @@
 /* Base - bubbly parts */
 .bubbly-part {
-	border-radius: 12px;
 	box-sizing: border-box;
+}
+
+.bubbly-part-pad {
 	margin: 5px;
+}
+
+.bubbly-part-round {
+	border-radius: 12px;
 }
 
 .split-view-view:has(> .bubbly-part) {
@@ -14,7 +20,7 @@
 	box-sizing: border-box;
 }
 
-/* Panel (bottom bar) */
+/* Styles - Panel (bottom bar) */
 .bubbly-part .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
 	text-transform: none !important;
 }
@@ -48,7 +54,7 @@
 	--vscode-panel-background: var(--vscode-editor-background);
 }
 
-/* Style the terminal to be the same color as panel*/
+/* Terminal - style the terminal to be the same color as panel*/
 .bubbly-part .terminal .xterm-scrollable-element {
 	background-color: var(--vscode-editor-background) !important;
 }
@@ -57,14 +63,14 @@
 	background: var(--vscode-editor-background);
 }
 
-/* Sash */
+/* Styles - Sash */
 /* Globally, we will hide the sash */
 .monaco-split-view2 > .sash-container > .monaco-sash {
 	color: transparent;
 	background: transparent;
 }
 
-/* Editor - tabs/files */
+/* Styles - Editor: tabs/files */
 .bubbly-part .bubbly-editor-parent {
 	background: var(--vscode-editorGroupHeader-tabsBackground);
 }
@@ -94,6 +100,7 @@
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
 	background-color: var(--vscode-tab-unfocusedActiveBackground);
 	border: 1px solid var(--tab-border-top-color, transparent) !important;
+	/*border: 1px solid var(--vscode-tab-selectedForeground, transparent) !important;*/
 }
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
 	background: transparent;
@@ -126,7 +133,7 @@
 	border-right: none !important;
 }
 
-/* Sidebar stylings */
+/* Styles - Sidebar */
 
 .bubbly-part .pane-header {
 	background-color: transparent !important;
@@ -140,6 +147,7 @@
 	border: none !important;
 }
 
+/* Styles - Activity bar (when on sidebar)*/
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar  .actions-container {
 	gap: 2px;
 }
@@ -166,4 +174,54 @@
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
 	left: 0;
 	position: relative;
+}
+
+/* Styles - Activity bar (when on left side of screen, detached from sidebar) */
+.monaco-workbench .bubbly-part.part.activitybar {
+	color: transparent !important;
+}
+
+.monaco-workbench .part.activitybar {/* Updated in code, see activitybarPart.ts */
+	width: 56px;
+}
+
+.bubbly-part.activitybar .actions-container {
+	display: flex;
+	gap: 1px;
+	flex-direction: column;
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+
+.bubbly-part.activitybar .action-item {
+	box-sizing: border-box;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+}
+
+.bubbly-part.activitybar .action-item .action-label.codicon {
+	font-size: 20px !important;
+	border-radius: 8px;
+	border: 1px solid transparent;
+	overflow: visible !important;
+	box-sizing: border-box;
+	width: 40px !important;
+	height: 40px !important;
+}
+
+.bubbly-part.activitybar .action-item.checked .action-label.codicon {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+	border: 1px solid var(--insert-border-color);
+}
+
+.bubbly-part.activitybar .active-item-indicator::before {
+	border-left-color: transparent !important;
+}
+
+.bubbly-part.activitybar .actions-container .action-item {
+	align-items: center;
+	justify-content: center;
+	display: flex !important;
 }

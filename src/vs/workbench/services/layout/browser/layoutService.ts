@@ -30,12 +30,21 @@ export const enum Parts {
 	PEAROVERLAY_PART = 'workbench.parts.pearoverlay'
 }
 
-export const bubblyParts = new Set([
-	Parts.SIDEBAR_PART,
-	Parts.PANEL_PART,
-	Parts.EDITOR_PART,
-	Parts.PEAROVERLAY_PART
-] as string[]);
+export interface BubblyPartSettings {
+	shouldPad: boolean,
+	shouldRound: boolean,
+}
+const defaultBubblySettings = {
+	shouldPad: true,
+	shouldRound: false,
+}
+export const bubblyParts: Record<string, BubblyPartSettings> = {
+	[Parts.SIDEBAR_PART]: defaultBubblySettings,
+	[Parts.PANEL_PART]: defaultBubblySettings,
+	[Parts.EDITOR_PART]: defaultBubblySettings,
+	[Parts.PEAROVERLAY_PART]: defaultBubblySettings,
+	[Parts.ACTIVITYBAR_PART]: { shouldPad: false, shouldRound: false}
+}
 
 export const enum ZenModeSettings {
 	SHOW_TABS = 'zenMode.showTabs',
