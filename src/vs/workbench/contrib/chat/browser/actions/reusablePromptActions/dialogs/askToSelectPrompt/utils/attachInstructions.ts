@@ -8,7 +8,7 @@ import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
-import { IChatAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
+import { IAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
 /**
@@ -68,7 +68,7 @@ export const attachInstructionsFiles = async (
 };
 
 /**
- * Gets a chat widget based on the provided {@link IChatAttachInstructionsActionOptions.widget widget}
+ * Gets a chat widget based on the provided {@link IAttachInstructionsActionOptions.widget widget}
  * reference and the `inNewChat` flag.
  *
  * @throws if failed to reveal a chat widget.
