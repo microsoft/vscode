@@ -9,6 +9,8 @@
 	"configuration.typescript.preferences": "TypeScript Preferences",
 	"configuration.javascript.format": "JavaScript Formatting",
 	"configuration.typescript.format": "TypeScript Formatting",
+	"configuration.javascript.suggest": "JavaScript Suggestions",
+	"configuration.typescript.suggest": "TypeScript Suggestions",
 	"configuration.server": "TS Server",
 	"configuration.suggest.completeFunctionCalls": "Complete functions with their parameter signature.",
 	"configuration.suggest.includeAutomaticOptionalChainCompletions": "Enable/disable showing completions on potentially undefined values that insert an optional chain call. Requires strict null checks to be enabled.",
