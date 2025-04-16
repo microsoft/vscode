@@ -159,20 +159,25 @@ export class ViewLines extends ViewPart implements IViewLines {
 			},
 		});
 		this._register(model.onDidChangeFont((e) => {
+			const viewLinesChanged: Set<number> = new Set();
 			for (const change of e.changes) {
 				const lineNumber = change.lineNumber;
 				const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
 				for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
-					const fonts = context.viewModel.model.getFontDecorations(lineNumber);
-					console.log('onDidChangeFont', lineNumber, fonts);
-					const viewLine = this._visibleLines.getVisibleLine(lineNumber);
-					if (fonts.length > 0) {
-						viewLine.onOptionsChanged(this._modifiedViewLineOptions);
-						viewLine.rerenderLineType(RenderViewLineType.Regular);
-					} else {
-						viewLine.onOptionsChanged(this._viewLineOptions);
-						viewLine.rerenderLineType(RenderViewLineType.Fast);
-					}
+					viewLinesChanged.add(i);
+				}
+			}
+			console.log('onDidChangeFont viewLinesChanged', viewLinesChanged);
+			for (const i of viewLinesChanged) {
+				const fonts = context.viewModel.model.getFontDecorations(i);
+				console.log('change', i, fonts);
+				const viewLine = this._visibleLines.getVisibleLine(i);
+				if (fonts.length > 0) {
+					viewLine.onOptionsChanged(this._modifiedViewLineOptions);
+					viewLine.rerenderLineType(RenderViewLineType.Regular);
+				} else {
+					viewLine.onOptionsChanged(this._viewLineOptions);
+					viewLine.rerenderLineType(RenderViewLineType.Fast);
 				}
 			}
 		}));

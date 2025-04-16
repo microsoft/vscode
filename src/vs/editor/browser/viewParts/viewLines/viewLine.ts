@@ -20,6 +20,7 @@ import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { Position } from '../../../common/core/position.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -189,10 +190,15 @@ export class ViewLine implements IVisibleLine {
 		const output = renderViewLine(renderLineInput, sb);
 
 		sb.appendString('</div>');
-		console.log('renderViewLine sb : ', sb.build());
+		console.log('lineNumber : ', lineNumber);
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		const fontDecorationsExistOnLine = this._viewContext.viewModel.model.getFontDecorations(lineNumber).length > 0;
+		const modelLineNumber = this._viewContext.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
+		const fontDecorationsOnLine = this._viewContext.viewModel.model.getFontDecorations(modelLineNumber);
+		console.log('fontDecorationsOnLine : ', fontDecorationsOnLine);
+		console.log('renderViewLine sb : ', sb.build());
+
+		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0;
 		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
