@@ -25,17 +25,36 @@
 	border-radius: 6px;
 }
 
-/* Styles - Panel (bottom bar) */
-.bubbly-part .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
+/* Globally, pane titles won't be forced uppercase */
+.monaco-pane-view .pane > .pane-header > .title {
 	text-transform: none !important;
 }
 
+/* Styles - Panel (bottom bar) */
+.bubbly-part.part.panel .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
+	text-transform: none !important;
+	border-bottom-color: transparent !important;
+}
+
 .bubbly-part.part.panel .action-item {
-	background: var(--vscode-toolbar-hoverBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: 8px;
 	padding: 2px;
 	box-sizing: border-box;
 	height: 80% !important;
+	transition: background-color 0.05s linear;
+}
+
+.bubbly-part.part.panel .composite-bar-container .action-item {
+	background-color: transparent;
+}
+
+.bubbly-part.part.panel .action-item:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.bubbly-part.part.panel .action-item.checked {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .bubbly-part.part.panel .actions-container {
@@ -73,6 +92,7 @@
 .monaco-split-view2 > .sash-container > .monaco-sash {
 	color: transparent;
 	background: transparent;
+	--vscode-sash-hoverBorder: var(--vscode-charts-blue);
 }
 
 /* Styles - Editor: tabs/files */
@@ -152,6 +172,31 @@
 	border: none !important;
 }
 
+.bubbly-part.sidebar .composite.title {
+	height: 28px;
+}
+
+.bubbly-part.sidebar .composite.title > .title-label > h2 {
+	line-height: 28px;
+	font-size: 11.5px;
+	font-weight: 700;
+	text-transform: none;
+}
+
+.bubbly-part.sidebar .composite.title .title-actions {
+	height: 25px;
+}
+
+/* Explorer */
+.bubbly-part.sidebar .monaco-highlighted-label {
+	font-weight: 500;
+	font-size: 13.5px;
+}
+
+.bubbly-part.sidebar .scrollbar > .slider {
+	border-radius: 4px;
+}
+
 /* Styles - Activity bar (when on sidebar)*/
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar  .actions-container {
 	gap: 2px;
@@ -182,6 +227,7 @@
 
 /* Styles - Activity bar (when on left side of screen, detached from sidebar) */
 .monaco-workbench .bubbly-part.part.activitybar {
+	background-color: transparent !important;
 	color: transparent !important;
 }
 
@@ -239,4 +285,8 @@
 
 .part.auxiliarybar {
 	border-left: none !important;
+}
+
+.part.titlebar {
+	border-bottom: none !important;
 }

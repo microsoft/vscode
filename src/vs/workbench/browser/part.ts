@@ -79,10 +79,11 @@ export abstract class Part extends Component implements ISerializableView {
 		const bubblySettings = bubblyParts[parent.id];
 		if (bubblySettings) {
 			this.parent.classList.add('bubbly-part');
-			if (bubblySettings.shouldPad)
-				this.parent.classList.add('bubbly-part-pad');
-			if (bubblySettings.shouldRound)
-				this.parent.classList.add('bubbly-part-round');
+			this.parent.style.marginLeft = `${bubblySettings.margins.left}px`;
+			this.parent.style.marginTop = `${bubblySettings.margins.top}px`;
+			this.parent.style.marginRight = `${bubblySettings.margins.right}px`;
+			this.parent.style.marginBottom = `${bubblySettings.margins.bottom}px`;
+			this.parent.style.borderRadius = `${bubblySettings.borderRadius}px`;
 		}
 
 		this.titleArea = this.createTitleArea(parent, options);
@@ -246,9 +247,9 @@ class PartLayout {
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined, private bubblySettings: BubblyPartSettings | undefined = undefined) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
-		if (this.bubblySettings && this.bubblySettings.shouldPad) {
-			height = height - 10;
-			width = width - 10;
+		if (this.bubblySettings) {
+			width = width - this.bubblySettings.margins.left - this.bubblySettings.margins.right;
+			height = height - this.bubblySettings.margins.top - this.bubblySettings.margins.bottom;
 		}
 
 		// Title Size: Width (Fill), Height (Variable)

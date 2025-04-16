@@ -31,19 +31,19 @@ export const enum Parts {
 }
 
 export interface BubblyPartSettings {
-	shouldPad: boolean,
-	shouldRound: boolean,
+	margins: {left: number, top: number, right: number, bottom: number}
+	borderRadius: number,
 }
-const defaultBubblySettings = {
-	shouldPad: true,
-	shouldRound: true,
+const defaultBubblySettings: BubblyPartSettings = {
+	margins: { left: 4, top: 4, right: 4, bottom: 4 },
+	borderRadius: 12,
 }
 export const bubblyParts: Record<string, BubblyPartSettings> = {
-	[Parts.SIDEBAR_PART]: defaultBubblySettings,
+	[Parts.SIDEBAR_PART]: {margins: {left: 4, top: 7, bottom: 5, right: 4}, borderRadius: 0},
 	[Parts.PANEL_PART]: defaultBubblySettings,
 	[Parts.EDITOR_PART]: defaultBubblySettings,
 	[Parts.PEAROVERLAY_PART]: defaultBubblySettings,
-	[Parts.ACTIVITYBAR_PART]: { shouldPad: false, shouldRound: false}
+	[Parts.ACTIVITYBAR_PART]: { margins: { left: 0, top: 0, right: 0, bottom: 0 }, borderRadius: 0}
 }
 
 export const enum ZenModeSettings {
