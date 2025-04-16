@@ -36,7 +36,7 @@ export interface BubblyPartSettings {
 }
 const defaultBubblySettings = {
 	shouldPad: true,
-	shouldRound: false,
+	shouldRound: true,
 }
 export const bubblyParts: Record<string, BubblyPartSettings> = {
 	[Parts.SIDEBAR_PART]: defaultBubblySettings,
