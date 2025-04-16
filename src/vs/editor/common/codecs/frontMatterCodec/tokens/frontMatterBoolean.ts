@@ -11,7 +11,12 @@ import { assertDefined } from '../../../../../base/common/types.js';
 /**
  * Token that represents a `boolean` value in a Front Matter header.
  */
-export class FrontMatterBoolean extends FrontMatterValueToken {
+export class FrontMatterBoolean extends FrontMatterValueToken<'boolean'> {
+	/**
+	 * Name of the `boolean` value type.
+	 */
+	public override readonly valueTypeName = 'boolean';
+
 	constructor(
 		range: Range,
 		public readonly value: boolean,

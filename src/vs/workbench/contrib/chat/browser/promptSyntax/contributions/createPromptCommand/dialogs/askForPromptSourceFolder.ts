@@ -6,22 +6,21 @@
 import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
-import { DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { basename, extUri } from '../../../../../../../../base/common/resources.js';
-import { IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
+import { IPromptsService, TPromptsStorage, TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Options for {@link askForPromptSourceFolder} dialog.
  */
 interface IAskForFolderOptions {
-	/**
-	 * Prompt type.
-	 */
-	readonly type: 'local' | 'user';
+
+	readonly type: TPromptsType;
+	readonly storage: TPromptsStorage;
 
 	readonly labelService: ILabelService;
 	readonly openerService: IOpenerService;
@@ -37,10 +36,10 @@ interface IAskForFolderOptions {
 export const askForPromptSourceFolder = async (
 	options: IAskForFolderOptions,
 ): Promise<URI | undefined> => {
-	const { type, promptsService, quickInputService, labelService, openerService, workspaceService } = options;
+	const { storage, type, promptsService, quickInputService, labelService, openerService, workspaceService } = options;
 
 	// get prompts source folders based on the prompt type
-	const folders = promptsService.getSourceFolders(type);
+	const folders = promptsService.getSourceFolders(type, storage);
 
 	// if no source folders found, show 'learn more' dialog
 	// note! this is a temporary solution and must be replaced with a dialog to select
@@ -122,9 +121,9 @@ const showNoFoldersDialog = async (
 			'commands.prompts.create.ask-folder.empty.docs-label',
 			'Learn how to configure reusable prompts',
 		),
-		description: DOCUMENTATION_URL,
-		tooltip: DOCUMENTATION_URL,
-		value: URI.parse(DOCUMENTATION_URL),
+		description: PROMPT_DOCUMENTATION_URL,
+		tooltip: PROMPT_DOCUMENTATION_URL,
+		value: URI.parse(PROMPT_DOCUMENTATION_URL),
 	};
 
 	const result = await quickInputService.pick(

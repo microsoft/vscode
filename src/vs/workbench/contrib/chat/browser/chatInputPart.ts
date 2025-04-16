@@ -86,7 +86,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
-import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
+import { PromptInstructionsAttachmentsCollectionWidget } from './attachments/promptInstructions/promptInstructionsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
@@ -185,17 +185,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		contextArr
-			.push(...this.instructionAttachmentsPart.chatAttachments);
+			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
 
 		return contextArr;
 	}
 
 	/**
-	 * Check if the chat input part has any prompt instruction attachments.
+	 * Check if the chat input part has any prompt file attachments.
 	 */
-	public get hasInstructionAttachments(): boolean {
+	public get hasPromptFileAttachments(): boolean {
 		// if prompt attached explicitly as a "prompt" attachment
-		if (this.instructionAttachmentsPart.empty === false) {
+		if (this.promptInstructionsAttachmentsPart.hasPromptFile) {
 			return true;
 		}
 
@@ -204,7 +204,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// if prompt attached as an implicit "current file" context
-		return (this.implicitContext.isPrompt && this.implicitContext.enabled);
+		return (this.implicitContext.isPromptFile && this.implicitContext.enabled);
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
@@ -285,7 +285,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Context key is set when prompt instructions are attached.
 	 */
-	private promptInstructionsAttached: IContextKey<boolean>;
+	private promptFileAttached: IContextKey<boolean>;
 	private chatMode: IContextKey<ChatMode>;
 
 	private readonly _waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
@@ -340,9 +340,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Child widget of prompt instruction attachments.
-	 * See {@linkcode PromptAttachmentsCollectionWidget}.
+	 * See {@linkcode PromptInstructionsAttachmentsCollectionWidget}.
 	 */
-	private instructionAttachmentsPart: PromptAttachmentsCollectionWidget;
+	private promptInstructionsAttachmentsPart: PromptInstructionsAttachmentsCollectionWidget;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -388,7 +388,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
-		this.promptInstructionsAttached = ChatContextKeys.instructionsAttached.bindTo(contextKeyService);
+		this.promptFileAttached = ChatContextKeys.hasPromptFile.bindTo(contextKeyService);
 		this.chatMode = ChatContextKeys.chatMode.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
@@ -404,16 +404,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._hasFileAttachmentContextKey = ChatContextKeys.hasFileAttachments.bindTo(contextKeyService);
 
-		this.instructionAttachmentsPart = this._register(
+		this.promptInstructionsAttachmentsPart = this._register(
 			instantiationService.createInstance(
-				PromptAttachmentsCollectionWidget,
+				PromptInstructionsAttachmentsCollectionWidget,
 				this.attachmentModel.promptInstructions,
 				this._contextResourceLabels,
 			),
 		);
 
 		// trigger re-layout of chat input when number of instruction attachment changes
-		this.instructionAttachmentsPart.onAttachmentsCountChange(() => {
+		this.promptInstructionsAttachmentsPart.onAttachmentsCountChange(() => {
 			this._onDidChangeHeight.fire();
 		});
 
@@ -1125,7 +1125,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || this.hasInstructionAttachments;
+		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || this.hasPromptFileAttachments;
 		dom.setVisibility(Boolean(hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
@@ -1137,8 +1137,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			container.appendChild(implicitPart.domNode);
 		}
 
-		this.promptInstructionsAttached.set(this.hasInstructionAttachments);
-		this.instructionAttachmentsPart.render(container);
+		this.promptFileAttached.set(this.hasPromptFileAttachments);
+		this.promptInstructionsAttachmentsPart.render(container);
 
 		for (const [index, attachment] of attachments) {
 			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;

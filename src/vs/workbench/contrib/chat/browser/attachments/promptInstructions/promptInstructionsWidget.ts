@@ -31,7 +31,7 @@ import { getFlatContextMenuActions } from '../../../../../../platform/actions/br
 /**
  * Widget for a single prompt instructions attachment.
  */
-export class PromptAttachmentWidget extends Disposable {
+export class InstructionsAttachmentWidget extends Disposable {
 	/**
 	 * The root DOM node of the widget.
 	 */
@@ -106,12 +106,12 @@ export class PromptAttachmentWidget extends Disposable {
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = localize('chat.promptAttachment', "Prompt attachment, {0}", friendlyName);
+		const ariaLabel = localize('chat.instructionsAttachment', "Instructions attachment, {0}", friendlyName);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
-		const promptLabel = localize('prompt', "Prompt");
+		const instructionsLabel = localize('instructions', "Instructions");
 
-		let title = `${promptLabel} ${uriLabel}`;
+		let title = `${instructionsLabel} ${uriLabel}`;
 
 		// if there are some errors/warning during the process of resolving
 		// attachment references (including all the nested child references),
@@ -144,7 +144,7 @@ export class PromptAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, promptLabel));
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, instructionsLabel));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		// create the `remove` button

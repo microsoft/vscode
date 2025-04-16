@@ -19,19 +19,19 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { attachPrompt, IAttachPromptOptions } from './dialogs/askToSelectPrompt/utils/attachPrompt.js';
-import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
+import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
+import { ISelectInstructionsOptions, askToSelectInstructions } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
- * Action ID for the `Attach Prompt` action.
+ * Action ID for the `Attach Instruction` action.
  */
-const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
+const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
 
 /**
- * Options for the {@link AttachPromptAction} action.
+ * Options for the {@link AttachInstructionsAction} action.
  */
-export interface IChatAttachPromptActionOptions extends Pick<
-	ISelectPromptOptions, 'resource' | 'widget'
+export interface IChatAttachInstructionsActionOptions extends Pick<
+	ISelectInstructionsOptions, 'resource' | 'widget'
 > {
 	/**
 	 * Whether to create a new chat panel or open
@@ -40,7 +40,7 @@ export interface IChatAttachPromptActionOptions extends Pick<
 	inNewChat?: boolean;
 
 	/**
-	 * Whether to skip the prompt files selection dialog.
+	 * Whether to skip the instructions files selection dialog.
 	 *
 	 * Note! if this option is set to `true`, the {@link resource}
 	 * option `must be defined`.
@@ -51,11 +51,11 @@ export interface IChatAttachPromptActionOptions extends Pick<
 /**
  * Action to attach a prompt to a chat widget input.
  */
-class AttachPromptAction extends Action2 {
+class AttachInstructionsAction extends Action2 {
 	constructor() {
 		super({
-			id: ATTACH_PROMPT_ACTION_ID,
-			title: localize2('workbench.action.chat.attach.prompt.label', "Use Prompt"),
+			id: ATTACH_INSTRUCTIONS_ACTION_ID,
+			title: localize2('attach-instructions.capitalized.ellipses', "Attach Instructions..."),
 			f1: false,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,
@@ -64,7 +64,7 @@ class AttachPromptAction extends Action2 {
 
 	public override async run(
 		accessor: ServicesAccessor,
-		options: IChatAttachPromptActionOptions,
+		options: IChatAttachInstructionsActionOptions,
 	): Promise<void> {
 		const fileService = accessor.get(IFileService);
 		const labelService = accessor.get(ILabelService);
@@ -83,14 +83,14 @@ class AttachPromptAction extends Action2 {
 				'Resource must be defined when skipping prompt selection dialog.',
 			);
 
-			const attachOptions: IAttachPromptOptions = {
+			const attachOptions: IAttachOptions = {
 				...options,
 				viewsService,
 				commandService,
 			};
 
-			const { widget } = await attachPrompt(
-				resource,
+			const { widget } = await attachInstructionsFiles(
+				[resource],
 				attachOptions,
 			);
 
@@ -100,9 +100,9 @@ class AttachPromptAction extends Action2 {
 		}
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles();
+		const promptFiles = await promptsService.listPromptFiles('instructions');
 
-		await askToSelectPrompt({
+		await askToSelectInstructions({
 			...options,
 			promptFiles,
 			fileService,
@@ -117,16 +117,16 @@ class AttachPromptAction extends Action2 {
 }
 
 /**
- * Runs the `Attach Prompt` action with provided options. We export this
- * function instead of {@link ATTACH_PROMPT_ACTION_ID} directly to
+ * Runs the `Attach Instructions` action with provided options. We export this
+ * function instead of {@link ATTACH_INSTRUCTIONS_ACTION_ID} directly to
  * encapsulate/enforce the correct options to be passed to the action.
  */
-export const runAttachPromptAction = async (
-	options: IChatAttachPromptActionOptions,
+export const runAttachInstructionsAction = async (
+	options: IChatAttachInstructionsActionOptions,
 	commandService: ICommandService,
 ): Promise<void> => {
 	return await commandService.executeCommand(
-		ATTACH_PROMPT_ACTION_ID,
+		ATTACH_INSTRUCTIONS_ACTION_ID,
 		options,
 	);
 };
@@ -135,5 +135,5 @@ export const runAttachPromptAction = async (
  * Helper to register the `Attach Prompt` action.
  */
 export const registerAttachPromptActions = () => {
-	registerAction2(AttachPromptAction);
+	registerAction2(AttachInstructionsAction);
 };

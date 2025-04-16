@@ -224,11 +224,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if (setting === 'first' && !isFirstInteraction) {
-				widget.input.implicitContext.setValue(undefined, false, languageId);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
 				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
 			} else if (setting === 'never') {
-				widget.input.implicitContext.setValue(undefined, false, languageId);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}
 	}
@@ -238,7 +238,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	get id() {
 		// IDs for prompt files need to start with a special prefix
 		// that is used by the copilot extension to identify them
-		if (this.isPrompt) {
+		if (this.isPromptFile) {
 			assertDefined(
 				this.value,
 				'Implicit prompt attachments must have a value.',
@@ -265,7 +265,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
-		const fileType = this.isPrompt ? 'prompt' : 'file';
+		const fileType = this.isPromptFile ? 'prompt' : 'file';
 
 		if (URI.isUri(this.value)) {
 			return `${fileType}:${basename(this.value)}`;
@@ -279,13 +279,13 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
-		if (this.isPrompt) {
+		if (this.isPromptFile) {
 			if (URI.isUri(this.value)) {
-				return `User's active prompt instructions file`;
+				return `User's active prompt file`;
 			} else if (this._isSelection) {
-				return `User's active selection inside prompt instructions`;
+				return `User's active selection inside prompt file`;
 			} else {
-				return `User's current visible prompt instructions text`;
+				return `User's current visible prompt text`;
 			}
 		}
 
@@ -305,7 +305,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._isSelection;
 	}
 
-	private _onDidChangeValue = new Emitter<void>();
+	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
 	private _value: Location | URI | undefined;
@@ -314,7 +314,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	private _languageId: string | undefined;
-	get isPrompt() {
+	get isPromptFile() {
 		return (this._languageId === PROMPT_LANGUAGE_ID);
 	}
 

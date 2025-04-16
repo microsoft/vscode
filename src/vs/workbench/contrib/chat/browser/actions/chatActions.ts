@@ -629,11 +629,11 @@ export function registerChatActions() {
 			const freeCompletionsQuotaExceeded = chatEntitlementService.quotas.freeCompletions?.percentRemaining === 0;
 			const quotaResetDate = new Date(chatEntitlementService.quotas.freeChat?.resetDate ?? chatEntitlementService.quotas.freeCompletions?.resetDate ?? Date.now()); // the two dates should really be the same for limited plan users
 			if (freeChatQuotaExceeded && !freeCompletionsQuotaExceeded) {
-				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
+				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. The free allowance resets {0}.", dateFormatter.format(quotaResetDate));
 			} else if (freeCompletionsQuotaExceeded && !freeChatQuotaExceeded) {
-				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
+				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. The free allowance resets {0}.", dateFormatter.format(quotaResetDate));
 			} else {
-				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
+				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. The free allowance resets {0}.", dateFormatter.format(quotaResetDate));
 			}
 
 			const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to additional models");

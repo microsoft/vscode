@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PROMPT_LANGUAGE_ID } from '../../constants.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../constants.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
@@ -96,15 +96,15 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 			modelService.onModelLanguageChanged((event) => {
 				const { model, oldLanguageId } = event;
 
-				// if language is set to `prompt` language, handle that model
+				// if language is set to `prompt` or `instructions` language, handle that model
 				if (isPromptFileModel(model)) {
 					this.instances.get(model);
 					return;
 				}
 
-				// if the language is changed away from `prompt`,
+				// if the language is changed away from `prompt` or `instructions`,
 				// remove and dispose provider for this model
-				if (oldLanguageId === PROMPT_LANGUAGE_ID) {
+				if (isPromptOrInstructionsFile(oldLanguageId)) {
 					this.instances.remove(model, true);
 					return;
 				}
@@ -134,6 +134,16 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 }
 
 /**
+ * Check if provided language ID is either
+ * the `prompt` or `instructions` one.
+ */
+const isPromptOrInstructionsFile = (
+	languageId: string,
+): boolean => {
+	return (languageId === PROMPT_LANGUAGE_ID) || (languageId === INSTRUCTIONS_LANGUAGE_ID);
+};
+
+/**
  * Check if a provided model is used for prompt files.
  */
 const isPromptFileModel = (
@@ -148,7 +158,7 @@ const isPromptFileModel = (
 		return false;
 	}
 
-	if (model.getLanguageId() !== PROMPT_LANGUAGE_ID) {
+	if (isPromptOrInstructionsFile(model.getLanguageId()) === false) {
 		return false;
 	}
 
