@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
@@ -214,6 +215,7 @@ class McpToolImplementation implements IToolImpl {
 		private readonly _tool: IMcpTool,
 		private readonly _server: IMcpServer,
 		@IProductService private readonly _productService: IProductService,
+		@IProgressService private readonly _progressService: IProgressService,
 	) { }
 
 	async prepareToolInvocation(parameters: any): Promise<IPreparedToolInvocation> {
@@ -254,7 +256,12 @@ class McpToolImplementation implements IToolImpl {
 
 		const outputParts: string[] = [];
 
-		const callResult = await this._tool.call(invocation.parameters as Record<string, any>, token);
+
+		const params = invocation.parameters as Record<string, any>;
+		const callResult = invocation.context
+			? await this._progressService.withProgress({ location: { toolInvocationCallId: invocation.callId } }, p => this._tool.callWithProgress(params, p, token))
+			: await this._tool.call(params, token);
+
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
 				result.content.push({

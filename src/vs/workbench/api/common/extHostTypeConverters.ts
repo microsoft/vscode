@@ -36,14 +36,14 @@ import { EndOfLineSequence, TrackedRangeStickiness } from '../../../editor/commo
 import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
-import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
+import { ProgressLocation as MainProgressLocation, ProgressLocationDescriptor as MainProgressLocationDescriptor } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolData, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -1458,9 +1458,13 @@ export namespace EndOfLine {
 }
 
 export namespace ProgressLocation {
-	export function from(loc: vscode.ProgressLocation | { viewId: string }): MainProgressLocation | string {
+	export function from(loc: vscode.ProgressLocation | { viewId: string } | { toolInvocationToken: object | undefined }): MainProgressLocationDescriptor {
 		if (typeof loc === 'object') {
-			return loc.viewId;
+			if ('toolInvocationToken' in loc) {
+				return { toolInvocationCallId: (loc.toolInvocationToken as IToolInvocationContext).callId };
+			} else {
+				return { viewId: loc.viewId };
+			}
 		}
 
 		switch (loc) {

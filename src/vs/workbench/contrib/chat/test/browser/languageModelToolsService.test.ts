@@ -174,7 +174,8 @@ suite('LanguageModelToolsService', () => {
 				a: 1
 			},
 			context: {
-				sessionId
+				sessionId,
+				callId: '1',
 			},
 		};
 		chatService.addSession({

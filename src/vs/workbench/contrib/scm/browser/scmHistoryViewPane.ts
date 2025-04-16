@@ -651,7 +651,7 @@ class SCMHistoryViewPaneActionRunner extends ActionRunner {
 	}
 
 	protected override runAction(action: IAction, context?: unknown): Promise<void> {
-		return this._progressService.withProgress({ location: HISTORY_VIEW_PANE_ID },
+		return this._progressService.withProgress({ location: { viewId: HISTORY_VIEW_PANE_ID } },
 			async () => await super.runAction(action, context));
 	}
 }
@@ -1318,7 +1318,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			await waitForState(firstRepositoryInitialized);
 
 			// Initial rendering
-			await this._progressService.withProgress({ location: this.id }, async () => {
+			await this._progressService.withProgress({ location: { viewId: this.id } }, async () => {
 				await this._treeOperationSequencer.queue(async () => {
 					await this._tree.setInput(this._treeViewModel);
 					this._tree.scrollTop = 0;
@@ -1689,7 +1689,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._updateChildrenThrottler.queue(
 			() => this._treeOperationSequencer.queue(
 				async () => {
-					await this._progressService.withProgress({ location: this.id },
+					await this._progressService.withProgress({ location: { viewId: this.id } },
 						async () => {
 							await this._tree.updateChildren(undefined, undefined, undefined, {
 								// diffIdentityProvider: this._treeIdentityProvider

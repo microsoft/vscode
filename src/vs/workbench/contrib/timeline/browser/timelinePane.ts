@@ -645,7 +645,7 @@ export class TimelinePane extends ViewPane {
 	private async handleRequest(request: TimelineRequest) {
 		let response: Timeline | undefined;
 		try {
-			response = await this.progressService.withProgress({ location: this.id }, () => request.result);
+			response = await this.progressService.withProgress({ location: { viewId: this.id } }, () => request.result);
 		}
 		finally {
 			this.pendingRequests.get(request.source)?.dispose();

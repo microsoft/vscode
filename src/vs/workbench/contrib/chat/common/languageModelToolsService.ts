@@ -83,6 +83,7 @@ export interface IToolInvocation {
 
 export interface IToolInvocationContext {
 	sessionId: string;
+	callId: string | undefined;
 }
 
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {

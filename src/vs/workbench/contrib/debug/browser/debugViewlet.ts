@@ -131,7 +131,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 
 		if (state === State.Initializing) {
-			this.progressService.withProgress({ location: VIEWLET_ID, }, _progress => {
+			this.progressService.withProgress({ location: { viewId: VIEWLET_ID }, }, _progress => {
 				return new Promise<void>(resolve => this.progressResolve = resolve);
 			});
 		}

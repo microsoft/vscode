@@ -24,6 +24,7 @@ import { IPaneCompositePartService } from '../../panecomposite/browser/panecompo
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IUserActivityService } from '../../userActivity/common/userActivityService.js';
 import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
+import { ILanguageModelToolProgressService } from './languageModelToolProgressService.js';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -39,6 +40,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IUserActivityService private readonly userActivityService: IUserActivityService,
+		@ILanguageModelToolProgressService private readonly languageModelToolProgressService: ILanguageModelToolProgressService,
 	) {
 		super();
 	}
@@ -55,24 +57,32 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 		};
 
-		const handleStringLocation = (location: string) => {
-			const viewContainer = this.viewDescriptorService.getViewContainerById(location);
+		const handleViewLocation = (location: { viewId: string }) => {
+			const viewContainer = this.viewDescriptorService.getViewContainerById(location.viewId);
 			if (viewContainer) {
 				const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 				if (viewContainerLocation !== null) {
-					return this.withPaneCompositeProgress(location, viewContainerLocation, task, { ...options, location });
+					return this.withPaneCompositeProgress(location.viewId, viewContainerLocation, task, { ...options, location });
 				}
 			}
 
-			if (this.viewDescriptorService.getViewDescriptorById(location) !== null) {
-				return this.withViewProgress(location, task, { ...options, location });
+			if (this.viewDescriptorService.getViewDescriptorById(location.viewId) !== null) {
+				return this.withViewProgress(location.viewId, task, { ...options, location });
 			}
 
 			throw new Error(`Bad progress location: ${location}`);
 		};
 
-		if (typeof location === 'string') {
-			return handleStringLocation(location);
+		if (typeof location === 'object') {
+			if ('viewId' in location) {
+				return handleViewLocation(location);
+			} else if ('toolInvocationCallId' in location) {
+				if (!location.toolInvocationCallId) {
+					return task({ report: () => { } });
+				}
+
+				return this.languageModelToolProgressService.handleProgress(location.toolInvocationCallId, task);
+			}
 		}
 
 		switch (location) {
@@ -102,7 +112,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			case ProgressLocation.Explorer:
 				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Scm:
-				return handleStringLocation('workbench.scm');
+				return handleViewLocation({ viewId: 'workbench.scm' });
 			case ProgressLocation.Extensions:
 				return this.withPaneCompositeProgress('workbench.view.extensions', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Dialog:

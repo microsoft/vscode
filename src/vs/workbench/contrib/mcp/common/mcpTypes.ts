@@ -19,6 +19,7 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -248,6 +249,11 @@ export interface IMcpTool {
 	 * @throws {@link McpConnectionFailedError} if the connection to the server fails
 	 */
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult>;
+
+	/**
+	 * Identical to {@link call}, but reports progress.
+	 */
+	callWithProgress(params: Record<string, unknown>, progress: IProgress<IProgressStep>, token?: CancellationToken): Promise<MCP.CallToolResult>;
 }
 
 export const enum McpServerTransportType {

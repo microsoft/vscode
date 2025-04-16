@@ -267,7 +267,7 @@ export class WebviewViewPane extends ViewPane {
 	}
 
 	private async withProgress(task: () => Promise<void>): Promise<void> {
-		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
+		return this.progressService.withProgress({ location: { viewId: this.id }, delay: 500 }, task);
 	}
 
 	override onDidScrollRoot() {

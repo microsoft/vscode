@@ -73,7 +73,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				callId,
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
-				context: options.toolInvocationToken as IToolInvocationContext | undefined,
+				context: options.toolInvocationToken ? { ...(options.toolInvocationToken as IToolInvocationContext), callId } : undefined,
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
 				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 			}, token);
