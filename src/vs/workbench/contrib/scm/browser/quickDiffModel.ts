@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextModel, shouldSynchronizeModel } from '../../../../editor/common/model.js';
-import { compareChanges, compareQuickDiff, getModifiedEndLineNumber, IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
+import { compareChanges, getModifiedEndLineNumber, IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { ISCMRepository, ISCMService } from '../common/scm.js';
 import { sortedDiff, equals } from '../../../../base/common/arrays.js';
@@ -246,8 +246,7 @@ export class QuickDiffModel extends Disposable {
 			}
 
 			const quickDiffs = originalURIs
-				.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource))
-				.sort(compareQuickDiff);
+				.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource));
 			if (quickDiffs.length === 0) {
 				return Promise.resolve({ changes: [], mapChanges: new Map() }); // All files are too large
 			}
