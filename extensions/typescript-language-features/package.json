@@ -208,30 +208,6 @@
             "description": "%typescript.implementationsCodeLens.showOnInterfaceMethods%",
             "scope": "window"
           },
-          "javascript.suggest.completeFunctionCalls": {
-            "type": "boolean",
-            "default": false,
-            "description": "%configuration.suggest.completeFunctionCalls%",
-            "scope": "resource"
-          },
-          "typescript.suggest.completeFunctionCalls": {
-            "type": "boolean",
-            "default": false,
-            "description": "%configuration.suggest.completeFunctionCalls%",
-            "scope": "resource"
-          },
-          "javascript.suggest.includeAutomaticOptionalChainCompletions": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
-            "scope": "resource"
-          },
-          "typescript.suggest.includeAutomaticOptionalChainCompletions": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
-            "scope": "resource"
-          },
           "typescript.inlayHints.parameterNames.enabled": {
             "type": "string",
             "enum": [
@@ -342,18 +318,6 @@
             "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
             "scope": "resource"
           },
-          "javascript.suggest.includeCompletionsForImportStatements": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.includeCompletionsForImportStatements%",
-            "scope": "resource"
-          },
-          "typescript.suggest.includeCompletionsForImportStatements": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.includeCompletionsForImportStatements%",
-            "scope": "resource"
-          },
           "typescript.reportStyleChecksAsWarnings": {
             "type": "boolean",
             "default": true,
@@ -452,12 +416,6 @@
             "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
             "scope": "window"
           },
-          "javascript.suggest.names": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.suggest.names%",
-            "scope": "resource"
-          },
           "typescript.tsc.autoDetect": {
             "type": "string",
             "default": "on",
@@ -475,54 +433,6 @@
             ],
             "description": "%typescript.tsc.autoDetect%",
             "scope": "window"
-          },
-          "javascript.suggest.paths": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.paths%",
-            "scope": "resource"
-          },
-          "typescript.suggest.paths": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.paths%",
-            "scope": "resource"
-          },
-          "javascript.suggest.autoImports": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.autoImports%",
-            "scope": "resource"
-          },
-          "typescript.suggest.autoImports": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.autoImports%",
-            "scope": "resource"
-          },
-          "javascript.suggest.completeJSDocs": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
-            "scope": "language-overridable"
-          },
-          "typescript.suggest.completeJSDocs": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
-            "scope": "language-overridable"
-          },
-          "javascript.suggest.jsdoc.generateReturns": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
-            "scope": "language-overridable"
-          },
-          "typescript.suggest.jsdoc.generateReturns": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
-            "scope": "language-overridable"
           },
           "typescript.locale": {
             "type": "string",
@@ -612,18 +522,6 @@
             "description": "%typescript.autoClosingTags%",
             "scope": "language-overridable"
           },
-          "javascript.suggest.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typescript.suggest.enabled%",
-            "scope": "language-overridable"
-          },
-          "typescript.suggest.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typescript.suggest.enabled%",
-            "scope": "language-overridable"
-          },
           "typescript.workspaceSymbols.scope": {
             "type": "string",
             "enum": [
@@ -637,24 +535,6 @@
             "default": "allOpenProjects",
             "markdownDescription": "%typescript.workspaceSymbols.scope%",
             "scope": "window"
-          },
-          "javascript.suggest.classMemberSnippets.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.classMemberSnippets.enabled%",
-            "scope": "resource"
-          },
-          "typescript.suggest.classMemberSnippets.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.classMemberSnippets.enabled%",
-            "scope": "resource"
-          },
-          "typescript.suggest.objectLiteralMethodSnippets.enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
-            "scope": "resource"
           },
           "typescript.preferGoToSourceDefinition": {
             "type": "boolean",
@@ -691,6 +571,140 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.updateImportsOnPaste%"
+          }
+        }
+      },
+      {
+        "type": "object",
+        "title": "%configuration.typescript.suggest%",
+        "order": 21,
+        "properties": {
+          "typescript.suggest.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%typescript.suggest.enabled%",
+            "scope": "language-overridable"
+          },
+          "typescript.suggest.autoImports": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.autoImports%",
+            "scope": "resource"
+          },
+          "typescript.suggest.completeFunctionCalls": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.suggest.completeFunctionCalls%",
+            "scope": "resource"
+          },
+          "typescript.suggest.paths": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.paths%",
+            "scope": "resource"
+          },
+          "typescript.suggest.completeJSDocs": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.completeJSDocs%",
+            "scope": "language-overridable"
+          },
+          "typescript.suggest.jsdoc.generateReturns": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+            "scope": "language-overridable"
+          },
+          "typescript.suggest.includeAutomaticOptionalChainCompletions": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+            "scope": "resource"
+          },
+          "typescript.suggest.includeCompletionsForImportStatements": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+            "scope": "resource"
+          },
+          "typescript.suggest.classMemberSnippets.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.classMemberSnippets.enabled%",
+            "scope": "resource"
+          },
+          "typescript.suggest.objectLiteralMethodSnippets.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
+            "scope": "resource"
+          }
+        }
+      },
+      {
+        "type": "object",
+        "title": "%configuration.javascript.suggest%",
+        "order": 21,
+        "properties": {
+          "javascript.suggest.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%typescript.suggest.enabled%",
+            "scope": "language-overridable"
+          },
+          "javascript.suggest.autoImports": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.autoImports%",
+            "scope": "resource"
+          },
+          "javascript.suggest.names": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.suggest.names%",
+            "scope": "resource"
+          },
+          "javascript.suggest.paths": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.paths%",
+            "scope": "resource"
+          },
+          "javascript.suggest.completeJSDocs": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.completeJSDocs%",
+            "scope": "language-overridable"
+          },
+          "javascript.suggest.jsdoc.generateReturns": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+            "scope": "language-overridable"
+          },
+          "javascript.suggest.completeFunctionCalls": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.suggest.completeFunctionCalls%",
+            "scope": "resource"
+          },
+          "javascript.suggest.includeAutomaticOptionalChainCompletions": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+            "scope": "resource"
+          },
+          "javascript.suggest.includeCompletionsForImportStatements": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+            "scope": "resource"
+          },
+          "javascript.suggest.classMemberSnippets.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.classMemberSnippets.enabled%",
+            "scope": "resource"
           }
         }
       },
