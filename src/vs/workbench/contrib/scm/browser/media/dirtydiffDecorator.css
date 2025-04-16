@@ -60,7 +60,7 @@
 
 .monaco-editor .dirty-diff-added.pattern.secondary,
 .monaco-editor .dirty-diff-added.pattern.secondary:before {
-	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-addedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+	background-image: linear-gradient(45deg, var(--vscode-editorGutter-addedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 }
 
 .monaco-editor .dirty-diff-modified:not(.pattern) {
@@ -98,7 +98,7 @@
 
 .monaco-editor .dirty-diff-modified.pattern.secondary,
 .monaco-editor .dirty-diff-modified.pattern.secondary:before {
-	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-modifiedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+	background-image: linear-gradient(45deg, var(--vscode-editorGutter-modifiedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 }
 
 .monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added,
