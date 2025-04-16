@@ -24,11 +24,13 @@ import { URI } from "../../../../../base/common/uri.js";
 import { ExtensionIdentifier } from "../../../../../platform/extensions/common/extensions.js";
 import { IEditorGroupsService } from "../../../../../workbench/services/editor/common/editorGroupsService.js";
 import { Emitter } from "../../../../../base/common/event.js";
+import { CommandEmitter } from '../../../../../platform/commands/browser/commandEmitter.js';
 
 const CREATOR_VIEW_ID = "pearai.creatorView";
 const CREATOR_OVERLAY_TITLE = "pearai.creatorOverlayView";
 
-const MAX_OVERLAY_HEIGHT = "90vh";
+const CREATOR_OPEN_OVERLAY_HEIGHT = 90;
+const CREATOR_OPEN_OVERLAY_CLOSED_HEIGHT = 5;
 
 const ENTER_CREATOR_MODE_BTN_IDENTIFIER = ".creator-mode-button";
 
@@ -46,7 +48,7 @@ export class CreatorOverlayPart extends Part {
 	private _webviewService: WebviewService | undefined;
 	private closeHandler: ((event: MouseEvent) => void) | undefined;
 
-	private state: "loading" | "open" | "closed" = "loading";
+	private state: "loading" | "open" | "closed" | "overlay_closed_creator_active" = "loading";
 	private _isLocked: boolean = false;
 	private initializedWebview: boolean = false;
 
@@ -105,7 +107,6 @@ export class CreatorOverlayPart extends Part {
 	 */
 	public setWebviewEnabled(enabled: boolean): void {
 		this._webviewEnabled = enabled;
-		console.log(`Webview functionality ${enabled ? "enabled" : "disabled"}`);
 	}
 
 	/**
@@ -410,37 +411,68 @@ export class CreatorOverlayPart extends Part {
 					}
 				});
 			});
-			await this.handleSlideAnimation("down");
+			this.updateEnterCreatorButton("down");
+			await this.handleSlideAnimation(CREATOR_OPEN_OVERLAY_HEIGHT, true); // Use 90vh for full overlay with blur
 		} finally {
 			this.openInProgress = false;
 		}
 	}
 
-	private close() {
-		if (this.isLocked || this.state === "closed" || !this.overlayContainer) {
-			return;
-		}
+	/**
+	 * Closes the creator overlay, but doesn't exit creator mode
+	 */
+	private closeOverlay() {
+		return new Promise<void>((resolve) => {
+			if (this.isLocked || this.state === "closed" || !this.overlayContainer) {
+				return;
+			}
 
-		console.log("Closing overlay view");
+			// Add a slide-up animation when closing
+			this.handleSlideAnimation(0, false).then(() => {
 
-		// Add a slide-up animation when closing
-		this.handleSlideAnimation("up").then(() => {
-			this.state = "closed";
+				// Hide our overlay container (which hides the webview)
+				this.overlayContainer!.style.display = "none";
+				this.overlayContainer!.style.zIndex = "-10"; // Reset to original value
 
-			// Hide our overlay container (which hides the webview)
-			this.overlayContainer!.style.display = "none";
-			this.overlayContainer!.style.zIndex = "-10"; // Reset to original value
+				// Hide animation elements
+				const topOfBodyElement = this.getTopOfBodyElement();
+				topOfBodyElement.style.height = "0";
 
-			// Hide animation elements
-			const topOfBodyElement = this.getTopOfBodyElement();
-			topOfBodyElement.style.height = "0";
+				// Focus the active editor
+				this._editorGroupsService.activeGroup.focus();
 
-			// Focus the active editor
-			this._editorGroupsService.activeGroup.focus();
-
-			// Mark webview as needing reinitialization before next open
-			this.needsReinit = true;
+				// Mark webview as needing reinitialization before next open
+				this.needsReinit = true;
+				resolve();
+			});
 		});
+	}
+
+	/**
+	 * This handles the vscode command to enter creator mode
+	 * This relies on the submodule sending the plan to roo code, then the submodule is to call this to hide the overlay
+	 * but keeping top right hand corner exit creator mode button active
+	 */
+	progressToNextStage() {
+		this.handleSlideAnimation(CREATOR_OPEN_OVERLAY_CLOSED_HEIGHT, false).then(() => {
+			this.state = "overlay_closed_creator_active";
+			CommandEmitter.emit("workbench.action.enterCreatorMode");
+		})
+	}
+
+	/**
+	 * Close exits the creator mode in it's entirety
+	 */
+	private close() {
+		this.updateEnterCreatorButton("up");
+		if(this.state === "overlay_closed_creator_active") {
+			CommandEmitter.emit("workbench.action.exitCreatorMode");
+			// TODO: exit the creator mode view
+		} else if(this.state === "open") {
+			this.closeOverlay().then(() => {
+				this.state = "closed";
+			})
+		}
 	}
 
 	private updateEnterCreatorButton(direction: "up" | "down") {
@@ -513,7 +545,19 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	toggle(): void {
-		this.state === "open" ? this.close() : this.open();
+		switch(this.state) {
+			case "overlay_closed_creator_active":
+			case "open":
+				this.close();
+				break;
+			case "closed":
+				this.open();
+				break;
+			case "loading":
+				break;
+			default:
+				throw new Error("Unhandled state in toggle: " + this.state);
+		}
 	}
 
 	public lock(): void {
@@ -527,8 +571,6 @@ export class CreatorOverlayPart extends Part {
 	public get isLocked(): boolean {
 		return this._isLocked;
 	}
-
-	public hideOverlayLoadingMessage(): void {}
 
 	private getTopOfBodyElement(): HTMLElement {
 		let topOfBodyElement = document.getElementById(
@@ -635,47 +677,46 @@ export class CreatorOverlayPart extends Part {
 
 		return blurOverlayElement;
 	}
-	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
+
+	private handleSlideAnimation(targetVh: number, showBlur: boolean): Promise<void> {
 		return new Promise((resolve) => {
 			// Post message to webview for animation
 			if (this.webviewElement) {
 				try {
 					this.webviewElement.postMessage({
 						messageType: "overlayAnimation",
-						data: { direction },
+						data: { targetHeightOffset: targetVh - CREATOR_OPEN_OVERLAY_HEIGHT },
 					});
 				} catch (e) {
 					console.warn("Failed to post animation message to webview:", e);
 				}
 			}
 
-			// Setting the button in the top right corner
-			this.updateEnterCreatorButton(direction);
-
-			// Create the container element for slide-down animation
+			// Create the container element for slide animation
 			const topOfBodyElement = this.getTopOfBodyElement();
 			const blurryElement = this.getBlurOverlayElement();
 
-			topOfBodyElement.style.height =
-				direction === "up" ? MAX_OVERLAY_HEIGHT : "0";
+			// Set initial height based on current state
+			const currentHeight = topOfBodyElement.style.height;
+			topOfBodyElement.style.height = currentHeight || "0";
 
 			// Force layout reflow before starting animation
 			void topOfBodyElement.offsetWidth;
-
-			// Start animation - expand to full height
 
 			if (!topOfBodyElement || !topOfBodyElement.parentNode) {
 				console.warn("topOfBodyElement not found in request animation frame");
 				return resolve();
 			}
 
-			topOfBodyElement.style.height =
-				direction === "up" ? "0" : MAX_OVERLAY_HEIGHT;
-			blurryElement.style.opacity = direction === "up" ? "0" : "1"; // Fade in/out
+			// Animate to target height
+			topOfBodyElement.style.height = `${targetVh}vh`;
+
+			// Animate blur effect
+			blurryElement.style.opacity = showBlur ? "1" : "0";
 
 			console.log(
 				"Animation started - height change to:",
-				direction === "up" ? "0" : MAX_OVERLAY_HEIGHT,
+				`${targetVh}vh, blur: ${showBlur}`,
 			);
 
 			// Set a single timeout for animation completion
