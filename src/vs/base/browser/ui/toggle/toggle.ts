@@ -156,6 +156,10 @@ export class Toggle extends Widget {
 		this._register(this.ignoreGesture(this.domNode));
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
+			if (!this.enabled) {
+				return;
+			}
+
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this.checked = !this._checked;
 				this._onChange.fire(true);
