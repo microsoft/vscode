@@ -1011,16 +1011,12 @@ async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): P
 
 
 	function classify(tool: IToolData) {
-		if (tool.source.type === 'extension') {
-			if (!tool.source.isExternalTool) {
-				return { ordinal: 1, groupLabel: tool.source.label };
-			} else {
-				return { ordinal: 3, groupLabel: localize('chatContext.tools.extension', 'Extensions') };
-			}
+		if (tool.source.type === 'internal' || tool.source.type === 'extension' && !tool.source.isExternalTool) {
+			return { ordinal: 1, groupLabel: localize('chatContext.tools.internal', 'Built-In') };
 		} else if (tool.source.type === 'mcp') {
 			return { ordinal: 2, groupLabel: localize('chatContext.tools.mcp', 'MCP Servers') };
 		} else {
-			return { ordinal: 4, groupLabel: '' };
+			return { ordinal: 3, groupLabel: localize('chatContext.tools.extension', 'Extensions') };
 		}
 	}
 
@@ -1049,20 +1045,10 @@ async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): P
 
 	items.sort((a, b) => {
 		let res = a.ordinal - b.ordinal;
-		if (res !== 0) {
-			return res;
+		if (res === 0) {
+			res = a.label.localeCompare(b.label);
 		}
-
-		let strA = a.tool.source.type !== 'internal' ? a.tool.source.label : '';
-		let strB = b.tool.source.type !== 'internal' ? b.tool.source.label : '';
-		res = strA.localeCompare(strB);
-		if (res !== 0) {
-			return res;
-		}
-
-		strA = a.label;
-		strB = b.label;
-		return strA.localeCompare(strB);
+		return res;
 	});
 
 	let lastGroupLabel: string | undefined;
@@ -1078,7 +1064,7 @@ async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): P
 	}
 
 	const result = await quickPickService.pick(picks, {
-		placeHolder: localize('chatContext.tools.placeholder', 'Select a Tool'),
+		placeHolder: localize('chatContext.tools.placeholder', 'Select a tool'),
 		canPickMany: false
 	});
 
