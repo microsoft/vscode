@@ -97,6 +97,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen }))
 			);
 
+			this.onDidChangeWindowAlwaysOnTop = Event.any(
+				Event.None, // always on top is unsupported in main windows currently
+				Event.map(this.auxiliaryWindowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop }))
+			);
+
 			this.onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 			this.onDidFocusMainWindow = Event.any(
 				Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
@@ -153,6 +158,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
+
+	readonly onDidChangeWindowAlwaysOnTop: Event<{ readonly windowId: number; readonly alwaysOnTop: boolean }>;
 
 	readonly onDidResumeOS: Event<void>;
 
@@ -302,6 +309,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.moveTop();
+	}
+
+	async isWindowAlwaysOnTop(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.isAlwaysOnTop() ?? false;
+	}
+
+	async toggleWindowAlwaysOnTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAlwaysOnTop(!window.win.isAlwaysOnTop());
+	}
+
+	async setWindowAlwaysOnTop(windowId: number | undefined, alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAlwaysOnTop(alwaysOnTop);
 	}
 
 	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeHostOptions): Promise<void> {
@@ -720,11 +742,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Screenshots
 
-	async getScreenshot(windowId: number | undefined, options?: INativeHostOptions): Promise<ArrayBufferLike | undefined> {
+	async getScreenshot(windowId: number | undefined, options?: INativeHostOptions): Promise<VSBuffer | undefined> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		const captured = await window?.win?.webContents.capturePage();
 
-		return captured?.toJPEG(95);
+		const buf = captured?.toJPEG(95);
+		return buf && VSBuffer.wrap(buf);
 	}
 
 	//#endregion
@@ -748,6 +771,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
 		return clipboard.readText(type);
+	}
+
+	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.webContents.paste() ?? Promise.resolve();
 	}
 
 	async readImage(): Promise<Uint8Array> {

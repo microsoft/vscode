@@ -67,6 +67,6 @@ export class Word extends BaseToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `word("${this.text}")${this.range}`;
+		return `word("${this.shortText()}")${this.range}`;
 	}
 }

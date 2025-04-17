@@ -7,6 +7,7 @@ import { BasePromptParser } from './basePromptParser.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelContentsProvider } from '../contentProviders/textModelContentsProvider.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -18,11 +19,12 @@ export class TextModelPromptParser extends BasePromptParser<TextModelContentsPro
 		model: ITextModel,
 		seenReferences: string[] = [],
 		@IInstantiationService initService: IInstantiationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
 		const contentsProvider = initService.createInstance(TextModelContentsProvider, model);
 
-		super(contentsProvider, seenReferences, initService, logService);
+		super(contentsProvider, seenReferences, initService, workspaceService, logService);
 
 		this._register(contentsProvider);
 	}

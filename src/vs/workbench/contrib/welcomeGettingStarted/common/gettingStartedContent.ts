@@ -207,6 +207,17 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:workbench.action.remote.showWebStartEntryActions',
 		}
 	},
+	{
+		id: 'topLevelNewWorkspaceChat',
+		title: localize('gettingStarted.newWorkspaceChat.title', "New Workspace with Copilot..."),
+		description: localize('gettingStarted.newWorkspaceChat.description', "Create a new workspace with Copilot"),
+		icon: Codicon.copilot,
+		when: '!isWeb && !chatSetupHidden',
+		content: {
+			type: 'startEntry',
+			command: 'command:welcome.newWorkspaceChat',
+		}
+	},
 ];
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
@@ -226,7 +237,7 @@ function createCopilotSetupStep(id: string, button: string, when: string, includ
 		id,
 		title: CopilotStepTitle,
 		description,
-		when,
+		when: `${when} && !chatSetupHidden`,
 		media: {
 			type: 'svg', altText: 'VS Code Copilot multi file edits', path: 'multi-file-edits.svg'
 		},

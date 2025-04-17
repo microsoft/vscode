@@ -761,7 +761,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}
 		for (let i = 0; i < endOffsetsAndScopes.length; i++) {
 			const token = endOffsetsAndScopes[i];
-			if (token.endOffset === 0 && token.scopes.length === 0 && i !== 0) {
+			if (token.endOffset === 0 && i !== 0) {
 				endOffsetsAndScopes.splice(i, endOffsetsAndScopes.length - i);
 				break;
 			}

@@ -258,6 +258,11 @@ export interface IChatToolInvocationSerialized {
 	kind: 'toolInvocationSerialized';
 }
 
+export interface IChatExtensionsContent {
+	extensions: string[];
+	kind: 'extensions';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -278,6 +283,7 @@ export type IChatProgress =
 	| IChatConfirmation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
+	| IChatExtensionsContent
 	| IChatUndoStop;
 
 export interface IChatFollowup {
@@ -476,9 +482,9 @@ export interface IChatSendRequestOptions {
 	confirmation?: string;
 
 	/**
-	 * Flag to indicate whether a prompt instructions attachment is present.
+	 * Flag to indicate whether a prompt file attachment is present.
 	 */
-	hasInstructionAttachments?: boolean;
+	hasPromptFileAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -491,7 +497,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	isPersistedSessionEmpty(sessionId: string): boolean;
@@ -521,8 +527,9 @@ export interface IChatService {
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
-	readonly unifiedViewEnabled: boolean;
-	isEditingLocation(location: ChatAgentLocation): boolean;
+	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
+
+	readonly edits2Enabled: boolean;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

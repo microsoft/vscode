@@ -591,6 +591,21 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel });
 	}
 
+	private _secondaryQuickDiffProvider: vscode.QuickDiffProvider | undefined = undefined;
+
+	get secondaryQuickDiffProvider(): vscode.QuickDiffProvider | undefined {
+		checkProposedApiEnabled(this._extension, 'quickDiffProvider');
+		return this._secondaryQuickDiffProvider;
+	}
+
+	set secondaryQuickDiffProvider(secondaryQuickDiffProvider: vscode.QuickDiffProvider | undefined) {
+		checkProposedApiEnabled(this._extension, 'quickDiffProvider');
+
+		this._secondaryQuickDiffProvider = secondaryQuickDiffProvider;
+		const secondaryQuickDiffLabel = secondaryQuickDiffProvider?.label;
+		this.#proxy.$updateSourceControl(this.handle, { hasSecondaryQuickDiffProvider: !!secondaryQuickDiffProvider, secondaryQuickDiffLabel });
+	}
+
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private readonly _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 
@@ -941,6 +956,20 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		return asPromise(() => sourceControl.quickDiffProvider!.provideOriginalResource!(uri, token))
+			.then<UriComponents | null>(r => r || null);
+	}
+
+	$provideSecondaryOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
+		const uri = URI.revive(uriComponents);
+		this.logService.trace('ExtHostSCM#$provideSecondaryOriginalResource', sourceControlHandle, uri.toString());
+
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
+
+		if (!sourceControl || !sourceControl.secondaryQuickDiffProvider || !sourceControl.secondaryQuickDiffProvider.provideOriginalResource) {
+			return Promise.resolve(null);
+		}
+
+		return asPromise(() => sourceControl.secondaryQuickDiffProvider!.provideOriginalResource!(uri, token))
 			.then<UriComponents | null>(r => r || null);
 	}
 

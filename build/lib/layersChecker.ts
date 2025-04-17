@@ -84,6 +84,15 @@ const CORE_TYPES = [
 	'SubtleCrypto',
 	'JsonWebKey',
 	'MessageEvent',
+
+	// node web types
+	'ReadableStream',
+	'ReadableStreamReadResult',
+	'ReadableStreamGenericReader',
+	'ReadableStreamDefaultReader',
+	'value',
+	'done',
+	'DOMException',
 ];
 
 // Types that are defined in a common layer but are known to be only

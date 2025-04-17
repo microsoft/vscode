@@ -1672,7 +1672,8 @@ export class SettingsEditor2 extends EditorPane {
 		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 		const fullResult: ISearchResult = {
-			filterMatches: []
+			filterMatches: [],
+			exactMatch: false,
 		};
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {

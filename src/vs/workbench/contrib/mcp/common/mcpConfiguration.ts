@@ -22,8 +22,30 @@ const mcpSchemaExampleServer = {
 	env: {},
 };
 
+export const enum DiscoverySource {
+	ClaudeDesktop = 'claude-desktop',
+	Windsurf = 'windsurf',
+	CursorGlobal = 'cursor-global',
+	CursorWorkspace = 'cursor-workspace',
+}
+
+export const allDiscoverySources = Object.keys({
+	[DiscoverySource.ClaudeDesktop]: true,
+	[DiscoverySource.Windsurf]: true,
+	[DiscoverySource.CursorGlobal]: true,
+	[DiscoverySource.CursorWorkspace]: true,
+} satisfies Record<DiscoverySource, true>) as DiscoverySource[];
+
+export const discoverySourceLabel: Record<DiscoverySource, string> = {
+	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
+	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
+	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
+	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
+};
+
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
+export const mcpEnabledSection = 'chat.mcp.enabled';
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {
@@ -31,6 +53,11 @@ export const mcpSchemaExampleServers = {
 		args: ['-m', 'mcp_server_time', '--local-timezone=America/Los_Angeles'],
 		env: {},
 	}
+};
+
+const httpSchemaExample = {
+	url: 'http://localhost:3001/mcp',
+	headers: {},
 };
 
 export const mcpStdioServerSchema: IJSONSchema = {
@@ -81,29 +108,29 @@ export const mcpServerSchema: IJSONSchema = {
 	additionalProperties: false,
 	properties: {
 		servers: {
-			examples: [mcpSchemaExampleServers],
+			examples: [
+				mcpSchemaExampleServers,
+				httpSchemaExample,
+			],
 			additionalProperties: {
 				oneOf: [mcpStdioServerSchema, {
 					type: 'object',
 					additionalProperties: false,
-					required: ['url', 'type'],
-					examples: [{
-						type: 'sse',
-						url: 'http://localhost:3001',
-						headers: {},
-					}],
+					required: ['url'],
+					examples: [httpSchemaExample],
 					properties: {
 						type: {
 							type: 'string',
-							enum: ['sse'],
+							enum: ['http', 'sse'],
 							description: localize('app.mcp.json.type', "The type of the server.")
 						},
 						url: {
 							type: 'string',
 							format: 'uri',
-							description: localize('app.mcp.json.url', "The URL of the server-sent-event (SSE) server.")
+							description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
 						},
-						env: {
+						headers: {
+							type: 'object',
 							description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
 							additionalProperties: { type: 'string' },
 						},

@@ -1,16 +1,22 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
-  - name: VSCODE_CIBUILD
-    type: boolean
-  - name: VSCODE_RUN_UNIT_TESTS
-    type: boolean
-  - name: VSCODE_RUN_INTEGRATION_TESTS
-    type: boolean
-  - name: VSCODE_RUN_SMOKE_TESTS
-    type: boolean
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_CIBUILD
+    type: boolean
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
+    default: ""
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -48,7 +54,6 @@ steps:
       # Start X server
       ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
       ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
-        dbus \
         xvfb \
         libgtk-3-0 \
         libxkbfile-dev \
@@ -59,17 +64,13 @@ steps:
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
       sudo service xvfb start
-      # Start dbus session
-      sudo mkdir -p /var/run/dbus
-      DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
-      echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
     displayName: Setup system services
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -286,16 +287,6 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - template: product-build-linux-test.yml@self
-      parameters:
-        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-        VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
-        VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
-        VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
-
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - script:  |
         set -e
@@ -338,14 +329,31 @@ steps:
         echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/rpm/*/*.rpm)"
       displayName: Build rpm package
 
-    - script: |
-        set -e
-        npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-        ARCHIVE_PATH=".build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
-        mkdir -p $(dirname $ARCHIVE_PATH)
-        tar -czf $ARCHIVE_PATH -C .build/linux snap
-        echo "##vso[task.setvariable variable=SNAP_PATH]$ARCHIVE_PATH"
-      displayName: Prepare snap package
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - task: Docker@1
+        inputs:
+          azureSubscriptionEndpoint: vscode
+          azureContainerRegistry: vscodehub.azurecr.io
+          command: login
+        displayName: Login to Container Registry
+
+      - script: |
+          set -e
+          npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+          sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
+
+          SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
+          SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
+          SNAP_PATH=$(find $SNAP_ROOT -maxdepth 1 -type f -name '*.snap')
+
+          # SBOM tool doesn't like recursive symlinks
+          sudo find $SNAP_EXTRACTED_PATH -type l -delete
+
+          echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$SNAP_EXTRACTED_PATH"
+          echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
+        env:
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Build snap package
 
     - task: UseDotNet@2
       inputs:
@@ -363,15 +371,35 @@ steps:
         Pattern: noop
       displayName: 'Install ESRP Tooling'
 
-    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/deb '*.deb'
-      env:
-        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: Codesign deb
+    - pwsh: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
+        $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+        echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
+      displayName: Find ESRP CLI
 
-    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/rpm '*.rpm'
+    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.js
       env:
+        EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: Codesign rpm
+      displayName: ✍️ Codesign deb & rpm
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: product-build-linux-test.yml@self
+      parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+        VSCODE_TEST_ARTIFACT_NAME: ${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
+
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+    - script: npx deemon --attach node build/azure-pipelines/linux/codesign.js
+      condition: succeededOrFailed()
+      displayName: "✍️ Post-job: Codesign deb & rpm"
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
       condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
@@ -430,7 +458,9 @@ steps:
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: $(SNAP_PATH)
-        artifactName: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
-        sbomEnabled: false
+        artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+        sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
+        sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
-      displayName: Publish snap pre-package
+      displayName: Publish snap package

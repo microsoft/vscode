@@ -115,7 +115,7 @@ export class MarkdownLink extends MarkdownToken {
 
 		const { range } = this;
 
-		// note! '+1' for openning `(` of the link
+		// note! '+1' for opening `(` of the link
 		const startColumn = range.startColumn + this.caption.length + 1;
 		const endColumn = startColumn + this.path.length;
 
@@ -131,6 +131,6 @@ export class MarkdownLink extends MarkdownToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-link("${this.text}")${this.range}`;
+		return `md-link("${this.shortText()}")${this.range}`;
 	}
 }

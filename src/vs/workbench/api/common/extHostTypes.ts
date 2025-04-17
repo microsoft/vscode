@@ -1866,6 +1866,12 @@ export enum PartialAcceptTriggerKind {
 	Suggest = 3,
 }
 
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2,
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -4674,6 +4680,13 @@ export class ChatResponseMovePart {
 	}
 }
 
+export class ChatResponseExtensionsPart {
+	constructor(
+		public readonly extensions: string[],
+	) {
+	}
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
@@ -4730,7 +4743,6 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
-	EditingSession = 5,
 }
 
 export enum ChatResponseReferencePartStatusKind {
@@ -4962,8 +4974,19 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 	}
 }
 
+/**
+ * Enum for supported image MIME types.
+ */
+export enum ChatImageMimeType {
+	PNG = 'image/png',
+	JPEG = 'image/jpeg',
+	GIF = 'image/gif',
+	WEBP = 'image/webp',
+	BMP = 'image/bmp',
+}
+
 export interface ChatImagePart {
-	mimeType: string;
+	mimeType: ChatImageMimeType;
 	data: VSBuffer;
 }
 
