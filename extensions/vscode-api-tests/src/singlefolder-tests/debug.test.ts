@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { basename } from 'path';
-import { commands, debug, Disposable, FunctionBreakpoint, window, workspace } from 'vscode';
+import { AddressDataBreakpointOrigin, commands, DataBreakpoint, debug, Disposable, ExpressionDataBreakpointOrigin, FrameScopedDataBreakpointOrigin, FunctionBreakpoint, ResolvedDataBreakpointOrigin, VariableScopedDataBreakpointOrigin, window, workspace } from 'vscode';
 import { assertNoRpc, createRandomFile, disposeAll } from '../utils';
 
 suite('vscode API - debug', function () {
@@ -58,6 +58,65 @@ suite('vscode API - debug', function () {
 		assert.strictEqual(functionBreakpoint.logMessage, 'logMessage');
 		assert.strictEqual(functionBreakpoint.enabled, false);
 		assert.strictEqual(functionBreakpoint.functionName, 'func');
+	});
+
+
+	test('data breakpoint - dataId', async function () {
+		debug.addBreakpoints([new DataBreakpoint(new ResolvedDataBreakpointOrigin('dataId'), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
+		const variableDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: ResolvedDataBreakpointOrigin };
+		assert.strictEqual(variableDbp.condition, 'condition');
+		assert.strictEqual(variableDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(variableDbp.logMessage, 'logMessage');
+		assert.strictEqual(variableDbp.enabled, false);
+		assert.strictEqual(variableDbp.origin?.dataId, 'dataId');
+		assert.strictEqual(variableDbp.origin.canPersist, false);
+		assert.strictEqual(variableDbp.origin.accessTypes, undefined);
+		assert.strictEqual(variableDbp.accessType, 'readWrite');
+	});
+
+	test('data breakpoint - address', async function () {
+		debug.addBreakpoints([new DataBreakpoint(new AddressDataBreakpointOrigin('0x00000', 4), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
+		const addressDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: AddressDataBreakpointOrigin };
+		assert.strictEqual(addressDbp.condition, 'condition');
+		assert.strictEqual(addressDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(addressDbp.logMessage, 'logMessage');
+		assert.strictEqual(addressDbp.enabled, false);
+		assert.strictEqual(addressDbp.origin.address, '0x00000');
+		assert.strictEqual(addressDbp.origin.bytes, 4);
+		assert.strictEqual(addressDbp.accessType, 'readWrite');
+	});
+
+	test('data breakpoint - expression', async function () {
+		debug.addBreakpoints([new DataBreakpoint(new ExpressionDataBreakpointOrigin('i'), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
+		const expressionDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: ExpressionDataBreakpointOrigin };
+		assert.strictEqual(expressionDbp.condition, 'condition');
+		assert.strictEqual(expressionDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(expressionDbp.logMessage, 'logMessage');
+		assert.strictEqual(expressionDbp.enabled, false);
+		assert.strictEqual(expressionDbp.origin.expression, 'i');
+		assert.strictEqual(expressionDbp.accessType, 'readWrite');
+	});
+
+	test('data breakpoint - scoped', async function () {
+		debug.addBreakpoints([new DataBreakpoint(new FrameScopedDataBreakpointOrigin(1, 'exp()'), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
+		const scopedExpressionDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: FrameScopedDataBreakpointOrigin };
+		assert.strictEqual(scopedExpressionDbp.condition, 'condition');
+		assert.strictEqual(scopedExpressionDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(scopedExpressionDbp.logMessage, 'logMessage');
+		assert.strictEqual(scopedExpressionDbp.enabled, false);
+		assert.strictEqual(scopedExpressionDbp.origin.frameId, 1);
+		assert.strictEqual(scopedExpressionDbp.origin.expression, 'exp()');
+		assert.strictEqual(scopedExpressionDbp.accessType, 'readWrite');
+
+		debug.addBreakpoints([new DataBreakpoint(new VariableScopedDataBreakpointOrigin(1, 'var'), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
+		const scopedVariableDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: VariableScopedDataBreakpointOrigin };
+		assert.strictEqual(scopedVariableDbp.condition, 'condition');
+		assert.strictEqual(scopedVariableDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(scopedVariableDbp.logMessage, 'logMessage');
+		assert.strictEqual(scopedVariableDbp.enabled, false);
+		assert.strictEqual(scopedVariableDbp.origin.variablesReference, 1);
+		assert.strictEqual(scopedVariableDbp.origin.variable, 'var');
+		assert.strictEqual(scopedVariableDbp.accessType, 'readWrite');
 	});
 
 	test('start debugging', async function () {

@@ -24,7 +24,7 @@ import { ITelemetryEndpoint } from '../../../../platform/telemetry/common/teleme
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { DebugCompoundRoot } from './debugCompoundRoot.js';
-import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from './debugModel.js';
+import { IDataBreakpointInfos, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from './debugModel.js';
 import { Source } from './debugSource.js';
 import { ITaskIdentifier } from '../../tasks/common/tasks.js';
 import { LiveTestResult } from '../../testing/common/testResult.js';
@@ -252,12 +252,7 @@ export interface IDebugSessionOptions {
 	testRun?: IDebugTestRunReference;
 }
 
-export interface IDataBreakpointInfoResponse {
-	dataId: string | null;
-	description: string;
-	canPersist?: boolean;
-	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
-}
+export type IDataBreakpointInfoResponse = DebugProtocol.DataBreakpointInfoResponse['body'];
 
 export interface IMemoryInvalidationEvent {
 	fromOffset: number;
@@ -444,8 +439,8 @@ export interface IDebugSession extends ITreeElement, IDisposable {
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
-	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined>;
+	dataBreakpointInfo(name: string, variablesReference?: number, frameId?: number): Promise<IDataBreakpointInfoResponse | undefined>;
+	dataBytesBreakpointInfo(address: string, bytes?: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
@@ -658,22 +653,78 @@ export interface IExceptionBreakpoint extends IBaseBreakpoint {
 export const enum DataBreakpointSetType {
 	Variable,
 	Address,
+	Expression,
+	FrameScoped,
+	VariableScoped
 }
 
+export type ResolvedDataBreakpointOrigin = {
+	type: DataBreakpointSetType.Variable;
+	/** An identifier for the data. If it was retrieved using a `variablesReference` it may only be valid in the current suspended state, otherwise it's valid indefinitely. */
+	dataId: string;
+	/** Attribute indicates that a potential data breakpoint could be persisted across sessions. */
+	canPersist?: boolean;
+	/** A human-readable label for the data breakpoint origin. */
+	description: string;
+	/** Attribute lists the available access types for a potential data breakpoint. */
+	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+};
+
+export type AddressDataBreakpointOrigin = {
+	/** The origin type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.Address;
+	/** A memory address as a decimal value, or hex value if it is prefixed with `0x`. */
+	address: string;
+	/** If specified, returns information for the range of memory extending `bytes` number of bytes from the address. */
+	bytes?: number;
+	/** A human-readable label for the data breakpoint origin. */
+	description: string;
+};
+
+export type ExpressionDataBreakpointOrigin = {
+	/** The origin type for expression-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.Expression;
+	/** A global expression that is first evaluated when the breakpoint is activated. */
+	expression: string;
+	/** A human-readable label for the data breakpoint origin. */
+	description: string;
+};
+
+export type FrameScopedDataBreakpointOrigin = {
+	/** The origin type for frame scoped-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.FrameScoped;
+	/** Reference to the stack frame to which the expression is scoped. */
+	frameId: number;
+	/** The name of the expression that is used for resolution. */
+	expression: string;
+	/** A human-readable label for the data breakpoint origin. */
+	description: string;
+};
+
+export type VariableScopedDataBreakpointOrigin = {
+	/** The origin type for frame scoped-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.VariableScoped;
+	/** Reference to the variable container that has the variable named `variable`. */
+	variablesReference: number;
+	/** The name of the variable that is used for resolution. */
+	variable: string;
+	/** A human-readable label for the data breakpoint origin. */
+	description: string;
+};
+
 /**
- * Source for a data breakpoint. A data breakpoint on a variable always has a
+ * Origin for a data breakpoint. A data breakpoint on a variable always has a
  * `dataId` because it cannot reference that variable globally, but addresses
  * can request info repeated and use session-specific data.
  */
-export type DataBreakpointSource =
-	| { type: DataBreakpointSetType.Variable; dataId: string }
-	| { type: DataBreakpointSetType.Address; address: string; bytes: number };
+export type DataBreakpointOrigin = ResolvedDataBreakpointOrigin | AddressDataBreakpointOrigin | ExpressionDataBreakpointOrigin | FrameScopedDataBreakpointOrigin | VariableScopedDataBreakpointOrigin;
 
 export interface IDataBreakpoint extends IBaseBreakpoint {
-	readonly description: string;
+	readonly origin: DataBreakpointOrigin;
 	readonly canPersist: boolean;
-	readonly src: DataBreakpointSource;
-	readonly accessType: DebugProtocol.DataBreakpointAccessType;
+	readonly accessType?: DebugProtocol.DataBreakpointAccessType;
+	readonly infos?: IDataBreakpointInfos;
+	info(sessionId: string): IDataBreakpointInfoResponse | undefined;
 	toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined>;
 }
 
@@ -1225,7 +1276,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new data breakpoint.
 	 */
-	addDataBreakpoint(opts: IDataBreakpointOptions): Promise<void>;
+	addDataBreakpoint(opts: IDataBreakpointOptions, id?: string): Promise<void>;
 
 	/**
 	 * Updates an already existing data breakpoint.
@@ -1242,7 +1293,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new instruction breakpoint.
 	 */
-	addInstructionBreakpoint(opts: IInstructionBreakpointOptions): Promise<void>;
+	addInstructionBreakpoint(opts: IInstructionBreakpointOptions, id?: string): Promise<void>;
 
 	/**
 	 * Removes all instruction breakpoints. If address is passed only removes the instruction breakpoint with the passed address.

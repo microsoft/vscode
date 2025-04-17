@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable as DisposableCls, toDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
+import { Mutable } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -20,7 +21,7 @@ import { DebugVisualizationType, IAdapterDescriptor, IConfig, IDebugAdapter, IDe
 import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from '../../contrib/debug/common/debugUtils.js';
 import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, IStackFrameFocusDto, IThreadFocusDto, MainContext, MainThreadDebugServiceShape, MainThreadTelemetryShape } from './extHost.protocol.js';
+import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDataBreakpointDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, IStackFrameFocusDto, IThreadFocusDto, MainContext, MainThreadDebugServiceShape, MainThreadTelemetryShape } from './extHost.protocol.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { IExtHostConfiguration } from './extHostConfiguration.js';
 import { IExtHostEditorTabs } from './extHostEditorTabs.js';
@@ -400,7 +401,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		});
 	}
 
-	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
+	public async addBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
 		// filter only new breakpoints
 		const breakpoints = breakpoints0.filter(bp => {
 			const id = bp.id;
@@ -411,11 +412,16 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			return false;
 		});
 
+		// retrieve info early for any new data breakpoints to make sure we have the right session before sending it to main
+		if (this.activeDebugSession) {
+			await Promise.allSettled(breakpoints.filter(bp => bp instanceof DataBreakpoint).map(bp => (bp as DataBreakpoint).info(this.activeDebugSession!)));
+		}
+
 		// send notification for added breakpoints
 		this.fireBreakpointChanges(breakpoints, [], []);
 
 		// convert added breakpoints to DTOs
-		const dtos: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto> = [];
+		const dtos: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto> = [];
 		const map = new Map<string, ISourceMultiBreakpointDto>();
 		for (const bp of breakpoints) {
 			if (bp instanceof SourceBreakpoint) {
@@ -450,6 +456,8 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					functionName: bp.functionName,
 					mode: bp.mode,
 				});
+			} else if (bp instanceof DataBreakpoint) {
+				dtos.push(Convert.DataBreakpoint.from(bp));
 			}
 		}
 
@@ -737,7 +745,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					if (bpd.type === 'function') {
 						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage, bpd.mode);
 					} else if (bpd.type === 'data') {
-						bp = new DataBreakpoint(bpd.label, bpd.dataId, bpd.canPersist, bpd.enabled, bpd.hitCondition, bpd.condition, bpd.logMessage, bpd.mode);
+						bp = Convert.DataBreakpoint.to(bpd);
 					} else {
 						const uri = URI.revive(bpd.uri);
 						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage, bpd.mode);
@@ -765,19 +773,31 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					const bp = this._breakpoints.get(bpd.id);
 					if (bp) {
 						if (bp instanceof FunctionBreakpoint && bpd.type === 'function') {
-							const fbp = <any>bp;
+							const fbp = <Mutable<FunctionBreakpoint>>bp;
 							fbp.enabled = bpd.enabled;
 							fbp.condition = bpd.condition;
 							fbp.hitCondition = bpd.hitCondition;
 							fbp.logMessage = bpd.logMessage;
 							fbp.functionName = bpd.functionName;
+							fbp.mode = bpd.mode;
 						} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
-							const sbp = <any>bp;
+							const sbp = <Mutable<SourceBreakpoint>>bp;
 							sbp.enabled = bpd.enabled;
 							sbp.condition = bpd.condition;
 							sbp.hitCondition = bpd.hitCondition;
 							sbp.logMessage = bpd.logMessage;
 							sbp.location = new Location(URI.revive(bpd.uri), new Position(bpd.line, bpd.character));
+							sbp.mode = bpd.mode;
+						} else if (bp instanceof DataBreakpoint && bpd.type === 'data') {
+							const dbp = <Mutable<DataBreakpoint>>bp;
+							dbp.enabled = bpd.enabled;
+							dbp.condition = bpd.condition;
+							dbp.hitCondition = bpd.hitCondition;
+							dbp.logMessage = bpd.logMessage;
+							dbp.mode = bpd.mode;
+							dbp.origin = Convert.DataBreakpointOrigin.to(bpd.origin);
+							dbp.accessType = bpd.accessType;
+							dbp.setInfos(bpd.infos ?? []);
 						}
 						c.push(bp);
 					}

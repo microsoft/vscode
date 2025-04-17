@@ -3,23 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { URI as uri, UriComponents } from '../../../base/common/uri.js';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization, DataBreakpointSetType } from '../../contrib/debug/common/debug.js';
-import {
-	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
-} from '../common/extHost.protocol.js';
-import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import severity from '../../../base/common/severity.js';
-import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
-import { IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
-import { convertToVSCPaths, convertToDAPaths, isSessionAttach } from '../../contrib/debug/common/debugUtils.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
-import { IDebugVisualizerService } from '../../contrib/debug/common/debugVisualizers.js';
-import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { Event } from '../../../base/common/event.js';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import severity from '../../../base/common/severity.js';
 import { isDefined } from '../../../base/common/types.js';
+import { URI as uri, UriComponents } from '../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
+import { DebugConfigurationProviderTriggerKind, IBreakpoint, IBreakpointData, IConfig, IDataBreakpoint, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfigurationProvider, IDebugService, IDebugSession, IDebugSessionOptions, IDebugVisualization, IFunctionBreakpoint, IInstructionBreakpoint } from '../../contrib/debug/common/debug.js';
+import { convertToDAPaths, convertToVSCPaths, isSessionAttach } from '../../contrib/debug/common/debugUtils.js';
+import { IDebugVisualizerService } from '../../contrib/debug/common/debugVisualizers.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import {
+	DebugSessionUUID,
+	ExtHostContext, ExtHostDebugServiceShape,
+	IBreakpointsDeltaDto,
+	IDataBreakpointDto,
+	IDebugConfiguration,
+	IDebugSessionDto,
+	IFunctionBreakpointDto,
+	ISourceBreakpointDto,
+	ISourceMultiBreakpointDto,
+	IStackFrameFocusDto,
+	IStartDebuggingOptions,
+	IThreadFocusDto,
+	MainContext,
+	MainThreadDebugServiceShape
+} from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -173,7 +185,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const bps = this.debugService.getModel().getBreakpoints();
 		const fbps = this.debugService.getModel().getFunctionBreakpoints();
 		const dbps = this.debugService.getModel().getDataBreakpoints();
-		if (bps.length > 0 || fbps.length > 0) {
+		if (bps.length > 0 || fbps.length > 0 || dbps.length > 0) {
 			this._proxy.$acceptBreakpointsDelta({
 				added: this.convertToDto(bps).concat(this.convertToDto(fbps)).concat(this.convertToDto(dbps))
 			});
@@ -208,7 +220,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void> {
-
 		for (const dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
 				const rawbps = dto.lines.map((l): IBreakpointData => ({
@@ -233,13 +244,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				}, dto.id);
 			} else if (dto.type === 'data') {
 				this.debugService.addDataBreakpoint({
-					description: dto.label,
-					src: { type: DataBreakpointSetType.Variable, dataId: dto.dataId },
-					canPersist: dto.canPersist,
-					accessTypes: dto.accessTypes,
+					origin: dto.origin,
+					condition: dto.condition,
+					enabled: dto.enabled,
+					hitCondition: dto.hitCondition,
+					logMessage: dto.logMessage,
+					infos: dto.infos,
 					accessType: dto.accessType,
 					mode: dto.mode
-				});
+				}, dto.id);
 			}
 		}
 		return Promise.resolve();
@@ -451,21 +464,21 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					condition: fbp.condition,
 					hitCondition: fbp.hitCondition,
 					logMessage: fbp.logMessage,
-					functionName: fbp.name
+					functionName: fbp.name,
+					mode: fbp.mode
 				} satisfies IFunctionBreakpointDto;
-			} else if ('src' in bp) {
-				const dbp: IDataBreakpoint = bp;
+			} else if ('origin' in bp) {
 				return {
 					type: 'data',
-					id: dbp.getId(),
-					dataId: dbp.src.type === DataBreakpointSetType.Variable ? dbp.src.dataId : dbp.src.address,
-					enabled: dbp.enabled,
-					condition: dbp.condition,
-					hitCondition: dbp.hitCondition,
-					logMessage: dbp.logMessage,
-					accessType: dbp.accessType,
-					label: dbp.description,
-					canPersist: dbp.canPersist
+					id: bp.getId(),
+					origin: bp.origin,
+					enabled: bp.enabled,
+					condition: bp.condition,
+					hitCondition: bp.hitCondition,
+					logMessage: bp.logMessage,
+					accessType: bp.accessType,
+					infos: bp.infos,
+					mode: bp.mode
 				} satisfies IDataBreakpointDto;
 			} else if ('uri' in bp) {
 				const sbp: IBreakpoint = bp;
@@ -479,6 +492,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					uri: sbp.uri,
 					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
 					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
+					mode: sbp.mode
 				} satisfies ISourceBreakpointDto;
 			} else {
 				return undefined;

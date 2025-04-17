@@ -63,6 +63,8 @@ import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import * as debug from '../../contrib/debug/common/debug.js';
+
 
 export namespace Command {
 
@@ -3254,5 +3256,95 @@ export namespace LanguageModelToolResult {
 export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
+	}
+}
+
+export namespace DataBreakpoint {
+	export function to(breakpoint: extHostProtocol.IDataBreakpointDto): types.DataBreakpoint {
+		return new types.DataBreakpoint(
+			DataBreakpointOrigin.to(breakpoint.origin),
+			breakpoint.accessType,
+			breakpoint.enabled,
+			breakpoint.condition,
+			breakpoint.hitCondition,
+			breakpoint.logMessage,
+			breakpoint.mode,
+		).setInfos(breakpoint.infos ?? []);
+	}
+
+	export function from(breakpoint: types.DataBreakpoint): extHostProtocol.IDataBreakpointDto {
+		return {
+			type: 'data',
+			id: breakpoint.id,
+			origin: DataBreakpointOrigin.from(breakpoint.origin),
+			infos: breakpoint.infos(),
+			accessType: breakpoint.accessType,
+			enabled: breakpoint.enabled,
+			condition: breakpoint.condition,
+			hitCondition: breakpoint.hitCondition,
+			logMessage: breakpoint.logMessage,
+			mode: breakpoint.mode,
+		};
+	}
+}
+
+export namespace DataBreakpointOrigin {
+	export function to(origin: debug.DataBreakpointOrigin): types.DataBreakpointOrigin {
+		switch (origin.type) {
+			case debug.DataBreakpointSetType.Address:
+				return new types.AddressDataBreakpointOrigin(origin.address, origin.bytes, origin.description);
+			case debug.DataBreakpointSetType.Expression:
+				return new types.ExpressionDataBreakpointOrigin(origin.expression, origin.description);
+			case debug.DataBreakpointSetType.VariableScoped:
+				return new types.VariableScopedDataBreakpointOrigin(origin.variablesReference, origin.variable, origin.description);
+			case debug.DataBreakpointSetType.FrameScoped:
+				return new types.FrameScopedDataBreakpointOrigin(origin.frameId, origin.expression, origin.description);
+			default:
+				return new types.ResolvedDataBreakpointOrigin(origin.dataId, origin.canPersist, origin.accessTypes, origin.description);
+		}
+	}
+
+	export function from(origin: types.DataBreakpointOrigin): debug.DataBreakpointOrigin {
+		if (origin instanceof types.ResolvedDataBreakpointOrigin) {
+			return {
+				type: debug.DataBreakpointSetType.Variable,
+				dataId: origin.dataId,
+				canPersist: origin.canPersist,
+				accessTypes: origin.accessTypes,
+				description: origin.description
+			} satisfies debug.ResolvedDataBreakpointOrigin;
+		}
+		if (origin instanceof types.ExpressionDataBreakpointOrigin) {
+			return {
+				type: debug.DataBreakpointSetType.Expression,
+				expression: origin.expression,
+				description: origin.description
+			} satisfies debug.ExpressionDataBreakpointOrigin;
+		}
+		if (origin instanceof types.AddressDataBreakpointOrigin) {
+			return {
+				type: debug.DataBreakpointSetType.Address,
+				address: origin.address,
+				bytes: origin.bytes,
+				description: origin.description
+			} satisfies debug.AddressDataBreakpointOrigin;
+		}
+		if (origin instanceof types.VariableScopedDataBreakpointOrigin) {
+			return {
+				type: debug.DataBreakpointSetType.VariableScoped,
+				variablesReference: origin.variablesReference,
+				variable: origin.variable,
+				description: origin.description
+			} satisfies debug.VariableScopedDataBreakpointOrigin;
+		}
+		if (origin instanceof types.FrameScopedDataBreakpointOrigin) {
+			return {
+				type: debug.DataBreakpointSetType.FrameScoped,
+				frameId: origin.frameId,
+				expression: origin.expression,
+				description: origin.description
+			} satisfies debug.FrameScopedDataBreakpointOrigin;
+		}
+		throw new Error('Unknown DataBreakpointOrigin type');
 	}
 }
