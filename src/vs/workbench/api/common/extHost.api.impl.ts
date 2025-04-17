@@ -1830,7 +1830,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			AISearchKeyword: AISearchKeyword,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
-			McpSSEServerDefinition: extHostTypes.McpSSEServerDefinition,
+			McpHttpServerDefinition: extHostTypes.McpHttpServerDefinition,
 			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
 		};
 	};

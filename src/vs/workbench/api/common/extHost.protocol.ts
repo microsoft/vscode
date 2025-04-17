@@ -2977,6 +2977,7 @@ export interface ExtHostTestingShape {
 }
 
 export interface ExtHostMcpShape {
+	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
 	$startMcp(id: number, launch: McpServerLaunch.Serialized): void;
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
@@ -2987,7 +2988,7 @@ export interface MainThreadMcpShape {
 	$onDidChangeState(id: number, state: McpConnectionState): void;
 	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
 	$onDidReceiveMessage(id: number, message: string): void;
-	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: Dto<McpServerDefinition>[]): void;
+	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
 }
 

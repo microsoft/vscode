@@ -5158,11 +5158,11 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 	) { }
 }
 
-export class McpSSEServerDefinition implements vscode.McpSSEServerDefinition {
-	headers: [string, string][] = [];
+export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 	constructor(
 		public label: string,
-		public uri: URI
+		public uri: URI,
+		public headers: Record<string, string> = {},
 	) { }
 }
 //#endregion
