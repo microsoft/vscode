@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -13,7 +14,8 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 	private static readonly MAX_PICKS = 5;
 
 	private _providers: IAiSettingsSearchProvider[] = [];
-	private _resultsCache: Map<AiSettingsSearchResultBundleKind, AiSettingsSearchResult[]> = new Map();
+	private _llmRankedResultsPromises: Map<string, DeferredPromise<AiSettingsSearchResult[]>> = new Map();
+	private _embeddingsResultsPromises: Map<string, DeferredPromise<AiSettingsSearchResult[]>> = new Map();
 
 	isEnabled(): boolean {
 		return this._providers.length > 0;
@@ -32,8 +34,6 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 	}
 
 	startSearch(query: string, token: CancellationToken): void {
-		this._resultsCache.clear();
-
 		if (!this.isEnabled()) {
 			throw new Error('No settings search providers registered');
 		}
@@ -41,8 +41,26 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS }, token));
 	}
 
-	getResultsCache(kind: AiSettingsSearchResultBundleKind): AiSettingsSearchResult[] {
-		return this._resultsCache.get(kind) ?? [];
+	async getEmbeddingsResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null> {
+		if (!this.isEnabled()) {
+			throw new Error('No settings search providers registered');
+		}
+
+		const promise = new DeferredPromise<AiSettingsSearchResult[]>();
+		this._embeddingsResultsPromises.set(query, promise);
+		const result = await raceCancellation(promise.p, token);
+		return result ?? null;
+	}
+
+	async getLLMRankedResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null> {
+		if (!this.isEnabled()) {
+			throw new Error('No settings search providers registered');
+		}
+
+		const promise = new DeferredPromise<AiSettingsSearchResult[]>();
+		this._llmRankedResultsPromises.set(query, promise);
+		const result = await raceCancellation(promise.p, token);
+		return result ?? null;
 	}
 
 	onSettingsSearchResultBundle(bundle: AiSettingsSearchResultBundle): void {
@@ -50,8 +68,19 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 			return;
 		}
 
-		console.log('Received settings search result bundle', bundle);
-		this._resultsCache.set(bundle.kind, bundle.settings);
+		if (bundle.kind === AiSettingsSearchResultBundleKind.EMBEDDED) {
+			const promise = this._embeddingsResultsPromises.get(bundle.query);
+			if (promise) {
+				promise.complete(bundle.settings);
+				this._embeddingsResultsPromises.delete(bundle.query);
+			}
+		} else if (bundle.kind === AiSettingsSearchResultBundleKind.LLM_RANKED) {
+			const promise = this._llmRankedResultsPromises.get(bundle.query);
+			if (promise) {
+				promise.complete(bundle.settings);
+				this._llmRankedResultsPromises.delete(bundle.query);
+			}
+		}
 	}
 }
 

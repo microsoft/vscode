@@ -17,10 +17,10 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
 import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
+import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -389,15 +389,13 @@ class AiSearchKeysProvider {
 	}
 }
 
-class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
-	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 5;
+class AiSettingsSearchProvider implements IRemoteSearchProvider {
+	private static readonly AI_SETTINGS_SEARCH_MAX_PICKS = 5;
 
 	private readonly _keysProvider: AiSearchKeysProvider;
 	private _filter: string = '';
 
-	constructor(
-		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService
-	) {
+	constructor(private readonly aiSettingsSearchService: IAiSettingsSearchService) {
 		this._keysProvider = new AiSearchKeysProvider();
 	}
 
@@ -408,41 +406,39 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
 		if (
 			!this._filter ||
-			!this.aiRelatedInformationService.isEnabled()
+			!this.aiSettingsSearchService.isEnabled()
 		) {
 			return null;
 		}
 
 		this._keysProvider.updateModel(preferencesModel);
+		this.aiSettingsSearchService.startSearch(this._filter, token);
 
 		return {
-			filterMatches: await this.getAiRelatedInformationItems(token),
+			filterMatches: await this.getAiSettingsSearchItems(token),
 			exactMatch: false
 		};
 	}
 
-	private async getAiRelatedInformationItems(token: CancellationToken) {
+	private async getAiSettingsSearchItems(token: CancellationToken): Promise<ISettingMatch[]> {
 		const settingsRecord = this._keysProvider.getSettingsRecord();
-
 		const filterMatches: ISettingMatch[] = [];
-		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(
-			this._filter,
-			[RelatedInformationType.SettingInformation],
-			token
-		) as SettingInformationResult[];
-		relatedInformation.sort((a, b) => b.weight - a.weight);
+		const embeddings = await this.aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
+		if (!embeddings) {
+			return [];
+		}
 
-		for (const info of relatedInformation) {
-			if (filterMatches.length === AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+		for (const embedding of embeddings) {
+			if (filterMatches.length === AiSettingsSearchProvider.AI_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
 			}
-			const pick = info.setting;
+			const pick = embedding.setting;
 			filterMatches.push({
 				setting: settingsRecord[pick],
 				matches: [settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: info.weight
+				score: embedding.weight
 			});
 		}
 
@@ -548,29 +544,21 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 }
 
 class RemoteSearchProvider implements IRemoteSearchProvider {
-	private adaSearchProvider: AiRelatedInformationSearchProvider | undefined;
-	private tfIdfSearchProvider: TfIdfSearchProvider | undefined;
+	private aiSettingsSearchProvider: AiSettingsSearchProvider;
+	private tfIdfSearchProvider: TfIdfSearchProvider;
 	private filter: string = '';
 
 	constructor(
-		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService
+		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
-	}
-
-	private initializeSearchProviders() {
-		if (this.aiRelatedInformationService.isEnabled()) {
-			this.adaSearchProvider ??= new AiRelatedInformationSearchProvider(this.aiRelatedInformationService);
-		}
-		this.tfIdfSearchProvider ??= new TfIdfSearchProvider();
+		this.aiSettingsSearchProvider = new AiSettingsSearchProvider(this.aiSettingsSearchService);
+		this.tfIdfSearchProvider = new TfIdfSearchProvider();
 	}
 
 	setFilter(filter: string): void {
-		this.initializeSearchProviders();
 		this.filter = filter;
-		if (this.adaSearchProvider) {
-			this.adaSearchProvider.setFilter(filter);
-		}
-		this.tfIdfSearchProvider!.setFilter(filter);
+		this.tfIdfSearchProvider.setFilter(filter);
+		this.aiSettingsSearchProvider.setFilter(filter);
 	}
 
 	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
@@ -578,17 +566,16 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 			return null;
 		}
 
-		if (!this.adaSearchProvider) {
-			return this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
+		if (!this.aiSettingsSearchService.isEnabled()) {
+			return this.tfIdfSearchProvider.searchModel(preferencesModel, token);
 		}
 
-		// Use TF-IDF search as a fallback, ref https://github.com/microsoft/vscode/issues/224946
-		let results = await this.adaSearchProvider.searchModel(preferencesModel, token);
+		let results = await this.aiSettingsSearchProvider.searchModel(preferencesModel, token);
 		if (results?.filterMatches.length) {
 			return results;
 		}
 		if (!token.isCancellationRequested) {
-			results = await this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
+			results = await this.tfIdfSearchProvider.searchModel(preferencesModel, token);
 			if (results?.filterMatches.length) {
 				return results;
 			}

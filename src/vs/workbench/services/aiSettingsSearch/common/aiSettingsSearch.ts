@@ -21,6 +21,7 @@ export interface AiSettingsSearchResult {
 }
 
 export interface AiSettingsSearchResultBundle {
+	query: string;
 	kind: AiSettingsSearchResultBundleKind;
 	settings: AiSettingsSearchResult[];
 }
@@ -36,7 +37,8 @@ export interface IAiSettingsSearchService {
 	registerSettingsSearchProvider(provider: IAiSettingsSearchProvider): IDisposable;
 	onSettingsSearchResultBundle(bundle: AiSettingsSearchResultBundle): void;
 	startSearch(query: string, token: CancellationToken): void;
-	getResultsCache(kind: AiSettingsSearchResultBundleKind): AiSettingsSearchResult[];
+	getEmbeddingsResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null>;
+	getLLMRankedResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null>;
 }
 
 export interface IAiSettingsSearchProvider {

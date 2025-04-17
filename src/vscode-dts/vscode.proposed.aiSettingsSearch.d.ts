@@ -16,6 +16,7 @@ declare module 'vscode' {
 	}
 
 	export interface SettingsSearchResultBundle {
+		query: string;
 		kind: SettingsSearchResultBundleKind;
 		settings: SettingsSearchResult[];
 	}

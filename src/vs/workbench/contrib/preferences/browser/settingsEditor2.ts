@@ -1705,8 +1705,10 @@ export class SettingsEditor2 extends EditorPane {
 			let remoteResults = null;
 			if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
 				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
-				// Also call into AI search here to try it out
-				this.aiSettingsSearchService.startSearch(query, searchInProgress.token);
+			}
+
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
 			}
 
 			// Update UI only after all the search results are in
@@ -1714,10 +1716,16 @@ export class SettingsEditor2 extends EditorPane {
 			this.onDidFinishSearch();
 
 			if (remoteResults) {
-				// const querySuggestions = await this.getQuerySuggestions(query, searchInProgress.token);
-				// if (querySuggestions && !searchInProgress.token.isCancellationRequested) {
-				//	this.searchWidget.setQuerySuggestions(querySuggestions);
-				// }
+				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
+					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
+					if (!searchInProgress.token.isCancellationRequested) {
+						console.log('Got ranked results', rankedResults);
+					}
+					// const querySuggestions = await this.getQuerySuggestions(query, searchInProgress.token);
+					// if (querySuggestions && !searchInProgress.token.isCancellationRequested) {
+					//	this.searchWidget.setQuerySuggestions(querySuggestions);
+					// }
+				}
 			}
 		});
 	}
