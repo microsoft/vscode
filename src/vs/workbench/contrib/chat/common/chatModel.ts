@@ -209,6 +209,10 @@ export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj 
 	return obj.kind === 'diagnostic';
 }
 
+export function isChatRequestFileEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry {
+	return obj.kind === 'file';
+}
+
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
 	const entry = obj as IChatRequestVariableEntry;
 	return typeof entry === 'object' &&

@@ -10,9 +10,12 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import { IChatPromptSlashData, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { localize } from '../../../../../../nls.js';
+import { basename } from '../../../../../../base/common/resources.js';
 
 /**
  * Provides prompt services.
@@ -122,6 +125,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 			storage,
 			`Unknown prompt storage type '${storage}'.`,
 		);
+	}
+
+	public getPromptSlashData(name: string): IChatPromptSlashData | undefined {
+		if (name.endsWith(PROMPT_FILE_EXTENSION)) {
+			return { command: name, detail: localize('prompt.file.detail', 'Prompt file: {0}', name) };
+		}
+		return undefined;
+	}
+
+	public async resolvePromptSlashData(data: IChatPromptSlashData): Promise<IPromptPath | undefined> {
+		const files = await this.listPromptFiles('prompt');
+		return files.find(file => basename(file.uri) === data.command);
 	}
 }
 

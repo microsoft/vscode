@@ -578,7 +578,6 @@ export class ChatService extends Disposable implements IChatService {
 			...options,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
-			hasPromptFileAttachments: options?.hasPromptFileAttachments ?? false,
 		};
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
@@ -586,13 +585,8 @@ export class ChatService extends Disposable implements IChatService {
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
-		// if text is not provided, but chat input has `prompt instructions`
-		// attached, use the default prompt text to avoid empty messages
-		if (!request.trim() && options?.hasPromptFileAttachments) {
-			request = 'Follow these instructions.';
-		}
 
-		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.hasPromptFileAttachments) {
+		if (!request.trim() && !options?.slashCommand && !options?.agentId) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return;
 		}

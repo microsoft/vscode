@@ -62,7 +62,7 @@ export function isPromptOrInstructionsFile(fileUri: URI): boolean {
 }
 
 
-export function getFileExtension(type: 'instructions' | 'prompt'): string {
+export function getPromptFileExtension(type: 'instructions' | 'prompt'): string {
 	return type === 'instructions' ? INSTRUCTION_FILE_EXTENSION : PROMPT_FILE_EXTENSION;
 }
 

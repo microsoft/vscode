@@ -13,6 +13,7 @@ import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
+import { IChatPromptSlashData } from './promptSyntax/service/types.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -144,6 +145,23 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 }
 
 /**
+ * An invocation of a standalone slash command
+ */
+export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
+	static readonly Kind = 'prompt';
+	readonly kind = ChatRequestSlashPromptPart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashPromptCommand: IChatPromptSlashData) { }
+
+	get text(): string {
+		return `${chatSubcommandLeader}${this.slashPromptCommand.command}`;
+	}
+
+	get promptText(): string {
+		return `${chatSubcommandLeader}${this.slashPromptCommand.command}`;
+	}
+}
+
+/**
  * An invocation of a dynamic reference like '#file:'
  */
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
@@ -215,6 +233,12 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestSlashCommandPart).slashCommand
+				);
+			} else if (part.kind === ChatRequestSlashPromptPart.Kind) {
+				return new ChatRequestSlashPromptPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestSlashPromptPart).slashPromptCommand
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(

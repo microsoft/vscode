@@ -69,6 +69,22 @@ export interface IPromptsService extends IDisposable {
 	 * Get a list of prompt source folders based on the provided prompt type and storage.
 	 */
 	getSourceFolders(type: TPromptsType, storage: TPromptsStorage): readonly IPromptPath[];
+
+	/**
+	 * Returns a prompt command if the command name is valid.
+	 */
+	getPromptSlashData(name: string): IChatPromptSlashData | undefined;
+
+	/**
+	 * Searches for the prompt file for the slash command
+	 */
+	resolvePromptSlashData(data: IChatPromptSlashData): Promise<IPromptPath | undefined>;
+
+}
+
+export interface IChatPromptSlashData {
+	readonly command: string;
+	readonly detail: string;
 }
 
 /**

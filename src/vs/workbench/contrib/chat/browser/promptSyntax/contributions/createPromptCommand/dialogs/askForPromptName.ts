@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../../../../../nls.js';
 import { TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
-import { getFileExtension } from '../../../../../../../../platform/prompts/common/constants.js';
+import { getPromptFileExtension } from '../../../../../../../../platform/prompts/common/constants.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
@@ -29,7 +29,7 @@ export const askForPromptFileName = async (
 		return undefined;
 	}
 
-	const fileExtension = getFileExtension(type);
+	const fileExtension = getPromptFileExtension(type);
 	const cleanName = (trimmedName.endsWith(fileExtension))
 		? trimmedName
 		: `${trimmedName}${fileExtension}`;
