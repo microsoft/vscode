@@ -132,12 +132,13 @@ export class ChatSelectedTools extends Disposable {
 	 * @param tools Set of tool IDs to select.
 	 */
 	public selectOnly(
-		tools: Set<string>,
+		tools: readonly string[],
 	): void {
 		const allTools = this.allTools.get();
+		const uniqueTools = new Set(tools);
 
 		const disabledTools = allTools.filter((tool) => {
-			return (tools.has(tool.id) === false);
+			return (uniqueTools.has(tool.id) === false);
 		});
 
 		this.update([], disabledTools);

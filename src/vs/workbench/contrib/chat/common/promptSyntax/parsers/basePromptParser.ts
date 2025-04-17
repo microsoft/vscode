@@ -21,10 +21,10 @@ import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
@@ -486,6 +486,55 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - add unit tests?
+	public get toolsMetadata(): readonly string[] | null {
+		if (this.header === undefined) {
+			return null;
+		}
+
+		const { tools } = this.header.metadata;
+		if (tools === undefined) {
+			return null;
+		}
+
+		return tools.toolNames;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - add unit tests?
+	public get allToolsMetadata(): readonly string[] | null {
+		let hasTools = false;
+		const result: string[] = [];
+
+		if (this.toolsMetadata !== null) {
+			result.push(...this.toolsMetadata);
+			hasTools = true;
+		}
+
+		for (const reference of this.references) {
+			const { allToolsMetadata } = reference;
+
+			if (allToolsMetadata === null) {
+				continue;
+			}
+
+			result.push(...allToolsMetadata);
+			hasTools = true;
+		}
+
+		if (hasTools === false) {
+			return null;
+		}
+
+		// return unique list of tools
+		return [...new Set(result)];
+	}
+
+	/**
 	 * Get list of errors for the direct links of the current reference.
 	 */
 	public get errors(): readonly ResolveError[] {
@@ -763,6 +812,14 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 
 	public get allReferences(): readonly IPromptReference[] {
 		return this.parser.allReferences;
+	}
+
+	public get toolsMetadata(): readonly string[] | null {
+		return this.parser.toolsMetadata;
+	}
+
+	public get allToolsMetadata(): readonly string[] | null {
+		return this.parser.allToolsMetadata;
 	}
 
 	public get allValidReferences(): readonly IPromptReference[] {
