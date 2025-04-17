@@ -6,7 +6,7 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
@@ -80,6 +80,10 @@ export const toChatVariable = (
 		modelDescription,
 	};
 };
+
+export function isPromptFileChatVariable(variable: IChatRequestVariableEntry): boolean {
+	return isChatRequestFileEntry(variable) && variable.name.startsWith('prompt:');
+}
 
 /**
  * Model for a collection of prompt instruction attachments.

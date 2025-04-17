@@ -7,15 +7,16 @@ import { OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IChatAgentData, IChatAgentService } from './chatAgents.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
+import { IPromptsService } from './promptSyntax/service/types.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
+const slashReg = /\/([\w_\-\.]+)(?=(\s|$|\b))/i; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -28,6 +29,7 @@ export class ChatRequestParser {
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
 	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
@@ -159,7 +161,7 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation, context?: IChatParserContext): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
+	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation, context?: IChatParserContext): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | ChatRequestSlashPromptPart | undefined {
 		const nextSlashMatch = remainingMessage.match(slashReg);
 		if (!nextSlashMatch) {
 			return;
@@ -208,8 +210,13 @@ export class ChatRequestParser {
 					return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 				}
 			}
-		}
 
+			// if there's no agent, check if it's a prompt command
+			const promptCommand = this.promptsService.getPromptSlashData(command);
+			if (promptCommand) {
+				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, promptCommand);
+			}
+		}
 		return;
 	}
 
