@@ -18,6 +18,7 @@ import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, Injected
 import { IResourceEditorInput } from '../../../platform/editor/common/editor.js';
 import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
 import { ThemeColor } from '../../../base/common/themables.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
@@ -156,11 +157,23 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
+			let resolvedOptions: IDecorationRenderOptions;
+			const tempEditor = this.listCodeEditors()[0];
+			if (tempEditor) {
+				const effectiveExperimentalEditContext = tempEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
+				if (!effectiveExperimentalEditContext) {
+					resolvedOptions = { ...options, fontFamily: undefined, fontSize: undefined, fontStyle: undefined, fontWeight: undefined };
+				} else {
+					resolvedOptions = { ...options };
+				}
+			} else {
+				resolvedOptions = { ...options };
+			}
 			const providerArgs: ProviderArguments = {
 				styleSheet: styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
-				options: options || Object.create(null)
+				options: resolvedOptions || Object.create(null)
 			};
 			if (!parentTypeKey) {
 				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);

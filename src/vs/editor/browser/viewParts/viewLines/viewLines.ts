@@ -168,10 +168,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 					viewLinesChanged.add(i);
 				}
 			}
-			console.log('onDidChangeFont viewLinesChanged', viewLinesChanged);
 			for (const i of viewLinesChanged) {
 				const fonts = context.viewModel.model.getFontDecorations(i);
-				console.log('change', i, fonts);
 				const viewLine = this._visibleLines.getVisibleLine(i);
 				if (fonts.length > 0) {
 					viewLine.onOptionsChanged(this._modifiedViewLineOptions);
