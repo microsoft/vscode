@@ -486,7 +486,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Associated `tools` metadata for the current reference.
 	 */
 	// TODO: @legomushroom - add unit tests?
 	public get toolsMetadata(): readonly string[] | null {
@@ -503,7 +503,8 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Entire associated `tools` metadata for this reference and
+	 * all possible nested child references.
 	 */
 	// TODO: @legomushroom - add unit tests?
 	public get allToolsMetadata(): readonly string[] | null {
