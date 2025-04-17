@@ -36,7 +36,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -56,7 +56,6 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		protected readonly currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
-		@ITextFileService protected readonly textFileService: ITextFileService,
 	) {
 		super();
 		this.element = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
@@ -154,11 +153,10 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@ITextFileService textFileService: ITextFileService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService, textFileService);
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		const fileBasename = basename(resource.path);
 		const fileDirname = dirname(resource.path);
@@ -217,12 +215,11 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@ITextFileService textFileService: ITextFileService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService, textFileService);
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {
@@ -354,11 +351,10 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@ITextFileService textFileService: ITextFileService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService, textFileService);
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		const ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -410,11 +406,10 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@ITextFileService textFileService: ITextFileService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService, textFileService);
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
@@ -457,13 +452,12 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@ITextFileService textFileService: ITextFileService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService, textFileService);
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		switch (attachment.mimeType) {
 			case 'application/vnd.code.notebook.error': {
@@ -555,9 +549,9 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
 	) {
-		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService, textFileService);
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		const ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -568,18 +562,15 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
 		this.label.setLabel(withIcon, undefined, { title: `Click to view the contents of: ${attachmentLabel}` });
 
-		// Add click handler
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
 			const content = attachment.value?.toString() || '';
-			// Sanitize the filename and ensure it starts with a forward slash
-			const sanitizedName = attachment.name.replace(/[^a-zA-Z0-9-_.]/g, '_');
-			const uri = URI.from({
-				scheme: 'untitled',
-				path: `/Attachment-${sanitizedName}.txt`
+			await editorService.openEditor({
+				resource: undefined,
+				contents: content,
+				options: {
+					pinned: true
+				}
 			});
-
-			await this.textFileService.create([{ resource: uri, value: content }]);
-			this.openResource(uri, false, undefined);
 		}));
 
 		this.attachClearButton();

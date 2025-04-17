@@ -946,7 +946,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						const bounds = { x, y, width, height };
 
 						const cssString = response.computedStyle.map(({ name, value }) => `${name}: ${value};`).join(' ');
-						console.log('CSS String:', cssString);
 
 						resolve({
 							outerHTML: outerHTML,
@@ -954,9 +953,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							bounds
 						});
 
-					} catch (err) {
-						console.error('Error in getNodeData:', err);
-					}
+					} catch (err) { }
 				}
 			});
 		});

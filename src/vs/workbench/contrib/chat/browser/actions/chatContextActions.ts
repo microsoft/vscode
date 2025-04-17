@@ -669,8 +669,12 @@ export class AttachContextAction extends Action2 {
 								label: localize('cancel', "Cancel"),
 								run: () => {
 									token.cancel();
-									notification.close();
-									notificationService.info(localize('chatContext.element.canceled', 'Element selection canceled'));
+									notification.progress.done();
+									notification.updateActions();
+									notification.updateMessage(localize('chatContext.element.canceled', 'Element selection canceled'));
+									setTimeout(() => {
+										notification.close();
+									}, 3000);
 								},
 								id: '',
 								tooltip: '',
@@ -701,12 +705,12 @@ export class AttachContextAction extends Action2 {
 							kind: 'image',
 							value: elementInfo.screenshot
 						});
-						notification.close();
-						notificationService.info(localize('chatContext.element.success', 'Element captured successfully'));
-
-						if (chatWidgetService.lastFocusedWidget) {
-							chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 }, text: elementInfo.html + elementInfo.css }]);
-						}
+						notification.progress.done();
+						notification.updateActions();
+						notification.updateMessage(localize('chatContext.element.selected', 'Element selected: {0}', elementInfo.displayName));
+						setTimeout(() => {
+							notification.close();
+						}, 3000);
 					} catch (err) {
 						notification.close();
 						notificationService.error(localize('chatContext.element.error', 'Failed to capture element: {0}', err.message));
