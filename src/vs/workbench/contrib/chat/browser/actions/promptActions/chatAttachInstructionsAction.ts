@@ -127,8 +127,8 @@ class AttachInstructionsAction extends Action2 {
  * encapsulate/enforce the correct options to be passed to the action.
  */
 export const runAttachInstructionsAction = async (
-	options: IAttachInstructionsActionOptions,
 	commandService: ICommandService,
+	options: IAttachInstructionsActionOptions,
 ): Promise<void> => {
 	return await commandService.executeCommand(
 		ATTACH_INSTRUCTIONS_ACTION_ID,

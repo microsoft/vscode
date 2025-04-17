@@ -54,10 +54,10 @@ const command = async (
 ): Promise<void> => {
 	const commandService = accessor.get(ICommandService);
 
-	await runAttachInstructionsAction({
+	await runAttachInstructionsAction(commandService, {
 		resource: getActiveInstructionsFileUri(accessor),
 		widget: getFocusedChatWidget(accessor),
-	}, commandService);
+	});
 };
 
 /**

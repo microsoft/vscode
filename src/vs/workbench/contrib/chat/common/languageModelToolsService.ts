@@ -53,8 +53,8 @@ export type ToolDataSource =
 	}
 	| {
 		type: 'mcp';
-		label: string; collectionId:
-		string;
+		label: string;
+		collectionId: string;
 		definitionId: string;
 	}
 	| { type: 'internal' };
