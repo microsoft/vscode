@@ -22,7 +22,6 @@ import { ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/exp
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptToolsMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
@@ -303,32 +302,25 @@ suite('TextModelPromptParser', () => {
 				}),
 			]);
 
-			const { header } = test.parser;
+			const { header, toolsMetadata } = test.parser;
 			assertDefined(
 				header,
 				'Prompt header must be defined.',
 			);
 
-			assert.strictEqual(
-				header.metadata.length,
-				1,
-				'Prompt header must have 1 metadata record.',
-			);
-
-			const tools = header.metadata[0];
-			assert(
-				tools instanceof PromptToolsMetadata,
-				`Prompt header must have tools metadata record, got '${tools}'.`,
+			assertDefined(
+				toolsMetadata,
+				'Tools metadata must be present.',
 			);
 
 			assert.strictEqual(
-				tools.toolNames.length,
+				toolsMetadata.length,
 				2,
-				`Prompt header tools metadata must have 2 tool names, got '[${tools.toolNames.join(', ')}]'.`,
+				`Prompt header tools metadata must have 2 tool names, got '[${toolsMetadata.join(', ')}]'.`,
 			);
 
 			assert.deepStrictEqual(
-				tools.toolNames,
+				toolsMetadata,
 				['tool_name1', 'tool_name2'],
 				`Prompt header must have correct tools metadata.`,
 			);
@@ -364,22 +356,15 @@ suite('TextModelPromptParser', () => {
 				}),
 			]);
 
-			const { header } = test.parser;
+			const { header, toolsMetadata } = test.parser;
 			assertDefined(
 				header,
 				'Prompt header must be defined.',
 			);
 
-			assert.strictEqual(
-				header.metadata.length,
-				1,
-				'Prompt header must have 1 metadata record.',
-			);
-
-			const tools = header.metadata[0];
-			assert(
-				tools instanceof PromptToolsMetadata,
-				`Prompt header must have tools metadata record, got '${tools}'.`,
+			assertDefined(
+				toolsMetadata,
+				'Tools metadata must be defined.',
 			);
 
 			await test.validateHeaderDiagnostics([
