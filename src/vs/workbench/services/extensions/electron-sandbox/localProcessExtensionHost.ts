@@ -201,12 +201,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		removeDangerousEnvVariables(env);
 
-		if (this._isExtensionDevHost) {
-			// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might
-			// be that dependencies, that otherwise would be cached, get modified.
-			delete env['VSCODE_CODE_CACHE_PATH'];
-		}
-
 		const opts: IExtensionHostProcessOptions = {
 			responseWindowId: this._nativeHostService.windowId,
 			responseChannel: 'vscode:startExtensionHostMessagePortResult',

@@ -47,7 +47,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 	}
 
 	start(): IPtyHostConnection {
-		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
+		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService, this._environmentMainService);
 
 		const inspectParams = parsePtyHostDebugPort(this._environmentMainService.args, this._environmentMainService.isBuilt);
 		const execArgv = inspectParams.port ? [
