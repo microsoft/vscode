@@ -49,6 +49,14 @@ export class MenuService implements IMenuService {
 	resetHiddenStates(ids?: MenuId[]): void {
 		this._hiddenStates.reset(ids);
 	}
+
+	getHiddenState(id: MenuId, commandId: string): boolean {
+		return this._hiddenStates.isHidden(id, commandId);
+	}
+
+	setHiddenState(id: MenuId, commandId: string, value: boolean): void {
+		this._hiddenStates.updateHidden(id, commandId, value);
+	}
 }
 
 class PersistedMenuHideState {
