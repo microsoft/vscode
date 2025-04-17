@@ -1544,7 +1544,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 				actions.push(...menuContributions);
 				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 					actions.push(toAction({
-						id: 'moreModels', label: localize('chat.moreModels', "Add more Models"), run: () => {
+						id: 'moreModels', label: localize('chat.moreModels', "Add Premium Models"), run: () => {
 							const commandId = 'workbench.action.chat.upgradePlan';
 							telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-models' });
 							commandService.executeCommand(commandId);

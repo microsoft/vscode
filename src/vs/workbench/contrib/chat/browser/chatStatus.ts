@@ -187,11 +187,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			else if (freeChatQuotaExceeded || freeCompletionsQuotaExceeded) {
 				let quotaWarning: string;
 				if (freeChatQuotaExceeded && !freeCompletionsQuotaExceeded) {
-					quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
+					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
 				} else if (freeCompletionsQuotaExceeded && !freeChatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
+					quotaWarning = localize('completionsQuotaExceededStatus', "Completions quota reached");
 				} else {
-					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Limit reached");
+					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}
 
 				text = `$(copilot-warning) ${quotaWarning}`;
@@ -316,7 +316,7 @@ class ChatStatusDashboard extends Disposable {
 
 			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
 			if (resetDate) {
-				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits reset {0}.", this.dateFormatter.value.format(resetDate))));
+				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance renews on {0}.", this.dateFormatter.value.format(resetDate))));
 			}
 
 			if (freeChatQuota?.percentRemaining === 0 || freeCompletionsQuota?.percentRemaining === 0 || (premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
