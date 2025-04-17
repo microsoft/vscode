@@ -202,7 +202,7 @@
             "description": "%typescript.implementationsCodeLens.enabled%",
             "scope": "window"
           },
-          "typescript.unstable.useTsgo": {
+          "typescript.useTsgo": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%typescript.useTsgo%",

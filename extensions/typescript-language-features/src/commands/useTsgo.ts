@@ -6,10 +6,6 @@
 import * as vscode from 'vscode';
 import { Command } from './commandManager';
 
-/**
- * Command that enables TypeScript Go by modifying the configuration setting
- * and prompting the user to reload VS Code.
- */
 export class EnableTsgoCommand implements Command {
 	public readonly id = 'typescript.enableTsgo';
 
@@ -18,10 +14,6 @@ export class EnableTsgoCommand implements Command {
 	}
 }
 
-/**
- * Command that disables TypeScript Go by modifying the configuration setting
- * and prompting the user to reload VS Code.
- */
 export class DisableTsgoCommand implements Command {
 	public readonly id = 'typescript.disableTsgo';
 
@@ -31,8 +23,7 @@ export class DisableTsgoCommand implements Command {
 }
 
 /**
- * Updates the TypeScript Go setting and prompts for reload.
- *
+ * Updates the TypeScript Go setting and reloads extension host.
  * @param enable Whether to enable or disable TypeScript Go
  */
 async function updateTsgoSetting(enable: boolean): Promise<void> {

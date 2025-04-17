@@ -9,7 +9,7 @@ import { ActiveJsTsEditorTracker } from '../ui/activeJsTsEditorTracker';
 import { Lazy } from '../utils/lazy';
 import { CommandManager } from './commandManager';
 import { ConfigurePluginCommand } from './configurePlugin';
-import { EnableTsgoCommand, DisableTsgoCommand } from './disableExtension';
+import { EnableTsgoCommand, DisableTsgoCommand } from './useTsgo';
 import { JavaScriptGoToProjectConfigCommand, TypeScriptGoToProjectConfigCommand } from './goToProjectConfiguration';
 import { LearnMoreAboutRefactoringsCommand } from './learnMoreAboutRefactorings';
 import { OpenJsDocLinkCommand } from './openJsDocLink';
