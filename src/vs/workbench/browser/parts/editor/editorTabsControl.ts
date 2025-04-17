@@ -101,8 +101,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private static readonly EDITOR_TAB_PADDING_PX = 8;
 	private static readonly EDITOR_TAB_HEIGHT = {
-		normal: 50 as const,// was 35
-		compact: 40 as const,// was 22
+		normal: (35 + this.EDITOR_TAB_PADDING_PX * 2),
+		compact: (22 + this.EDITOR_TAB_PADDING_PX * 2),
 	};
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;

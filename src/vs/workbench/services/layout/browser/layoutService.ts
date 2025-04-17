@@ -35,11 +35,14 @@ export interface BubblyPartSettings {
 	borderRadius: number,
 }
 const defaultBubblySettings: BubblyPartSettings = {
-	margins: { left: 4, top: 4, right: 4, bottom: 4 },
-	borderRadius: 12,
+	margins: { left: 4, top: 4, right: 4, bottom: 4 },//testing 4 2 4 2
+	borderRadius: 10,//--bubbly-radius-xl
 }
 export const bubblyParts: Record<string, BubblyPartSettings> = {
-	[Parts.SIDEBAR_PART]: {margins: {left: 4, top: 7, bottom: 5, right: 4}, borderRadius: 0},
+	[Parts.SIDEBAR_PART]: {
+		margins: defaultBubblySettings.margins,
+		borderRadius: 0
+	},
 	[Parts.PANEL_PART]: defaultBubblySettings,
 	[Parts.EDITOR_PART]: defaultBubblySettings,
 	[Parts.PEAROVERLAY_PART]: defaultBubblySettings,

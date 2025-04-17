@@ -1,14 +1,14 @@
 /* Bubbly parts */
 .bubbly-part {
 	box-sizing: border-box;
+	--bubbly-radius-s: 4px;
+	--bubbly-radius-base: 6px;/* The main radius - used on most elements */
+	--bubbly-radius-l: 8px;
+	--bubbly-radius-xl: 10px;/* Used for radius on bubbly part containers */
 }
 
 .bubbly-part-pad {
 	margin: 5px;
-}
-
-.bubbly-part-round {
-	border-radius: 12px;
 }
 
 .split-view-view:has(> .bubbly-part) {
@@ -16,13 +16,13 @@
 }
 
 .bubbly-part .bubbly-editor-content {
-	border-radius: 10px;
+	border-radius: var(--bubbly-radius-xl);
 	box-sizing: border-box;
 }
 
 /* Base UI elements */
 .monaco-inputbox {
-	border-radius: 6px;
+	border-radius: var(--bubbly-radius-base);
 }
 
 /* Globally, pane titles won't be forced uppercase */
@@ -36,13 +36,19 @@
 	border-bottom-color: transparent !important;
 }
 
+.bubbly-part.part.panel .action-item > .active-item-indicator::before {
+	border-top-width: 0 !important;
+}
+
 .bubbly-part.part.panel .action-item {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: 8px;
-	padding: 2px;
+	border-radius: var(--bubbly-radius-base);
+	/*padding: 2px;*/
 	box-sizing: border-box;
 	height: 80% !important;
 	transition: background-color 0.05s linear;
+	display: flex;
+	align-items: center;
 }
 
 .bubbly-part.part.panel .composite-bar-container .action-item {
@@ -102,41 +108,38 @@
 
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
 	align-items: center;
-	gap: 3px;
+	gap: 3px;/* this adds a gap between the left side and right side when there are many editors open */
 }
 
+/* The container which holds the tabs and action bar thing on the right side */
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container {
 	height: calc(var(--editor-group-tab-height) + var(--editor-group-tab-padding) * 2);
 	align-items: center;
-	margin-left: 4px;
-	margin-right: 4px;
-	padding-left: 4px;
-	padding-right: 4px;
+	margin-left: 8px;
+	margin-right: 2px;
+	gap: 4px;
 }
 
+/* This is each file tab */
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container > .tab {
-	border-radius: 10px;
-	margin-left: 3px;
-	margin-right: 3px;
+	border-radius: var(--bubbly-radius-xl);
 	align-items: center;
 	border: 1px solid transparent !important;
 }
 
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
 	background-color: var(--vscode-tab-unfocusedActiveBackground);
-	border: 1px solid var(--tab-border-top-color, transparent) !important;
-	/*border: 1px solid var(--vscode-tab-selectedForeground, transparent) !important;*/
+	border: 1px solid var(--vscode-tab-inactiveForeground, transparent) !important;
 }
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
 	background: transparent;
-	/*box-shadow: 0px 0px 3px 1px var(--tab-border-top-color)*/
 }
 
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .editor-actions {
 	padding-left: 6px;
 	padding-right: 6px;
 	gap: 3px;
-	border-radius: 6px;
+	border-radius: var(--bubbly-radius-base);
 	background: var(--vscode-editorGroupHeader-tabsBackground);
 	margin-right: 8px;
 }
@@ -173,7 +176,8 @@
 }
 
 .bubbly-part.sidebar .composite.title {
-	height: 28px;
+	/*height: 28px;*/
+	align-items: center;
 }
 
 .bubbly-part.sidebar .composite.title > .title-label > h2 {
@@ -193,8 +197,12 @@
 	font-size: 13.5px;
 }
 
-.bubbly-part.sidebar .scrollbar > .slider {
-	border-radius: 4px;
+.bubbly-part/*.sidebar*/ .scrollbar > .slider {
+	border-radius: var(--bubbly-radius-base);
+}
+
+.bubbly-part.sidebar .monaco-list-row {
+	border-radius: var(--bubbly-radius-l);
 }
 
 /* Styles - Activity bar (when on sidebar)*/
@@ -202,13 +210,14 @@
 	gap: 2px;
 }
 
+/* This is each little icon on the top of the sidebar */
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .codicon {
 	width: 22px;
 	height: 26px;
 	align-items: center;
 	justify-content: center;
 	padding: 2px;
-	border-radius: 6px;
+	border-radius: var(--bubbly-radius-base);
 }
 
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .codicon {
@@ -253,7 +262,7 @@
 
 .bubbly-part.activitybar .action-item .action-label.codicon {
 	font-size: 20px !important;
-	border-radius: 8px;
+	border-radius: var(--bubbly-radius-l);
 	border: 1px solid transparent;
 	overflow: visible !important;
 	box-sizing: border-box;
