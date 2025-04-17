@@ -775,6 +775,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Find Simple Browser webview contents
 		const allWebContents = webContents.getAllWebContents();
+		console.log('allWebContents', allWebContents);
 		const simpleBrowserWebview = allWebContents.find(webContent => {
 			return webContent.getTitle().includes('Simple Browser');
 		});
@@ -785,13 +786,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const debuggers = simpleBrowserWebview.debugger;
 		debuggers.attach();
-
-		// window.win?.webContents.on('ipc-message', () => {
-		// 	if (token?.isCancellationRequested) {
-		// 		debuggers.detach();
-		// 	}
-		// });
-
 
 		if (token) {
 			// Set up an interval to check cancellation
@@ -809,7 +803,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
+
+		// TODO: grab the correct vscodeBrowserReqId
 		const myTarget = targetInfos.find((t: { type: string; url: string | string[] }) => t.type === 'iframe' && t.url.includes('vscodeBrowserReqId'));
+		console.log('myTarget', myTarget);
 
 		if (!myTarget) {
 			console.error('No suitable target found');
@@ -897,7 +894,55 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, sessionId);
 
 
+		const { contexts } = await debuggers.sendCommand('Runtime.enable', {}, sessionId);
+
+		try {
+
+			// TURN THIS INTO A NOTIFICATION THING FOR WHEN ITS DONE OR NOT
+			const runtime = await debuggers.sendCommand('Runtime.evaluate', {
+				expression: `
+					(function() {
+						const existing = document.getElementById('__myInjectedButton');
+						if (existing) existing.remove();
+				
+						const button = document.createElement('button');
+						button.id = '__myInjectedButton';
+						button.textContent = 'Click me!';
+						button.style.position = 'fixed';
+						button.style.bottom = '20px';
+						button.style.right = '20px';
+						button.style.zIndex = '9999';
+						button.style.padding = '10px 15px';
+						button.style.background = '#007bff';
+						button.style.color = 'white';
+						button.style.border = 'none';
+						button.style.borderRadius = '5px';
+						button.style.cursor = 'pointer';
+						button.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+						
+						button.onclick = function() {
+							alert('Button clicked!');
+							// You can do more things here
+						};
+				
+						document.body.appendChild(button);
+					})();
+			`,
+				includeCommandLineAPI: true,
+				contextId: undefined
+			}, sessionId);
+			console.log('return value', runtime);
+		} catch (error) {
+			console.error('Error injecting button:', error);
+			debuggers.detach();
+			return undefined;
+		}
+
+
+		// console.log('Injected button into the page');
+
 		const { outerHTML, computedStyle, bounds } = await this.getNodeData(sessionId, debuggers);
+		debuggers.off('message', () => { });
 
 		const zoomFactor = simpleBrowserWebview.getZoomFactor();
 		const bounds2 = {
@@ -953,7 +998,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							bounds
 						});
 
-					} catch (err) { }
+					} catch (err) {
+						console.log(err);
+					}
 				}
 			});
 		});
