@@ -678,7 +678,7 @@ export class AttachContextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 		const chatEditingService = accessor.get(IChatEditingService);
 
-		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
+		const context: { widget?: IChatWidget; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -775,31 +775,29 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		if (context?.showFilesOnly) {
-			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || widget.attachmentModel.fileAttachments.length > 0)) {
-				quickPickItems.unshift({
-					kind: 'related-files',
-					id: 'related-files',
-					label: localize('chatContext.relatedFiles', 'Related Files'),
-					iconClass: ThemeIcon.asClassName(Codicon.sparkle),
-				});
-			}
-			if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
-				quickPickItems.unshift({
-					kind: 'open-editors',
-					id: 'open-editors',
-					label: localize('chatContext.editors', 'Open Editors'),
-					iconClass: ThemeIcon.asClassName(Codicon.files),
-				});
-			}
-			if (SearchContext.HasSearchResults.getValue(contextKeyService)) {
-				quickPickItems.unshift({
-					kind: 'search-results',
-					id: 'search-results',
-					label: localize('chatContext.searchResults', 'Search Results'),
-					iconClass: ThemeIcon.asClassName(Codicon.search),
-				});
-			}
+		if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || widget.attachmentModel.fileAttachments.length > 0)) {
+			quickPickItems.push({
+				kind: 'related-files',
+				id: 'related-files',
+				label: localize('chatContext.relatedFiles', 'Related Files'),
+				iconClass: ThemeIcon.asClassName(Codicon.sparkle),
+			});
+		}
+		if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
+			quickPickItems.push({
+				kind: 'open-editors',
+				id: 'open-editors',
+				label: localize('chatContext.editors', 'Open Editors'),
+				iconClass: ThemeIcon.asClassName(Codicon.files),
+			});
+		}
+		if (SearchContext.HasSearchResults.getValue(contextKeyService)) {
+			quickPickItems.push({
+				kind: 'search-results',
+				id: 'search-results',
+				label: localize('chatContext.searchResults', 'Search Results'),
+				iconClass: ThemeIcon.asClassName(Codicon.search),
+			});
 		}
 
 		// if the `reusable prompts` feature is enabled, add
