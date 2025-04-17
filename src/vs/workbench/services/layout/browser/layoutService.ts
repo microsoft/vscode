@@ -33,14 +33,20 @@ export const enum Parts {
 export interface BubblyPartSettings {
 	margins: {left: number, top: number, right: number, bottom: number}
 	borderRadius: number,
+	customTitleHeight?: number,// default: 35
+	customHeaderHeight?: number,// default: 35
 }
+
 const defaultBubblySettings: BubblyPartSettings = {
-	margins: { left: 4, top: 4, right: 4, bottom: 4 },//testing 4 2 4 2
+	margins: { left: 4, top: 4, right: 4, bottom: 4 },
 	borderRadius: 10,//--bubbly-radius-xl
 }
+
 export const bubblyParts: Record<string, BubblyPartSettings> = {
 	[Parts.SIDEBAR_PART]: {
-		margins: defaultBubblySettings.margins,
+		margins: { left: 4, top: 4, right: 4, bottom: 4 },
+		customTitleHeight: 31,
+		customHeaderHeight: 42,
 		borderRadius: 0
 	},
 	[Parts.PANEL_PART]: defaultBubblySettings,

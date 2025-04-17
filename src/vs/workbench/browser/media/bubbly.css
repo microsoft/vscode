@@ -5,6 +5,7 @@
 	--bubbly-radius-base: 6px;/* The main radius - used on most elements */
 	--bubbly-radius-l: 8px;
 	--bubbly-radius-xl: 10px;/* Used for radius on bubbly part containers */
+	--bubbly-text-transform: none;
 }
 
 .bubbly-part-pad {
@@ -27,12 +28,12 @@
 
 /* Globally, pane titles won't be forced uppercase */
 .monaco-pane-view .pane > .pane-header > .title {
-	text-transform: none !important;
+	text-transform: var(--bubbly-text-transform) !important;
 }
 
 /* Styles - Panel (bottom bar) */
 .bubbly-part.part.panel .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
-	text-transform: none !important;
+	text-transform: var(--bubbly-text-transform) !important;
 	border-bottom-color: transparent !important;
 }
 
@@ -75,6 +76,11 @@
 	justify-content: center;
 }
 
+.bubbly-part .monaco-select-box {
+	border: none !important;
+	border-color: transparent !important;
+}
+
 .bubbly-part .action-item .monaco-select-box, .action-item .monaco-inputbox {
 	background: var(--vscode-toolbar-hoverBackground) !important;
 }
@@ -82,6 +88,10 @@
 .bubbly-part.part.panel {
 	background: var(--vscode-editor-background) !important;
 	--vscode-panel-background: var(--vscode-editor-background);
+}
+
+.bubbly-part.part.panel .composite.title {
+	margin-top: 2px;
 }
 
 /* Terminal - style the terminal to be the same color as panel*/
@@ -120,6 +130,14 @@
 	gap: 4px;
 }
 
+.bubbly-part.part.editor .actions-container {
+	gap: 6px;
+}
+
+.bubbly-part.part.editor .actions-container .action-item {
+	margin-right: 0 !important;
+}
+
 /* This is each file tab */
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container > .tab {
 	border-radius: var(--bubbly-radius-xl);
@@ -128,8 +146,7 @@
 }
 
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-	background-color: var(--vscode-tab-unfocusedActiveBackground);
-	border: 1px solid var(--vscode-tab-inactiveForeground, transparent) !important;
+	border: 0.5px solid var(--vscode-tab-unfocusedInactiveForeground, transparent) !important;
 }
 .monaco-workbench .bubbly-part.part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
 	background: transparent;
@@ -184,17 +201,21 @@
 	line-height: 28px;
 	font-size: 11.5px;
 	font-weight: 700;
-	text-transform: none;
+	text-transform: var(--bubbly-text-transform);
 }
 
 .bubbly-part.sidebar .composite.title .title-actions {
 	height: 25px;
 }
 
+.bubbly-part.sidebar .pane-header {
+	height: 26px;
+}
+
 /* Explorer */
 .bubbly-part.sidebar .monaco-highlighted-label {
 	font-weight: 500;
-	font-size: 13.5px;
+	font-size: 13px;/* was 13 */
 }
 
 .bubbly-part/*.sidebar*/ .scrollbar > .slider {
@@ -202,7 +223,7 @@
 }
 
 .bubbly-part.sidebar .monaco-list-row {
-	border-radius: var(--bubbly-radius-l);
+	border-radius: var(--bubbly-radius-s);
 }
 
 /* Styles - Activity bar (when on sidebar)*/
@@ -212,8 +233,8 @@
 
 /* This is each little icon on the top of the sidebar */
 .bubbly-part.pane-composite-part.part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .codicon {
-	width: 22px;
-	height: 26px;
+	width: 28px;
+	height: 30px;
 	align-items: center;
 	justify-content: center;
 	padding: 2px;
@@ -234,6 +255,16 @@
 	position: relative;
 }
 
+.bubbly-part.sidebar .composite.header {
+	height: 42px;
+	align-items: center;
+}
+
+.bubbly-part.sidebar .composite.header .action-item {
+	height: 30px !important;
+	width: 30px !important;
+}
+
 /* Styles - Activity bar (when on left side of screen, detached from sidebar) */
 .monaco-workbench .bubbly-part.part.activitybar {
 	background-color: transparent !important;
@@ -248,31 +279,30 @@
 	display: flex;
 	gap: 1px;
 	flex-direction: column;
-	margin-top: 5px;
-	margin-bottom: 5px;
+	margin-top: 8px;
+	margin-bottom: 6px;
 }
 
 .bubbly-part.activitybar .action-item {
 	box-sizing: border-box;
 	align-items: center;
 	justify-content: center;
-	width: 48px;
-	height: 48px;
+	width: 40px;
+	height: 40px;
 }
 
 .bubbly-part.activitybar .action-item .action-label.codicon {
-	font-size: 20px !important;
+	font-size: 18px !important;
 	border-radius: var(--bubbly-radius-l);
 	border: 1px solid transparent;
 	overflow: visible !important;
 	box-sizing: border-box;
-	width: 40px !important;
-	height: 40px !important;
+	width: 32px !important;
+	height: 32px !important;
 }
 
 .bubbly-part.activitybar .action-item.checked .action-label.codicon {
 	background: var(--vscode-toolbar-hoverBackground) !important;
-	border: 1px solid var(--insert-border-color);
 }
 
 .bubbly-part.activitybar .active-item-indicator::before {

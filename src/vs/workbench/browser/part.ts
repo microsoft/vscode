@@ -255,7 +255,10 @@ class PartLayout {
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
 		if (this.options.hasTitle) {
-			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
+			const titleHeight = (this.bubblySettings && this.bubblySettings.customTitleHeight)
+				? this.bubblySettings.customTitleHeight
+				: PartLayout.TITLE_HEIGHT;
+			titleSize = new Dimension(width, Math.min(height, titleHeight));
 		} else {
 			titleSize = Dimension.None;
 		}
@@ -263,7 +266,10 @@ class PartLayout {
 		// Header Size: Width (Fill), Height (Variable)
 		let headerSize: Dimension;
 		if (this.headerVisible) {
-			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
+			const headerHeight = (this.bubblySettings && this.bubblySettings.customHeaderHeight)
+				? this.bubblySettings.customHeaderHeight
+				: PartLayout.HEADER_HEIGHT;
+			headerSize = new Dimension(width, Math.min(height, headerHeight));
 		} else {
 			headerSize = Dimension.None;
 		}
