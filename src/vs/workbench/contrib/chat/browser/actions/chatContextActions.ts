@@ -66,7 +66,7 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/attachInstructionsCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { runAttachInstructionsAction } from './promptActions/index.js';
+import { runAttachInstructionsAction, registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -949,7 +949,6 @@ export class AttachContextAction extends Action2 {
 	}
 }
 
-
 async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAccept?: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const markerService = accessor.get(IMarkerService);
@@ -1001,7 +1000,6 @@ async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAc
 		quickPick.show();
 	}).finally(() => store.dispose());
 }
-
 
 async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): Promise<IToolQuickPickItem | undefined> {
 
@@ -1068,3 +1066,8 @@ async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): P
 
 	return result;
 }
+
+/**
+ * Register all actions related to reusable prompt files.
+ */
+registerPromptActions();
