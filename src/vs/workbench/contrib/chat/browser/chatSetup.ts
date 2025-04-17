@@ -624,16 +624,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: CHAT_SETUP_ACTION_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: chatSetupTriggerContext,
-					menu: {
-						id: MenuId.ChatTitleBarMenu,
-						group: 'a_last',
-						order: 1,
-						when: ContextKeyExpr.and(
-							chatSetupTriggerContext,
-							ChatContextKeys.Setup.hidden
-						)
-					}
+					precondition: chatSetupTriggerContext
 				});
 			}
 
@@ -669,30 +660,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		class ChatSetupFromAccountsAction extends Action2 {
-
-			constructor() {
-				super({
-					id: 'workbench.action.chat.triggerSetupFromAccounts',
-					title: localize2('triggerChatSetupFromAccounts', "Sign in to use Copilot..."),
-					menu: {
-						id: MenuId.AccountsContext,
-						group: '2_copilot',
-						when: ContextKeyExpr.and(
-							ChatContextKeys.Setup.hidden.toNegated(),
-							ChatContextKeys.Setup.installed.negate(),
-							ChatContextKeys.Entitlement.signedOut
-						)
-					}
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const commandService = accessor.get(ICommandService);
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
-			}
-		}
-
 		class ChatSetupTriggerWithoutDialogAction extends Action2 {
 
 			constructor() {
@@ -713,6 +680,30 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const chatWidget = await showCopilotView(viewsService, layoutService);
 				ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
 				chatWidget?.acceptInput(localize('setupCopilot', "Set up Copilot."));
+			}
+		}
+
+		class ChatSetupFromAccountsAction extends Action2 {
+
+			constructor() {
+				super({
+					id: 'workbench.action.chat.triggerSetupFromAccounts',
+					title: localize2('triggerChatSetupFromAccounts', "Sign in to use Copilot..."),
+					menu: {
+						id: MenuId.AccountsContext,
+						group: '2_copilot',
+						when: ContextKeyExpr.and(
+							ChatContextKeys.Setup.hidden.negate(),
+							ChatContextKeys.Setup.installed.negate(),
+							ChatContextKeys.Entitlement.signedOut
+						)
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 			}
 		}
 
@@ -781,9 +772,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						id: MenuId.ChatTitleBarMenu,
 						group: 'a_first',
 						order: 1,
-						when: ContextKeyExpr.or(
-							ChatContextKeys.freeChatQuotaExceeded,
-							ChatContextKeys.freeCompletionsQuotaExceeded
+						when: ContextKeyExpr.and(
+							ChatContextKeys.Entitlement.limited,
+							ContextKeyExpr.or(
+								ChatContextKeys.chatQuotaExceeded,
+								ChatContextKeys.completionsQuotaExceeded
+							)
 						)
 					}
 				});
