@@ -42,9 +42,19 @@ export class ChatAttachmentModel extends Disposable {
 
 		this.promptInstructions = this._register(
 			this.initService.createInstance(ChatPromptAttachmentsCollection),
-		).onUpdate(() => {
-			this._onDidChange.fire({ added: [], deleted: [], updated: [] });
-		});
+		);
+
+		this._register(
+			this.promptInstructions.onAdd(() => {
+				this._onDidChange.fire({ added: [], deleted: [], updated: [] });
+			}),
+		);
+
+		this._register(
+			this.promptInstructions.onRemove(() => {
+				this._onDidChange.fire({ added: [], deleted: [], updated: [] });
+			}),
+		);
 	}
 
 	private _attachments = new Map<string, IChatRequestVariableEntry>();

@@ -93,7 +93,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 		this.render = this.render.bind(this);
 
 		// when a new attachment model is added, create a new child widget for it
-		this.model.onAdd((attachment) => {
+		this._register(this.model.onAdd((attachment) => {
 			const widget = this.initService.createInstance(
 				InstructionsAttachmentWidget,
 				attachment,
@@ -114,7 +114,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 
 			// fire the event to notify about the change in the number of attachments
 			this._onAttachmentsCountChange.fire();
-		});
+		}));
 	}
 
 	/**
