@@ -20,7 +20,7 @@ import { Command, SymbolKinds } from '../../../../../editor/common/languages.js'
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -407,12 +407,12 @@ class AttachSelectionToChatAction extends Action2 {
 }
 
 export class AttachSearchResultAction extends Action2 {
-	static readonly Name = 'searchResults';
-	static readonly ID = 'workbench.action.chat.insertSearchResults';
+
+	private static readonly Name = 'searchResults';
 
 	constructor() {
 		super({
-			id: AttachSearchResultAction.ID,
+			id: 'workbench.action.chat.insertSearchResults',
 			title: localize2('chat.insertSearchResults', 'Add Search Results to Chat'),
 			category: CHAT_CATEGORY,
 			f1: false,
@@ -426,9 +426,9 @@ export class AttachSearchResultAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor) {
 		const logService = accessor.get(ILogService);
-		const widget = (await showChatView(accessor.get(IViewsService)));
+		const widget = await showChatView(accessor.get(IViewsService));
 
 		if (!widget) {
 			logService.trace('InsertSearchResultAction: no chat view available');
@@ -460,26 +460,24 @@ export class AttachSearchResultAction extends Action2 {
 
 export class AttachContextAction extends Action2 {
 
-	static readonly ID = 'workbench.action.chat.attachContext';
-
-	constructor(desc: Readonly<IAction2Options> = {
-		id: AttachContextAction.ID,
-		title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
-		icon: Codicon.attach,
-		category: CHAT_CATEGORY,
-		keybinding: {
-			when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
-			primary: KeyMod.CtrlCmd | KeyCode.Slash,
-			weight: KeybindingWeight.EditorContrib
-		},
-		menu: {
-			when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-			id: MenuId.ChatInputAttachmentToolbar,
-			group: 'navigation',
-			order: 3
-		},
-	}) {
-		super(desc);
+	constructor() {
+		super({
+			id: 'workbench.action.chat.attachContext',
+			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
+			icon: Codicon.attach,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: {
+				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+				id: MenuId.ChatInputAttachmentToolbar,
+				group: 'navigation',
+				order: 3
+			},
+		});
 	}
 
 	private _getFileContextId(item: { resource: URI } | { uri: URI; range: IRange }) {
@@ -492,7 +490,18 @@ export class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, quickInputService: IQuickInputService, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, isInBackground?: boolean, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(accessor: ServicesAccessor, widget: IChatWidget, isInBackground?: boolean, ...picks: IChatContextQuickPickItem[]) {
+		const commandService = accessor.get(ICommandService);
+		const clipboardService = accessor.get(IClipboardService);
+		const editorService = accessor.get(IEditorService);
+		const labelService = accessor.get(ILabelService);
+		const viewsService = accessor.get(IViewsService);
+		const chatEditingService = accessor.get(IChatEditingService);
+		const hostService = accessor.get(IHostService);
+		const fileService = accessor.get(IFileService);
+		const textModelService = accessor.get(ITextModelService);
+		const quickInputService = accessor.get(IQuickInputService);
+
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
@@ -677,20 +686,12 @@ export class AttachContextAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
 		const chatAgentService = accessor.get(IChatAgentService);
-		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
-		const quickChatService = accessor.get(IQuickChatService);
 		const clipboardService = accessor.get(IClipboardService);
 		const editorService = accessor.get(IEditorService);
-		const labelService = accessor.get(ILabelService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		const viewsService = accessor.get(IViewsService);
-		const hostService = accessor.get(IHostService);
 		const extensionService = accessor.get(IExtensionService);
-		const fileService = accessor.get(IFileService);
-		const textModelService = accessor.get(ITextModelService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
 
@@ -852,7 +853,7 @@ export class AttachContextAction extends Action2 {
 			return match ? match[1] : label;
 		}
 
-		this._show(quickInputService, commandService, widget, quickChatService, quickPickItems.sort(function (a, b) {
+		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems.sort(function (a, b) {
 
 			if (a.kind === 'open-editors') { return -1; }
 			if (b.kind === 'open-editors') { return 1; }
@@ -861,7 +862,7 @@ export class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', context?.placeholder);
+		}), '', context?.placeholder);
 	}
 
 	private async _showDiagnosticsPick(instantiationService: IInstantiationService, onBackgroundAccept: (item: IChatContextQuickPickItem[]) => void): Promise<IDiagnosticsQuickPickItemWithFilter | undefined> {
@@ -878,9 +879,15 @@ export class AttachContextAction extends Action2 {
 		return filter && convert(filter);
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, instantiationService: IInstantiationService, query: string = '', placeholder?: string) {
+	private _show(accessor: ServicesAccessor, widget: IChatWidget, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, query: string = '', placeholder?: string) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const quickChatService = accessor.get(IQuickChatService);
+		const clipboardService = accessor.get(IClipboardService);
+		const editorService = accessor.get(IEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
+
 		const attach = (isBackgroundAccept: boolean, ...items: IChatContextQuickPickItem[]) => {
-			this._attachContext(widget, quickInputService, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, isBackgroundAccept, ...items);
+			instantiationService.invokeFunction(this._attachContext.bind(this), widget, isBackgroundAccept, ...items);
 		};
 
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
@@ -893,12 +900,12 @@ export class AttachContextAction extends Action2 {
 				}
 
 				if (!item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', placeholder);
+					instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, '', placeholder);
 					return;
 				}
 
 				if ('prefix' in item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, item.prefix, placeholder);
+					instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, item.prefix, placeholder);
 				} else {
 					if (!clipboardService) {
 						return;
