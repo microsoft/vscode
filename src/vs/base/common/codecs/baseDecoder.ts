@@ -36,6 +36,15 @@ export abstract class BaseDecoder<
 	private readonly _onError = this._register(new Emitter<Error>());
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	private readonly _onSettled = this._register(new Emitter<void>());
+	/**
+	 * TODO: @legomushroom
+	 */
+	public onSettled = this._onSettled.event;
+
+	/**
 	 * A store of currently registered event listeners.
 	 */
 	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
@@ -57,6 +66,11 @@ export abstract class BaseDecoder<
 		this.tryOnStreamData = this.tryOnStreamData.bind(this);
 		this.onStreamError = this.onStreamError.bind(this);
 		this.onStreamEnd = this.onStreamEnd.bind(this);
+
+		// TODO: @legomushroom - unit test
+		this.settledPromise.p.finally(() => {
+			this._onSettled.fire();
+		});
 	}
 
 	/**

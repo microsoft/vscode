@@ -21,15 +21,16 @@ import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -75,7 +76,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * The event is fired when lines or their content change.
 	 */
 	private readonly _onUpdate = this._register(new Emitter<void>());
-
 	/**
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
 	 * @param callback The callback function to be called on updates.
@@ -84,6 +84,32 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		this._register(this._onUpdate.event(callback));
 
 		return this;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private readonly _onUpdateStart = this._register(new Emitter<void>());
+	public readonly onUpdateStart = this._onUpdateStart.event;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public onUpdated(callback: () => void): IDisposable {
+		return this._onUpdateStart.event(() => {
+			this.settled()
+				.finally(callback);
+		});
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public onAllUpdated(callback: () => void): IDisposable {
+		return this._onUpdateStart.event(() => {
+			this.allSettled()
+				.finally(callback);
+		});
 	}
 
 	/**
@@ -248,6 +274,9 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// dispose all currently existing references
 		this.disposeReferences();
+
+		// TODO: @legomushroom
+		this._onUpdateStart.fire();
 
 		// if an error received, set up the error condition and stop
 		if (streamOrError instanceof ResolveError) {

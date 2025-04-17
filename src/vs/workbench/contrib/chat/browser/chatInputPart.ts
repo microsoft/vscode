@@ -160,7 +160,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
-	readonly selectedToolsModel: ChatSelectedTools;
+	public readonly selectedToolsModel: ChatSelectedTools;
 
 	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
@@ -816,6 +816,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
+	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - should be called only when tools list changed?
+	// TODO: @legomushroom - how do we merge this with user tool selection updates?
+	// TODO: @legomushroom - remove?
+	private updateSelectedTools() {
+		const { promptInstructions } = this._attachmentModel;
+		const { tools } = promptInstructions;
+
+		if (tools.size === 0) {
+			return;
+		}
+
+		this.selectedToolsModel.select(promptInstructions.tools);
+	}
+
 	private _handleAttachedContextChange() {
 		this._hasFileAttachmentContextKey.set(Boolean(this._attachmentModel.attachments.find(a => a.kind === 'file')));
 		this.renderAttachedContext();
@@ -878,6 +895,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChange(() => this._handleAttachedContextChange()));
+		this._register(this._attachmentModel.onAllPromptAttachmentsSettled(this.updateSelectedTools.bind(this)));
 		this.renderChatEditingSessionState(null);
 
 		if (this.options.renderWorkingSet) {

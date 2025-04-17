@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
@@ -138,6 +138,23 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	}
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	public get tools(): Set<string> {
+		const result = new Set<string>();
+
+		for (const child of this.attachments.values()) {
+			const { tools } = child;
+
+			for (const tool of tools) {
+				result.add(tool);
+			}
+		}
+
+		return result;
+	}
+
+	/**
 	 * Get the list of all prompt instruction attachment variables, including all
 	 * nested child references of each attachment explicitly attached by user.
 	 */
@@ -169,6 +186,32 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 		}
 
 		return result;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public onAttachmentsChange(callback: () => void): IDisposable {
+		return Event.any(
+			this._onAdd.event,
+			this._onRemove.event,
+		)(callback);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public onAllSettled(callback: () => void): IDisposable {
+		const singleUpdate = Event.oneAtTime(this.onUpdate);
+
+		// TODO: @legomushroom - how do we cancel the promise?
+		return singleUpdate(async () => {
+			try {
+				await this.allSettled();
+			} finally {
+				callback();
+			}
+		});
 	}
 
 	/**
@@ -217,10 +260,11 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 			});
 
 		this.attachments.set(uri.path, instruction);
-		instruction.resolve();
 
 		this._onAdd.fire(instruction);
 		this._onUpdate.fire();
+
+		instruction.resolve();
 
 		return false;
 	}

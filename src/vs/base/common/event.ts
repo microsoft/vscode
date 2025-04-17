@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from './assert.js';
 import { CancellationToken } from './cancellation.js';
 import { diffSets } from './collections.js';
 import { onUnexpectedError } from './errors.js';
@@ -102,6 +103,72 @@ export namespace Event {
 			}
 
 			return result;
+		};
+	}
+
+	// /**
+	//  * TODO: @legomushroom
+	//  */
+	// export function oneAtTime<T>(event: Event<T>): Event<T> {
+	// 	return (callback, thisArgs = null, disposables?): IDisposable => {
+	// 		let running = false;
+	// 		return event(async (arg) => {
+	// 			try {
+	// 				if (running) {
+	// 					return;
+	// 				}
+	// 				running = true;
+
+	// 				// we awaiting here in case callback is async
+	// 				return await callback.call(thisArgs, arg);
+	// 			} finally {
+	// 				running = false;
+	// 			}
+	// 		}, null, disposables);
+	// 	};
+	// }
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	export function oneAtTime<T>(event: Event<T>, disposable?: DisposableStore): Event<T> {
+		// whether listener callback is currently running
+		let running = false;
+
+		// create a new event that is latched based on the `running` flag
+		const latched = Event.latch(event, () => {
+			return running;
+		}, disposable);
+
+		return (callback, thisArgs = null, disposables?): IDisposable => {
+			return latched((arg) => {
+				try {
+					assert(
+						running === false,
+						'Event.oneAtTime: latched event fired while previous listener callback was still running.',
+					);
+
+					const returnValue = callback.call(thisArgs, arg);
+
+					// if callback is asynchronous, unlatch when
+					// the callback is finished executing
+					if (returnValue instanceof Promise) {
+						returnValue.finally(() => {
+							running = false;
+						});
+
+						return returnValue;
+					}
+
+					// otherwise unlatch immediately
+					running = false;
+					return returnValue;
+				} catch (error) {
+					/// unlatch on error of non-async callback
+					running = false;
+					throw error;
+				}
+			}, null, disposables);
 		};
 	}
 

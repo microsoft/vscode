@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { reset } from '../../../../base/browser/dom.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { pick } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
@@ -44,7 +44,7 @@ export class ChatSelectedTools extends Disposable {
 	readonly toolsActionItemViewItemProvider: IActionViewItemProvider & { onDidRender: Event<void> };
 
 	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IInstantiationService instaService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 	) {
@@ -123,6 +123,28 @@ export class ChatSelectedTools extends Disposable {
 			},
 			{ onDidRender: onDidRender.event }
 		);
+	}
+
+	/**
+	 * Select the provided tools unselecting the rest.
+	 *
+	 * @param tools Set of tool IDs to select.
+	 */
+	public select(
+		tools: Set<string>,
+	): void {
+		const allTools = [...this.toolsService.getTools()];
+
+		const newDisabledTools = allTools.filter((tool) => {
+			return (tools.has(tool.id) === false);
+		});
+
+		const disabledTools = newDisabledTools.map(pick('id'));
+
+		this._selectedTools.set({
+			disabledBuckets: [],
+			disabledTools,
+		}, undefined);
 	}
 
 	update(disableBuckets: readonly ToolDataSource[], disableTools: readonly IToolData[]): void {

@@ -6,7 +6,7 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { assertDefined } from '../../../../../base/common/types.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { isUntitled } from '../../../../../platform/prompts/common/constants.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
@@ -43,7 +43,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 */
 	public get references(): readonly URI[] {
 		const { reference } = this;
-		const { errorCondition } = this.reference;
+		const { errorCondition } = reference;
 
 		// return no references if the attachment is disabled
 		// or if this object itself has an error
@@ -57,6 +57,26 @@ export class ChatPromptAttachmentModel extends Disposable {
 			...reference.allValidReferencesUris,
 			reference.uri,
 		];
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get tools(): Set<string> {
+		const { reference } = this;
+		const result = new Set<string>();
+		const { header } = reference;
+
+		// TODO: @legomushroom - get all tools recursively
+		if ((header === undefined) || (header.tools === undefined)) {
+			return result;
+		}
+
+		for (const tool of header.tools.toolNames) {
+			result.add(tool);
+		}
+
+		return result;
 	}
 
 	/**
@@ -93,6 +113,20 @@ export class ChatPromptAttachmentModel extends Disposable {
 	}
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	public onUpdated(callback: () => unknown): IDisposable {
+		return this.reference.onUpdated(callback);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public onAllUpdated(callback: () => unknown): IDisposable {
+		return this.reference.onAllUpdated(callback);
+	}
+
+	/**
 	 * Event that fires when the object is disposed.
 	 *
 	 * See {@linkcode onDispose}.
@@ -115,14 +149,15 @@ export class ChatPromptAttachmentModel extends Disposable {
 	) {
 		super();
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
 		this._reference = this._register(this.initService.createInstance(
 			BasePromptParser,
 			this.getContentsProvider(uri),
 			[],
 		));
 
-		this._reference.onUpdate(this._onUpdate.fire);
+		this._reference.onUpdate(
+			this._onUpdate.fire.bind(this._onUpdate),
+		);
 	}
 
 	/**

@@ -42,6 +42,20 @@ export class PromptHeader extends Disposable {
 	}
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	public get tools(): PromptToolsMetadata | undefined {
+		for (const record of this.records) {
+			if (record instanceof PromptToolsMetadata) {
+				return record;
+			}
+		}
+
+		return undefined;
+	}
+
+
+	/**
 	 * List of all unique metadata record names.
 	 */
 	private readonly recordNames: Set<string>;

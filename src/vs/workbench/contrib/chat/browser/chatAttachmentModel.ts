@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
@@ -45,16 +45,17 @@ export class ChatAttachmentModel extends Disposable {
 		);
 
 		this._register(
-			this.promptInstructions.onAdd(() => {
+			this.promptInstructions.onAttachmentsChange(() => {
 				this._onDidChange.fire({ added: [], deleted: [], updated: [] });
 			}),
 		);
+	}
 
-		this._register(
-			this.promptInstructions.onRemove(() => {
-				this._onDidChange.fire({ added: [], deleted: [], updated: [] });
-			}),
-		);
+	/**
+	 * TODO: @legomushroom
+	 */
+	public onAllPromptAttachmentsSettled(callback: () => void): IDisposable {
+		return this.promptInstructions.onAllSettled(callback);
 	}
 
 	private _attachments = new Map<string, IChatRequestVariableEntry>();

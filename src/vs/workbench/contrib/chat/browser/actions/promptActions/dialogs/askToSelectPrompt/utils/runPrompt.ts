@@ -48,11 +48,22 @@ export const runPromptFile = async (
 	const widget = await getChatWidgetObject(options);
 
 	let wasAlreadyAttached = true;
+	// TODO: @legomushroom - either resolve tools for implicit context, or do something else
 	if (isSetInImplicitContext(file, widget) === false) {
-		wasAlreadyAttached = widget
-			.attachmentModel
-			.promptInstructions
-			.add(file);
+		const { attachmentModel, input } = widget;
+		const { promptInstructions } = attachmentModel;
+
+		wasAlreadyAttached = promptInstructions.add(file);
+
+		await promptInstructions.allSettled();
+
+		const { tools } = promptInstructions;
+		if (tools.size !== 0) {
+			// TODO: @legomushroom - restore the previous tools?
+			input.selectedToolsModel.select(
+				promptInstructions.tools,
+			);
+		}
 	}
 
 	// submit the prompt immediately
