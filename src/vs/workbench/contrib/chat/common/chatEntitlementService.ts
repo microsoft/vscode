@@ -275,8 +275,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
-	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
-	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
+	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat messages available to the user' };
+	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat messages available to the user' };
+	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code completions available to the user' };
 	quotaResetDate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The date the quota will reset' };
 	owner: 'bpasero';
 	comment: 'Reporting chat entitlements';
@@ -286,6 +287,7 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
 	quotaChat: number | undefined;
+	quotaPremiumChat: number | undefined;
 	quotaCompletions: number | undefined;
 	quotaResetDate: string | undefined;
 };
@@ -316,7 +318,8 @@ interface IEntitlementsResponse extends ILegacyQuotaSnapshotResponse {
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
 	readonly analytics_tracking_id: string;
-	readonly limited_user_reset_date: string;
+	readonly limited_user_reset_date?: string; 	// for Copilot Free
+	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotResponse;
 		completions?: IQuotaSnapshotResponse;
@@ -567,9 +570,10 @@ export class ChatEntitlementRequests extends Disposable {
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsResponse.analytics_tracking_id,
-			quotaChat: entitlementsResponse.limited_user_quotas?.chat,
-			quotaCompletions: entitlementsResponse.limited_user_quotas?.completions,
-			quotaResetDate: entitlementsResponse.limited_user_reset_date
+			quotaChat: entitlementsResponse?.quota_snapshots?.chat?.remaining,
+			quotaPremiumChat: entitlementsResponse?.quota_snapshots?.premium_interactions?.remaining,
+			quotaCompletions: entitlementsResponse?.quota_snapshots?.completions?.remaining,
+			quotaResetDate: entitlementsResponse.quota_reset_date ?? entitlementsResponse.limited_user_reset_date
 		});
 
 		return entitlements;
@@ -577,7 +581,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 	private toQuotas(response: IEntitlementsResponse): IQuotas {
 		const quotas: Mutable<IQuotas> = {
-			resetDate: response.limited_user_reset_date
+			resetDate: response.quota_reset_date ?? response.limited_user_reset_date
 		};
 
 		// Legacy Free SKU Quota
