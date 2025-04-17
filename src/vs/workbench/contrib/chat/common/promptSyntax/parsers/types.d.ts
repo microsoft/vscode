@@ -132,13 +132,13 @@ interface IPromptReferenceBase extends IDisposable {
 	/**
 	 * Direct references of the current reference.
 	 */
-	references: readonly IPromptReference[];
+	readonly references: readonly IPromptReference[];
 
 	/**
 	 * All references that the current reference may have,
 	 * including all possible nested child references.
 	 */
-	allReferences: readonly IPromptReference[];
+	readonly allReferences: readonly IPromptReference[];
 
 	/**
 	 * All *valid* references that the current reference may have,
@@ -148,16 +148,16 @@ interface IPromptReferenceBase extends IDisposable {
 	 * without creating a circular reference loop or having any other
 	 * issues that would make the reference resolve logic to fail.
 	 */
-	// TODO: @legomushroom - add `readonly` to all fields
-	allValidReferences: readonly IPromptReference[];
+	readonly allValidReferences: readonly IPromptReference[];
 
 	/**
-	 * TODO: @legomushroom
+	 * Associated `tools` metadata for the current reference.
 	 */
 	readonly toolsMetadata?: readonly string[] | null;
 
 	/**
-	 * TODO: @legomushroom
+	 * Entire associated `tools` metadata for this reference and
+	 * all possible nested child references.
 	 */
 	readonly allToolsMetadata: readonly string[] | null;
 

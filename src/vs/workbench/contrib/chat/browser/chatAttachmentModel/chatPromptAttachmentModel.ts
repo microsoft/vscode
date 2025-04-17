@@ -61,8 +61,13 @@ export class ChatPromptAttachmentModel extends Disposable {
 
 	/**
 	 * Get list of all tools associated with the prompt.
+	 *
+	 * Note! This property returns pont-in-time state of the tools metadata
+	 *       and does not take into account if the prompt or its nested child
+	 *       references are still being resolved. Please use the {@link settled}
+	 *       or {@link allSettled} properties if you need to retrieve the final
+	 *       list of the tools available.
 	 */
-	// TODO: @legomushroom - note about `allSettled`
 	public get toolsMetadata(): readonly string[] | null {
 		return this.reference.allToolsMetadata;
 	}
