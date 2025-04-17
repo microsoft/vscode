@@ -277,7 +277,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						if (typeof resolvedInput === 'string') {
 							this.storeInputLru(defaultValueMap.set(defaultValueKey, resolvedInput));
 						}
-						return resolvedInput ? { value: resolvedInput as string, input: info } : undefined;
+						return resolvedInput !== undefined ? { value: resolvedInput as string, input: info } : undefined;
 					});
 				}
 
