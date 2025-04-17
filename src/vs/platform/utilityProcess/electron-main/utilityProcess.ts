@@ -283,8 +283,6 @@ export class UtilityProcess extends Disposable {
 		// Apply supported environment variables from environment
 		if (!configuration.disableCodeCache && this.environmentMainService.codeCachePath) {
 			env['NODE_COMPILE_CACHE'] = this.environmentMainService.codeCachePath;
-		} else {
-			delete env['NODE_COMPILE_CACHE'];
 		}
 
 		// Remove any environment variables that are not allowed
