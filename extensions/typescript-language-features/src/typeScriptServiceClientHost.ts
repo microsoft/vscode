@@ -35,6 +35,7 @@ import TypingsStatus, { AtaProgressReporter } from './ui/typingsStatus';
 import { VersionStatus } from './ui/versionStatus';
 import { coalesce } from './utils/arrays';
 import { Disposable } from './utils/dispose';
+import { typeScriptDocumentSymbolProvider } from './languageFeatures/documentSymbol';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -48,6 +49,11 @@ const styleCheckDiagnostics = new Set([
 ]);
 
 export default class TypeScriptServiceClientHost extends Disposable {
+
+	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
+	private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
+	private readonly _functionLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
+	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
 
 	private readonly client: TypeScriptServiceClient;
 	private readonly languages: LanguageProvider[] = [];
@@ -150,6 +156,23 @@ export default class TypeScriptServiceClientHost extends Disposable {
 					standardFileExtensions: [],
 				}, onCompletionAccepted);
 			}
+			setTimeout(() => {
+				vscode.window.onDidChangeVisibleTextEditors(e => {
+					e.forEach(async editor => {
+						this._setDecorations(editor);
+					});
+				});
+				vscode.window.visibleTextEditors.forEach(async editor => {
+					this._setDecorations(editor);
+				});
+				vscode.workspace.onDidChangeTextDocument(_ => {
+					const activeTextEditor = vscode.window.activeTextEditor;
+					if (!activeTextEditor) {
+						return;
+					}
+					this._setDecorations(activeTextEditor);
+				});
+			}, 5000);
 		});
 
 		this.client.onTsServerStarted(() => {
@@ -159,6 +182,43 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 		this._register(new LogLevelMonitor(context));
+	}
+
+	private async _setDecorations(editor: vscode.TextEditor): Promise<void> {
+		if (!typeScriptDocumentSymbolProvider) {
+			return;
+		}
+		const document = editor.document;
+		const result = await typeScriptDocumentSymbolProvider.provideDocumentSymbols(document, new vscode.CancellationTokenSource().token);
+		if (result === undefined) {
+			return;
+		}
+		const classRanges: vscode.Range[] = [];
+		this._getRanges(result, vscode.SymbolKind.Class, classRanges);
+
+		const interfaceRanges: vscode.Range[] = [];
+		this._getRanges(result, vscode.SymbolKind.Interface, interfaceRanges);
+
+		const functionRanges: vscode.Range[] = [];
+		this._getRanges(result, vscode.SymbolKind.Function, functionRanges);
+
+		const methodRanges: vscode.Range[] = [];
+		this._getRanges(result, vscode.SymbolKind.Method, methodRanges);
+
+		editor.setDecorations(this._classLineHeightDecorationType, classRanges);
+		editor.setDecorations(this._interfaceLineHeightDecorationType, interfaceRanges);
+		editor.setDecorations(this._functionLineHeightDecorationType, functionRanges);
+		editor.setDecorations(this._methodLineHeightDecorationType, methodRanges);
+	}
+
+	private _getRanges(symbols: vscode.DocumentSymbol[], kind: vscode.SymbolKind, ranges: vscode.Range[]) {
+		for (const symbol of symbols) {
+			if (symbol.kind === kind) {
+				const line = symbol.range.start.line;
+				ranges.push(new vscode.Range(line, 0, line, Infinity));
+			}
+			this._getRanges(symbol.children, kind, ranges);
+		}
 	}
 
 	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
