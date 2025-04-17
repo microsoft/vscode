@@ -693,4 +693,185 @@ suite('PromptFileReference (Unix)', function () {
 		});
 	});
 
+	suite('• metadata', () => {
+		test('• tools', async function () {
+			if (isWindows) {
+				this.skip();
+			}
+
+			const rootFolderName = 'resolves-nested-file-references';
+			const rootFolder = `/${rootFolderName}`;
+			const rootUri = URI.file(rootFolder);
+
+			const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				/**
+				 * The file structure to be created on the disk for the test.
+				 */
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'file1.prompt.md',
+							contents: [
+								'## Some Header',
+								'some contents',
+								' ',
+							].join('\n'),
+						},
+						{
+							name: 'file2.md',
+							contents: [
+								'---',
+								'tools: [\'my-tool1\']',
+								'---',
+								'## Files',
+								'\t- this file #file:folder1/file3.prompt.md ',
+								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+								' ',
+							].join('\n'), // TODO: @legomushroom - allow for `string[]` content natively
+						},
+						{
+							name: 'folder1',
+							children: [
+								{
+									name: 'file3.prompt.md',
+									contents: [
+										'',
+										'[](./some-other-folder/non-existing-folder)',
+										`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
+										' some more\t content',
+									].join('\n'),
+								},
+								{
+									name: 'some-other-folder',
+									children: [
+										{
+											name: 'file4.prompt.md',
+											contents: [
+												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
+												'',
+												'',
+												'and some',
+												' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
+											].join('\n'),
+										},
+										{
+											name: 'file.txt',
+											contents: 'contents of a non-prompt-snippet file',
+										},
+										{
+											name: 'yetAnotherFolder🤭',
+											children: [
+												{
+													name: 'another-file.prompt.md',
+													contents: [
+														`[](${rootFolder}/folder1/some-other-folder)`,
+														'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
+													].join('\n'),
+												},
+												{
+													name: 'one_more_file_just_in_case.prompt.md',
+													contents: 'one_more_file_just_in_case.prompt.md contents',
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				}],
+				/**
+				 * The root file path to start the resolve process from.
+				 */
+				URI.file(`/${rootFolderName}/file2.md`),
+				/**
+				 * The expected references to be resolved.
+				 */
+				[
+					new ExpectedReference(
+						rootUri,
+						createTestFileReference('folder1/file3.prompt.md', 5, 14),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1'),
+						new MarkdownLink(
+							2, 1,
+							'[]', '(./some-other-folder/non-existing-folder)',
+						),
+						new OpenFailed(
+							URI.joinPath(rootUri, './folder1/some-other-folder/non-existing-folder'),
+							'Reference to non-existing file cannot be opened.',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1'),
+						createTestFileReference(
+							`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
+							3,
+							26,
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						new MarkdownLink(
+							1, 1,
+							'[]', `(/${rootFolderName}/folder1/some-other-folder)`,
+						),
+						new FolderReference(
+							URI.joinPath(rootUri, './folder1/some-other-folder'),
+							'This folder is not a prompt file!',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
+						new MarkdownLink(
+							2, 34,
+							'[#file:file.txt]', '(../file.txt)',
+						),
+						new NotPromptFile(
+							URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
+							'Ughh oh, that is not a prompt file!',
+						),
+					),
+					new ExpectedReference(
+						rootUri,
+						new MarkdownLink(
+							6, 14,
+							'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
+						new OpenFailed(
+							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
+							'Failed to open non-existing prompt snippets file',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						createTestFileReference('./some-non-prompt-file.md', 5, 13),
+						new OpenFailed(
+							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
+							'Oh no!',
+						),
+					),
+					new ExpectedReference(
+						URI.joinPath(rootUri, './some-other-folder/folder1'),
+						new MarkdownLink(
+							5, 48,
+							'[]', '(../../folder1/)',
+						),
+						new FolderReference(
+							URI.joinPath(rootUri, './folder1'),
+							'Uggh ohh!',
+						),
+					),
+				]
+			));
+
+			await test.run({ allowNonPromptFiles: true });
+		});
+	});
 });
