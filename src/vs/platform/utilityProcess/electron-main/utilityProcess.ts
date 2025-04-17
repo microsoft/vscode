@@ -18,6 +18,7 @@ import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -77,6 +78,11 @@ export interface IUtilityProcessConfiguration {
 	 * via the app#login event.
 	 */
 	readonly respondToAuthRequestsFromMainProcess?: boolean;
+
+	/**
+	 * Disable the node.js code cache for the utility process.
+	 */
+	readonly disableCodeCache?: boolean;
 }
 
 export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
@@ -173,7 +179,8 @@ export class UtilityProcess extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleMainService protected readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService protected readonly lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
 		super();
 	}
@@ -271,6 +278,13 @@ export class UtilityProcess extends Disposable {
 			} else {
 				env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
 			}
+		}
+
+		// Apply supported environment variables from environment
+		if (!configuration.disableCodeCache && this.environmentMainService.codeCachePath) {
+			env['NODE_COMPILE_CACHE'] = this.environmentMainService.codeCachePath;
+		} else {
+			delete env['NODE_COMPILE_CACHE'];
 		}
 
 		// Remove any environment variables that are not allowed
@@ -491,9 +505,10 @@ export class WindowUtilityProcess extends UtilityProcess {
 		@ILogService logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService
 	) {
-		super(logService, telemetryService, lifecycleMainService);
+		super(logService, telemetryService, lifecycleMainService, environmentMainService);
 	}
 
 	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
