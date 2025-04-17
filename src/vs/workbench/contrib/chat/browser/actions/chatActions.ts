@@ -99,7 +99,7 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
-export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
+const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 export function registerChatActions() {
 	registerAction2(class OpenChatGlobalAction extends Action2 {
@@ -607,7 +607,7 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class ShowLimitReachedDialogAction extends Action2 {
+	registerAction2(class ShowQuotaExceededDialogAction extends Action2 {
 
 		constructor() {
 			super({
@@ -629,18 +629,18 @@ export function registerChatActions() {
 			const freeCompletionsQuotaExceeded = chatEntitlementService.quotas.freeCompletions?.percentRemaining === 0;
 			const quotaResetDate = new Date(chatEntitlementService.quotas.freeChat?.resetDate ?? chatEntitlementService.quotas.freeCompletions?.resetDate ?? Date.now()); // the two dates should really be the same for limited plan users
 			if (freeChatQuotaExceeded && !freeCompletionsQuotaExceeded) {
-				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
+				message = localize('chatQuotaExceeded', "You've reached your monthly chat messages quota. You still have free code completions available in the Copilot Free plan. The allowance will renew on {0}.", dateFormatter.format(quotaResetDate));
 			} else if (freeCompletionsQuotaExceeded && !freeChatQuotaExceeded) {
-				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
+				message = localize('completionsQuotaExceeded', "You've reached your monthly code completions quota. You still have free chat messages available in the Copilot Free plan. The allowance will renew on {0}.", dateFormatter.format(quotaResetDate));
 			} else {
-				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(quotaResetDate));
+				message = localize('chatAndCompletionsQuotaExceeded', "You've reached your monthly quota of chat messages and code completions. The allowance will renew on {0}.", dateFormatter.format(quotaResetDate));
 			}
 
-			const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to additional models");
+			const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited basic chat messages\n- Access to premium models");
 
 			await dialogService.prompt({
 				type: 'none',
-				message: localize('copilotFree', "Copilot Limit Reached"),
+				message: localize('copilotFree', "Copilot Free Quota Reached"),
 				cancelButton: {
 					label: localize('dismiss', "Dismiss"),
 					run: () => { /* noop */ }
@@ -781,7 +781,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionIcon = Codicon.copilotNotConnected;
 				} else if (freeChatQuotaExceeded) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages limit reached. Click for details.");
+					primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages quota reached. Click for details.");
 					primaryActionIcon = Codicon.copilotWarning;
 				}
 			}
