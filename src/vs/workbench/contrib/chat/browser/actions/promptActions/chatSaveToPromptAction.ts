@@ -6,18 +6,18 @@
 import { IChatWidget } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { localize2 } from '../../../../../../nls.js';
+import { IEditorPane } from '../../../../../common/editor.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../../common/chatParserTypes.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IUntitledTextEditorModel } from '../../../../../services/untitled/common/untitledTextEditorModel.js';
-import { IUntitledTextEditorService } from '../../../../../services/untitled/common/untitledTextEditorService.js';
 
 /**
  * Action ID for the `Save Prompt` action.
@@ -59,9 +59,10 @@ class SaveToPromptAction extends Action2 {
 	public async run(
 		accessor: ServicesAccessor,
 		options: ISaveToPromptActionOptions,
-	): Promise<IUntitledTextEditorModel> {
+	): Promise<IEditorPane> {
 		const logService = accessor.get(ILogService);
-		const editorService = accessor.get(IUntitledTextEditorService);
+		const editorService = accessor.get(IEditorService);
+		// const untitledEditorService = accessor.get(IUntitledTextEditorService);
 		// TODO: @legomushroom
 		// TODO: @legomushroom - use the copilot output channel for logging
 		const logPrefix = 'save prompt action';
@@ -112,13 +113,19 @@ class SaveToPromptAction extends Action2 {
 
 		const promptText = renderPrompt(turns);
 
-		// TODO: @legomushroom - do we need to manage disposal of `editor`?
-		const editor = editorService.create({
-			initialValue: promptText,
+		const editor = await editorService.openEditor({
+			resource: undefined,
+			contents: promptText,
 			languageId: PROMPT_LANGUAGE_ID,
-		}); // TODO: @legomushroom - save `/save` command in the chat history or remove copilots empty response for it
+		});
 
-		// TODO: @legomushroom - focus the new untitled editor
+		assertDefined(
+			editor,
+			'Failed to open untitled editor for the prompt.',
+		);
+
+		editor.focus();
+
 		return editor;
 	}
 }
