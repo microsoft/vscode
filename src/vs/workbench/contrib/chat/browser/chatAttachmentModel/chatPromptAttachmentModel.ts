@@ -43,7 +43,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 */
 	public get references(): readonly URI[] {
 		const { reference } = this;
-		const { errorCondition } = this.reference;
+		const { errorCondition } = reference;
 
 		// return no references if the attachment is disabled
 		// or if this object itself has an error
@@ -57,6 +57,14 @@ export class ChatPromptAttachmentModel extends Disposable {
 			...reference.allValidReferencesUris,
 			reference.uri,
 		];
+	}
+
+	/**
+	 * Get list of all tools associated with the prompt.
+	 */
+	// TODO: @legomushroom - note about `allSettled`
+	public get toolsMetadata(): readonly string[] | null {
+		return this.reference.allToolsMetadata;
 	}
 
 	/**
@@ -115,14 +123,15 @@ export class ChatPromptAttachmentModel extends Disposable {
 	) {
 		super();
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
 		this._reference = this._register(this.initService.createInstance(
 			BasePromptParser,
 			this.getContentsProvider(uri),
 			[],
 		));
 
-		this._reference.onUpdate(this._onUpdate.fire);
+		this._reference.onUpdate(
+			this._onUpdate.fire.bind(this._onUpdate),
+		);
 	}
 
 	/**

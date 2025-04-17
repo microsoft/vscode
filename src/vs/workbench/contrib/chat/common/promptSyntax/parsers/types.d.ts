@@ -148,7 +148,18 @@ interface IPromptReferenceBase extends IDisposable {
 	 * without creating a circular reference loop or having any other
 	 * issues that would make the reference resolve logic to fail.
 	 */
+	// TODO: @legomushroom - add `readonly` to all fields
 	allValidReferences: readonly IPromptReference[];
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	readonly toolsMetadata?: readonly string[] | null;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	readonly allToolsMetadata: readonly string[] | null;
 
 	/**
 	 * Returns a promise that resolves when the reference contents

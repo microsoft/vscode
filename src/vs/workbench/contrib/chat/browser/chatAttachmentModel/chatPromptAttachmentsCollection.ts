@@ -142,6 +142,26 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	}
 
 	/**
+	 * Get list of tools associated with all attached prompt files.
+	 */
+	public get toolsMetadata(): readonly string[] | null {
+		const result = [];
+
+		for (const child of this.attachments.values()) {
+			const { toolsMetadata } = child;
+
+			if (toolsMetadata === null) {
+				continue;
+			}
+
+			result.push(...toolsMetadata);
+		}
+
+		// return unique list of all tools
+		return [...new Set(result)];
+	}
+
+	/**
 	 * Get the list of all prompt instruction attachment variables, including all
 	 * nested child references of each attachment explicitly attached by user.
 	 */
@@ -179,7 +199,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	 * Promise that resolves when parsing of all attached prompt instruction
 	 * files completes, including parsing of all its possible child references.
 	 */
-	public async allSettled(): Promise<void> {
+	public async allSettled(): Promise<this> {
 		const attachments = [...this.attachments.values()];
 
 		await Promise.allSettled(
@@ -187,6 +207,8 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				return attachment.allSettled;
 			}),
 		);
+
+		return this;
 	}
 
 	constructor(
@@ -221,10 +243,12 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 			});
 
 		this.attachments.set(uri.path, instruction);
-		instruction.resolve();
 
 		this._onAdd.fire(instruction);
 		this._onUpdate.fire();
+
+		// start resolving all references in the prompt
+		instruction.resolve();
 
 		return false;
 	}
