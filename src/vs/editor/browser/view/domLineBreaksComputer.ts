@@ -150,13 +150,15 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, mo
 		const lineNumber = lineNumbers[i];
 		const actualInlineDecorations = LineDecoration.filter(inlineDecorations[i], lineNumber, 0, Infinity);
 		const tokens = model.tokenization.getLineTokens(lineNumber);
+		const isBasicASCII = strings.isBasicASCII(renderLineContent);
+		const containsRTL = strings.containsRTL(renderLineContent);
 		const renderLineInput = new RenderLineInput(
 			useMonospaceOptimizations,
 			fontInfo.canUseHalfwidthRightwardsArrow,
 			renderLineContent,
 			false,
-			false,
-			false,
+			isBasicASCII,
+			containsRTL,
 			0,
 			tokens,
 			actualInlineDecorations,

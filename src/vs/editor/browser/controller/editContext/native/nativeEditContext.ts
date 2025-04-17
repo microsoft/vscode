@@ -286,7 +286,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public writeScreenReaderContent(): void {
-		// this._screenReaderSupport.writeScreenReaderContent();
+		this.shouldRender();
 	}
 
 	public isFocused(): boolean {
