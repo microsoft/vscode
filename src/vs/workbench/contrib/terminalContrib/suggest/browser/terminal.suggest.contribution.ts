@@ -37,6 +37,7 @@ import { createTerminalLanguageVirtualUri, LspCompletionProviderAddon } from './
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { ILspTerminalDictionaryService } from '../../../../../platform/terminal/common/capabilities/lspTerminalDictionaryService.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -71,6 +72,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ILspTerminalDictionaryService private readonly _lspTerminalDictionaryService: ILspTerminalDictionaryService,
 	) {
 		super();
 		this.add(toDisposable(() => {
@@ -165,11 +167,17 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider);
-		// TODO: Create with different languages.
+		// TODO: Create with different languages by checking shell type
 		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri('1', 'py');
-		this._lspModelProvider.value.setContent(virtualTerminalDocumentUri, 'import ast');
+		// this._lspModelProvider.value.setContent(virtualTerminalDocumentUri, 'import ast');
 		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
+
+		if (this._lspTerminalDictionaryService) {
+			// set it up so terminal can access the model and set content
+			// TODO: use actual terminal ID
+			this._lspTerminalDictionaryService.set('randomTerminalId', this._lspModelProvider);
+		}
 
 		// only take a provider with ms-python.python(.["') name
 		const provider = virtualProviders.find(p => p._debugDisplayName === `ms-python.python(.["')`);

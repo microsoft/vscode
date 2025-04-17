@@ -32,6 +32,7 @@ import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
 import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
+import { ILspTerminalDictionaryService } from '../common/capabilities/lspTerminalDictionaryService.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
@@ -135,7 +136,9 @@ export class PtyService extends Disposable implements IPtyService {
 		private readonly _logService: ILogService,
 		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants,
-		private readonly _simulatedLatency: number
+		private readonly _simulatedLatency: number,
+		// this feels very illegal
+		@ILspTerminalDictionaryService private readonly _lspTerminalDictionaryService: ILspTerminalDictionaryService,
 	) {
 		super();
 
@@ -311,7 +314,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			options
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, this._lspTerminalDictionaryService, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onProcessExit(event => {
 			for (const contrib of this._contributions) {
 				contrib.handleProcessDispose(id);
@@ -732,10 +735,11 @@ class PersistentTerminalProcess extends Disposable {
 		private readonly _logService: ILogService,
 		reviveBuffer: string | undefined,
 		rawReviveBuffer: string | undefined,
+		@ILspTerminalDictionaryService private readonly _lspTerminalDictionaryService: ILspTerminalDictionaryService,
 		private _icon?: TerminalIcon,
 		private _color?: string,
 		name?: string,
-		fixedDimensions?: IFixedTerminalDimensions
+		fixedDimensions?: IFixedTerminalDimensions,
 	) {
 		super();
 		this._interactionState = new MutationLogger(`Persistent process "${this._persistentProcessId}" interaction state`, InteractionState.None, this._logService);
@@ -748,7 +752,8 @@ class PersistentTerminalProcess extends Disposable {
 			reviveBuffer,
 			processLaunchOptions.options.shellIntegration.nonce,
 			shouldPersistTerminal ? rawReviveBuffer : undefined,
-			this._logService
+			this._logService,
+			this._lspTerminalDictionaryService
 		);
 		if (name) {
 			this.setTitle(name, TitleEventSource.Api);
@@ -990,7 +995,8 @@ class XtermSerializer implements ITerminalSerializer {
 		reviveBufferWithRestoreMessage: string | undefined,
 		shellIntegrationNonce: string,
 		private _rawReviveBuffer: string | undefined,
-		logService: ILogService
+		logService: ILogService,
+		@ILspTerminalDictionaryService lspTerminalDictionaryService: ILspTerminalDictionaryService,
 	) {
 		this._xterm = new XtermTerminal({
 			cols,
@@ -1002,7 +1008,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, logService, lspTerminalDictionaryService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 

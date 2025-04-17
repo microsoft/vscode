@@ -58,12 +58,12 @@ export class LspTerminalModelContentProvider extends Disposable implements IText
 		const extension = resource.path.split('.').pop();
 
 		// Determine language ID based on extension
-		let languageId: string | undefined = undefined;
+		let languageId: string | undefined | null = undefined;
 		if (extension) {
-			// let languageId = extension ? this._languageService.getLanguageIdByLanguageName(extension) : undefined;
-			// // let languageIdTry = this._languageService.getLanguageIdByLanguageName('python');
-			// // console.log(languageIdTry);
-			languageId = 'python'; // Can't remember if this is ms-python or python.
+			languageId = this._languageService.getLanguageIdByLanguageName(extension);
+			// this._languageService.getLanguageName('python');
+			// this._languageService.getRegisteredLanguageIds();
+			// this._languageService.getLanguageIdByLanguageName("python");
 
 			// Fallback to common extensions
 			if (!languageId) {

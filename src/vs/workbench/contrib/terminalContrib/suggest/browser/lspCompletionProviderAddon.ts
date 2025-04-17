@@ -106,6 +106,9 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 			})));
 			console.log(result?.suggestions);
 		}
+		const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();
+		console.log('what is in this file');
+		console.log(whatIsIntheFile);
 
 		return completions;
 	}
