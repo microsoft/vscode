@@ -1038,13 +1038,12 @@ async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): P
 			label: tool.toolReferenceName ?? tool.id,
 			description: (tool.toolReferenceName ?? tool.id) !== tool.displayName ? tool.displayName : undefined,
 			id: tool.id,
-			icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined
 		};
-		if (ThemeIcon.isThemeIcon(tool.icon)) {
-			item.iconClass = ThemeIcon.asClassName(tool.icon);
-		} else if (tool.icon) {
-			item.iconPath = tool.icon;
-		}
+		// if (ThemeIcon.isThemeIcon(tool.icon)) {
+		// 	item.iconClass = ThemeIcon.asClassName(tool.icon);
+		// } else if (tool.icon) {
+		// 	item.iconPath = tool.icon;
+		// }
 		items.push(item);
 	}
 
