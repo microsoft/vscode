@@ -34,7 +34,7 @@ export const SAVE_TO_PROMPT_SLASH_COMMAND_NAME = 'save';
  */
 interface ISaveToPromptActionOptions {
 	/**
-	 * Model of a chat session to save.
+	 * Chat widget reference to save session of.
 	 */
 	chat: IChatWidget;
 }
@@ -60,10 +60,10 @@ class SaveToPromptAction extends Action2 {
 		accessor: ServicesAccessor,
 		options: ISaveToPromptActionOptions,
 	): Promise<IEditorPane> {
-		const logPrefix = 'save to prompt';
-
 		const logService = accessor.get(ILogService);
 		const editorService = accessor.get(IEditorService);
+
+		const logPrefix = 'save to prompt';
 		const { chat } = options;
 
 		const { viewModel } = chat;
@@ -218,6 +218,7 @@ const renderPrompt = (
 
 	return result.join('\n');
 };
+
 
 /**
  * Render the `tools` metadata inside prompt header.

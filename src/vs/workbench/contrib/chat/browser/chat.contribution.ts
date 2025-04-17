@@ -508,6 +508,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			detail: nls.localize('save-chat-to-prompt-file', "Save chat to a prompt file"),
 			sortText: `z3_${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`,
 			executeImmediately: true,
+			silent: true,
 			locations: [ChatAgentLocation.Panel]
 		}, async () => {
 			const { lastFocusedWidget } = chatWidgetService;
