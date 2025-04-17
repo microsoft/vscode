@@ -258,6 +258,11 @@ export interface IChatToolInvocationSerialized {
 	kind: 'toolInvocationSerialized';
 }
 
+export interface IChatExtensionsContent {
+	extensions: string[];
+	kind: 'extensions';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -278,6 +283,7 @@ export type IChatProgress =
 	| IChatConfirmation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
+	| IChatExtensionsContent
 	| IChatUndoStop;
 
 export interface IChatFollowup {
@@ -476,9 +482,9 @@ export interface IChatSendRequestOptions {
 	confirmation?: string;
 
 	/**
-	 * Flag to indicate whether a prompt instructions attachment is present.
+	 * Flag to indicate whether a prompt file attachment is present.
 	 */
-	hasInstructionAttachments?: boolean;
+	hasPromptFileAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -522,6 +528,8 @@ export interface IChatService {
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
+
+	readonly edits2Enabled: boolean;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

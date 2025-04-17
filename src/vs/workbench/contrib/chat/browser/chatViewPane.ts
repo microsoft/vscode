@@ -26,7 +26,6 @@ import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
@@ -101,6 +100,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const info = this.getTransferredOrPersistedSessionInfo();
 					this._restoringSession =
 						(info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : Promise.resolve(undefined)).then(async model => {
+							if (!this._widget) {
+								// renderBody has not been called yet
+								return;
+							}
+
 							// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
 							// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
 							// so it should fire onDidChangeViewWelcomeState.
@@ -123,12 +127,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			this._onDidChangeViewWelcomeState.fire();
-		}));
-
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(ChatContextKeys.SetupViewKeys)) {
-				this._onDidChangeViewWelcomeState.fire();
-			}
 		}));
 	}
 
@@ -161,11 +159,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override shouldShowWelcome(): boolean {
-		const showSetup = this.contextKeyService.contextMatchesRules(ChatContextKeys.SetupViewCondition);
 		const noPersistedSessions = !this.chatService.hasSessions();
 		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
-		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup);
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
+		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed}`);
 		return !!shouldShow;
 	}
 
@@ -201,7 +198,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					autoScroll: mode => mode !== ChatMode.Ask,
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
-					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Permutation, compareBy } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, ISettableObservable, autorun, transaction, IReader } from '../../../../base/common/observable.js';
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -79,4 +80,21 @@ export class ObservableContextKeyService {
 	bind<T extends ContextKeyValue>(key: RawContextKey<T>, obs: IObservable<T> | ((reader: IReader) => T)): IDisposable {
 		return bindContextKey(key, this._contextKeyService, obs instanceof Function ? obs : reader => obs.read(reader));
 	}
+}
+
+export function wait(ms: number, cancellationToken?: CancellationToken): Promise<void> {
+	return new Promise(resolve => {
+		let d: IDisposable | undefined = undefined;
+		const handle = setTimeout(() => {
+			if (d) { d.dispose(); }
+			resolve();
+		}, ms);
+		if (cancellationToken) {
+			d = cancellationToken.onCancellationRequested(() => {
+				clearTimeout(handle);
+				if (d) { d.dispose(); }
+				resolve();
+			});
+		}
+	});
 }

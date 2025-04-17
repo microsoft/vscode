@@ -4,10 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findLastIdxMonotonous } from '../../../base/common/arraysFind.js';
+import { ITextModel } from '../model.js';
+import { OffsetEdit, SingleOffsetEdit } from './offsetEdit.js';
 import { OffsetRange } from './offsetRange.js';
 import { Position } from './position.js';
 import { Range } from './range.js';
+import { SingleTextEdit, TextEdit } from './textEdit.js';
 import { TextLength } from './textLength.js';
+
+export function getPositionOffsetTransformerFromTextModel(textModel: ITextModel): PositionOffsetTransformer {
+	const text = textModel.getValue();
+	return new PositionOffsetTransformer(text);
+}
 
 export class PositionOffsetTransformer {
 	private readonly lineStartOffsetByLineIdx: number[];
@@ -87,5 +95,23 @@ export class PositionOffsetTransformer {
 
 	getLineLength(lineNumber: number): number {
 		return this.lineEndOffsetByLineIdx[lineNumber - 1] - this.lineStartOffsetByLineIdx[lineNumber - 1];
+	}
+
+	getOffsetEdit(edit: TextEdit): OffsetEdit {
+		const edits = edit.edits.map(e => this.getSingleOffsetEdit(e));
+		return new OffsetEdit(edits);
+	}
+
+	getSingleOffsetEdit(edit: SingleTextEdit): SingleOffsetEdit {
+		return new SingleOffsetEdit(this.getOffsetRange(edit.range), edit.text);
+	}
+
+	getSingleTextEdit(edit: SingleOffsetEdit): SingleTextEdit {
+		return new SingleTextEdit(this.getRange(edit.replaceRange), edit.newText);
+	}
+
+	getTextEdit(edit: OffsetEdit): TextEdit {
+		const edits = edit.edits.map(e => this.getSingleTextEdit(e));
+		return new TextEdit(edits);
 	}
 }

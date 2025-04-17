@@ -1866,6 +1866,12 @@ export enum PartialAcceptTriggerKind {
 	Suggest = 3,
 }
 
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2,
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -4670,6 +4676,13 @@ export class ChatResponseMovePart {
 	constructor(
 		public readonly uri: vscode.Uri,
 		public readonly range: vscode.Range,
+	) {
+	}
+}
+
+export class ChatResponseExtensionsPart {
+	constructor(
+		public readonly extensions: string[],
 	) {
 	}
 }

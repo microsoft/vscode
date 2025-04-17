@@ -6,24 +6,54 @@
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
 /**
- * Prompt contents provider for a file on the disk referenced by the provided {@linkcode URI}.
+ * Options of the {@link FilePromptContentProvider} class.
+ */
+export interface IFileContentsProviderOptions {
+	/**
+	 * Whether to allow files that don't have usual prompt
+	 * file extension to be treated as a prompt file.
+	 */
+	allowNonPromptFiles: boolean;
+}
+
+/**
+ * Default options of the {@link FilePromptContentProvider} class.
+ */
+const DEFAULT_OPTIONS: IFileContentsProviderOptions = {
+	allowNonPromptFiles: false,
+};
+
+/**
+ * Prompt contents provider for a file on the disk referenced by
+ * a provided {@link URI}.
  */
 export class FilePromptContentProvider extends PromptContentsProviderBase<FileChangesEvent> implements IPromptContentsProvider {
+	/**
+	 * Options passed to the constructor, extended with
+	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 */
+	private readonly options: IFileContentsProviderOptions;
+
 	constructor(
 		public readonly uri: URI,
+		options: Partial<IFileContentsProviderOptions> = {},
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
+
+		this.options = {
+			...DEFAULT_OPTIONS,
+			...options,
+		};
 
 		// make sure the object is updated on file changes
 		this._register(
@@ -80,41 +110,41 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 				new FolderReference(this.uri),
 			);
 
+			const { allowNonPromptFiles } = this.options;
+
+			// if URI doesn't point to a prompt file, don't try to resolve it,
+			// unless the `allowNonPromptFiles` option is set to `true`
+			if ((allowNonPromptFiles !== true) && (isPromptOrInstructionsFile(this.uri) === false)) {
+				throw new NotPromptFile(this.uri);
+			}
+
 			fileStream = await this.fileService.readFileStream(this.uri);
+
+			// after the promise above complete, this object can be already disposed or
+			// the cancellation could be requested, in that case destroy the stream and
+			// throw cancellation error
+			if (this.disposed || cancellationToken?.isCancellationRequested) {
+				fileStream.value.destroy();
+				throw new CancellationError();
+			}
+
+			return fileStream.value;
 		} catch (error) {
-			if (error instanceof ResolveError) {
+			if ((error instanceof ResolveError) || (error instanceof CancellationError)) {
 				throw error;
 			}
 
 			throw new OpenFailed(this.uri, error);
 		}
-
-		assertDefined(
-			fileStream,
-			new OpenFailed(this.uri, 'Failed to open file stream.'),
-		);
-
-		// after the promise above complete, this object can be already disposed or
-		// the cancellation could be requested, in that case destroy the stream and
-		// throw cancellation error
-		if (this.disposed || cancellationToken?.isCancellationRequested) {
-			fileStream.value.destroy();
-			throw new CancellationError();
-		}
-
-		// if URI doesn't point to a prompt snippet file, don't try to resolve it
-		if (isPromptFile(this.uri) === false) {
-			throw new NotPromptFile(this.uri);
-		}
-
-		return fileStream.value;
 	}
 
 	public override createNew(
 		promptContentsSource: { uri: URI },
+		options: Partial<IFileContentsProviderOptions> = {},
 	): IPromptContentsProvider {
 		return new FilePromptContentProvider(
 			promptContentsSource.uri,
+			options,
 			this.fileService,
 		);
 	}

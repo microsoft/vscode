@@ -27,7 +27,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, isImageVariableEntry, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, isImageVariableEntry, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
@@ -35,7 +35,6 @@ import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
-import { IChatVariablesService } from './chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
@@ -137,6 +136,10 @@ export class ChatService extends Disposable implements IChatService {
 		return this.configurationService.getValue(ChatConfiguration.UseFileStorage);
 	}
 
+	public get edits2Enabled(): boolean {
+		return this.configurationService.getValue(ChatConfiguration.Edits2Enabled);
+	}
+
 	private get isEmptyWindow(): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
 		return !workspace.configuration && workspace.folders.length === 0;
@@ -150,7 +153,6 @@ export class ChatService extends Disposable implements IChatService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
@@ -470,15 +472,10 @@ export class ChatService extends Disposable implements IChatService {
 			this.trace('initializeSession', `Initialize session ${model.sessionId}`);
 			model.startInitialize();
 
-			const activation = this.activateDefaultAgent(model.initialLocation);
-			if (this.configurationService.getValue('chat.setupFromDialog')) {
-				// Activate the default extension provided agent but do not wait
-				// for it to be ready so that the session can be used immediately
-				// without having to wait for the agent to be ready.
-				activation.catch(e => this.logService.error(e));
-			} else {
-				await activation;
-			}
+			// Activate the default extension provided agent but do not wait
+			// for it to be ready so that the session can be used immediately
+			// without having to wait for the agent to be ready.
+			this.activateDefaultAgent(model.initialLocation).catch(e => this.logService.error(e));
 
 			model.initialize();
 		} catch (err) {
@@ -581,7 +578,7 @@ export class ChatService extends Disposable implements IChatService {
 			...options,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
-			hasInstructionAttachments: options?.hasInstructionAttachments ?? false,
+			hasPromptFileAttachments: options?.hasPromptFileAttachments ?? false,
 		};
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
@@ -591,11 +588,11 @@ export class ChatService extends Disposable implements IChatService {
 
 		// if text is not provided, but chat input has `prompt instructions`
 		// attached, use the default prompt text to avoid empty messages
-		if (!request.trim() && options?.hasInstructionAttachments) {
+		if (!request.trim() && options?.hasPromptFileAttachments) {
 			request = 'Follow these instructions.';
 		}
 
-		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.hasInstructionAttachments) {
+		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.hasPromptFileAttachments) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return;
 		}
@@ -747,7 +744,7 @@ export class ChatService extends Disposable implements IChatService {
 							variableData = chatRequest.variableData;
 							message = getPromptText(request.message).message;
 						} else {
-							variableData = this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext);
+							variableData = { variables: this.prepareContext(request.attachedContext) };
 							model.updateRequest(request, variableData);
 
 							const promptTextResult = getPromptText(request.message);
@@ -808,17 +805,19 @@ export class ChatService extends Disposable implements IChatService {
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
 					chatTitlePromise = model.getRequests().length === 1 && !model.customTitle ? this.chatAgentService.getChatTitle(defaultAgent.id, this.getHistoryEntriesFromModel(model.getRequests(), model.sessionId, location, agent.id), CancellationToken.None) : undefined;
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
-					request = model.addRequest(parsedRequest, { variables: [] }, attempt);
-					completeResponseCreated();
+					if (commandPart.slashCommand.silent !== true) {
+						request = model.addRequest(parsedRequest, { variables: [] }, attempt);
+						completeResponseCreated();
+					}
 					// contributed slash commands
 					// TODO: spell this out in the UI
 					const history: IChatMessage[] = [];
-					for (const request of model.getRequests()) {
-						if (!request.response) {
+					for (const modelRequest of model.getRequests()) {
+						if (!modelRequest.response) {
 							continue;
 						}
-						history.push({ role: ChatMessageRole.User, content: [{ type: 'text', value: request.message.text }] });
-						history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: request.response.response.toString() }] });
+						history.push({ role: ChatMessageRole.User, content: [{ type: 'text', value: modelRequest.message.text }] });
+						history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: modelRequest.response.response.toString() }] });
 					}
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
@@ -919,6 +918,27 @@ export class ChatService extends Disposable implements IChatService {
 		};
 	}
 
+	private prepareContext(attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableEntry[] {
+		attachedContextVariables ??= [];
+
+		// "reverse", high index first so that replacement is simple
+		attachedContextVariables.sort((a, b) => {
+			// If either range is undefined, sort it to the back
+			if (!a.range && !b.range) {
+				return 0; // Keep relative order if both ranges are undefined
+			}
+			if (!a.range) {
+				return 1; // a goes after b
+			}
+			if (!b.range) {
+				return -1; // a goes before b
+			}
+			return b.range.start - a.range.start;
+		});
+
+		return attachedContextVariables;
+	}
+
 	private async checkAgentAllowed(agent: IChatAgentData): Promise<void> {
 		if (agent.modes.includes(ChatMode.Agent)) {
 			const enabled = await this.experimentService.getTreatment<boolean>('chatAgentEnabled');
@@ -935,7 +955,7 @@ export class ChatService extends Disposable implements IChatService {
 				return 'implicit';
 			} else if (v.range) {
 				// 'range' is range within the prompt text
-				if (v.isTool) {
+				if (v.kind === 'tool') {
 					return 'toolInPrompt';
 				} else {
 					return 'fileInPrompt';
@@ -946,9 +966,9 @@ export class ChatService extends Disposable implements IChatService {
 				return 'symbol';
 			} else if (isImageVariableEntry(v)) {
 				return 'image';
-			} else if (v.isDirectory) {
+			} else if (v.kind === 'directory') {
 				return 'directory';
-			} else if (v.isTool) {
+			} else if (v.kind === 'tool') {
 				return 'tool';
 			} else {
 				if (URI.isUri(v.value)) {

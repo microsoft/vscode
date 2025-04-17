@@ -255,6 +255,7 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
+						part instanceof extHostTypes.ChatResponseExtensionsPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -579,10 +580,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			// REQUEST turn
 			const varsWithoutTools = h.request.variables.variables
-				.filter(v => !v.isTool)
+				.filter(v => v.kind !== 'tool')
 				.map(v => typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension)));
 			const toolReferences = h.request.variables.variables
-				.filter(v => v.isTool)
+				.filter(v => v.kind === 'tool')
 				.map(typeConvert.ChatLanguageModelToolReference.to);
 			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences);
 			res.push(turn);

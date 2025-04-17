@@ -25,7 +25,7 @@
 	-webkit-user-select: text;
 }
 
-.interactive-item-container .header {
+.interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -201,7 +201,7 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .value .rendered-markdown {
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
 	.codicon {
 		font-size: inherit;
 	}
@@ -235,7 +235,7 @@
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value .rendered-markdown a,
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) a,
 .interactive-item-container .value .interactive-session-followups,
 .interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
@@ -313,13 +313,13 @@
 	font-weight: unset;
 }
 
-.interactive-item-container .value .rendered-markdown {
-	/* Codicons next to text need to be aligned with the text */
-	.codicon {
-		position: relative;
-		top: 2px;
-	}
+/* Codicons next to text need to be aligned with the text */
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) .codicon {
+	position: relative;
+	top: 2px;
+}
 
+.interactive-item-container .value .rendered-markdown {
 	.chat-codeblock-pill-widget .codicon {
 		top: -1px;
 	}
@@ -1146,17 +1146,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 0 0 0
 }
 
-.action-item.chat-attached-context-attachment.chat-add-files {
-	height: 20px;
-	color: var(--vscode-foreground);
-}
-
-.action-item.chat-attached-context-attachment.chat-add-files span.keybinding {
-	display: none;
-}
-
-.action-item.chat-mcp .action-label,
-.action-item.chat-attached-context-attachment.chat-add-files .action-label,
+.action-item.chat-attachment-button .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	gap: 2px;
@@ -1170,10 +1160,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
-.action-item.chat-attached-context-attachment.chat-add-files .action-label {
-	color: var(--vscode-foreground);
-	font-family: unset;
-	gap: 5px;
+.action-item.chat-attachment-button > .action-label > .codicon {
+	font-size: 14px;
 }
 
 .action-item.chat-mcp {
@@ -1247,8 +1235,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
-	display: block !important;
-	align-items: center !important;
+	display: inline-flex;
+	align-items: center;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
@@ -1261,8 +1249,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
-	padding-left: 4px;
-	font-size: 100% !important;
+	font-size: 14px;
 }
 
 .interactive-session .chat-input-container .chat-attached-context {
@@ -1328,15 +1315,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0.8;
 }
 
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label {
-	gap: 4px;
-}
-
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
-	height: 1em;
-	width: auto;
+	height: 16px;
 	padding: 0;
-	line-height: 1em !important;
+	line-height: 100% !important;
 	align-self: center;
 
 	background-size: contain;
@@ -1721,11 +1703,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-hover .chat-attached-context-image-container .chat-attached-context-image {
-	height: auto;
 	width: 100%;
+	height: 100%;
+	object-fit: contain;
 	display: block;
 	max-height: 350px;
-	max-width: 400px;
+	max-width: 100%;
 }
 
 .chat-attached-context-hover .chat-attached-context-url {
