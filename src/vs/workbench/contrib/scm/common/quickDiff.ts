@@ -104,6 +104,7 @@ export interface IQuickDiffService {
 	readonly onDidChangeQuickDiffProviders: Event<void>;
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable;
 	getQuickDiffs(uri: URI, language?: string, isSynchronized?: boolean): Promise<QuickDiff[]>;
+	toggleQuickDiffVisibility(label: string): void;
 }
 
 export enum ChangeType {

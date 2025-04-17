@@ -90,6 +90,17 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 
 		return quickDiffs.filter(this.isQuickDiff);
 	}
+
+	toggleQuickDiffVisibility(label: string): void {
+		const quickDiff = Array.from(this.quickDiffProviders)
+			.find(provider => provider.label === label);
+		if (!quickDiff) {
+			return;
+		}
+
+		quickDiff.visible = !quickDiff.visible;
+		this._onDidChangeQuickDiffProviders.fire();
+	}
 }
 
 export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI, language: string | undefined, isSynchronized: boolean | undefined): Promise<URI | null> {
