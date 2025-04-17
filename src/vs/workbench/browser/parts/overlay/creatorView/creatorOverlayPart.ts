@@ -565,6 +565,7 @@ export class CreatorOverlayPart extends Part {
 	private close() {
 		if (this.state === "overlay_closed_creator_active") {
 			CommandEmitter.emit("workbench.action.exitCreatorMode");
+			CommandEmitter.emit("pearai.closeCreator");
 			// TODO: exit the creator mode view
 		}
 		return new Promise<void>((resolve) => {
