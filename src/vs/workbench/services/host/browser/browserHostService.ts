@@ -28,6 +28,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IElementData } from '../../../../platform/native/common/native.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IFileToOpen, IOpenEmptyWindowOptions, IOpenWindowOptions, IPathData, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../../../platform/window/common/window.js';
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -651,79 +652,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	async getScreenShot2(x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined> {
-		// Gets a screenshot from the browser. This gets the screenshot via the browser's display
-		// media API which will typically offer a picker of all available screens and windows for
-		// the user to select. Using the video stream provided by the display media API, this will
-		// capture a single frame of the video and convert it to a JPEG image, cropped to the specified dimensions.
-		const store = new DisposableStore();
-
-		// Create a video element to play the captured screen source
-		const video = document.createElement('video');
-		store.add(toDisposable(() => video.remove()));
-		let stream: MediaStream | undefined;
-		try {
-			// Create a stream from the screen source (capture screen without audio)
-			stream = await navigator.mediaDevices.getDisplayMedia({
-				audio: false,
-				video: true
-			});
-
-			// Set the stream as the source of the video element
-			video.srcObject = stream;
-			video.play();
-
-			// Wait for the video to load properly before capturing the screenshot
-			await Promise.all([
-				new Promise<void>(r => store.add(addDisposableListener(video, 'loadedmetadata', () => r()))),
-				new Promise<void>(r => store.add(addDisposableListener(video, 'canplaythrough', () => r())))
-			]);
-
-			// Create a temporary canvas to hold the full screenshot
-			const tempCanvas = document.createElement('canvas');
-			tempCanvas.width = video.videoWidth;
-			tempCanvas.height = video.videoHeight;
-			const tempCtx = tempCanvas.getContext('2d');
-			if (!tempCtx) {
-				return undefined;
-			}
-
-			// Draw the full video frame to the temporary canvas
-			tempCtx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-
-			// Create the main canvas with the crop dimensions
-			const canvas = document.createElement('canvas');
-			canvas.width = width;
-			canvas.height = height;
-
-			const ctx = canvas.getContext('2d');
-			if (!ctx) {
-				return undefined;
-			}
-
-			// Draw only the specified portion to our main canvas
-			ctx.drawImage(tempCanvas, x, y, width, height, 0, 0, width, height);
-
-			// Convert the canvas to a Blob (JPEG format), use .95 for quality
-			const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95));
-			if (!blob) {
-				throw new Error('Failed to create blob from canvas');
-			}
-
-			const buf = await blob.bytes();
-			return VSBuffer.wrap(buf);
-
-		} catch (error) {
-			console.error('Error taking screenshot:', error);
-			return undefined;
-		} finally {
-			store.dispose();
-			if (stream) {
-				for (const track of stream.getTracks()) {
-					track.stop();
-				}
-			}
-		}
+	async getElementData(): Promise<IElementData | undefined> {
+		// This is a stub implementation. The actual implementation would depend on the specific
+		// requirements and the environment in which this code is running.
+		return undefined;
 	}
 
 	//#endregion

@@ -28,7 +28,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
+import { ICommonNativeHostService, IElementData, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -48,10 +48,20 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
+
+interface ComputedStyleProperty {
+	name: string;
+	value: string;
+}
+
+interface ComputedStyleResponse {
+	computedStyle: ComputedStyleProperty[];
+}
 
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
@@ -742,31 +752,214 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Screenshots
 
-	async getScreenshot(windowId: number | undefined, options?: INativeHostOptions): Promise<VSBuffer | undefined> {
+	async getScreenshot(windowId: number | undefined, rect?: IRectangle, options?: INativeHostOptions): Promise<VSBuffer | undefined> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		const captured = await window?.win?.webContents.capturePage();
+		const captured = await window?.win?.webContents.capturePage(rect);
 
 		const buf = captured?.toJPEG(95);
 		return buf && VSBuffer.wrap(buf);
 	}
 
-
-	async getScreenShot2(windowId: number | undefined, x: number, y: number, width: number, height: number): Promise<VSBuffer | undefined> {
+	async getElementData(windowId: number | undefined, offsetX?: number, offsetY?: number, token?: CancellationToken): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId, windowId);
 		if (!window?.win) {
 			return undefined;
 		}
 
-		const zoomFactor = await window.win.webContents.getZoomFactor();
-		const bounds = {
-			x: Math.floor(x * zoomFactor),
-			y: Math.floor(y * zoomFactor),
-			width: Math.floor(width * zoomFactor),
-			height: Math.floor(height * zoomFactor)
+		window?.win?.webContents.on('ipc-message', (event, channel) => {
+			if (channel === 'vscode:cancelElementSelection') {
+				debuggers.detach();
+			}
+		});
+
+
+		// Find Simple Browser webview contents
+		const allWebContents = webContents.getAllWebContents();
+		const simpleBrowserWebview = allWebContents.find(webContent => {
+			return webContent.getTitle().includes('Simple Browser');
+		});
+
+		if (!simpleBrowserWebview) {
+			return undefined;
+		}
+
+		const debuggers = simpleBrowserWebview.debugger;
+		debuggers.attach();
+
+		// window.win?.webContents.on('ipc-message', () => {
+		// 	if (token?.isCancellationRequested) {
+		// 		debuggers.detach();
+		// 	}
+		// });
+
+
+		if (token) {
+			// Set up an interval to check cancellation
+			const checkCancellation = setInterval(() => {
+				if (token.isCancellationRequested) {
+					debuggers.detach();
+					clearInterval(checkCancellation);
+				}
+			}, 100);
+
+			// Clean up interval when debugger detaches
+			debuggers.on('detach', () => {
+				clearInterval(checkCancellation);
+			});
+		}
+
+		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
+		const myTarget = targetInfos.find((t: { type: string; url: string | string[] }) => t.type === 'iframe' && t.url.includes('vscodeBrowserReqId'));
+
+		if (!myTarget) {
+			console.error('No suitable target found');
+			return;
+		}
+
+		const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
+			targetId: myTarget.targetId,
+			flatten: true,
+		});
+
+		await debuggers.sendCommand('DOM.enable', {}, sessionId);
+		await debuggers.sendCommand('CSS.enable', {}, sessionId);
+		await debuggers.sendCommand('Overlay.enable', {}, sessionId);
+
+		await debuggers.sendCommand('Overlay.setInspectMode', {
+			mode: 'searchForNode',
+			highlightConfig: {
+				showInfo: true,
+				showRulers: false,
+				showStyles: true,
+				showAccessibilityInfo: true,
+				showExtensionLines: false,
+				contrastAlgorithm: 'aa',
+				contentColor: { r: 173, g: 216, b: 255, a: 0.8 },
+				paddingColor: { r: 150, g: 200, b: 255, a: 0.5 },
+				borderColor: { r: 120, g: 180, b: 255, a: 0.7 },
+				marginColor: { r: 200, g: 220, b: 255, a: 0.4 },
+				eventTargetColor: { r: 130, g: 160, b: 255, a: 0.8 },
+				shapeColor: { r: 130, g: 160, b: 255, a: 0.8 },
+				shapeMarginColor: { r: 130, g: 160, b: 255, a: 0.5 },
+				gridHighlightConfig: {
+					rowGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
+					rowHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+					columnGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
+					columnHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+					rowLineColor: { r: 120, g: 180, b: 255 },
+					columnLineColor: { r: 120, g: 180, b: 255 },
+					rowLineDash: true,
+					columnLineDash: true
+				},
+				flexContainerHighlightConfig: {
+					containerBorder: {
+						color: { r: 120, g: 180, b: 255 },
+						pattern: 'solid'
+					},
+					itemSeparator: {
+						color: { r: 140, g: 190, b: 255 },
+						pattern: 'solid'
+					},
+					lineSeparator: {
+						color: { r: 140, g: 190, b: 255 },
+						pattern: 'solid'
+					},
+					mainDistributedSpace: {
+						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+					},
+					crossDistributedSpace: {
+						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+					},
+					rowGapSpace: {
+						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+					},
+					columnGapSpace: {
+						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+					}
+				},
+				flexItemHighlightConfig: {
+					baseSizeBox: {
+						hatchColor: { r: 130, g: 170, b: 255, a: 0.6 }
+					},
+					baseSizeBorder: {
+						color: { r: 120, g: 180, b: 255 },
+						pattern: 'solid'
+					},
+					flexibilityArrow: {
+						color: { r: 130, g: 190, b: 255 }
+					}
+				},
+			},
+		}, sessionId);
+
+
+		const { outerHTML, computedStyle, bounds } = await this.getNodeData(sessionId, debuggers);
+
+		const zoomFactor = simpleBrowserWebview.getZoomFactor();
+		const bounds2 = {
+			x: (bounds.x + (offsetX ?? 0)) * zoomFactor,
+			y: (bounds.y + (offsetY ?? 0)) * zoomFactor,
+			width: bounds.width * zoomFactor,
+			height: bounds.height * zoomFactor
 		};
-		const captured = await window.win.webContents.capturePage(bounds);
-		const buf = captured?.toJPEG(95);
-		return buf && VSBuffer.wrap(buf);
+
+		debuggers.detach();
+		return { outerHTML, computedStyle, bounds: bounds2 };
+	}
+
+	async getNodeData(sessionId: number, debuggers: any): Promise<{ outerHTML: string; computedStyle: string; bounds: { x: number; y: number; width: number; height: number } }> {
+		return new Promise((resolve, reject) => {
+			debuggers.on('message', async (event: any, method: string, params: { backendNodeId: number }) => {
+				if (method === 'Overlay.inspectNodeRequested') {
+					const backendNodeId = params?.backendNodeId;
+					if (!backendNodeId) {
+						console.error('Missing backendNodeId in inspectNodeRequested event');
+						return;
+					}
+
+					try {
+						await debuggers.sendCommand('DOM.getDocument', {}, sessionId);
+						const { nodeIds } = await debuggers.sendCommand('DOM.pushNodesByBackendIdsToFrontend', { backendNodeIds: [backendNodeId] }, sessionId);
+
+						const nodeId = nodeIds[0];
+
+						// Get html
+						const { outerHTML } = await debuggers.sendCommand('DOM.getOuterHTML', { nodeId }, sessionId);
+
+						const response: ComputedStyleResponse = await debuggers.sendCommand('CSS.getComputedStyleForNode', { nodeId }, sessionId);
+
+						const { model } = await debuggers.sendCommand('DOM.getBoxModel', { nodeId }, sessionId);
+						if (!model) {
+							throw new Error('Failed to get box model.');
+						}
+
+						const margin = model.margin;
+						const x = margin[0];
+						const y = margin[1] + 32.4;
+						const width = margin[2] - margin[0];
+						const height = margin[5] - margin[1];
+
+						const bounds = { x, y, width, height };
+
+						const cssString = response.computedStyle.map(({ name, value }) => `${name}: ${value};`).join(' ');
+						console.log('CSS String:', cssString);
+
+						resolve({
+							outerHTML: outerHTML,
+							computedStyle: cssString,
+							bounds
+						});
+
+					} catch (err) {
+						console.error('Error in getNodeData:', err);
+					}
+				}
+			});
+		});
 	}
 
 	//#endregion

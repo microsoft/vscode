@@ -1746,7 +1746,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: block;
 	max-height: 350px;
 	max-width: 100%;
-	min-width: 200px;
+	min-width: 150px;
+	min-height: 200px;
+
 }
 
 .chat-attached-context-hover .chat-attached-context-url {

@@ -17,7 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -37,7 +37,6 @@ import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
