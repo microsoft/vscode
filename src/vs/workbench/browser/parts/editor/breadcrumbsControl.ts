@@ -211,6 +211,7 @@ export class BreadcrumbsControl {
 	static readonly HEIGHT = 22;
 
 	private static readonly SCROLLBAR_SIZES = {
+		hidden: 0,
 		default: 3,
 		large: 8
 	};

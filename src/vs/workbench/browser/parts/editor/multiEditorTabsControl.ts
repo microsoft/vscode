@@ -90,6 +90,7 @@ interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private static readonly SCROLLBAR_SIZES = {
+		hidden: 0 as const,
 		default: 3 as const,
 		large: 10 as const
 	};
@@ -264,11 +265,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getTabsScrollbarSizing(): number {
-		if (this.groupsView.partOptions.titleScrollbarSizing !== 'large') {
-			return MultiEditorTabsControl.SCROLLBAR_SIZES.default;
+		if (this.groupsView.partOptions.titleScrollbarSizing === 'hidden') {
+			return MultiEditorTabsControl.SCROLLBAR_SIZES.hidden;
+		} else if (this.groupsView.partOptions.titleScrollbarSizing === 'large') {
+			return MultiEditorTabsControl.SCROLLBAR_SIZES.large;
 		}
-
-		return MultiEditorTabsControl.SCROLLBAR_SIZES.large;
+		return MultiEditorTabsControl.SCROLLBAR_SIZES.default;
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
