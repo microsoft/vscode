@@ -1962,22 +1962,24 @@ export class SearchView extends ViewPane {
 		const messageEl = this.clearMessage();
 
 		// Refresh icon
-		const icon = dom.append(messageEl, dom.$(''));
-		icon.ariaLabel = nls.localize('search.refresh', "Get new suggestion");
-		icon.role = 'button';
-		icon.tabIndex = 0;
-		icon.classList.add('codicon', 'codicon-refresh', 'keyword-refresh');
-		icon.onclick = () => {
-			// change the keyword to the next one
-			const nextKeyword = keywords.shift();
-			if (nextKeyword) {
-				currentKeyword = nextKeyword.keyword;
-				textButton.element.textContent = currentKeyword;
-			}
-			if (keywords.length === 1) {
-				icon.remove();
-			}
-		};
+		if (keywords.length !== 0) {
+			const icon = dom.append(messageEl, dom.$(''));
+			icon.ariaLabel = nls.localize('search.refresh', "Get new suggestion");
+			icon.role = 'button';
+			icon.tabIndex = 0;
+			icon.classList.add('codicon', 'codicon-refresh', 'keyword-refresh');
+			icon.onclick = () => {
+				// change the keyword to the next one
+				const nextKeyword = keywords.shift();
+				if (nextKeyword) {
+					currentKeyword = nextKeyword.keyword;
+					textButton.element.textContent = currentKeyword;
+				}
+				if (keywords.length === 0) {
+					icon.remove();
+				}
+			};
+		}
 
 		// Unclickable message
 		const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
