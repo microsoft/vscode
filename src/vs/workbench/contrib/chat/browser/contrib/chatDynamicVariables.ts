@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, groupBy } from '../../../../../base/common/arrays.js';
-import { assertNever } from '../../../../../base/common/assert.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -18,20 +17,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
-import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
-import { IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
@@ -500,82 +495,3 @@ export class AddDynamicVariableAction extends Action2 {
 	}
 }
 registerAction2(AddDynamicVariableAction);
-
-export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 'problem' | 'file', onBackgroundAccept?: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
-	const markers = accessor.get(IMarkerService).read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
-	if (!markers.length) {
-		return;
-	}
-
-	const uriIdentityService = accessor.get(IUriIdentityService);
-	const labelService = accessor.get(ILabelService);
-	const grouped = groupBy(markers, (a, b) => uriIdentityService.extUri.compare(a.resource, b.resource));
-
-	const severities = new Set<MarkerSeverity>();
-	type MarkerPickItem = IQuickPickItem & { resource?: URI; entry: IDiagnosticVariableEntryFilterData };
-	const items: (MarkerPickItem | IQuickPickSeparator)[] = [];
-
-	let pickCount = 0;
-	for (const group of grouped) {
-		const resource = group[0].resource;
-		if (level === 'problem') {
-			items.push({ type: 'separator', label: labelService.getUriLabel(resource, { relative: true }) });
-			for (const marker of group) {
-				pickCount++;
-				severities.add(marker.severity);
-				items.push({
-					type: 'item',
-					resource: marker.resource,
-					label: marker.message,
-					description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
-					entry: IDiagnosticVariableEntryFilterData.fromMarker(marker),
-				});
-			}
-		} else if (level === 'file') {
-			const entry = { filterUri: resource };
-			pickCount++;
-			items.push({
-				type: 'item',
-				resource,
-				label: IDiagnosticVariableEntryFilterData.label(entry),
-				description: group[0].message + (group.length > 1 ? localize('problemsMore', '+ {0} more', group.length - 1) : ''),
-				entry,
-			});
-			for (const marker of group) {
-				severities.add(marker.severity);
-			}
-		} else {
-			assertNever(level);
-		}
-	}
-
-	if (pickCount < 2) { // single error in a URI
-		return items.find((i): i is MarkerPickItem => i.type === 'item')?.entry;
-	}
-
-	if (level === 'file') {
-		items.unshift({ type: 'separator', label: localize('markers.panel.files', 'Files') });
-	}
-
-	items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Problems'), entry: { filterSeverity: MarkerSeverity.Info } });
-
-	const quickInputService = accessor.get(IQuickInputService);
-	const store = new DisposableStore();
-	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
-	quickPick.canAcceptInBackground = !onBackgroundAccept;
-	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
-	quickPick.items = items;
-
-	return new Promise<IDiagnosticVariableEntryFilterData | undefined>(resolve => {
-		store.add(quickPick.onDidHide(() => resolve(undefined)));
-		store.add(quickPick.onDidAccept(ev => {
-			if (ev.inBackground) {
-				onBackgroundAccept?.(quickPick.selectedItems.map(i => i.entry));
-			} else {
-				resolve(quickPick.selectedItems[0]?.entry);
-				quickPick.dispose();
-			}
-		}));
-		quickPick.show();
-	}).finally(() => store.dispose());
-}
