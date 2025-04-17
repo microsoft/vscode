@@ -99,6 +99,7 @@ const defaultChat = {
 	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
 	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
+	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 };
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
@@ -320,9 +321,9 @@ class ChatStatusDashboard extends Disposable {
 
 			const limited = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
 			if ((limited && (chatQuota?.percentRemaining === 0 || completionsQuota?.percentRemaining === 0)) || (!limited && premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
-				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				upgradePlanButton.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Additional Usage");
-				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose(limited ? 'workbench.action.chat.upgradePlan' : () => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl)))));
+				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
+				button.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Additional Usage");
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(limited ? 'workbench.action.chat.upgradePlan' : () => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 			}
 
 			(async () => {
