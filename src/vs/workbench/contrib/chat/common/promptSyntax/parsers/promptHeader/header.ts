@@ -14,9 +14,14 @@ import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/fro
 import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
 /**
- * Type of all known metadata records inside the prompt header.
+ * Metadata associated with the prompt header.
  */
-type TMetadataRecord = PromptToolsMetadata;
+interface IHeaderMetadata {
+	/**
+	 * Metadata for `tools` record in the header.
+	 */
+	tools?: PromptToolsMetadata;
+}
 
 /**
  * Prompt header holds all metadata records for a prompt.
@@ -28,17 +33,14 @@ export class PromptHeader extends Disposable {
 	private readonly stream: FrontMatterDecoder;
 
 	/**
-	 * List of all unique well-known metadata records
-	 * inside the prompt header.
+	 * Metadata records associated with the header.
 	 */
-	private readonly records: TMetadataRecord[];
-
+	private readonly meta: IHeaderMetadata;
 	/**
-	 * List of all unique well-known metadata records
-	 * inside the prompt header.
+	 * Metadata records associated with the header.
 	 */
-	public get metadata(): readonly TMetadataRecord[] {
-		return this.records;
+	public get metadata(): Readonly<IHeaderMetadata> {
+		return this.meta;
 	}
 
 	/**
@@ -65,7 +67,7 @@ export class PromptHeader extends Disposable {
 		super();
 
 		this.issues = [];
-		this.records = [];
+		this.meta = {};
 		this.recordNames = new Set<string>();
 
 		this.stream = this._register(
@@ -131,7 +133,7 @@ export class PromptHeader extends Disposable {
 			const { diagnostics } = toolsMetadata;
 
 			this.issues.push(...diagnostics);
-			this.records.push(toolsMetadata);
+			this.meta.tools = toolsMetadata;
 			this.recordNames.add(recordName);
 
 			return;
