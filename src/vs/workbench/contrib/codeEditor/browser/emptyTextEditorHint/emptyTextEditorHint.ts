@@ -281,7 +281,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 				'Preserve double-square brackets and their order',
 				'language refers to a programming language'
 			]
-		}, '[[Inline chat]] ({0}), or [[select a language]] ({1}), or [[fill with template]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '') : localize({
+		}, '[[Open chat]] ({0}), or [[select a language]] ({1}), or [[fill with template]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '') : localize({
 			key: 'emptyTextEditorHintWithoutInlineChat',
 			comment: [
 				'Preserve double-square brackets and their order',
