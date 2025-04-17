@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -17,12 +18,13 @@ import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
-import { RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
+import { RenderLineInput, RenderLineOutput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { ttPolicy } from '../../../../contrib/inlineCompletions/browser/view/ghostText/ghostTextView.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ariaLabelForScreenReaderContent, ISimpleModel, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
+
+const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
 
 export class ScreenReaderSupport {
 
@@ -119,16 +121,15 @@ export class ScreenReaderSupport {
 		}
 
 		const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
-		const cursorLeft = this._contentLeft + this._primaryCursorVisibleRange.left - editorScrollLeft;
-		if (cursorLeft < this._contentLeft || cursorLeft > this._contentLeft + this._contentWidth) {
+		const left = this._contentLeft + this._primaryCursorVisibleRange.left - editorScrollLeft;
+		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
 			return;
 		}
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const position = this._primarySelection.getPosition();
-		const positionLineNumber = position.lineNumber;
+		const positionLineNumber = this._primarySelection.positionLineNumber;
 		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) + 300 - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
@@ -140,26 +141,10 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinState = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
-		const scrollTop = lineNumberWithinState * lineHeight;
+		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
+		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
 		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
-
-	// private _computeLeftOffset(primaryCursorPosition: Position, primaryCursorVisibleRange: HorizontalPosition, fontInfo: BareFontInfo): number {
-	// 	let left = this._contentLeft;
-	// 	const canvas = document.createElement('canvas');
-	// 	const context = canvas.getContext('2d');
-	// 	if (context) {
-	// 		context.font = `${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`;
-	// 		const rangeBeforeCursor = new Range(primaryCursorPosition.lineNumber, 1, primaryCursorPosition.lineNumber, primaryCursorPosition.column);
-	// 		const contentBeforeCursor = this._context.viewModel.getValueInRange(rangeBeforeCursor, EndOfLinePreference.TextDefined);
-	// 		const widthOfTextBeforeCursor = context.measureText(contentBeforeCursor).width;
-	// 		left += primaryCursorVisibleRange.left - widthOfTextBeforeCursor;
-	// 	}
-	// 	const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
-	// 	canvas.remove();
-	// 	return left - scrollLeft;
-	// }
 
 	private _renderAtTopLeft(): void {
 		this._doRender(0, 0, 0, this._contentWidth, 1);
@@ -207,7 +192,7 @@ export class ScreenReaderSupport {
 			const fontInfo = options.get(EditorOption.fontInfo);
 			const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 			const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
-			const fontLigatures = options.get(EditorOption.fontLigatures)
+			const fontLigatures = options.get(EditorOption.fontLigatures);
 			const disableMonospaceOptimizations = options.get(EditorOption.disableMonospaceOptimizations);
 			const viewLineNumber = this._screenReaderContentState.startPositionWithinEditor.lineNumber;
 			const lineData = ctx.viewportData.getViewLineRenderingData(viewLineNumber);
@@ -217,8 +202,6 @@ export class ScreenReaderSupport {
 			const inelineDecorations = this._context.viewModel.getInlineDecorationsInModelRange(modelRange);
 			const actualInlineDecorations = LineDecoration.filter(inelineDecorations, modelRange.startLineNumber, 0, Infinity);
 			const sb = new StringBuilder(10000);
-			console.log('lineNumber', viewLineNumber);
-			console.log('actualInlineDecorations', actualInlineDecorations);
 			const renderLineInput = new RenderLineInput(
 				(fontInfo.isMonospace && !disableMonospaceOptimizations),
 				fontInfo.canUseHalfwidthRightwardsArrow,
@@ -245,16 +228,15 @@ export class ScreenReaderSupport {
 			sb.appendString('px;line-height:');
 			sb.appendString(String(lineHeight));
 			sb.appendString('px;">');
-			renderViewLine(renderLineInput, sb);
+			const renderLineOutput = renderViewLine(renderLineInput, sb);
 			sb.appendString('</div>');
-
 			const html = sb.build();
 			const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 			this.setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.innerHTML = trustedhtml as string;
 			this._domNode.domNode.classList.add('monaco-editor');
 			console.log('this._domNode.domNode', this._domNode.domNode);
-			// this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
+			this._setSelectionOfScreenReaderContent(renderLineOutput, this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -287,19 +269,28 @@ export class ScreenReaderSupport {
 		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, 1, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
-	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
+	private _setSelectionOfScreenReaderContent(renderLineOutput: RenderLineOutput, selectionOffsetStart: number, selectionOffsetEnd: number): void {
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
 			return;
 		}
-		const textContent = this._domNode.domNode.firstChild;
-		if (!textContent) {
+		const spans = this._domNode.domNode.firstChild?.firstChild?.childNodes;
+		if (!spans) {
+			return;
+		}
+		const rawSpanOffsets = renderLineOutput.rawSpanOffsets;
+		const charOffsets = renderLineOutput.rawCharacterOffsets;
+		const spanOfStart = spans.item(rawSpanOffsets[selectionOffsetStart]).firstChild;
+		const characterOfStart = charOffsets[selectionOffsetStart];
+		const spanOfEnd = spans.item(rawSpanOffsets[selectionOffsetEnd]).firstChild;
+		const characterOfEnd = charOffsets[selectionOffsetEnd];
+		if (spanOfStart === null || spanOfEnd === null) {
 			return;
 		}
 		const range = new globalThis.Range();
-		range.setStart(textContent, selectionOffsetStart);
-		range.setEnd(textContent, selectionOffsetEnd);
+		range.setStart(spanOfStart, characterOfStart);
+		range.setEnd(spanOfEnd, characterOfEnd);
 		this.setIgnoreSelectionChangeTime('setRange');
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
