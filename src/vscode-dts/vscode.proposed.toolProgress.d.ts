@@ -5,30 +5,21 @@
 
 declare module 'vscode' {
 
-	export interface ProgressOptions2 extends Omit<ProgressOptions, 'location'> {
-		location: ProgressLocation | {
-			/**
-			 * The identifier of a view for which progress should be shown.
-			 */
-			viewId: string;
-		} | {
-			/**
-			 * An invocation token for progress shown while a {@link LanguageModelTool} is running.
-			 */
-			toolInvocationToken: ChatParticipantToolToken | undefined;
-		};
+	/**
+	 * todo@connor4312: `vscode.window.withProgres` can take this interface as well.
+	 */
+	export interface ProgressStep {
+		/**
+		 * A progress message that represents a chunk of work
+		 */
+		message?: string;
+		/**
+		 * An increment for discrete progress. Increments will be summed up until 100 (100%) is reached
+		 */
+		increment?: number;
 	}
 
-	export namespace window {
-		export function withProgress<R>(options: ProgressOptions2, task: (progress: Progress<{
-			/**
-			 * A progress message that represents a chunk of work
-			 */
-			message?: string;
-			/**
-			 * An increment for discrete progress. Increments will be summed up until 100% is reached
-			 */
-			increment?: number;
-		}>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+	export interface LanguageModelTool<T> {
+		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken, progress: Progress<ProgressStep>): ProviderResult<LanguageModelToolResult>;
 	}
 }

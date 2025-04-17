@@ -50,12 +50,8 @@ export const enum ProgressLocation {
 	Dialog = 20
 }
 
-export type ProgressLocationDetailed = { viewId: string } | { toolInvocationCallId: string | undefined };
-
-export type ProgressLocationDescriptor = ProgressLocation | ProgressLocationDetailed;
-
 export interface IProgressOptions {
-	readonly location: ProgressLocationDescriptor;
+	readonly location: ProgressLocation | string;
 	readonly title?: string;
 	readonly source?: string | INotificationSource;
 	readonly total?: number;
@@ -85,7 +81,7 @@ export interface IProgressWindowOptions extends IProgressOptions {
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
-	readonly location: ProgressLocation.Explorer | ProgressLocation.Extensions | ProgressLocation.Scm | { viewId: string };
+	readonly location: ProgressLocation.Explorer | ProgressLocation.Extensions | ProgressLocation.Scm | string;
 	readonly delay?: number;
 }
 

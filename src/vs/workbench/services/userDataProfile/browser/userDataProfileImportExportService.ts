@@ -262,7 +262,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 		try {
 			await this.progressService.withProgress({
-				location: typeof location === 'string' ? { viewId: location } : location,
+				location,
 				title: localize('profiles.exporting', "{0}: Exporting...", PROFILES_CATEGORY.value),
 			}, async progress => {
 				const id = await this.pickProfileContentHandler(profile.name);

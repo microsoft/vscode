@@ -651,8 +651,8 @@ export abstract class ViewPane extends Pane implements IView {
 		return this.progressIndicator;
 	}
 
-	protected getProgressLocation(): { viewId: string } {
-		return { viewId: this.viewDescriptorService.getViewContainerByViewId(this.id)!.id };
+	protected getProgressLocation(): string {
+		return this.viewDescriptorService.getViewContainerByViewId(this.id)!.id;
 	}
 
 	protected getLocationBasedColors(): IViewPaneLocationColors {

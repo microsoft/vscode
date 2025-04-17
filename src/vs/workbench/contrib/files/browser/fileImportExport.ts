@@ -98,7 +98,7 @@ export class BrowserFileUpload {
 		);
 
 		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: { viewId: VIEW_ID }, delay: 500 }, () => uploadPromise);
+		this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => uploadPromise);
 
 		return uploadPromise;
 	}
@@ -417,7 +417,7 @@ export class ExternalFileImport {
 		);
 
 		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: { viewId: VIEW_ID }, delay: 500 }, () => importPromise);
+		this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => importPromise);
 
 		return importPromise;
 	}
@@ -619,7 +619,7 @@ export class FileDownload {
 		);
 
 		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: { viewId: VIEW_ID }, delay: 500 }, () => downloadPromise);
+		this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => downloadPromise);
 
 		return downloadPromise;
 	}

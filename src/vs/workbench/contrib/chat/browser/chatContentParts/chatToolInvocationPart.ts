@@ -24,7 +24,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
-import { ILanguageModelToolProgressService } from '../../../../services/progress/browser/languageModelToolProgressService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -144,7 +143,6 @@ class ChatToolInvocationSubPart extends Disposable {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMarkerService private readonly markerService: IMarkerService,
-		@ILanguageModelToolProgressService private readonly languageModelToolProgressService: ILanguageModelToolProgressService,
 	) {
 		super();
 
@@ -465,9 +463,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			return part.domNode;
 		} else {
 			const container = document.createElement('div');
-			const progressObservable = this._register(this.languageModelToolProgressService.listenForProgress(this.toolInvocation.toolCallId));
+			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
 			this._register(autorunWithStore((reader, store) => {
-				const progress = progressObservable.object.read(reader);
+				const progress = progressObservable?.read(reader);
 				const part = store.add(this.renderProgressContent(progress?.message || this.toolInvocation.invocationMessage));
 				dom.reset(container, part.domNode);
 			}));

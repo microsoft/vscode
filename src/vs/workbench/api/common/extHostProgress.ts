@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProgressOptions, ProgressOptions2 } from 'vscode';
+import { ProgressOptions } from 'vscode';
 import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol.js';
 import { ProgressLocation } from './extHostTypeConverters.js';
 import { Progress, IProgressStep } from '../../../platform/progress/common/progress.js';
@@ -11,7 +11,6 @@ import { CancellationTokenSource, CancellationToken } from '../../../base/common
 import { throttle } from '../../../base/common/decorators.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { onUnexpectedExternalError } from '../../../base/common/errors.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 
@@ -23,14 +22,10 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		this._proxy = proxy;
 	}
 
-	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions | ProgressOptions2, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
+	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
 		const source = { label: extension.displayName || extension.name, id: extension.identifier.value };
-
-		if (typeof location === 'object' && location.hasOwnProperty('toolInvocationToken')) {
-			checkProposedApiEnabled(extension, 'toolProgress');
-		}
 
 		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, !extension.isUnderDevelopment ? extension.identifier.value : undefined).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);

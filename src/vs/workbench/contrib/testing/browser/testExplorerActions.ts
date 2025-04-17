@@ -1684,7 +1684,7 @@ export class RefreshTestsAction extends Action2 {
 		const progressService = accessor.get(IProgressService);
 
 		const controllerIds = distinct(elements.filter(isDefined).map(e => e.test.controllerId));
-		return progressService.withProgress({ location: { viewId: Testing.ViewletId } }, async () => {
+		return progressService.withProgress({ location: Testing.ViewletId }, async () => {
 			if (controllerIds.length) {
 				await Promise.all(controllerIds.map(id => testService.refreshTests(id)));
 			} else {

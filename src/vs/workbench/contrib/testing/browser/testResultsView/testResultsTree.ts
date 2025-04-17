@@ -585,7 +585,7 @@ export class OutputPeekTree extends Disposable {
 					return coverageService.closeCoverage();
 				}
 				progressService.withProgress(
-					{ location: { viewId: options.locationForProgress } },
+					{ location: options.locationForProgress },
 					() => coverageService.openCoverage(task, true)
 				);
 			}
