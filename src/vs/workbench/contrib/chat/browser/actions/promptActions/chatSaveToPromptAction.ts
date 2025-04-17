@@ -60,13 +60,10 @@ class SaveToPromptAction extends Action2 {
 		accessor: ServicesAccessor,
 		options: ISaveToPromptActionOptions,
 	): Promise<IEditorPane> {
+		const logPrefix = 'save to prompt';
+
 		const logService = accessor.get(ILogService);
 		const editorService = accessor.get(IEditorService);
-		// const untitledEditorService = accessor.get(IUntitledTextEditorService);
-		// TODO: @legomushroom
-		// TODO: @legomushroom - use the copilot output channel for logging
-		const logPrefix = 'save prompt action';
-
 		const { chat } = options;
 
 		const { viewModel } = chat;
@@ -222,11 +219,9 @@ const renderPrompt = (
 	return result.join('\n');
 };
 
-
 /**
  * Render the `tools` metadata inside prompt header.
  */
-// TODO: @legomushroom - re-running /save command does not find the correct tools
 const renderTools = (
 	tools: Set<string>,
 ): string => {

@@ -506,8 +506,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: SAVE_TO_PROMPT_SLASH_COMMAND_NAME,
 			detail: nls.localize('save-chat-to-prompt-file', "Save chat to a prompt file"),
-			// TODO: @legomushroom - reuse the command name constant?
-			sortText: 'z3_save',
+			sortText: `z3_${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`,
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Panel]
 		}, async () => {
