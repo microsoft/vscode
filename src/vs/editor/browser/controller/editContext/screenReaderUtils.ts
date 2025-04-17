@@ -77,7 +77,6 @@ export class PagedScreenReaderStrategy {
 		}
 		const posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
-
 		let text: string;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection

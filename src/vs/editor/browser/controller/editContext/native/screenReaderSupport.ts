@@ -34,7 +34,7 @@ export class ScreenReaderSupport {
 	private _contentHeight: number = 1;
 	private _divWidth: number = 1;
 	private _fontInfo!: FontInfo;
-	// private _accessibilityPageSize: number = 1;
+	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
@@ -66,9 +66,6 @@ export class ScreenReaderSupport {
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
-		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			// this.writeScreenReaderContent();
-		}
 	}
 
 	private _updateConfigurationSettings(): void {
@@ -79,7 +76,7 @@ export class ScreenReaderSupport {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		// this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
 	}
 
@@ -183,7 +180,8 @@ export class ScreenReaderSupport {
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
 			this._screenReaderContentState = this._getScreenReaderContentState();
-			const endPosition = this._context.viewModel.model.getPositionAt(Infinity);
+			const viewModel = this._context.viewModel;
+			const endPosition = viewModel.model.getPositionAt(Infinity);
 			let value = this._screenReaderContentState.value;
 			if (endPosition.column === 1 && this._primarySelection.getEndPosition().equals(endPosition)) {
 				value += '\n';
@@ -197,13 +195,15 @@ export class ScreenReaderSupport {
 			const viewLineNumber = this._screenReaderContentState.startPositionWithinEditor.lineNumber;
 			const lineData = ctx.viewportData.getViewLineRenderingData(viewLineNumber);
 			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewLineNumber);
-			const viewMaxColumn = this._context.viewModel.getLineMaxColumn(viewLineNumber);
-			const modelRange = this._context.viewModel.coordinatesConverter.convertViewRangeToModelRange(new Range(viewLineNumber, 1, viewLineNumber, viewMaxColumn));
-			const inelineDecorations = this._context.viewModel.getInlineDecorationsInModelRange(modelRange);
+			const viewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
+			const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
+			const inelineDecorations = viewModel.getInlineDecorationsInModelRange(modelRange);
 			const actualInlineDecorations = LineDecoration.filter(inelineDecorations, modelRange.startLineNumber, 0, Infinity);
+			const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
+			const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
 			const sb = new StringBuilder(10000);
 			const renderLineInput = new RenderLineInput(
-				(fontInfo.isMonospace && !disableMonospaceOptimizations),
+				useMonospaceOptimizations,
 				fontInfo.canUseHalfwidthRightwardsArrow,
 				lineData.content,
 				lineData.continuesWithWrappedLine,
@@ -220,7 +220,7 @@ export class ScreenReaderSupport {
 				stopRenderingLineAfter,
 				'none',
 				renderControlCharacters,
-				fontLigatures !== EditorFontLigatures.OFF,
+				useFontLigatures,
 				null
 			);
 			sb.appendString('<div style="height:');
@@ -235,12 +235,12 @@ export class ScreenReaderSupport {
 			this.setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.innerHTML = trustedhtml as string;
 			this._domNode.domNode.classList.add('monaco-editor');
-			console.log('this._domNode.domNode', this._domNode.domNode);
 			this._setSelectionOfScreenReaderContent(renderLineOutput, this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
+			console.log('this._domNode.domNode', this._domNode.domNode);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
-			this._domNode.domNode.textContent = '';
+			this._domNode.domNode.innerHTML = '';
 		}
 	}
 
@@ -280,10 +280,10 @@ export class ScreenReaderSupport {
 			return;
 		}
 		const rawSpanOffsets = renderLineOutput.rawSpanOffsets;
-		const charOffsets = renderLineOutput.rawCharacterOffsets;
 		const spanOfStart = spans.item(rawSpanOffsets[selectionOffsetStart]).firstChild;
-		const characterOfStart = charOffsets[selectionOffsetStart];
 		const spanOfEnd = spans.item(rawSpanOffsets[selectionOffsetEnd]).firstChild;
+		const charOffsets = renderLineOutput.rawCharacterOffsets;
+		const characterOfStart = charOffsets[selectionOffsetStart];
 		const characterOfEnd = charOffsets[selectionOffsetEnd];
 		if (spanOfStart === null || spanOfEnd === null) {
 			return;

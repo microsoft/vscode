@@ -240,6 +240,9 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
 		this._screenReaderSupport.onConfigurationChanged(e);
 		this._updateDomAttributes();
+		if (e.hasChanged(EditorOption.accessibilitySupport)) {
+			this.setShouldRender();
+		}
 		return true;
 	}
 
