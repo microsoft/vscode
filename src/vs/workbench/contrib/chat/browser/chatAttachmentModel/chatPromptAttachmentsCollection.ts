@@ -254,6 +254,8 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				this._onRemove.fire(instruction);
 			});
 
+		// start resolving all references in the prompt
+		instruction.resolve();
 		this.attachments.set(uri.path, instruction);
 
 		this._onAdd.fire(instruction);
