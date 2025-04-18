@@ -236,6 +236,11 @@ registerAction2(class extends Action2 {
 			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
+			menu: {
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 3,
+			},
 		});
 	}
 
