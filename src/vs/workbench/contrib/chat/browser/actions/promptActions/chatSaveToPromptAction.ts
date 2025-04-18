@@ -94,7 +94,7 @@ class SaveToPromptAction extends Action2 {
 
 			const tools = new Set<string>();
 			for (const record of response.value) {
-				if (record.kind !== 'toolInvocationSerialized') {
+				if (('toolId' in record) === false) {
 					continue;
 				}
 
