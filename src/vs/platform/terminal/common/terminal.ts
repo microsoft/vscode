@@ -92,10 +92,10 @@ export const enum TerminalSettingId {
 	EnvWindows = 'terminal.integrated.env.windows',
 	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
-	ExperimentalWindowsUseConptyDll = 'terminal.integrated.experimental.windowsUseConptyDll',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
+	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	AllowedLinkSchemes = 'terminal.integrated.allowedLinkSchemes',
@@ -103,6 +103,7 @@ export const enum TerminalSettingId {
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	HideOnStartup = 'terminal.integrated.hideOnStartup',
+	HideOnLastClosed = 'terminal.integrated.hideOnLastClosed',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	RescaleOverlappingGlyphs = 'terminal.integrated.rescaleOverlappingGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
@@ -112,11 +113,14 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationEnvironmentReporting = 'terminal.integrated.shellIntegration.environmentReporting',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
-	FontLigatures = 'terminal.integrated.fontLigatures',
+	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
+	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
+	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 
 	// Debug settings that are hidden from user
 
@@ -147,7 +151,8 @@ export const enum GeneralShellType {
 	PowerShell = 'pwsh',
 	Python = 'python',
 	Julia = 'julia',
-	NuShell = 'nu'
+	NuShell = 'nu',
+	Node = 'node',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
 
@@ -189,6 +194,7 @@ export interface IPtyHostAttachTarget {
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export interface IReconnectionProperties {
@@ -245,7 +251,8 @@ export const enum ProcessPropertyType {
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
 	OverrideDimensions = 'overrideDimensions',
 	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
-	UsedShellIntegrationInjection = 'usedShellIntegrationInjection'
+	UsedShellIntegrationInjection = 'usedShellIntegrationInjection',
+	ShellIntegrationInjectionFailureReason = 'shellIntegrationInjectionFailureReason',
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -264,6 +271,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
 	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
+	[ProcessPropertyType.ShellIntegrationInjectionFailureReason]: ShellIntegrationInjectionFailureReason | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -554,6 +562,7 @@ export interface IShellLaunchConfig {
 		hideFromUser?: boolean;
 		isFeatureTerminal?: boolean;
 		shellIntegrationNonce: string;
+		tabActions?: ITerminalTabAction[];
 	};
 
 	/**
@@ -631,6 +640,21 @@ export interface IShellLaunchConfig {
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
+
+	/**
+	 * Actions to include inline on hover of the terminal tab. E.g. the "Rerun task" action
+	 */
+	tabActions?: ITerminalTabAction[];
+	/**
+	 * Report terminal's shell environment variables to VS Code and extensions
+	 */
+	shellIntegrationEnvironmentReporting?: boolean;
+}
+
+export interface ITerminalTabAction {
+	id: string;
+	label: string;
+	icon?: ThemeIcon;
 }
 
 export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
@@ -665,6 +689,8 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	tabActions?: ITerminalTabAction[];
+	shellIntegrationEnvironmentReporting?: boolean;
 }
 
 /**
@@ -871,7 +897,6 @@ export interface ITerminalProfile {
 	overrideName?: boolean;
 	color?: string;
 	icon?: ThemeIcon | URI | { light: URI; dark: URI };
-	isAutomationShell?: boolean;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -926,9 +951,11 @@ export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSourc
 
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly seenSequences: ReadonlySet<string>;
 	readonly status: ShellIntegrationStatus;
 
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
+	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -948,6 +975,51 @@ export const enum ShellIntegrationStatus {
 	FinalTerm,
 	/** VS Code shell integration sequences have been encountered. Supercedes FinalTerm. */
 	VSCode
+}
+
+
+export const enum ShellIntegrationInjectionFailureReason {
+	/**
+	 * The setting is disabled.
+	 */
+	InjectionSettingDisabled = 'injectionSettingDisabled',
+	/**
+	 * There is no executable (so there's no way to determine how to inject).
+	 */
+	NoExecutable = 'noExecutable',
+	/**
+	 * It's a feature terminal (tasks, debug), unless it's explicitly being forced.
+	 */
+	FeatureTerminal = 'featureTerminal',
+	/**
+	 * The ignoreShellIntegration flag is passed (eg. relaunching without shell integration).
+	 */
+	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
+	/**
+	 * Shell integration doesn't work with winpty.
+	 */
+	Winpty = 'winpty',
+	/**
+	 * We're conservative whether we inject when we don't recognize the arguments used for the
+	 * shell as we would prefer launching one without shell integration than breaking their profile.
+	 */
+	UnsupportedArgs = 'unsupportedArgs',
+	/**
+	 * The shell doesn't have built-in shell integration. Note that this doesn't mean the shell
+	 * won't have shell integration in the end.
+	 */
+	UnsupportedShell = 'unsupportedShell',
+
+
+	/**
+	 * For zsh, we failed to set the sticky bit on the shell integration script folder.
+	 */
+	FailedToSetStickyBit = 'failedToSetStickyBit',
+
+	/**
+	 * For zsh, we failed to create a temp directory for the shell integration script.
+	 */
+	FailedToCreateTmpDir = 'failedToCreateTmpDir',
 }
 
 export enum TerminalExitReason {

@@ -93,7 +93,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
 			this._cancelScheduler();
-			this._hideWidgets();
+			this.hideGlyphHover();
 		}));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 		this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
@@ -110,7 +110,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
-			this._hideWidgets();
+			this.hideGlyphHover();
 		}
 	}
 
@@ -120,7 +120,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (shouldNotHideCurrentHoverWidget) {
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
 	private _isMouseOnGlyphHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
@@ -148,7 +148,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
 	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
@@ -183,7 +183,7 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
@@ -202,10 +202,10 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			// Do not hide hover when a modifier key is pressed
 			return;
 		}
-		this._hideWidgets();
+		this.hideGlyphHover();
 	}
 
-	private _hideWidgets(): void {
+	public hideGlyphHover(): void {
 		if (_sticky) {
 			return;
 		}
@@ -217,10 +217,6 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 			this._glyphWidget = this._instantiationService.createInstance(GlyphHoverWidget, this._editor);
 		}
 		return this._glyphWidget;
-	}
-
-	public hideContentHover(): void {
-		this._hideWidgets();
 	}
 
 	public override dispose(): void {

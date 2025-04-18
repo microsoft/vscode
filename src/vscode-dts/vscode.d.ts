@@ -117,6 +117,24 @@ declare module 'vscode' {
 		readonly languageId: string;
 
 		/**
+		 * The file encoding of this document that will be used when the document is saved.
+		 *
+		 * Use the {@link workspace.onDidChangeTextDocument onDidChangeTextDocument}-event to
+		 * get notified when the document encoding changes.
+		 *
+		 * Note that the possible encoding values are currently defined as any of the following:
+		 * 'utf8', 'utf8bom', 'utf16le', 'utf16be', 'windows1252', 'iso88591', 'iso88593',
+		 * 'iso885915', 'macroman', 'cp437', 'windows1256', 'iso88596', 'windows1257',
+		 * 'iso88594', 'iso885914', 'windows1250', 'iso88592', 'cp852', 'windows1251',
+		 * 'cp866', 'cp1125', 'iso88595', 'koi8r', 'koi8u', 'iso885913', 'windows1253',
+		 * 'iso88597', 'windows1255', 'iso88598', 'iso885910', 'iso885916', 'windows1254',
+		 * 'iso88599', 'windows1258', 'gbk', 'gb18030', 'cp950', 'big5hkscs', 'shiftjis',
+		 * 'eucjp', 'euckr', 'windows874', 'iso885911', 'koi8ru', 'koi8t', 'gb2312',
+		 * 'cp865', 'cp850'.
+		 */
+		readonly encoding: string;
+
+		/**
 		 * The version number of this document (it will strictly increase after each
 		 * change, including undo/redo).
 		 */
@@ -182,14 +200,14 @@ declare module 'vscode' {
 		 * The position will be {@link TextDocument.validatePosition adjusted}.
 		 *
 		 * @param position A position.
-		 * @returns A valid zero-based offset.
+		 * @returns A valid zero-based offset in UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 */
 		offsetAt(position: Position): number;
 
 		/**
 		 * Converts a zero-based offset to a position.
 		 *
-		 * @param offset A zero-based offset.
+		 * @param offset A zero-based offset into the document. This offset is in UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 * @returns A valid {@link Position}.
 		 */
 		positionAt(offset: number): Position;
@@ -257,6 +275,8 @@ declare module 'vscode' {
 
 		/**
 		 * The zero-based character value.
+		 *
+		 * Character offsets are expressed using UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 */
 		readonly character: number;
 
@@ -501,13 +521,13 @@ declare module 'vscode' {
 		 * The position at which the selection starts.
 		 * This position might be before or after {@link Selection.active active}.
 		 */
-		anchor: Position;
+		readonly anchor: Position;
 
 		/**
 		 * The position of the cursor.
 		 * This position might be before or after {@link Selection.anchor anchor}.
 		 */
-		active: Position;
+		readonly active: Position;
 
 		/**
 		 * Create a selection from two positions.
@@ -530,7 +550,7 @@ declare module 'vscode' {
 		/**
 		 * A selection is reversed if its {@link Selection.anchor anchor} is the {@link Selection.end end} position.
 		 */
-		isReversed: boolean;
+		readonly isReversed: boolean;
 	}
 
 	/**
@@ -1312,6 +1332,10 @@ declare module 'vscode' {
 			 * Add undo stop after making the edits.
 			 */
 			readonly undoStopAfter: boolean;
+			/**
+			 * Keep whitespace of the {@link SnippetString.value} as is.
+			 */
+			readonly keepWhitespace?: boolean;
 		}): Thenable<boolean>;
 
 		/**
@@ -1871,6 +1895,9 @@ declare module 'vscode' {
 		/**
 		 * A human-readable string which is rendered prominent. Supports rendering of {@link ThemeIcon theme icons} via
 		 * the `$(<name>)`-syntax.
+		 *
+		 * Note: When {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Default} (so a regular item
+		 * instead of a separator), it supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
 		label: string;
 
@@ -3777,6 +3804,11 @@ declare module 'vscode' {
 		snippet: SnippetString;
 
 		/**
+		 * Whether the snippet edit should be applied with existing whitespace preserved.
+		 */
+		keepWhitespace?: boolean;
+
+		/**
 		 * Create a new snippet edit.
 		 *
 		 * @param range A range.
@@ -5496,7 +5528,7 @@ declare module 'vscode' {
 	 */
 	export enum InlayHintKind {
 		/**
-		 * An inlay hint that for a type annotation.
+		 * An inlay hint that is for a type annotation.
 		 */
 		Type = 1,
 		/**
@@ -6074,9 +6106,87 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Identifies a {@linkcode DocumentDropEdit} or {@linkcode DocumentPasteEdit}
+	 */
+	export class DocumentDropOrPasteEditKind {
+		static readonly Empty: DocumentDropOrPasteEditKind;
+
+		/**
+		 * The root kind for basic text edits.
+		 *
+		 * This kind should be used for edits that insert basic text into the document. A good example of this is
+		 * an edit that pastes the clipboard text while also updating imports in the file based on the pasted text.
+		 * For this we could use a kind such as `text.updateImports.someLanguageId`.
+		 *
+		 * Even though most drop/paste edits ultimately insert text, you should not use {@linkcode Text} as the base kind
+		 * for every edit as this is redundant. Instead a more specific kind that describes the type of content being
+		 * inserted should be used instead. For example, if the edit adds a Markdown link, use `markdown.link` since even
+		 * though the content being inserted is text, it's more important to know that the edit inserts Markdown syntax.
+		 */
+		static readonly Text: DocumentDropOrPasteEditKind;
+
+		/**
+		 * Root kind for edits that update imports in a document in addition to inserting text.
+		 */
+		static readonly TextUpdateImports: DocumentDropOrPasteEditKind;
+
+		/**
+		 * Use {@linkcode DocumentDropOrPasteEditKind.Empty} instead.
+		 */
+		private constructor(value: string);
+
+		/**
+		 * The raw string value of the kind.
+		 */
+		readonly value: string;
+
+		/**
+		 * Create a new kind by appending additional scopes to the current kind.
+		 *
+		 * Does not modify the current kind.
+		 */
+		append(...parts: string[]): DocumentDropOrPasteEditKind;
+
+		/**
+		 * Checks if this kind intersects `other`.
+		 *
+		 * The kind `"text.plain"` for example intersects `text`, `"text.plain"` and `"text.plain.list"`,
+		 * but not `"unicorn"`, or `"textUnicorn.plain"`.
+		 *
+		 * @param other Kind to check.
+		 */
+		intersects(other: DocumentDropOrPasteEditKind): boolean;
+
+		/**
+		 * Checks if `other` is a sub-kind of this `DocumentDropOrPasteEditKind`.
+		 *
+		 * The kind `"text.plain"` for example contains `"text.plain"` and `"text.plain.list"`,
+		 * but not `"text"` or `"unicorn.text.plain"`.
+		 *
+		 * @param other Kind to check.
+		 */
+		contains(other: DocumentDropOrPasteEditKind): boolean;
+	}
+
+	/**
 	 * An edit operation applied {@link DocumentDropEditProvider on drop}.
 	 */
 	export class DocumentDropEdit {
+		/**
+		 * Human readable label that describes the edit.
+		 */
+		title?: string;
+
+		/**
+		 * {@link DocumentDropOrPasteEditKind Kind} of the edit.
+		 */
+		kind?: DocumentDropOrPasteEditKind;
+
+		/**
+		 * Controls the ordering or multiple edits. If this provider yield to edits, it will be shown lower in the list.
+		 */
+		yieldTo?: readonly DocumentDropOrPasteEditKind[];
+
 		/**
 		 * The text or snippet to insert at the drop location.
 		 */
@@ -6089,8 +6199,10 @@ declare module 'vscode' {
 
 		/**
 		 * @param insertText The text or snippet to insert at the drop location.
+		 * @param title Human readable label that describes the edit.
+		 * @param kind {@link DocumentDropOrPasteEditKind Kind} of the edit.
 		 */
-		constructor(insertText: string | SnippetString);
+		constructor(insertText: string | SnippetString, title?: string, kind?: DocumentDropOrPasteEditKind);
 	}
 
 	/**
@@ -6100,7 +6212,7 @@ declare module 'vscode' {
 	 * and dropping files, users can hold down `shift` to drop the file into the editor instead of opening it.
 	 * Requires `editor.dropIntoEditor.enabled` to be on.
 	 */
-	export interface DocumentDropEditProvider {
+	export interface DocumentDropEditProvider<T extends DocumentDropEdit = DocumentDropEdit> {
 		/**
 		 * Provide edits which inserts the content being dragged and dropped into the document.
 		 *
@@ -6112,7 +6224,212 @@ declare module 'vscode' {
 		 * @returns A {@link DocumentDropEdit} or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideDocumentDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit>;
+		provideDocumentDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<T | T[]>;
+
+		/**
+		 * Optional method which fills in the {@linkcode DocumentDropEdit.additionalEdit} before the edit is applied.
+		 *
+		 * This is called once per edit and should be used if generating the complete edit may take a long time.
+		 * Resolve can only be used to change {@link DocumentDropEdit.additionalEdit}.
+		 *
+		 * @param edit The {@linkcode DocumentDropEdit} to resolve.
+		 * @param token A cancellation token.
+		 *
+		 * @returns The resolved edit or a thenable that resolves to such. It is OK to return the given
+		 * `edit`. If no result is returned, the given `edit` is used.
+		 */
+		resolveDocumentDropEdit?(edit: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	/**
+	 * Provides additional metadata about how a {@linkcode DocumentDropEditProvider} works.
+	 */
+	export interface DocumentDropEditProviderMetadata {
+		/**
+		 * List of {@link DocumentDropOrPasteEditKind kinds} that the provider may return in {@linkcode DocumentDropEditProvider.provideDocumentDropEdits provideDocumentDropEdits}.
+		 *
+		 * This is used to filter out providers when a specific {@link DocumentDropOrPasteEditKind kind} of edit is requested.
+		 */
+		readonly providedDropEditKinds?: readonly DocumentDropOrPasteEditKind[];
+
+		/**
+		 * List of {@link DataTransfer} mime types that the provider can handle.
+		 *
+		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
+		 *
+		 * Use `text/uri-list` for resources dropped from the explorer or other tree views in the workbench.
+		 *
+		 * Use `files` to indicate that the provider should be invoked if any {@link DataTransferFile files} are present in the {@link DataTransfer}.
+		 * Note that {@link DataTransferFile} entries are only created when dropping content from outside the editor, such as
+		 * from the operating system.
+		 */
+		readonly dropMimeTypes: readonly string[];
+	}
+
+
+	/**
+	 * The reason why paste edits were requested.
+	 */
+	export enum DocumentPasteTriggerKind {
+		/**
+		 * Pasting was requested as part of a normal paste operation.
+		 */
+		Automatic = 0,
+
+		/**
+		 * Pasting was requested by the user with the `paste as` command.
+		 */
+		PasteAs = 1,
+	}
+
+	/**
+	 * Additional information about the paste operation.
+	 */
+	export interface DocumentPasteEditContext {
+
+		/**
+		 * Requested kind of paste edits to return.
+		 *
+		 * When a explicit kind if requested by {@linkcode DocumentPasteTriggerKind.PasteAs PasteAs}, providers are
+		 * encourage to be more flexible when generating an edit of the requested kind.
+		 */
+		readonly only: DocumentDropOrPasteEditKind | undefined;
+
+		/**
+		 * The reason why paste edits were requested.
+		 */
+		readonly triggerKind: DocumentPasteTriggerKind;
+	}
+
+	/**
+	 * Provider invoked when the user copies or pastes in a {@linkcode TextDocument}.
+	 */
+	export interface DocumentPasteEditProvider<T extends DocumentPasteEdit = DocumentPasteEdit> {
+
+		/**
+		 * Optional method invoked after the user copies from a {@link TextEditor text editor}.
+		 *
+		 * This allows the provider to attach metadata about the copied text to the {@link DataTransfer}. This data
+		 * transfer is then passed back to providers in {@linkcode provideDocumentPasteEdits}.
+		 *
+		 * Note that currently any changes to the {@linkcode DataTransfer} are isolated to the current editor window.
+		 * This means that any added metadata cannot be seen by other editor windows or by other applications.
+		 *
+		 * @param document Text document where the copy took place.
+		 * @param ranges Ranges being copied in {@linkcode document}.
+		 * @param dataTransfer The data transfer associated with the copy. You can store additional values on this for
+		 * later use in {@linkcode provideDocumentPasteEdits}. This object is only valid for the duration of this method.
+		 * @param token A cancellation token.
+		 *
+		 * @return Optional thenable that resolves when all changes to the `dataTransfer` are complete.
+		 */
+		prepareDocumentPaste?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, token: CancellationToken): void | Thenable<void>;
+
+		/**
+		 * Invoked before the user pastes into a {@link TextEditor text editor}.
+		 *
+		 * Returned edits can replace the standard pasting behavior.
+		 *
+		 * @param document Document being pasted into
+		 * @param ranges Range in the {@linkcode document} to paste into.
+		 * @param dataTransfer The {@link DataTransfer data transfer} associated with the paste. This object is only
+		 * valid for the duration of the paste operation.
+		 * @param context Additional context for the paste.
+		 * @param token A cancellation token.
+		 *
+		 * @return Set of potential {@link DocumentPasteEdit edits} that can apply the paste. Only a single returned
+		 * {@linkcode DocumentPasteEdit} is applied at a time. If multiple edits are returned from all providers, then
+		 * the first is automatically applied and a widget is shown that lets the user switch to the other edits.
+		 */
+		provideDocumentPasteEdits?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, context: DocumentPasteEditContext, token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.
+		 *
+		 * This is called once per edit and should be used if generating the complete edit may take a long time.
+		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.insertText} or {@linkcode DocumentPasteEdit.additionalEdit}.
+		 *
+		 * @param pasteEdit The {@linkcode DocumentPasteEdit} to resolve.
+		 * @param token A cancellation token.
+		 *
+		 * @returns The resolved paste edit or a thenable that resolves to such. It is OK to return the given
+		 * `pasteEdit`. If no result is returned, the given `pasteEdit` is used.
+		 */
+		resolveDocumentPasteEdit?(pasteEdit: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	/**
+	 * An edit the applies a paste operation.
+	 */
+	export class DocumentPasteEdit {
+
+		/**
+		 * Human readable label that describes the edit.
+		 */
+		title: string;
+
+		/**
+		 * {@link DocumentDropOrPasteEditKind Kind} of the edit.
+		 */
+		kind: DocumentDropOrPasteEditKind;
+
+		/**
+		 * The text or snippet to insert at the pasted locations.
+		 *
+		 * If your edit requires more advanced insertion logic, set this to an empty string and provide an {@link DocumentPasteEdit.additionalEdit additional edit} instead.
+		 */
+		insertText: string | SnippetString;
+
+		/**
+		 * An optional additional edit to apply on paste.
+		 */
+		additionalEdit?: WorkspaceEdit;
+
+		/**
+		 * Controls ordering when multiple paste edits can potentially be applied.
+		 *
+		 * If this edit yields to another, it will be shown lower in the list of possible paste edits shown to the user.
+		 */
+		yieldTo?: readonly DocumentDropOrPasteEditKind[];
+
+		/**
+		 * Create a new paste edit.
+		 *
+		 * @param insertText The text or snippet to insert at the pasted locations.
+		 * @param title Human readable label that describes the edit.
+		 * @param kind {@link DocumentDropOrPasteEditKind Kind} of the edit.
+		 */
+		constructor(insertText: string | SnippetString, title: string, kind: DocumentDropOrPasteEditKind);
+	}
+
+	/**
+	 * Provides additional metadata about how a {@linkcode DocumentPasteEditProvider} works.
+	 */
+	export interface DocumentPasteProviderMetadata {
+		/**
+		 * List of {@link DocumentDropOrPasteEditKind kinds} that the provider may return in {@linkcode DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits}.
+		 *
+		 * This is used to filter out providers when a specific {@link DocumentDropOrPasteEditKind kind} of edit is requested.
+		 */
+		readonly providedPasteEditKinds: readonly DocumentDropOrPasteEditKind[];
+
+		/**
+		 * Mime types that {@linkcode DocumentPasteEditProvider.prepareDocumentPaste prepareDocumentPaste} may add on copy.
+		 */
+		readonly copyMimeTypes?: readonly string[];
+
+		/**
+		 * Mime types that {@linkcode DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits} should be invoked for.
+		 *
+		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
+		 *
+		 * Use `text/uri-list` for resources dropped from the explorer or other tree views in the workbench.
+		 *
+		 * Use `files` to indicate that the provider should be invoked if any {@link DataTransferFile files} are present in the {@linkcode DataTransfer}.
+		 * Note that {@linkcode DataTransferFile} entries are only created when pasting content from outside the editor, such as
+		 * from the operating system.
+		 */
+		readonly pasteMimeTypes?: readonly string[];
 	}
 
 	/**
@@ -7437,6 +7754,18 @@ declare module 'vscode' {
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
 		readonly isInteractedWith: boolean;
+
+		/**
+		 * The detected shell type of the {@link Terminal}. This will be `undefined` when there is
+		 * not a clear signal as to what the shell is, or the shell is not supported yet. This
+		 * value should change to the shell type of a sub-shell when launched (for example, running
+		 * `bash` inside `zsh`).
+		 *
+		 * Note that the possible values are currently defined as any of the following:
+		 * 'bash', 'cmd', 'csh', 'fish', 'gitbash', 'julia', 'ksh', 'node', 'nu', 'pwsh', 'python',
+		 * 'sh', 'wsl', 'zsh'.
+		 */
+		readonly shell: string | undefined;
 	}
 
 	/**
@@ -7639,7 +7968,7 @@ declare module 'vscode' {
 	/**
 	 * The confidence of a {@link TerminalShellExecutionCommandLine} value.
 	 */
-	enum TerminalShellExecutionCommandLineConfidence {
+	export enum TerminalShellExecutionCommandLineConfidence {
 		/**
 		 * The command line value confidence is low. This means that the value was read from the
 		 * terminal buffer using markers reported by the shell integration script. Additionally one
@@ -7724,10 +8053,17 @@ declare module 'vscode' {
 		/**
 		 * The exit code reported by the shell.
 		 *
-		 * Note that `undefined` means the shell either did not report an exit  code (ie. the shell
-		 * integration script is misbehaving) or the shell reported a command started before the command
-		 * finished (eg. a sub-shell was opened). Generally this should not happen, depending on the use
-		 * case, it may be best to treat this as a failure.
+		 * When this is `undefined` it can mean several things:
+		 *
+		 * - The shell either did not report an exit  code (ie. the shell integration script is
+		 *   misbehaving)
+		 * - The shell reported a command started before the command finished (eg. a sub-shell was
+		 *   opened).
+		 * - The user canceled the command via ctrl+c.
+		 * - The user pressed enter when there was no input.
+		 *
+		 * Generally this should not happen. Depending on the use case, it may be best to treat this
+		 * as a failure.
 		 *
 		 * @example
 		 * const execution = shellIntegration.executeCommand({
@@ -8106,7 +8442,7 @@ declare module 'vscode' {
 		 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
 		 *
 		 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
-		 *  an uri.
+		 *  a uri.
 		 */
 		readonly storageUri: Uri | undefined;
 
@@ -8668,12 +9004,12 @@ declare module 'vscode' {
 		/**
 		 * The shell command. Is `undefined` if created with a full command line.
 		 */
-		command: string | ShellQuotedString;
+		command: string | ShellQuotedString | undefined;
 
 		/**
 		 * The shell args. Is `undefined` if created with a full command line.
 		 */
-		args: Array<string | ShellQuotedString>;
+		args: Array<string | ShellQuotedString> | undefined;
 
 		/**
 		 * The shell options used when the command line is executed in a shell.
@@ -8875,7 +9211,7 @@ declare module 'vscode' {
 	 *
 	 * This interface is not intended to be implemented.
 	 */
-	interface TaskStartEvent {
+	export interface TaskStartEvent {
 		/**
 		 * The task item representing the task that got started.
 		 */
@@ -8887,7 +9223,7 @@ declare module 'vscode' {
 	 *
 	 * This interface is not intended to be implemented.
 	 */
-	interface TaskEndEvent {
+	export interface TaskEndEvent {
 		/**
 		 * The task item representing the task that finished.
 		 */
@@ -9679,7 +10015,7 @@ declare module 'vscode' {
 	/**
 	 * A panel that contains a webview.
 	 */
-	interface WebviewPanel {
+	export interface WebviewPanel {
 		/**
 		 * Identifies the type of the webview panel, such as `'markdown.preview'`.
 		 */
@@ -9809,7 +10145,7 @@ declare module 'vscode' {
 	 *
 	 * @param T Type of the webview's state.
 	 */
-	interface WebviewPanelSerializer<T = unknown> {
+	export interface WebviewPanelSerializer<T = unknown> {
 		/**
 		 * Restore a webview panel from its serialized `state`.
 		 *
@@ -9900,7 +10236,7 @@ declare module 'vscode' {
 	 *
 	 * @param T Type of the webview's state.
 	 */
-	interface WebviewViewResolveContext<T = unknown> {
+	export interface WebviewViewResolveContext<T = unknown> {
 		/**
 		 * Persisted state from the webview content.
 		 *
@@ -9990,7 +10326,7 @@ declare module 'vscode' {
 	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
 	 * managed by the editor. When no more references remain to a `CustomDocument`, it is disposed of.
 	 */
-	interface CustomDocument {
+	export interface CustomDocument {
 		/**
 		 * The associated uri for this document.
 		 */
@@ -10010,7 +10346,7 @@ declare module 'vscode' {
 	 *
 	 * @see {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
 	 */
-	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
+	export interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
 
 		/**
 		 * The document that the edit is for.
@@ -10049,7 +10385,7 @@ declare module 'vscode' {
 	 *
 	 * @see {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
 	 */
-	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
+	export interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
 		/**
 		 * The document that the change is for.
 		 */
@@ -10059,7 +10395,7 @@ declare module 'vscode' {
 	/**
 	 * A backup for an {@linkcode CustomDocument}.
 	 */
-	interface CustomDocumentBackup {
+	export interface CustomDocumentBackup {
 		/**
 		 * Unique identifier for the backup.
 		 *
@@ -10079,7 +10415,7 @@ declare module 'vscode' {
 	/**
 	 * Additional information used to implement {@linkcode CustomDocumentBackup}.
 	 */
-	interface CustomDocumentBackupContext {
+	export interface CustomDocumentBackupContext {
 		/**
 		 * Suggested file location to write the new backup.
 		 *
@@ -10095,7 +10431,7 @@ declare module 'vscode' {
 	/**
 	 * Additional information about the opening custom document.
 	 */
-	interface CustomDocumentOpenContext {
+	export interface CustomDocumentOpenContext {
 		/**
 		 * The id of the backup to restore the document from or `undefined` if there is no backup.
 		 *
@@ -11605,7 +11941,7 @@ declare module 'vscode' {
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
 	 *
 	 * Drag and drop controllers that implement {@link TreeDragAndDropController.handleDrag `handleDrag`} can add additional mime types to the
-	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
+	 * data transfer. These additional mime types will only be included in the `handleDrop` when the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
 	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {
@@ -11678,6 +12014,8 @@ declare module 'vscode' {
 		/**
 		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
 		 * Extensions can use `handleDrag` to add their {@link DataTransferItem `DataTransferItem`} items to the drag and drop.
+		 *
+		 * Mime types added in `handleDrag` won't be available outside the application.
 		 *
 		 * When the items are dropped on **another tree item** in **the same tree**, your `DataTransferItem` objects
 		 * will be preserved. Use the recommended mime type for the tree (`application/vnd.code.tree.<treeidlowercase>`) to add
@@ -12170,7 +12508,7 @@ declare module 'vscode' {
 	/**
 	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
 	 */
-	interface Pseudoterminal {
+	export interface Pseudoterminal {
 		/**
 		 * An event that when fired will write data to the terminal. Unlike
 		 * {@link Terminal.sendText} which sends text to the underlying child
@@ -13672,7 +14010,29 @@ declare module 'vscode' {
 		 * @param uri Identifies the resource to open.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(uri: Uri): Thenable<TextDocument>;
+		export function openTextDocument(uri: Uri, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
+			 *
+			 * Opening a text document that was already opened with a different encoding
+			 * has the potential of changing the text contents of the text document.
+			 * Specifically, when the encoding results in a different set of characters
+			 * than the previous encoding. As such, an error is thrown for dirty documents
+			 * when the specified encoding is different from the encoding of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
+			 */
+			readonly encoding?: string;
+		}): Thenable<TextDocument>;
 
 		/**
 		 * A short-hand for `openTextDocument(Uri.file(path))`.
@@ -13681,7 +14041,29 @@ declare module 'vscode' {
 		 * @param path A path of a file on disk.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(path: string): Thenable<TextDocument>;
+		export function openTextDocument(path: string, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
+			 *
+			 * Opening a text document that was already opened with a different encoding
+			 * has the potential of changing the text contents of the text document.
+			 * Specifically, when the encoding results in a different set of characters
+			 * than the previous encoding. As such, an error is thrown for dirty documents
+			 * when the specified encoding is different from the encoding of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
+			 */
+			readonly encoding?: string;
+		}): Thenable<TextDocument>;
 
 		/**
 		 * Opens an untitled text document. The editor will prompt the user for a file
@@ -13700,6 +14082,14 @@ declare module 'vscode' {
 			 * The initial contents of the document.
 			 */
 			content?: string;
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 */
+			readonly encoding?: string;
 		}): Thenable<TextDocument>;
 
 		/**
@@ -13983,6 +14373,129 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
+		 *
+		 * Will pick an encoding based on settings and the content of the
+		 * buffer (for example byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The text content to decode as a `Uint8Array`.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array): Thenable<string>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string` using the
+		 * provided encoding. You MUST provide the entire content at once
+		 * to ensure that the encoding can properly apply. Do not use this
+		 * method to decode content in chunks, as that may lead to incorrect
+		 * results.
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The text content to decode as a `Uint8Array`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array, options: {
+			/**
+			 * Allows to explicitly pick the encoding to use.
+			 * See {@link TextDocument.encoding} for more information
+			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
+			 */
+			readonly encoding: string;
+		}): Thenable<string>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
+		 *
+		 * The encoding is picked based on settings and the content
+		 * of the buffer (for example byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The content to decode as a `Uint8Array`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array, options: {
+			/**
+			 * The URI that represents the file if known. This information
+			 * is used to figure out the encoding related configuration
+			 * for the file if any.
+			 */
+			readonly uri: Uri;
+		}): Thenable<string>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array`.
+		 *
+		 * Will pick an encoding based on settings.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string): Thenable<Uint8Array>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array` using the
+		 * provided encoding.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string, options: {
+			/**
+			 * Allows to explicitly pick the encoding to use.
+			 * See {@link TextDocument.encoding} for more information
+			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
+			 */
+			readonly encoding: string;
+		}): Thenable<Uint8Array>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array`.
+		 *
+		 * The encoding is picked based on settings.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string, options: {
+			/**
+			 * The URI that represents the file if known. This information
+			 * is used to figure out the encoding related configuration
+			 * for the file if any.
+			 */
+			readonly uri: Uri;
+		}): Thenable<Uint8Array>;
 	}
 
 	/**
@@ -14577,12 +15090,44 @@ declare module 'vscode' {
 		/**
 		 * Registers a new {@link DocumentDropEditProvider}.
 		 *
+		 * Multiple drop providers can be registered for a language. When dropping content into an editor, all
+		 * registered providers for the editor's language will be invoked based on the mimetypes they handle
+		 * as specified by their {@linkcode DocumentDropEditProviderMetadata}.
+		 *
+		 * Each provider can return one or more {@linkcode DocumentDropEdit DocumentDropEdits}. The edits are sorted
+		 * using the {@linkcode DocumentDropEdit.yieldTo} property. By default the first edit will be applied. If there
+		 * are any additional edits, these will be shown to the user as selectable drop options in the drop widget.
+		 *
 		 * @param selector A selector that defines the documents this provider applies to.
 		 * @param provider A drop provider.
+		 * @param metadata Additional metadata about the provider.
 		 *
-		 * @returns A {@link Disposable} that unregisters this provider when disposed of.
+		 * @returns A {@linkcode Disposable} that unregisters this provider when disposed of.
 		 */
-		export function registerDocumentDropEditProvider(selector: DocumentSelector, provider: DocumentDropEditProvider): Disposable;
+		export function registerDocumentDropEditProvider(selector: DocumentSelector, provider: DocumentDropEditProvider, metadata?: DocumentDropEditProviderMetadata): Disposable;
+
+		/**
+		 * Registers a new {@linkcode DocumentPasteEditProvider}.
+		 *
+		 * Multiple providers can be registered for a language. All registered providers for a language will be invoked
+		 * for copy and paste operations based on their handled mimetypes as specified by the {@linkcode DocumentPasteProviderMetadata}.
+		 *
+		 * For {@link DocumentPasteEditProvider.prepareDocumentPaste copy operations}, changes to the {@linkcode DataTransfer}
+		 * made by each provider will be merged into a single {@linkcode DataTransfer} that is used to populate the clipboard.
+		 *
+		 * For {@link DocumentPasteEditProvider.providerDocumentPasteEdits paste operations}, each provider will be invoked
+		 * and can return one or more {@linkcode DocumentPasteEdit DocumentPasteEdits}. The edits are sorted using
+		 * the {@linkcode DocumentPasteEdit.yieldTo} property. By default the first edit will be applied
+		 * and the rest of the edits will be shown to the user as selectable paste options in the paste widget.
+		 *
+		 * @param selector A selector that defines the documents this provider applies to.
+		 * @param provider A paste editor provider.
+		 * @param metadata Additional metadata about the provider.
+		 *
+		 * @returns A {@linkcode Disposable} that unregisters this provider when disposed of.
+		 */
+		export function registerDocumentPasteEditProvider(selector: DocumentSelector, provider: DocumentPasteEditProvider, metadata: DocumentPasteProviderMetadata): Disposable;
+
 
 		/**
 		 * Set a {@link LanguageConfiguration language configuration} for a language.
@@ -15836,6 +16381,26 @@ declare module 'vscode' {
 		 * no {@link SourceControlResourceState source control resource states}.
 		 */
 		hideWhenEmpty?: boolean;
+
+		/**
+		 * Context value of the resource group. This can be used to contribute resource group specific actions.
+		 * For example, if a resource group is given a context value of `exportable`, when contributing actions to `scm/resourceGroup/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceGroupState` in `when` expressions, like `scmResourceGroupState == exportable`.
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "scm/resourceGroup/context": [
+		 *       {
+		 *         "command": "extension.export",
+		 *         "when": "scmResourceGroupState == exportable"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 * This will show action `extension.export` only for resource groups with `contextValue` equal to `exportable`.
+		 */
+		contextValue?: string;
 
 		/**
 		 * This group's collection of
@@ -17126,15 +17691,21 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
+	 * Optional options to be used when calling {@link authentication.getSession} with interactive options `forceNewSession` & `createIfNone`.
 	 */
-	export interface AuthenticationForceNewSessionOptions {
+	export interface AuthenticationGetSessionPresentationOptions {
 		/**
 		 * An optional message that will be displayed to the user when we ask to re-authenticate. Providing additional context
 		 * as to why you are asking a user to re-authenticate can help increase the odds that they will accept.
 		 */
 		detail?: string;
 	}
+
+	/**
+	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
+	 * @deprecated Use {@link AuthenticationGetSessionPresentationOptions} instead.
+	 */
+	export type AuthenticationForceNewSessionOptions = AuthenticationGetSessionPresentationOptions;
 
 	/**
 	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
@@ -17165,6 +17736,8 @@ declare module 'vscode' {
 		 * on the accounts activity bar icon. An entry for the extension will be added under the menu to sign in. This
 		 * allows quietly prompting the user to sign in.
 		 *
+		 * If you provide options, you will also see the dialog but with the additional context provided.
+		 *
 		 * If there is a matching session but the extension has not been granted access to it, setting this to true
 		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
 		 *
@@ -17172,7 +17745,7 @@ declare module 'vscode' {
 		 *
 		 * Note: you cannot use this option with {@link AuthenticationGetSessionOptions.silent silent}.
 		 */
-		createIfNone?: boolean;
+		createIfNone?: boolean | AuthenticationGetSessionPresentationOptions;
 
 		/**
 		 * Whether we should attempt to reauthenticate even if there is already a session available.
@@ -17180,12 +17753,14 @@ declare module 'vscode' {
 		 * If true, a modal dialog will be shown asking the user to sign in again. This is mostly used for scenarios
 		 * where the token needs to be re minted because it has lost some authorization.
 		 *
+		 * If you provide options, you will also see the dialog but with the additional context provided.
+		 *
 		 * If there are no existing sessions and forceNewSession is true, it will behave identically to
 		 * {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
 		 *
 		 * This defaults to false.
 		 */
-		forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
+		forceNewSession?: boolean | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions;
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -17339,7 +17914,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -17354,7 +17929,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -18271,7 +18846,7 @@ declare module 'vscode' {
 		 * used to represent line coverage.
 		 * @param branchCoverage Branch coverage information
 		 * @param declarationCoverage Declaration coverage information
-		 * @param includesTests Test cases included in this coverage report, see {@link includesTests}
+		 * @param includesTests Test cases included in this coverage report, see {@link FileCoverage.includesTests}
 		 */
 		constructor(
 			uri: Uri,
@@ -19118,7 +19693,7 @@ declare module 'vscode' {
 		readonly toolInvocationToken: ChatParticipantToolToken;
 
 		/**
-		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link chat.selectChatModels} to
+		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link lm.selectChatModels} to
 		 * pick another model. Don't hold onto this past the lifetime of the request.
 		 */
 		readonly model: LanguageModelChat;
@@ -19411,7 +19986,7 @@ declare module 'vscode' {
 	/**
 	 * Represents a language model response.
 	 *
-	 * @see {@link LanguageModelAccess.chatRequest}
+	 * @see {@link ChatRequest}
 	 */
 	export interface LanguageModelChatResponse {
 
@@ -19758,7 +20333,7 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the input this tool accepts.
 		 */
-		inputSchema?: object;
+		inputSchema?: object | undefined;
 	}
 
 	/**

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBoundarySashes, Orientation } from '../sash/sash.js';
-import { equals, tail2 as tail } from '../../../common/arrays.js';
+import { equals, tail } from '../../../common/arrays.js';
 import { Event } from '../../../common/event.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import './gridview.css';

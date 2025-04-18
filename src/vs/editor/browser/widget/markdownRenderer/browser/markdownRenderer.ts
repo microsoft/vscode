@@ -60,7 +60,7 @@ export class MarkdownRenderer {
 		};
 	}
 
-	protected _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
+	private _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
 		return {
 			codeBlockRenderer: async (languageAlias, value) => {
 				// In markdown,
@@ -97,7 +97,7 @@ export class MarkdownRenderer {
 			},
 			actionHandler: {
 				callback: (link) => this.openMarkdownLink(link, markdown),
-				disposables: disposables
+				disposables
 			}
 		};
 	}
@@ -107,12 +107,13 @@ export class MarkdownRenderer {
 	}
 }
 
-export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined): Promise<boolean> {
+export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined, skipValidation?: boolean): Promise<boolean> {
 	try {
 		return await openerService.open(link, {
 			fromUserGesture: true,
 			allowContributedOpeners: true,
 			allowCommands: toAllowCommandsOption(isTrusted),
+			skipValidation
 		});
 	} catch (e) {
 		onUnexpectedError(e);

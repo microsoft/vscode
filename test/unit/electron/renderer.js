@@ -294,10 +294,12 @@ async function loadTests(opts) {
 		// should not have unexpected errors
 		const errors = _unexpectedErrors.concat(_loaderErrors);
 		if (errors.length) {
+			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+				msg.push(String(error))
 			}
-			assert.ok(false, 'Error: Test run should not have unexpected errors.');
+			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
 		}
 	});
 
@@ -396,22 +398,63 @@ class IPCReporter {
 	}
 }
 
+const $globalThis = globalThis;
+const setTimeout0IsFaster = (typeof $globalThis.postMessage === 'function' && !$globalThis.importScripts);
+
+/**
+ * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
+ *
+ * Works similarly to `setTimeout(0)` but doesn't suffer from the 4ms artificial delay
+ * that browsers set when the nesting level is > 5.
+ */
+const setTimeout0 = (() => {
+	if (setTimeout0IsFaster) {
+		const pending = [];
+
+		$globalThis.addEventListener('message', (e) => {
+			if (e.data && e.data.vscodeScheduleAsyncWork) {
+				for (let i = 0, len = pending.length; i < len; i++) {
+					const candidate = pending[i];
+					if (candidate.id === e.data.vscodeScheduleAsyncWork) {
+						pending.splice(i, 1);
+						candidate.callback();
+						return;
+					}
+				}
+			}
+		});
+		let lastId = 0;
+		return (callback) => {
+			const myId = ++lastId;
+			pending.push({
+				id: myId,
+				callback: callback
+			});
+			$globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
+		};
+	}
+	return (callback) => setTimeout(callback);
+})();
+
 async function runTests(opts) {
+	// @ts-expect-error
+	Mocha.Runner.immediately = setTimeout0;
+
+	mocha.setup({
+		ui: 'tdd',
+		// @ts-expect-error
+		reporter: opts.dev ? 'html' : IPCReporter,
+		grep: opts.grep,
+		timeout: opts.timeout ?? (IS_CI ? 30000 : 5000),
+		forbidOnly: IS_CI // disallow .only() when running on build machine
+	});
+
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
 	await loadTests(opts);
-
-	if (opts.grep) {
-		mocha.grep(opts.grep);
-	}
-
-	if (!opts.dev) {
-		// @ts-expect-error
-		mocha.reporter(IPCReporter);
-	}
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts)

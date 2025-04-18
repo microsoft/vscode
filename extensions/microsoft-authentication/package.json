@@ -102,7 +102,7 @@
         "properties": {
           "microsoft-authentication.implementation": {
             "type": "string",
-            "default": "classic",
+            "default": "msal",
             "enum": [
               "msal",
               "classic"
@@ -111,10 +111,9 @@
               "%microsoft-authentication.implementation.enumDescriptions.msal%",
               "%microsoft-authentication.implementation.enumDescriptions.classic%"
             ],
-            "description": "%microsoft-authentication.implementation.description%",
+            "markdownDescription": "%microsoft-authentication.implementation.description%",
             "tags": [
-              "onExP",
-              "preview"
+              "onExP"
             ]
           }
         }

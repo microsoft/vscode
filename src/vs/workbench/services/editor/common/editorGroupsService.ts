@@ -101,6 +101,13 @@ export const enum MergeGroupMode {
 export interface IMergeGroupOptions {
 	mode?: MergeGroupMode;
 	readonly index?: number;
+
+	/**
+	 * Set this to prevent editors already present in the
+	 * target group from moving to a different index as
+	 * they are in the source group.
+	 */
+	readonly preserveExistingIndex?: boolean;
 }
 
 export interface ICloseEditorOptions {
@@ -558,7 +565,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Opens a new window with a full editor part instantiated
 	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean }): Promise<IAuxiliaryEditorPart>;
 
 	/**
 	 * Returns the instantiation service that is scoped to the
@@ -887,8 +894,9 @@ export interface IEditorGroup {
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
 	 * there are dirty editors and thus returns a promise as value.
 	 *
-	 * @returns a promise when all editors are closed.
+	 * @returns a promise if confirmation is needed when all editors are closed.
 	 */
+	closeAllEditors(options: { excludeConfirming: true }): boolean;
 	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**

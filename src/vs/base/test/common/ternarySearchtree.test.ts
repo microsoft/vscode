@@ -241,6 +241,27 @@ suite('Ternary Search Tree', () => {
 		);
 	});
 
+	test('TernarySearchTree - set w/ undefined', function () {
+
+		const trie = TernarySearchTree.forStrings<any>();
+		trie.set('foobar', undefined);
+		trie.set('foobaz', 2);
+
+		assert.strictEqual(trie.get('foobar'), undefined);
+		assert.strictEqual(trie.get('foobaz'), 2);
+		assert.strictEqual(trie.get('NOT HERE'), undefined);
+
+		assert.ok(trie.has('foobaz'));
+		assert.ok(trie.has('foobar'));
+		assert.ok(!trie.has('NOT HERE'));
+
+		assertTstDfs(trie, ['foobar', undefined], ['foobaz', 2]); // should check for undefined value
+
+		const oldValue = trie.set('foobar', 3);
+		assert.strictEqual(oldValue, undefined);
+		assert.strictEqual(trie.get('foobar'), 3);
+	});
+
 	test('TernarySearchTree - findLongestMatch', function () {
 
 		const trie = TernarySearchTree.forStrings<number>();
@@ -550,6 +571,43 @@ suite('Ternary Search Tree', () => {
 				assert.ok(false, `FAILED with keys: ${keys.map(String).join()}`);
 			}
 		}
+	});
+
+	test('https://github.com/microsoft/vscode/issues/227147', function () {
+
+		const raw = `fake-fs:CAOnRvUuxO,fake-fs:1qcbfq54rg,fake-fs:UtDstYUQ56,fake-fs:d5ktqDysll,fake-fs:w5NSAKA4Ch,fake-fs:QcIIIY6WHX,fake-fs:WCedQu9Ogd,fake-fs:cKUC5LunBr,fake-fs:XrIIYjI3HB,fake-fs:xgTkoneFzF,fake-fs:QYkCVx2nYC,fake-fs:ePrIDEKEpJ,fake-fs:nrOPYCW81a,fake-fs:MQbkFLcDsA,fake-fs:wXG8YiOrBI,fake-fs:4tHTWi240D,fake-fs:5uQWjgZGGJ,fake-fs:famP6pZXyx,fake-fs:aB9sUhwP1J,fake-fs:DlS0CssyhG,fake-fs:9vK2k3rL2V,fake-fs:iqWeu7zF6t,fake-fs:8vC6bQX2WH,fake-fs:nFILXMQTRg,fake-fs:miiV72aajE,fake-fs:9VRbqvaw0q,fake-fs:WnEHS1arfZ,fake-fs:Fco75PJ5pM,fake-fs:6CsEpoZ7VW,fake-fs:B2PrCtDpWu,fake-fs:y8Hi94Oekg,fake-fs:wyEjPNa5lo,fake-fs:zw1Ljv0erc,fake-fs:y4KWPUOMx0,fake-fs:1basrPTlTp,fake-fs:5iErr4YM34,fake-fs:Q2TQaujh8Q,fake-fs:QxcYzNNxZw,fake-fs:3QUDHjU55a,fake-fs:23ymf9ggMV,fake-fs:qQhuKFdy29,fake-fs:JuwmxA33oJ,fake-fs:NQeUyfMNUo,fake-fs:2Vo3eR1jxM,fake-fs:NzUXQidwel,fake-fs:aESYKGPxIx,fake-fs:mxLdeJartN,fake-fs:PhSd2xLwVe,fake-fs:9nmWjUUMRz,fake-fs:Wc6a4RsGhn,fake-fs:5a0AlFHALQ,fake-fs:Q93jnNZBxJ,fake-fs:4CuVkbfPSG,fake-fs:mdFlJ7WQva,fake-fs:fgVsaRm1KG,fake-fs:P7UXWiRJYj,fake-fs:q6nz5Q9BEW,fake-fs:1UZmGkvNTn,fake-fs:AKY8cnUQFl,fake-fs:RezYuPU7FD,fake-fs:5zaYc72Bit,fake-fs:yh8FTxFfQq,fake-fs:ayNPgEuc2q,fake-fs:EdOb27cRhF,fake-fs:h4c2uNyI4l,fake-fs:BhzOLNL4JO,fake-fs:HVPTdAMWpS,fake-fs:7K7IlacaZe,fake-fs:iUKJonC5eq,fake-fs:Y9E3NX3eJD,fake-fs:66h80uK32I,fake-fs:gFXpry1Y09,fake-fs:qOqvvXPcu4,fake-fs:UbbLn2NFSJ,fake-fs:TzJ07HsAGz,fake-fs:nQngmvgx4m,fake-fs:6bZQCR8epb,fake-fs:xb3SJKX1bi,fake-fs:GF3DPK4zDj,fake-fs:HmxgAqEegt,fake-fs:yT2OAMQYal,fake-fs:MiVX4VYXHk,fake-fs:QMbsUbjJTI,fake-fs:KzAbDNsmPc,fake-fs:m6CGOwOcdT,fake-fs:0cyHx9zsA3,fake-fs:SIwjWfFLSY,fake-fs:uZSDXCEqLY,fake-fs:HuoTL3nK7k,fake-fs:oyoejYE0CI,fake-fs:56WLhiCxbz,fake-fs:SqYOi0z5sM,fake-fs:LZq3ei28Ez,fake-fs:pTc4pCtwk8,fake-fs:AAJSFf0RHS,fake-fs:up6EHkEbO9,fake-fs:GB1Pesdnxd,fake-fs:Oyvq4Z96S4,fake-fs:rYXrhklgf6,fake-fs:g1HdUkQziH`;
+		const keys: URI[] = raw.split(',').map(value => URI.parse(value, true));
+
+
+		const tst = TernarySearchTree.forUris<boolean>();
+		for (const item of keys) {
+			tst.set(item, true);
+			assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
+		}
+
+		const lengthNow = Array.from(tst).length;
+		assert.strictEqual(lengthNow, keys.length);
+
+		const keys2 = keys.slice(0);
+
+		for (const [index, item] of keys.entries()) {
+			tst.delete(item);
+			assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
+
+			const idx = keys2.indexOf(item);
+			assert.ok(idx >= 0);
+			keys2.splice(idx, 1);
+
+			const actualKeys = Array.from(tst).map(value => value[0]);
+
+			assert.strictEqual(
+				actualKeys.length,
+				keys2.length,
+				`FAILED with ${index} -> ${item.toString()}\nWANTED:${keys2.map(String).sort().join()}\nACTUAL:${actualKeys.map(String).sort().join()}`
+			);
+		}
+
+		assert.strictEqual(Array.from(tst).length, 0);
 	});
 
 	test('TernarySearchTree: Cannot read properties of undefined (reading \'length\'): #161618 (simple)', function () {

@@ -19,7 +19,7 @@ suite('ExtHostTextEditor', () => {
 	let editor: ExtHostTextEditor;
 	const doc = new ExtHostDocumentData(undefined!, URI.file(''), [
 		'aaaa bbbb+cccc abc'
-	], '\n', 1, 'text', false);
+	], '\n', 1, 'text', false, 'utf8');
 
 	setup(() => {
 		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4, originalIndentSize: 'tabSize' }, [], 1);

@@ -4,29 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import * as glob from '../../../../../base/common/glob.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { Disposable, DisposableStore, dispose, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { basename, dirname, joinPath, relativePath } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { FileType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
+import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
-import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
-import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
-import { PromptFileReference } from '../../common/promptFileReference.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -48,6 +52,8 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
+	private decorationData: { id: string; text: string }[] = [];
+
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
@@ -57,43 +63,62 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		super();
 
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
-			e.changes.forEach(c => {
-				// Don't mutate entries in _variables, since they will be returned from the getter
-				this._variables = coalesce(this._variables.map(ref => {
-					const intersection = Range.intersectRanges(ref.range, c.range);
-					if (intersection && !intersection.isEmpty()) {
-						// The reference text was changed, it's broken.
-						// But if the whole reference range was deleted (eg history navigation) then don't try to change the editor.
-						if (!Range.containsRange(c.range, ref.range)) {
-							const rangeToDelete = new Range(ref.range.startLineNumber, ref.range.startColumn, ref.range.endLineNumber, ref.range.endColumn - 1);
-							this.widget.inputEditor.executeEdits(this.id, [{
-								range: rangeToDelete,
-								text: '',
-							}]);
-							this.widget.refreshParsedInput();
-						}
 
-						// dispose the reference if possible before dropping it off
-						if ('dispose' in ref && typeof ref.dispose === 'function') {
-							ref.dispose();
-						}
+			const removed: TDynamicVariable[] = [];
+			let didChange = false;
 
-						return null;
-					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
-						const delta = c.text.length - c.rangeLength;
-						ref.range = {
-							startLineNumber: ref.range.startLineNumber,
-							startColumn: ref.range.startColumn + delta,
-							endLineNumber: ref.range.endLineNumber,
-							endColumn: ref.range.endColumn + delta,
-						};
+			// Don't mutate entries in _variables, since they will be returned from the getter
+			this._variables = coalesce(this._variables.map((ref, idx): TDynamicVariable | null => {
+				const model = widget.inputEditor.getModel();
 
-						return ref;
-					}
+				if (!model) {
+					removed.push(ref);
+					return null;
+				}
 
+				const data = this.decorationData[idx];
+				const newRange = model.getDecorationRange(data.id);
+
+				if (!newRange) {
+					// gone
+					removed.push(ref);
+					return null;
+				}
+
+				const newText = model.getValueInRange(newRange);
+				if (newText !== data.text) {
+
+					this.widget.inputEditor.executeEdits(this.id, [{
+						range: newRange,
+						text: '',
+					}]);
+					this.widget.refreshParsedInput();
+
+					removed.push(ref);
+					return null;
+				}
+
+				if (newRange.equalsRange(ref.range)) {
+					// all good
 					return ref;
-				}));
-			});
+				}
+
+				didChange = true;
+
+				if (ref instanceof ChatFileReference) {
+					ref.range = newRange;
+					return ref;
+				} else {
+					return { ...ref, range: newRange };
+				}
+			}));
+
+			// cleanup disposable variables
+			dispose(removed.filter(isDisposable));
+
+			if (didChange || removed.length > 0) {
+				this.widget.refreshParsedInput();
+			}
 
 			this.updateDecorations();
 		}));
@@ -130,7 +155,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	addReference(ref: IDynamicVariable): void {
 		// use `ChatFileReference` for file references and `IDynamicVariable` for other variables
-		const promptSnippetsEnabled = PromptFileReference.promptSnippetsEnabled(this.configService);
+		const promptSnippetsEnabled = PromptsConfig.enabled(this.configService);
 		const variable = (ref.id === 'vscode.file' && promptSnippetsEnabled)
 			? this.instantiationService.createInstance(ChatFileReference, ref)
 			: ref;
@@ -140,22 +165,31 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this.widget.refreshParsedInput();
 
 		// if the `prompt snippets` feature is enabled, and file is a `prompt snippet`,
-		// start resolving nested file references immediatelly and subscribe to updates
-		if (variable instanceof ChatFileReference && variable.isPromptSnippetFile) {
+		// start resolving nested file references immediately and subscribe to updates
+		if (variable instanceof ChatFileReference && variable.isPromptFile) {
 			// subscribe to variable changes
 			variable.onUpdate(() => {
 				this.updateDecorations();
 			});
 			// start resolving the file references
-			variable.resolve();
+			variable.start();
 		}
 	}
 
 	private updateDecorations(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
+
+		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
 		})));
+
+		this.decorationData = [];
+		for (let i = 0; i < decorationIds.length; i++) {
+			this.decorationData.push({
+				id: decorationIds[i],
+				text: this.widget.inputEditor.getModel()!.getValueInRange(this._variables[i].range)
+			});
+		}
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
@@ -176,7 +210,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	 */
 	private disposeVariables(): void {
 		for (const variable of this._variables) {
-			if ('dispose' in variable && typeof variable.dispose === 'function') {
+			if (isDisposable(variable)) {
 				variable.dispose();
 			}
 		}
@@ -200,168 +234,197 @@ function isDynamicVariable(obj: any): obj is IDynamicVariable {
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
 
-interface SelectAndInsertActionContext {
-	widget: IChatWidget;
-	range: IRange;
-}
 
-function isSelectAndInsertActionContext(context: any): context is SelectAndInsertActionContext {
-	return 'widget' in context && 'range' in context;
-}
+export async function createFolderQuickPick(accessor: ServicesAccessor): Promise<URI | undefined> {
+	const quickInputService = accessor.get(IQuickInputService);
+	const searchService = accessor.get(ISearchService);
+	const configurationService = accessor.get(IConfigurationService);
+	const workspaceService = accessor.get(IWorkspaceContextService);
+	const fileService = accessor.get(IFileService);
+	const labelService = accessor.get(ILabelService);
 
-export class SelectAndInsertFileAction extends Action2 {
-	static readonly Name = 'files';
-	static readonly Item = {
-		label: localize('allFiles', 'All Files'),
-		description: localize('allFilesDescription', 'Search for relevant files in the workspace and provide context from them'),
-	};
-	static readonly ID = 'workbench.action.chat.selectAndInsertFile';
+	const workspaces = workspaceService.getWorkspace().folders.map(folder => folder.uri);
+	const topLevelFolderItems = (await getTopLevelFolders(workspaces, fileService)).map(createQuickPickItem);
 
-	constructor() {
-		super({
-			id: SelectAndInsertFileAction.ID,
-			title: '' // not displayed
-		});
-	}
+	const quickPick = quickInputService.createQuickPick();
+	quickPick.placeholder = 'Search folder by name';
+	quickPick.items = topLevelFolderItems;
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const textModelService = accessor.get(ITextModelService);
-		const logService = accessor.get(ILogService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const chatVariablesService = accessor.get(IChatVariablesService);
+	return await new Promise<URI | undefined>(_resolve => {
 
-		const context = args[0];
-		if (!isSelectAndInsertActionContext(context)) {
-			return;
-		}
-
-		const doCleanup = () => {
-			// Failed, remove the dangling `file`
-			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
+		const disposables = new DisposableStore();
+		const resolve = (res: URI | undefined) => {
+			_resolve(res);
+			disposables.dispose();
+			quickPick.dispose();
 		};
 
-		let options: IQuickAccessOptions | undefined;
-		// If we have a `files` variable, add an option to select all files in the picker.
-		// This of course assumes that the `files` variable has the behavior that it searches
-		// through files in the workspace.
-		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
-			const providerOptions: AnythingQuickAccessProviderRunOptions = {
-				additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
-			};
-			options = { providerOptions };
-		}
-		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('', options);
-		if (!picks?.length) {
-			logService.trace('SelectAndInsertFileAction: no file selected');
-			doCleanup();
-			return;
-		}
-
-		const editor = context.widget.inputEditor;
-		const range = context.range;
-
-		// Handle the special case of selecting all files
-		if (picks[0] === SelectAndInsertFileAction.Item) {
-			const text = `#${SelectAndInsertFileAction.Name}`;
-			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
-			if (!success) {
-				logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
-				doCleanup();
+		disposables.add(quickPick.onDidChangeValue(async value => {
+			if (value === '') {
+				quickPick.items = topLevelFolderItems;
+				return;
 			}
-			return;
-		}
 
-		// Handle the case of selecting a specific file
-		const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
-		if (!textModelService.canHandleResource(resource)) {
-			logService.trace('SelectAndInsertFileAction: non-text resource selected');
-			doCleanup();
-			return;
-		}
+			const workspaceFolders = await Promise.all(
+				workspaces.map(workspace =>
+					searchFolders(
+						workspace,
+						value,
+						true,
+						undefined,
+						undefined,
+						configurationService,
+						searchService
+					)
+				));
 
-		const fileName = basename(resource);
-		const text = `#file:${fileName}`;
-		const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
-		if (!success) {
-			logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
-			doCleanup();
-			return;
-		}
+			quickPick.items = workspaceFolders.flat().map(createQuickPickItem);
+		}));
 
-		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: 'vscode.file',
-			isFile: true,
-			prefix: 'file',
-			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: resource
-		});
-	}
-}
-registerAction2(SelectAndInsertFileAction);
+		disposables.add(quickPick.onDidAccept((e) => {
+			const value = (quickPick.selectedItems[0] as any)?.resource;
+			resolve(value);
+		}));
 
-export class SelectAndInsertSymAction extends Action2 {
-	static readonly Name = 'symbols';
-	static readonly ID = 'workbench.action.chat.selectAndInsertSym';
+		disposables.add(quickPick.onDidHide(() => {
+			resolve(undefined);
+		}));
 
-	constructor() {
-		super({
-			id: SelectAndInsertSymAction.ID,
-			title: '' // not displayed
-		});
-	}
+		quickPick.show();
+	});
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const textModelService = accessor.get(ITextModelService);
-		const logService = accessor.get(ILogService);
-		const quickInputService = accessor.get(IQuickInputService);
-
-		const context = args[0];
-		if (!isSelectAndInsertActionContext(context)) {
-			return;
-		}
-
-		const doCleanup = () => {
-			// Failed, remove the dangling `sym`
-			context.widget.inputEditor.executeEdits('chatInsertSym', [{ range: context.range, text: `` }]);
+	function createQuickPickItem(folder: URI): IQuickPickItem & { resource: URI } {
+		return {
+			type: 'item',
+			id: folder.toString(),
+			resource: folder,
+			alwaysShow: true,
+			label: basename(folder),
+			description: labelService.getUriLabel(dirname(folder), { relative: true }),
+			iconClass: ThemeIcon.asClassName(Codicon.folder),
 		};
-
-		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'] });
-		if (!picks?.length) {
-			logService.trace('SelectAndInsertSymAction: no symbol selected');
-			doCleanup();
-			return;
-		}
-
-		const editor = context.widget.inputEditor;
-		const range = context.range;
-
-		// Handle the case of selecting a specific file
-		const symbol = (picks[0] as ISymbolQuickPickItem).symbol;
-		if (!symbol || !textModelService.canHandleResource(symbol.location.uri)) {
-			logService.trace('SelectAndInsertSymAction: non-text resource selected');
-			doCleanup();
-			return;
-		}
-
-		const text = `#sym:${symbol.name}`;
-		const success = editor.executeEdits('chatInsertSym', [{ range, text: text + ' ' }]);
-		if (!success) {
-			logService.trace(`SelectAndInsertSymAction: failed to insert "${text}"`);
-			doCleanup();
-			return;
-		}
-
-		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
-			id: 'vscode.symbol',
-			prefix: 'symbol',
-			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: symbol.location
-		});
 	}
 }
-registerAction2(SelectAndInsertSymAction);
+
+export async function getTopLevelFolders(workspaces: URI[], fileService: IFileService): Promise<URI[]> {
+	const folders: URI[] = [];
+	for (const workspace of workspaces) {
+		const fileSystemProvider = fileService.getProvider(workspace.scheme);
+		if (!fileSystemProvider) {
+			continue;
+		}
+
+		const entries = await fileSystemProvider.readdir(workspace);
+		for (const [name, type] of entries) {
+			const entryResource = joinPath(workspace, name);
+			if (type === FileType.Directory) {
+				folders.push(entryResource);
+			}
+		}
+	}
+
+	return folders;
+}
+
+export async function searchFolders(
+	workspace: URI,
+	pattern: string,
+	fuzzyMatch: boolean,
+	token: CancellationToken | undefined,
+	cacheKey: string | undefined,
+	configurationService: IConfigurationService,
+	searchService: ISearchService
+): Promise<URI[]> {
+	const segmentMatchPattern = caseInsensitiveGlobPattern(fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern));
+
+	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
+	const searchOptions: IFileQuery = {
+		folderQueries: [{
+			folder: workspace,
+			disregardIgnoreFiles: configurationService.getValue<boolean>('explorer.excludeGitIgnore'),
+		}],
+		type: QueryType.File,
+		shouldGlobMatchFilePattern: true,
+		cacheKey,
+		excludePattern: searchExcludePattern,
+	};
+
+	let folderResults: ISearchComplete | undefined;
+	try {
+		folderResults = await searchService.fileSearch({ ...searchOptions, filePattern: `**/${segmentMatchPattern}/**` }, token);
+	} catch (e) {
+		if (!isCancellationError(e)) {
+			throw e;
+		}
+	}
+
+	if (!folderResults || token?.isCancellationRequested) {
+		return [];
+	}
+
+	const folderResources = getMatchingFoldersFromFiles(folderResults.results.map(result => result.resource), workspace, segmentMatchPattern);
+	return folderResources;
+}
+
+function fuzzyMatchingGlobPattern(pattern: string): string {
+	if (!pattern) {
+		return '*';
+	}
+	return '*' + pattern.split('').join('*') + '*';
+}
+
+function continousMatchingGlobPattern(pattern: string): string {
+	if (!pattern) {
+		return '*';
+	}
+	return '*' + pattern + '*';
+}
+
+function caseInsensitiveGlobPattern(pattern: string): string {
+	let caseInsensitiveFilePattern = '';
+	for (let i = 0; i < pattern.length; i++) {
+		const char = pattern[i];
+		if (/[a-zA-Z]/.test(char)) {
+			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
+		} else {
+			caseInsensitiveFilePattern += char;
+		}
+	}
+	return caseInsensitiveFilePattern;
+}
+
+
+// TODO: remove this and have support from the search service
+function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMatchPattern: string): URI[] {
+	const uniqueFolders = new ResourceSet();
+	for (const resource of resources) {
+		const relativePathToRoot = relativePath(workspace, resource);
+		if (!relativePathToRoot) {
+			throw new Error('Resource is not a child of the workspace');
+		}
+
+		let dirResource = workspace;
+		const stats = relativePathToRoot.split('/').slice(0, -1);
+		for (const stat of stats) {
+			dirResource = dirResource.with({ path: `${dirResource.path}/${stat}` });
+			uniqueFolders.add(dirResource);
+		}
+	}
+
+	const matchingFolders: URI[] = [];
+	for (const folderResource of uniqueFolders) {
+		const stats = folderResource.path.split('/');
+		const dirStat = stats[stats.length - 1];
+		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
+			continue;
+		}
+
+		matchingFolders.push(folderResource);
+	}
+
+	return matchingFolders;
+}
+
 
 export interface IAddDynamicVariableContext {
 	id: string;
@@ -427,7 +490,6 @@ export class AddDynamicVariableAction extends Action2 {
 			id: context.id,
 			range: range,
 			isFile: true,
-			prefix: 'file',
 			data: variableData
 		});
 	}

@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { IObservable, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/lineRange.js';
 import { OffsetRange } from '../common/core/offsetRange.js';
@@ -14,7 +14,7 @@ import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
 import { Point } from './point.js';
 
 /**
@@ -155,13 +155,13 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly isReadonly = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
 
 	private readonly _versionId = observableValueOpts<number | null, IModelContentChangedEvent | undefined>({ owner: this, lazy: true }, this.editor.getModel()?.getVersionId() ?? null);
-	public readonly versionId: IObservable<number | null, IModelContentChangedEvent | undefined> = this._versionId;
+	public readonly versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined> = this._versionId;
 
 	private readonly _selections = observableValueOpts<Selection[] | null, ICursorSelectionChangedEvent | undefined>(
 		{ owner: this, equalsFn: equalsIfDefined(itemsEquals(Selection.selectionsEqual)), lazy: true },
 		this.editor.getSelections() ?? null
 	);
-	public readonly selections: IObservable<Selection[] | null, ICursorSelectionChangedEvent | undefined> = this._selections;
+	public readonly selections: IObservableWithChange<Selection[] | null, ICursorSelectionChangedEvent | undefined> = this._selections;
 
 
 	public readonly positions = derivedOpts<readonly Position[] | null>(
@@ -231,6 +231,9 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
 	public readonly layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 	public readonly layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
+	public readonly layoutInfoWidth = this.layoutInfo.map(l => l.width);
+	public readonly layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
+	public readonly layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
 
 	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
@@ -278,6 +281,25 @@ export class ObservableCodeEditor extends Disposable {
 		});
 	}
 
+	public createContentWidget(widget: IObservableContentWidget): IDisposable {
+		const contentWidgetId = 'observableContentWidget' + (this._widgetCounter++);
+		const w: IContentWidget = {
+			getDomNode: () => widget.domNode,
+			getPosition: () => widget.position.get(),
+			getId: () => contentWidgetId,
+			allowEditorOverflow: widget.allowEditorOverflow,
+		};
+		this.editor.addContentWidget(w);
+		const d = autorun(reader => {
+			widget.position.read(reader);
+			this.editor.layoutContentWidget(w);
+		});
+		return toDisposable(() => {
+			d.dispose();
+			this.editor.removeContentWidget(w);
+		});
+	}
+
 	public observeLineOffsetRange(lineRange: IObservable<LineRange>, store: DisposableStore): IObservable<OffsetRange> {
 		const start = this.observePosition(lineRange.map(r => new Position(r.startLineNumber, 1)), store);
 		const end = this.observePosition(lineRange.map(r => new Position(r.endLineNumberExclusive + 1, 1)), store);
@@ -286,7 +308,14 @@ export class ObservableCodeEditor extends Disposable {
 			start.read(reader);
 			end.read(reader);
 			const range = lineRange.read(reader);
-			const s = this.editor.getTopForLineNumber(range.startLineNumber) - this.scrollTop.read(reader);
+			const lineCount = this.model.read(reader)?.getLineCount();
+			const s = (
+				(typeof lineCount !== 'undefined' && range.startLineNumber > lineCount
+					? this.editor.getBottomForLineNumber(lineCount)
+					: this.editor.getTopForLineNumber(range.startLineNumber)
+				)
+				- this.scrollTop.read(reader)
+			);
 			const e = range.isEmpty ? s : (this.editor.getBottomForLineNumber(range.endLineNumberExclusive - 1) - this.scrollTop.read(reader));
 			return new OffsetRange(s, e);
 		});
@@ -304,8 +333,14 @@ export class ObservableCodeEditor extends Disposable {
 			},
 			getId: () => contentWidgetId,
 			allowEditorOverflow: false,
-			afterRender(position, coordinate) {
-				result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+			afterRender: (position, coordinate) => {
+				const model = this._model.get();
+				if (model && pos && pos.lineNumber > model.getLineCount()) {
+					// the position is after the last line
+					result.set(new Point(0, this.editor.getBottomForLineNumber(model.getLineCount()) - this.scrollTop.get()), undefined);
+				} else {
+					result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+				}
 			},
 		};
 		this.editor.addContentWidget(w);
@@ -318,11 +353,32 @@ export class ObservableCodeEditor extends Disposable {
 		}));
 		return result;
 	}
+
+	public readonly openedPeekWidgets = observableValue(this, 0);
+
+	isTargetHovered(predicate: (target: IEditorMouseEvent) => boolean, store: DisposableStore): IObservable<boolean> {
+		const isHovered = observableValue('isInjectedTextHovered', false);
+		store.add(this.editor.onMouseMove(e => {
+			const val = predicate(e);
+			isHovered.set(val, undefined);
+		}));
+
+		store.add(this.editor.onMouseLeave(E => {
+			isHovered.set(false, undefined);
+		}));
+		return isHovered;
+	}
 }
 
 interface IObservableOverlayWidget {
 	get domNode(): HTMLElement;
 	readonly position: IObservable<IOverlayWidgetPosition | null>;
 	readonly minContentWidthInPx: IObservable<number>;
+	get allowEditorOverflow(): boolean;
+}
+
+interface IObservableContentWidget {
+	get domNode(): HTMLElement;
+	readonly position: IObservable<IContentWidgetPosition | null>;
 	get allowEditorOverflow(): boolean;
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { stub } from 'sinon';
-import { tail2 } from '../../common/arrays.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
 import { CancellationToken } from '../../common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
@@ -14,6 +13,7 @@ import { observableValue, transaction } from '../../common/observable.js';
 import { MicrotaskDelay } from '../../common/symbols.js';
 import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { tail } from '../../common/arrays.js';
 
 namespace Samples {
 
@@ -405,8 +405,8 @@ suite('Event', function () {
 		}
 
 		assert.deepStrictEqual(allError.length, 5);
-		const [start, tail] = tail2(allError);
-		assert.ok(tail instanceof ListenerRefusalError);
+		const [start, rest] = tail(allError);
+		assert.ok(rest instanceof ListenerRefusalError);
 
 		for (const item of start) {
 			assert.ok(item instanceof ListenerLeakError);

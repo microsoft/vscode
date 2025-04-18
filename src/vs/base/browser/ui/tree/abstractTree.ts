@@ -947,7 +947,7 @@ interface IAbstractFindControllerOptions extends IFindWidgetOptions {
 	showNotFoundMessage?: boolean;
 }
 
-interface IFindControllerOptions extends IAbstractFindControllerOptions {
+export interface IFindControllerOptions extends IAbstractFindControllerOptions {
 	defaultFindMode?: TreeFindMode;
 	defaultFindMatchType?: TreeFindMatchType;
 }

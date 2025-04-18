@@ -122,6 +122,7 @@ export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
+	alwaysOnTop?: boolean;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -151,7 +152,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
-			sandbox: true
+			sandbox: true,
+			// TODO(deepak1556): Should be removed once migration is complete
+			// https://github.com/microsoft/vscode/issues/239228
+			enableDeprecatedPaste: true,
 		},
 		experimentalDarkMode: true
 	};
@@ -189,20 +193,28 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 
 		if (useWindowControlsOverlay(configurationService)) {
+			if (isMacintosh) {
+				options.titleBarOverlay = true;
+			} else {
 
-			// This logic will not perfectly guess the right colors
-			// to use on initialization, but prefer to keep things
-			// simple as it is temporary and not noticeable
+				// This logic will not perfectly guess the right colors
+				// to use on initialization, but prefer to keep things
+				// simple as it is temporary and not noticeable
 
-			const titleBarColor = themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
-			const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
+				const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+				const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
-			options.titleBarOverlay = {
-				height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
-				color: titleBarColor,
-				symbolColor
-			};
+				options.titleBarOverlay = {
+					height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
+					color: titleBarColor,
+					symbolColor
+				};
+			}
 		}
+	}
+
+	if (overrides?.alwaysOnTop) {
+		options.alwaysOnTop = true;
 	}
 
 	return options;
@@ -371,4 +383,15 @@ export namespace WindowStateValidator {
 
 		return undefined;
 	}
+}
+
+/**
+ * We have some components like `NativeWebContentExtractorService` that create offscreen windows
+ * to extract content from web pages. These windows are not visible to the user and are not
+ * considered part of the main application window. This function filters out those offscreen
+ * windows from the list of all windows.
+ * @returns An array of all BrowserWindow instances that are not offscreen.
+ */
+export function getAllWindowsExcludingOffscreen() {
+	return electron.BrowserWindow.getAllWindows().filter(win => !win.webContents.isOffscreen());
 }

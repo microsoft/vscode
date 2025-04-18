@@ -104,7 +104,7 @@ impl AuthProvider {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoredCredential {
 	#[serde(rename = "p")]
-	provider: AuthProvider,
+	pub(crate) provider: AuthProvider,
 	#[serde(rename = "a")]
 	access_token: String,
 	#[serde(rename = "r")]
@@ -665,12 +665,12 @@ impl Auth {
 			.into();
 		}
 
-		return StatusError {
+		StatusError {
 			body: String::from_utf8_lossy(&body).to_string(),
 			status_code,
 			url: url.to_string(),
 		}
-		.into();
+		.into()
 	}
 	/// Implements the device code flow, returning the credentials upon success.
 	async fn do_device_code_flow(&self) -> Result<StoredCredential, AnyError> {

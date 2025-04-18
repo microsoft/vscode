@@ -397,10 +397,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		}
 
 		try {
-			const scmQuickDiff = quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.isSCM);
-			const scmQuickDiffChanges = quickDiffModelRef.object.changes.filter(change => change.label === scmQuickDiff?.label);
+			const primaryQuickDiff = quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
+			const primaryQuickDiffChanges = quickDiffModelRef.object.changes.filter(change => change.label === primaryQuickDiff?.label);
 
-			return Promise.resolve(scmQuickDiffChanges.map(change => change.change) ?? []);
+			return Promise.resolve(primaryQuickDiffChanges.map(change => change.change) ?? []);
 		} finally {
 			quickDiffModelRef.dispose();
 		}

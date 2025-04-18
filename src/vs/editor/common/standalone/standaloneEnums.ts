@@ -328,7 +328,8 @@ export enum EditorOption {
 	wrappingInfo = 152,
 	defaultColorDecorators = 153,
 	colorDecoratorsActivatedOn = 154,
-	inlineCompletionsAccessibilityVerbose = 155
+	inlineCompletionsAccessibilityVerbose = 155,
+	effectiveExperimentalEditContextEnabled = 156
 }
 
 /**
@@ -417,6 +418,12 @@ export enum InjectedTextCursorStops {
 export enum InlayHintKind {
 	Type = 1,
 	Parameter = 2
+}
+
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2
 }
 
 /**
