@@ -435,22 +435,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private initSelectedModel() {
 		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		const persistedIsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'github.copilot-chat/gpt-4o');
+		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'github.copilot-chat/gpt-4o');
 
 		if (persistedSelection) {
 			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
-			if (model && (!model.isDefault || !persistedIsDefault)) {
-				this.setCurrentLanguageModel({ metadata: model, identifier: persistedSelection });
-				this.checkModelSupported();
+			if (model) {
+				// Only restore the model if it wasn't the default at the time of storing or it is now the default
+				if (!persistedAsDefault || model.isDefault) {
+					this.setCurrentLanguageModel({ metadata: model, identifier: persistedSelection });
+					this.checkModelSupported();
+				}
 			} else {
 				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
 					const persistedModel = e.added?.find(m => m.identifier === persistedSelection);
-					if (persistedModel && (!persistedModel.metadata.isDefault || !persistedIsDefault)) {
+					if (persistedModel) {
 						this._waitForPersistedLanguageModel.clear();
 
-						if (persistedModel.metadata.isUserSelectable) {
-							this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: persistedSelection });
-							this.checkModelSupported();
+						// Only restore the model if it wasn't the default at the time of storing or it is now the default
+						if (!persistedAsDefault || persistedModel.metadata.isDefault) {
+							if (persistedModel.metadata.isUserSelectable) {
+								this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: persistedSelection });
+								this.checkModelSupported();
+							}
 						}
 					}
 				});
