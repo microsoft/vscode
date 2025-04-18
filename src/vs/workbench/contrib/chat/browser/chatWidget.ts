@@ -1487,7 +1487,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Gets a list of all tools specified in the provided prompt files.
 	 */
-	public async getPromptFileToolsMetadata(
+	private async getPromptFileToolsMetadata(
 		variables: readonly IPromptVariableEntry[],
 	): Promise<readonly string[] | null> {
 		// process starting from the 'root' prompt files
