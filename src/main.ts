@@ -211,8 +211,14 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	// Bootstrap ESM
 	await bootstrapESM();
 
+	// node.js code caching
 	if (codeCachePath) {
-		module.enableCompileCache(codeCachePath);
+		const result = module.enableCompileCache(codeCachePath);
+		if (result.status === module.constants.compileCacheStatus.ENABLED || result.status === module.constants.compileCacheStatus.ALREADY_ENABLED) {
+			console.log('node.js compilation cache enabled.');
+		} else {
+			console.log(`node.js compilation cache failed to enable. Error: ${result.message}`);
+		}
 	}
 
 	// Load Main
