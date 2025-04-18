@@ -19,7 +19,7 @@ interface IMockFilesystemNode {
  * Represents a `file` node.
  */
 export interface IMockFile extends IMockFilesystemNode {
-	contents: string;
+	contents: string | readonly string[];
 }
 
 /**
@@ -90,7 +90,11 @@ export class MockFilesystem {
 					`File '${folderUri.path}' already exists.`,
 				);
 
-				await this.fileService.writeFile(childUri, VSBuffer.fromString(child.contents));
+				const contents: string = (typeof child.contents === 'string')
+					? child.contents
+					: child.contents.join('\n');
+
+				await this.fileService.writeFile(childUri, VSBuffer.fromString(contents));
 
 				resolvedChildren.push({
 					...child,

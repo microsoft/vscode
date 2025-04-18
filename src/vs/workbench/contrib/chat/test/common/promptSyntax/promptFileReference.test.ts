@@ -185,7 +185,7 @@ class TestPromptFileReference extends Disposable {
 			[
 				`\nExpected(${this.expectedReferences.length}): [\n ${this.expectedReferences.join('\n ')}\n]`,
 				`Received(${resolvedReferences.length}): [\n ${resolvedReferences.join('\n ')}\n]`,
-			].join('\n')
+			].join('\n'),
 		);
 
 		return rootReference;
@@ -724,7 +724,7 @@ suite('PromptFileReference (Unix)', function () {
 								'## Some Header',
 								'some contents',
 								' ',
-							].join('\n'),
+							],
 						},
 						{
 							name: 'file2.prompt.md',
@@ -736,7 +736,7 @@ suite('PromptFileReference (Unix)', function () {
 								'\t- this file #file:folder1/file3.prompt.md ',
 								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
 								' ',
-							].join('\n'), // TODO: @legomushroom - allow for `string[]` content natively
+							],
 						},
 						{
 							name: 'folder1',
@@ -751,7 +751,7 @@ suite('PromptFileReference (Unix)', function () {
 										'[](./some-other-folder/non-existing-folder)',
 										`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
 										' some more\t content',
-									].join('\n'),
+									],
 								},
 								{
 									name: 'some-other-folder',
@@ -768,7 +768,7 @@ suite('PromptFileReference (Unix)', function () {
 												'',
 												'and some',
 												' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-											].join('\n'),
+											],
 										},
 										{
 											name: 'file.txt',
@@ -785,7 +785,7 @@ suite('PromptFileReference (Unix)', function () {
 														'---',
 														`[](${rootFolder}/folder1/some-other-folder)`,
 														'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-													].join('\n'),
+													],
 												},
 												{
 													name: 'one_more_file_just_in_case.prompt.md',
