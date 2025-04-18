@@ -181,3 +181,57 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 		}
 	}
 });
+
+export const OPEN_OUTPUT_IN_NOTEBOOK_OUTPUT_EDITOR_COMMAND_ID = 'notebook.cellOutput.openInNotebookOutputEditor';
+
+registerAction2(class OpenCellOutputInNotebookOutputEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_OUTPUT_IN_NOTEBOOK_OUTPUT_EDITOR_COMMAND_ID,
+			title: localize('notebookActions.openOutputInNotebookOutputEditor', "Open Cell Output in Notebook Output Editor"),
+			menu: {
+				id: MenuId.NotebookOutputToolbar,
+				when: NOTEBOOK_CELL_HAS_OUTPUTS
+			},
+			f1: false,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+		});
+	}
+
+	private getNoteboookEditor(editorService: IEditorService, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): INotebookEditor | undefined {
+		if (outputContext && 'notebookEditor' in outputContext) {
+			return outputContext.notebookEditor;
+		}
+		return getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	}
+
+	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
+		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
+		if (!notebookEditor) {
+			return;
+		}
+
+		let outputViewModel: ICellOutputViewModel | undefined;
+		if (outputContext && 'outputId' in outputContext && typeof outputContext.outputId === 'string') {
+			outputViewModel = getOutputViewModelFromId(outputContext.outputId, notebookEditor);
+		} else if (outputContext && 'outputViewModel' in outputContext) {
+			outputViewModel = outputContext.outputViewModel;
+		}
+
+		const cell = outputViewModel?.cellViewModel;
+		if (!cell) {
+			return;
+		}
+
+
+
+		if (outputViewModel?.model.outputId && notebookEditor.textModel?.uri) {
+
+			const outputURI = CellUri.generateOutputEditorCellOutputUriWithId(notebookEditor.textModel.uri, outputViewModel.model.outputId, cell.id);
+
+			const openerService = accessor.get(IOpenerService);
+			openerService.open(outputURI, {openToSide: true});
+		}
+	}
+
+});
