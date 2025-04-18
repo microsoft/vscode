@@ -17,9 +17,8 @@ import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatP
 
 /**
  * Widget for a collection of prompt instructions attachments.
- * See {@linkcode InstructionsAttachmentWidget}.
+ * See {@link InstructionsAttachmentWidget}.
  */
-// TODO: @legomushroom -fix linkcodes
 export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * List of child instruction attachment widgets.
@@ -29,7 +28,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * Event that fires when number of attachments change
 	 *
-	 * See {@linkcode onAttachmentsChange}.
+	 * See {@link onAttachmentsChange}.
 	 */
 	private _onAttachmentsChange = this._register(new Emitter<void>());
 	/**
