@@ -86,7 +86,12 @@ export class WorkbenchButtonBar extends ButtonBar {
 			let action: IAction;
 			let btn: IButton;
 			let tooltip: string = '';
-
+			const kb = this._keybindingService.lookupKeybinding(actionOrSubmenu.id);
+			if (kb) {
+				tooltip = localize('labelWithKeybinding', "{0} ({1})", actionOrSubmenu.tooltip || actionOrSubmenu.label, kb.getLabel());
+			} else {
+				tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
+			}
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
 				const [first, ...rest] = actionOrSubmenu.actions;
 				action = <MenuItemAction>first;
@@ -95,17 +100,11 @@ export class WorkbenchButtonBar extends ButtonBar {
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
-					ariaLabel: action.label,
+					ariaLabel: tooltip,
 					supportIcons: true,
 				});
 			} else {
 				action = actionOrSubmenu;
-				const kb = this._keybindingService.lookupKeybinding(action.id);
-				if (kb) {
-					tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip || action.label, kb.getLabel());
-				} else {
-					tooltip = action.tooltip || action.label;
-				}
 				btn = this.addButton({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
 					ariaLabel: tooltip,
@@ -136,14 +135,6 @@ export class WorkbenchButtonBar extends ButtonBar {
 				}
 			}
 
-			if (!tooltip) {
-				const kb = this._keybindingService.lookupKeybinding(action.id);
-				if (kb) {
-					tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip || action.label, kb.getLabel());
-				} else {
-					tooltip = action.tooltip || action.label;
-				}
-			}
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
 				this._actionRunner.run(action);
