@@ -5,6 +5,11 @@
 
 import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection, SelectionDirection } from '../../../../common/core/selection.js';
+import { Position } from '../../../../common/core/position.js';
+import { IPagedScreenReaderStrategy, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
+import { EndOfLinePreference } from '../../../../common/model.js';
 
 export interface ITypeData {
 	text: string;
@@ -64,4 +69,148 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 			target.removeEventListener(type, listener as any);
 		}
 	};
+}
+
+export class NativeEditContextScreenReaderContentState {
+
+	constructor(
+		/** The text before the view line number line text */
+		readonly prePositionLineText: string,
+
+		/** The text after the view line number line text */
+		readonly postPositionLineText: string,
+
+		/** The text on the view line number */
+		readonly positionLineText: string,
+
+		/** The selection start in the concatenation of the above three texts */
+		readonly selectionOffsetStart: number,
+
+		/** The selection end in the concantenation of the above three texts */
+		readonly selectionOffsetEnd: number,
+
+		/** the position of the start of the `value` in the editor */
+		readonly startPositionWithinEditor: Position,
+
+		/** the visible line count (wrapped, not necessarily matching \n characters) for the text in `value` before `selectionStart` */
+		readonly newlineCountBeforeSelection: number
+	) { }
+
+	get value(): string {
+		return this.prePositionLineText + this.positionLineText + this.postPositionLineText;
+	}
+}
+
+export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<NativeEditContextScreenReaderContentState> {
+
+	constructor() { }
+
+	private _getPageOfLine(lineNumber: number, linesPerPage: number): number {
+		return Math.floor((lineNumber - 1) / linesPerPage);
+	}
+
+	private _getRangeForPage(page: number, linesPerPage: number): Range {
+		const offset = page * linesPerPage;
+		const startLineNumber = offset + 1;
+		const endLineNumber = offset + linesPerPage;
+		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
+	}
+
+	public fromEditorSelection(context: ISimpleScreenReaderContext, viewSelection: Selection, linesPerPage: number, trimLongText: boolean): NativeEditContextScreenReaderContentState {
+		// Chromium handles very poorly text even of a few thousand chars
+		// Cut text to avoid stalling the entire UI
+		const LIMIT_CHARS = 500;
+		const fullViewRange = Range.fromPositions(new Position(viewSelection.startLineNumber, 1), new Position(viewSelection.endLineNumber, context.getLineMaxColumn(viewSelection.endLineNumber)));
+
+		const selectionStartPage = this._getPageOfLine(fullViewRange.startLineNumber, linesPerPage);
+		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
+
+		const selectionEndPage = this._getPageOfLine(fullViewRange.endLineNumber, linesPerPage);
+		const selectionEndPageRange = this._getRangeForPage(selectionEndPage, linesPerPage);
+
+		const isClipped = !(selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage);
+
+		let selectionOffsetStart: number = 0;
+		let selectionOffsetEnd: number = 0;
+
+		const lineCount = context.getLineCount();
+		const lineCountColumn = context.getLineMaxColumn(lineCount);
+		const direction = viewSelection.getDirection();
+
+		let positionLineNumber: number;
+		let positionColumn: number;
+
+		switch (direction) {
+			case (SelectionDirection.LTR): {
+				positionLineNumber = viewSelection.endLineNumber;
+				positionColumn = viewSelection.endColumn;
+				break;
+			}
+			case (SelectionDirection.RTL): {
+				positionLineNumber = viewSelection.startLineNumber;
+				positionColumn = viewSelection.startColumn;
+				break;
+			}
+		}
+		const textRange = new Range(positionLineNumber, 1, positionLineNumber, context.getLineMaxColumn(positionLineNumber));
+		const positionLineText = context.getValueInRange(textRange, EndOfLinePreference.LF);
+		const characterOffsetOfPositionWithinText = context.getCharacterCountInRange(new Range(positionLineNumber, 1, positionLineNumber, positionColumn));
+
+		let pretextRange = new Range(1, 1, 1, 1);
+		if (positionLineNumber > 1) {
+			pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, positionLineNumber - 1, context.getLineMaxColumn(positionLineNumber - 1)))!;
+			if (trimLongText && context.getValueLengthInRange(pretextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
+				const pretextStart = context.modifyPosition(pretextRange.getEndPosition(), -LIMIT_CHARS);
+				pretextRange = Range.fromPositions(pretextStart, pretextRange.getEndPosition());
+			}
+		}
+		let posttextRange = new Range(lineCount, lineCountColumn, lineCount, lineCountColumn);
+		if (positionLineNumber < lineCount) {
+			posttextRange = selectionEndPageRange.intersectRanges(new Range(positionLineNumber + 1, 1, lineCount, context.getLineMaxColumn(lineCount)))!;
+			if (trimLongText && context.getValueLengthInRange(posttextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
+				const posttextEnd = context.modifyPosition(posttextRange.getStartPosition(), LIMIT_CHARS);
+				posttextRange = Range.fromPositions(posttextRange.getStartPosition(), posttextEnd);
+			}
+		}
+		console.log('pretextRange : ', pretextRange);
+		console.log('posttextRange : ', posttextRange);
+		const prePositionLineText = context.getValueInRange(pretextRange, EndOfLinePreference.LF) + (isClipped ? String.fromCharCode(8230) : '');
+		let postPositionLineText = (isClipped ? String.fromCharCode(8230) : '') + context.getValueInRange(posttextRange, EndOfLinePreference.LF);
+		const startPositionWithinEditor = pretextRange.getStartPosition();
+		const newlineCountBeforeSelection = pretextRange.endLineNumber - pretextRange.startLineNumber;
+		switch (direction) {
+			case (SelectionDirection.LTR): {
+				selectionOffsetEnd = prePositionLineText.length + characterOffsetOfPositionWithinText;
+				selectionOffsetStart = context.getCharacterCountInRange(Range.fromPositions(pretextRange.getStartPosition(), viewSelection.getStartPosition()));
+				break;
+			}
+			case (SelectionDirection.RTL): {
+				selectionOffsetStart = prePositionLineText.length + characterOffsetOfPositionWithinText;
+				selectionOffsetEnd = context.getCharacterCountInRange(Range.fromPositions(posttextRange.getStartPosition(), viewSelection.getEndPosition()));
+				break;
+			}
+		}
+		const lastColumn = context.getLineMaxColumn(lineCount);
+		if (lastColumn === 1 && viewSelection.getEndPosition().equals(new Position(lineCount, lastColumn))) {
+			postPositionLineText += '\n';
+		}
+		console.log('prePositionLineText : ', prePositionLineText);
+		console.log('postPositionLineText : ', postPositionLineText);
+		console.log('positionLineText : ', positionLineText);
+		console.log('selectionOffsetStart : ', selectionOffsetStart);
+		console.log('selectionOffsetEnd : ', selectionOffsetEnd);
+		const state = new NativeEditContextScreenReaderContentState(
+			prePositionLineText,
+			postPositionLineText,
+			positionLineText,
+			selectionOffsetStart,
+			selectionOffsetEnd,
+			startPositionWithinEditor,
+			newlineCountBeforeSelection
+		);
+
+		console.log('viewSelection : ', viewSelection);
+
+		return state;
+	}
 }

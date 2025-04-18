@@ -36,9 +36,9 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AbstractEditContext } from '../editContext.js';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
-import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
+import { ariaLabelForScreenReaderContent, ISimpleScreenReaderContext, newlinecount } from '../screenReaderUtils.js';
 import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
-import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
+import { _debugComposition, ITypeData, TextAreaState, TextAreaPagedScreenReaderStrategy } from './textAreaEditContextState.js';
 import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
 
 export interface IVisibleRangeProvider {
@@ -144,6 +144,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
 	private readonly _textAreaInput: TextAreaInput;
+	private readonly _textAreaPagedScreenReaderStrategy: TextAreaPagedScreenReaderStrategy = new TextAreaPagedScreenReaderStrategy();
 
 	constructor(
 		context: ViewContext,
@@ -203,7 +204,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this.textArea);
 		overflowGuardContainer.appendChild(this.textAreaCover);
 
-		const simpleModel: ISimpleModel = {
+		const simpleModel: ISimpleScreenReaderContext = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
 			},
@@ -218,6 +219,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 			},
 			modifyPosition: (position: Position, offset: number): Position => {
 				return this._context.viewModel.modifyPosition(position, offset);
+			},
+			getCharacterCountInRange: (range: Range, eol?: EndOfLinePreference): number => {
+				return this._context.viewModel.model.getCharacterCountInRange(range, eol);
 			}
 		};
 
@@ -279,8 +283,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					}
 					return TextAreaState.EMPTY;
 				}
-
-				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				const screenReaderContentState = this._textAreaPagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			},
 
