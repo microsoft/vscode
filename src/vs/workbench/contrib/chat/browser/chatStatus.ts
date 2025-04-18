@@ -543,13 +543,13 @@ class ChatStatusDashboard extends Disposable {
 		// --- Next Edit Suggestions
 		{
 			const setting = append(settings, $('div.setting'));
-			this.createNextEditSuggestionsSetting(setting, localize('settings.nextEditSuggestions', "Next Edit Suggestions"), modeId, this.getCompletionsSettingAccessor(modeId), disposables);
+			this.createNextEditSuggestionsSetting(setting, localize('settings.nextEditSuggestions', "Next Edit Suggestions"), this.getCompletionsSettingAccessor(modeId), disposables);
 		}
 
 		return settings;
 	}
 
-	private createSetting(container: HTMLElement, settingId: string, label: string, accessor: ISettingsAccessor, disposables: DisposableStore): Checkbox {
+	private createSetting(container: HTMLElement, settingIdsToReEvaluate: string[], label: string, accessor: ISettingsAccessor, disposables: DisposableStore): Checkbox {
 		const checkbox = disposables.add(new Checkbox(label, Boolean(accessor.readSetting()), defaultCheckboxStyles));
 		container.appendChild(checkbox.domNode);
 
@@ -572,7 +572,7 @@ class ChatStatusDashboard extends Disposable {
 		}));
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(settingId)) {
+			if (settingIdsToReEvaluate.some(id => e.affectsConfiguration(id))) {
 				checkbox.checked = Boolean(accessor.readSetting());
 			}
 		}));
@@ -580,13 +580,14 @@ class ChatStatusDashboard extends Disposable {
 		if (!canUseCopilot(this.chatEntitlementService)) {
 			container.classList.add('disabled');
 			checkbox.disable();
+			checkbox.checked = false;
 		}
 
 		return checkbox;
 	}
 
 	private createCodeCompletionsSetting(container: HTMLElement, label: string, modeId: string | undefined, disposables: DisposableStore): void {
-		this.createSetting(container, defaultChat.completionsEnablementSetting, label, this.getCompletionsSettingAccessor(modeId), disposables);
+		this.createSetting(container, [defaultChat.completionsEnablementSetting], label, this.getCompletionsSettingAccessor(modeId), disposables);
 	}
 
 	private getCompletionsSettingAccessor(modeId = '*'): ISettingsAccessor {
@@ -605,13 +606,13 @@ class ChatStatusDashboard extends Disposable {
 		};
 	}
 
-	private createNextEditSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined, completionsSettingAccessor: ISettingsAccessor, disposables: DisposableStore): void {
+	private createNextEditSuggestionsSetting(container: HTMLElement, label: string, completionsSettingAccessor: ISettingsAccessor, disposables: DisposableStore): void {
 		const nesSettingId = defaultChat.nextEditSuggestionsSetting;
 		const completionsSettingId = defaultChat.completionsEnablementSetting;
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		const checkbox = this.createSetting(container, nesSettingId, label, {
-			readSetting: () => this.textResourceConfigurationService.getValue<boolean>(resource, nesSettingId),
+		const checkbox = this.createSetting(container, [nesSettingId, completionsSettingId], label, {
+			readSetting: () => completionsSettingAccessor.readSetting() && this.textResourceConfigurationService.getValue<boolean>(resource, nesSettingId),
 			writeSetting: (value: boolean) => this.textResourceConfigurationService.updateValue(resource, nesSettingId, value)
 		}, disposables);
 
