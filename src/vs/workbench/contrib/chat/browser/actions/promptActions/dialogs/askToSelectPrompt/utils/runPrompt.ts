@@ -45,10 +45,19 @@ export const runPromptFile = async (
 
 	const widget = await getChatWidgetObject(options);
 
-	await widget.setInput(`/${basename(file)}`);
+	// const { attachmentModel, input } = widget;
+	// const { promptInstructions } = attachmentModel;
+
+	// const { toolsMetadata } = (await promptInstructions.allSettled());
+	// if ((toolsMetadata !== null) && (toolsMetadata.length > 0)) {
+	// 	input.selectedToolsModel
+	// 		.selectOnly(toolsMetadata);
+	// }
+
+	widget.setInput(`/${basename(file)}`);
 	// submit the prompt immediately
 	await widget.acceptInput();
 
+
 	return { widget };
 };
-

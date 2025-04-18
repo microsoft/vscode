@@ -488,7 +488,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Associated `tools` metadata for the current reference.
 	 */
-	// TODO: @legomushroom - add unit tests?
 	public get toolsMetadata(): readonly string[] | null {
 		if (this.header === undefined) {
 			return null;
@@ -506,7 +505,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Entire associated `tools` metadata for this reference and
 	 * all possible nested child references.
 	 */
-	// TODO: @legomushroom - add unit tests?
 	public get allToolsMetadata(): readonly string[] | null {
 		let hasTools = false;
 		const result: string[] = [];
