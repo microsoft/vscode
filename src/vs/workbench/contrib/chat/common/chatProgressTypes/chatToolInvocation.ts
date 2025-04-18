@@ -95,6 +95,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			resultDetails: this._resultDetails,
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
+			toolId: this.toolId,
 		};
 	}
 }
