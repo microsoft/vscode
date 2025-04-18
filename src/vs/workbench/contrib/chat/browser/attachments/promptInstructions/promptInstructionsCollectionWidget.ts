@@ -63,17 +63,11 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get a promise that resolves when parsing/resolving processes
+	 * are fully completed, including all possible nested child references.
 	 */
 	public allSettled() {
 		return this.model.allSettled();
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public get toolsMetadata() {
-		return this.model.toolsMetadata;
 	}
 
 	/**
