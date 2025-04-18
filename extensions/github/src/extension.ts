@@ -5,18 +5,18 @@
 
 import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { GithubRemoteSourceProvider } from './remoteSourceProvider';
-import { API, GitExtension } from './typings/git';
-import { registerCommands } from './commands';
-import { GithubCredentialProviderManager } from './credentialProvider';
-import { DisposableStore, repositoryHasGitHubRemote } from './util';
-import { GithubPushErrorHandler } from './pushErrorHandler';
-import { GitBaseExtension } from './typings/git-base';
-import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
-import { GitHubBranchProtectionProviderManager } from './branchProtection';
-import { GitHubCanonicalUriProvider } from './canonicalUriProvider';
-import { VscodeDevShareProvider } from './shareProviders';
-import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider';
+import { GithubRemoteSourceProvider } from './remoteSourceProvider.js';
+import { API, GitExtension } from './typings/git.js';
+import { registerCommands } from './commands.js';
+import { GithubCredentialProviderManager } from './credentialProvider.js';
+import { DisposableStore, repositoryHasGitHubRemote } from './util.js';
+import { GithubPushErrorHandler } from './pushErrorHandler.js';
+import { GitBaseExtension } from './typings/git-base.js';
+import { GithubRemoteSourcePublisher } from './remoteSourcePublisher.js';
+import { GitHubBranchProtectionProviderManager } from './branchProtection.js';
+import { GitHubCanonicalUriProvider } from './canonicalUriProvider.js';
+import { VscodeDevShareProvider } from './shareProviders.js';
+import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider.js';
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
@@ -31,8 +31,8 @@ export function activate(context: ExtensionContext): void {
 	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
 	onDidChangeLogLevel(logger.logLevel);
 
-	const { aiKey } = require('../package.json') as { aiKey: string };
-	const telemetryReporter = new TelemetryReporter(aiKey);
+	const { aiKey } = context.extension.packageJSON as { aiKey: string };
+	const telemetryReporter = new TelemetryReporter.default(aiKey);
 	disposables.push(telemetryReporter);
 
 	disposables.push(initializeGitBaseExtension());
@@ -84,7 +84,7 @@ function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
 	}
 }
 
-function initializeGitExtension(context: ExtensionContext, telemetryReporter: TelemetryReporter, logger: LogOutputChannel): Disposable {
+function initializeGitExtension(context: ExtensionContext, telemetryReporter: TelemetryReporter.default, logger: LogOutputChannel): Disposable {
 	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
