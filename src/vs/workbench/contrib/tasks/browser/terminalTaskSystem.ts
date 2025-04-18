@@ -290,7 +290,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (task.configurationProperties.dependsOn) {
 				// Track the parent task #244744
 				const mapKey = task.getMapKey();
-				this._activeTasks[mapKey] = this._activeTasks[mapKey] || { task, promise: executeResult.promise, count: { count: 0 } };
+				this._activeTasks[mapKey] = { task, promise: executeResult.promise, count: { count: 0 } };
 			}
 			executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
@@ -578,7 +578,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 		}).finally(() => {
 			delete this._activeTasks[mapKey];
-			delete this._activeTasks[task.getMapKey()];
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };
