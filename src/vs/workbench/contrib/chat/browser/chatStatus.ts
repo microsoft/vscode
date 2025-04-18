@@ -322,7 +322,7 @@ class ChatStatusDashboard extends Disposable {
 			const limited = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
 			if ((limited && (chatQuota?.percentRemaining === 0 || completionsQuota?.percentRemaining === 0)) || (!limited && premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				button.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Additional Usage");
+				button.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Pay for Additional Requests");
 				disposables.add(button.onDidClick(() => this.runCommandAndClose(limited ? 'workbench.action.chat.upgradePlan' : () => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 			}
 
