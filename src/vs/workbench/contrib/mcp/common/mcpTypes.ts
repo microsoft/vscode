@@ -44,6 +44,9 @@ export interface McpCollectionDefinition {
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
 
+	/** Resolves a server definition. If present, always called before a server starts. */
+	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
+
 	/** For lazy-loaded collections only: */
 	readonly lazy?: {
 		/** True if `serverDefinitions` were loaded from the cache */
@@ -78,6 +81,8 @@ export namespace McpCollectionDefinition {
 		readonly label: string;
 		readonly isTrustedByDefault: boolean;
 		readonly scope: StorageScope;
+		readonly canResolveLaunch: boolean;
+		readonly extensionId: string;
 	}
 
 	export function equals(a: McpCollectionDefinition, b: McpCollectionDefinition): boolean {
