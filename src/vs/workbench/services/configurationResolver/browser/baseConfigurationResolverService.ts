@@ -17,7 +17,7 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } f
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, IWorkspaceFolderData, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -44,7 +44,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
-		private readonly workspaceContextService: IWorkspaceContextService,
+		workspaceContextService: IWorkspaceContextService,
 		private readonly quickInputService: IQuickInputService,
 		private readonly labelService: ILabelService,
 		private readonly pathService: IPathService,
