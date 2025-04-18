@@ -255,6 +255,7 @@ export interface IChatToolInvocationSerialized {
 	isConfirmed: boolean | undefined;
 	isComplete: boolean;
 	toolCallId: string;
+	toolId: string;
 	kind: 'toolInvocationSerialized';
 }
 
