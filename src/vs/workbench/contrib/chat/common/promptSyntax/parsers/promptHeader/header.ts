@@ -145,6 +145,18 @@ export class PromptHeader extends Disposable {
 			return;
 		}
 
+		// if the record might be a "description" metadata
+		// add it to the list of parsed metadata records
+		if (PromptDescriptionMetadata.isDescriptionRecord(token)) {
+			const descriptionMetadata = new PromptDescriptionMetadata(token);
+			const { diagnostics } = descriptionMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.description = descriptionMetadata;
+			this.recordNames.add(recordName);
+			return;
+		}
+
 		// all other records are currently not supported
 		this.issues.push(
 			new PromptMetadataWarning(
