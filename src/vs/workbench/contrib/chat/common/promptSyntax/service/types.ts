@@ -45,7 +45,6 @@ export interface IPromptPath {
 	readonly type: TPromptsType;
 }
 
-
 /**
  * Provides prompt services.
  */
@@ -76,7 +75,7 @@ export interface IPromptsService extends IDisposable {
 	getPromptSlashData(name: string): IChatPromptSlashData | undefined;
 
 	/**
-	 * Searches for the prompt file for the slash command
+	 * Searches for the prompt file for the slash command.
 	 */
 	resolvePromptSlashData(data: IChatPromptSlashData): Promise<IPromptPath | undefined>;
 
@@ -90,6 +89,7 @@ export interface IChatPromptSlashData {
 /**
  * Decoration CSS class modifiers.
  */
+// TODO: @legomushroom - move out
 export enum CssClassModifiers {
 	Inactive = '.prompt-decoration-inactive',
 }

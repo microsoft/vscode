@@ -160,7 +160,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly selectedToolsModel: ChatSelectedTools;
 
-	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
+	public async getAttachedAndImplicitContext(sessionId: string): Promise<IChatRequestVariableEntry[]> {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
 			contextArr.push(this.implicitContext.toBaseEntry());
@@ -181,6 +181,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}),
 			);
 		}
+
+		// wait for all prompt files resolve precesses to settle
+		await this.promptInstructionsAttachmentsPart.allSettled();
 
 		contextArr
 			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
