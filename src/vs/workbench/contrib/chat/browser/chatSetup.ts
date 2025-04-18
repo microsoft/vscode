@@ -56,7 +56,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestModel } from '../common/chatModel.js';
+import { IChatRequestModel, ChatRequestModel, ChatModel, IChatRequestVariableData, IChatRequestToolEntry } from '../common/chatModel.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
@@ -64,6 +64,9 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import './media/chatSetup.css';
+import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -96,7 +99,7 @@ const ToolsAgentWhen = ContextKeyExpr.and(
 
 class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
+	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -125,30 +128,41 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 					break;
 			}
 
-			const disposables = new DisposableStore();
-
-			disposables.add(chatAgentService.registerAgent(id, {
-				id,
-				name: `${defaultChat.providerName} Copilot`,
-				isDefault: true,
-				isCore: true,
-				modes: mode ? [mode] : [ChatMode.Ask],
-				when: mode === ChatMode.Agent ? ToolsAgentWhen?.serialize() : undefined,
-				slashCommands: [],
-				disambiguation: [],
-				locations: [location],
-				metadata: { helpTextPrefix: SetupChatAgent.SETUP_NEEDED_MESSAGE },
-				description,
-				extensionId: nullExtensionDescription.identifier,
-				extensionDisplayName: nullExtensionDescription.name,
-				extensionPublisherId: nullExtensionDescription.publisher
-			}));
-
-			const agent = disposables.add(instantiationService.createInstance(SetupChatAgent, context, controller, location));
-			disposables.add(chatAgentService.registerAgentImplementation(id, agent));
-
-			return { agent, disposable: disposables };
+			return SetupChatAgent.registerAgents(instantiationService, chatAgentService, id, `${defaultChat.providerName} Copilot`, true, description, location, mode, context, controller);
 		});
+	}
+
+	static registerOtherAgents(instantiationService: IInstantiationService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
+		return instantiationService.invokeFunction(accessor => {
+			const chatAgentService = accessor.get(IChatAgentService);
+			return SetupChatAgent.registerAgents(instantiationService, chatAgentService, id, name, isDefault, description, location, mode, context, controller);
+		});
+	}
+
+	static registerAgents(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
+
+		const disposables = new DisposableStore();
+		disposables.add(chatAgentService.registerAgent(id, {
+			id,
+			name,
+			isDefault,
+			isCore: true,
+			modes: mode ? [mode] : [ChatMode.Ask],
+			when: mode === ChatMode.Agent ? ToolsAgentWhen?.serialize() : undefined,
+			slashCommands: [],
+			disambiguation: [],
+			locations: [location],
+			metadata: { helpTextPrefix: SetupChatAgent.SETUP_NEEDED_MESSAGE },
+			description,
+			extensionId: nullExtensionDescription.identifier,
+			extensionDisplayName: nullExtensionDescription.name,
+			extensionPublisherId: nullExtensionDescription.publisher
+		}));
+
+		const agent = disposables.add(instantiationService.createInstance(SetupChatAgent, context, controller, location));
+		disposables.add(chatAgentService.registerAgentImplementation(id, agent));
+
+		return { agent, disposable: disposables };
 	}
 
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up Copilot to use Chat."));
@@ -176,20 +190,20 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 			const languageModelsService = accessor.get(ILanguageModelsService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
-
-			return this.doInvoke(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService);
+			const languageModelToolsService = accessor.get(ILanguageModelToolsService);
+			return this.doInvoke(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 		});
 	}
 
-	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
+	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
 		if (!this.context.state.installed || this.context.state.entitlement === ChatEntitlement.Available || this.context.state.entitlement === ChatEntitlement.Unknown) {
-			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService);
+			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 		}
 
-		return this.doInvokeWithoutSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService);
+		return this.doInvokeWithoutSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 	}
 
-	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
+	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
@@ -201,14 +215,14 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 			content: new MarkdownString(localize('waitingCopilot', "Getting Copilot ready.")),
 		});
 
-		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 
 		return {};
 	}
 
-	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
+	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		try {
-			await this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+			await this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		} catch (error) {
 			progress({
 				kind: 'warning',
@@ -217,12 +231,12 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
-	private async doForwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
+	private async doForwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		if (this.pendingForwardedRequests.has(requestModel.session.sessionId)) {
 			throw new Error('Request already in progress');
 		}
 
-		const forwardRequest = this.doForwardRequestToCopilotWhenReady(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+		const forwardRequest = this.doForwardRequestToCopilotWhenReady(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		this.pendingForwardedRequests.set(requestModel.session.sessionId, forwardRequest);
 
 		try {
@@ -232,7 +246,7 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
-	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
+	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
 		const mode = widget?.input.currentMode;
 		const languageModel = widget?.input.currentLanguageModel;
@@ -243,8 +257,9 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, mode);
+		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel);
 
-		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise) {
+		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
 			const timeoutHandle = setTimeout(() => {
 				progress({
 					kind: 'progressMessage',
@@ -256,7 +271,7 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 				const ready = await Promise.race([
 					timeout(20000).then(() => 'timedout'),
 					this.whenDefaultAgentFailed(chatService).then(() => 'error'),
-					Promise.allSettled([whenLanguageModelReady, whenAgentReady])
+					Promise.allSettled([whenLanguageModelReady, whenAgentReady, whenToolsModelReady])
 				]);
 
 				if (ready === 'error' || ready === 'timedout') {
@@ -292,6 +307,30 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
 	}
 
+	private whenToolsModelReady(languageModelToolsService: ILanguageModelToolsService, requestModel: IChatRequestModel): Promise<unknown> | void {
+
+		const needsToolsModel = requestModel.message.parts.some(part => part instanceof ChatRequestToolPart);
+		if (!needsToolsModel) {
+			return; // No tools in this request, no need to check
+		}
+
+		// check that tools other than setup. and internal tools are registered.
+		for (const tool of languageModelToolsService.getTools()) {
+			if (tool.source.type !== 'internal') {
+				return; // we have tools!
+			}
+		}
+
+		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, (_) => {
+			for (const tool of languageModelToolsService.getTools()) {
+				if (tool.source.type !== 'internal') {
+					return true; // we have tools!
+				}
+			}
+			return false; // no external tools found
+		}));
+	}
+
 	private whenAgentReady(chatAgentService: IChatAgentService, mode: ChatMode | undefined): Promise<unknown> | void {
 		const defaultAgent = chatAgentService.getDefaultAgent(this.location, mode);
 		if (defaultAgent && !defaultAgent.isCore) {
@@ -310,7 +349,7 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
+	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
@@ -350,7 +389,11 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 						content: new MarkdownString(localize('copilotSetupSuccess', "Copilot setup finished successfully."))
 					});
 				} else if (requestModel) {
-					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+					// Replace agent part with the actual Copilot agent
+					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService);
+					// Then replace any tool parts with the actual Copilot tools
+					newRequest = this.replaceToolInRequestModel(newRequest);
+					await this.forwardRequestToCopilot(newRequest, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 				}
 			} else {
 				progress({
@@ -369,6 +412,126 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		return {};
+	}
+
+	private replaceAgentInRequestModel(requestModel: IChatRequestModel, chatAgentService: IChatAgentService): IChatRequestModel {
+		const agentPart = requestModel.message.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
+		if (!agentPart) {
+			return requestModel;
+		}
+
+		const agentId = agentPart.agent.id.replace(/setup\./, `${defaultChat.extensionId}.`.toLowerCase());
+		const githubAgent = chatAgentService.getAgent(agentId);
+		if (!githubAgent) {
+			return requestModel;
+		}
+
+		const newAgentPart = new ChatRequestAgentPart(agentPart.range, agentPart.editorRange, githubAgent);
+
+		return new ChatRequestModel({
+			session: requestModel.session as ChatModel,
+			message: {
+				parts: requestModel.message.parts.map(part => {
+					if (part instanceof ChatRequestAgentPart) {
+						return newAgentPart;
+					}
+					return part;
+				}),
+				text: requestModel.message.text
+			},
+			variableData: requestModel.variableData,
+			timestamp: Date.now(),
+			attempt: requestModel.attempt,
+			confirmation: requestModel.confirmation,
+			locationData: requestModel.locationData,
+			attachedContext: requestModel.attachedContext,
+			isCompleteAddedRequest: requestModel.isCompleteAddedRequest,
+		});
+	}
+
+	private replaceToolInRequestModel(requestModel: IChatRequestModel): IChatRequestModel {
+		const toolPart = requestModel.message.parts.find((r): r is ChatRequestToolPart => r instanceof ChatRequestToolPart);
+		if (!toolPart) {
+			return requestModel;
+		}
+
+		const toolId = toolPart.toolId.replace(/setup.tools\./, `copilot_`.toLowerCase());
+		const newToolPart = new ChatRequestToolPart(
+			toolPart.range,
+			toolPart.editorRange,
+			toolPart.toolName,
+			toolId,
+			toolPart.displayName,
+			toolPart.icon
+		);
+
+		const chatRequestToolEntry: IChatRequestToolEntry = {
+			id: toolId,
+			name: 'new',
+			range: toolPart.range,
+			kind: 'tool',
+			value: undefined
+		};
+
+		const variableData: IChatRequestVariableData = {
+			variables: [chatRequestToolEntry]
+		};
+
+		return new ChatRequestModel({
+			session: requestModel.session as ChatModel,
+			message: {
+				parts: requestModel.message.parts.map(part => {
+					if (part instanceof ChatRequestToolPart) {
+						return newToolPart;
+					}
+					return part;
+				}),
+				text: requestModel.message.text
+			},
+			variableData: variableData,
+			timestamp: Date.now(),
+			attempt: requestModel.attempt,
+			confirmation: requestModel.confirmation,
+			locationData: requestModel.locationData,
+			attachedContext: [chatRequestToolEntry],
+			isCompleteAddedRequest: requestModel.isCompleteAddedRequest,
+		});
+	}
+}
+
+
+class SetupTool extends Disposable implements IToolImpl {
+
+	static registerTools(instantiationService: IInstantiationService, toolData: IToolData): { disposable: IDisposable; tool: SetupTool } {
+		return instantiationService.invokeFunction(accessor => {
+			const disposables = new DisposableStore();
+			const toolService = accessor.get(ILanguageModelToolsService);
+			disposables.add(toolService.registerToolData(toolData));
+			const tool = instantiationService.createInstance(SetupTool);
+			disposables.add(toolService.registerToolImplementation(toolData.id, tool));
+			return { tool, disposable: disposables };
+		});
+	}
+
+	constructor(
+	) {
+		super();
+	}
+
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+		const result: IToolResult = {
+			content: [
+				{
+					kind: 'text',
+					value: ''
+				}
+			]
+		};
+		return Promise.resolve(result);
+	}
+
+	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -573,35 +736,70 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
-		const agentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
-
+		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
+		const otherAgentsAndToolsDisposable = markAsSingleton(new MutableDisposable());
 		const updateRegistration = () => {
 			const disabled = context.state.hidden;
-			if (!disabled && !agentDisposables.value) {
-				const disposables = agentDisposables.value = new DisposableStore();
+			if (!disabled) {
 
-				// Panel Agents
-				const panelAgentDisposables = disposables.add(new DisposableStore());
-				for (const mode of [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent]) {
-					const { agent, disposable } = SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
-					panelAgentDisposables.add(disposable);
-					panelAgentDisposables.add(agent.onUnresolvableError(() => {
-						// An unresolvable error from our agent registrations means that
-						// Copilot is unhealthy for some reason. We clear our panel
-						// registration to give Copilot a chance to show a custom message
-						// to the user from the views and stop pretending as if there was
-						// a functional agent.
-						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-						panelAgentDisposables.dispose();
-					}));
+				if (!defaultAgentDisposables.value) {
+					const disposables = defaultAgentDisposables.value = new DisposableStore();
+
+					// Panel Agents
+					const panelAgentDisposables = disposables.add(new DisposableStore());
+					for (const mode of [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent]) {
+						const { agent, disposable } = SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
+						panelAgentDisposables.add(disposable);
+						panelAgentDisposables.add(agent.onUnresolvableError(() => {
+							// An unresolvable error from our agent registrations means that
+							// Copilot is unhealthy for some reason. We clear our panel
+							// registration to give Copilot a chance to show a custom message
+							// to the user from the views and stop pretending as if there was
+							// a functional agent.
+							this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+							panelAgentDisposables.dispose();
+						}));
+					}
+
+					// Inline Agents
+					disposables.add(SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
+					disposables.add(SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
+					disposables.add(SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 				}
 
-				// Inline Agents
-				disposables.add(SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
-				disposables.add(SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-				disposables.add(SetupChatAgent.register(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
-			} else if (disabled && agentDisposables.value) {
-				agentDisposables.clear();
+				if (!otherAgentsAndToolsDisposable.value) {
+					const disposables = otherAgentsAndToolsDisposable.value = new DisposableStore();
+					// VSCode Agent
+					disposables.add(SetupChatAgent.registerOtherAgents(this.instantiationService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller).disposable);
+
+					// Tools
+					disposables.add(SetupTool.registerTools(this.instantiationService, {
+						id: 'setup.tools.createNewWorkspace',
+						source: {
+							type: 'internal',
+						},
+						icon: Codicon.newFolder,
+						displayName: localize('setupToolDisplayName', "New Workspace"),
+						modelDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+						userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+						canBeReferencedInPrompt: true,
+						toolReferenceName: 'new',
+						when: ContextKeyExpr.true(),
+						supportsToolPicker: true,
+					}).disposable);
+				}
+
+			} else {
+				if (defaultAgentDisposables.value) {
+					defaultAgentDisposables.clear();
+				}
+				if (otherAgentsAndToolsDisposable.value) {
+					otherAgentsAndToolsDisposable.clear();
+				}
+			}
+			if (context.state.installed && otherAgentsAndToolsDisposable.value) {
+				// we need to do this to prevent showing duplicate agent/tool entries in the list
+				otherAgentsAndToolsDisposable.clear();
 			}
 		};
 
