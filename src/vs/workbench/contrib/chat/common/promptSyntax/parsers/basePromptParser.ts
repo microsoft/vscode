@@ -139,7 +139,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return this;
 		}
 
-		// TODO: @legomushroom - what to do if the stream is not defined?
+		// by the time when the `firstParseResult` promise is resolved,
+		// this object may have been already disposed, hence noop
+		if (this.disposed) {
+			return this;
+		}
+
 		assertDefined(
 			this.stream,
 			'No stream reference found.',

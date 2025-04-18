@@ -40,5 +40,9 @@ export enum DecorationClassNames {
  * Decoration CSS class modifiers.
  */
 export enum CssClassModifiers {
+	/**
+	 * CSS class modifier for `active` state of
+	 * a `reactive` prompt syntax decoration.
+	 */
 	Inactive = '.prompt-decoration-inactive',
 }
