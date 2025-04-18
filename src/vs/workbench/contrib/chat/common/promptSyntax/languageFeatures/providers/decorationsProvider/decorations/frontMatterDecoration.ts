@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CssClassModifiers } from '../types.js';
 import { localize } from '../../../../../../../../../nls.js';
-import { CssClassModifiers } from '../../../../service/types.js';
 import { FrontMatterMarkerDecoration } from './frontMatterMarkerDecoration.js';
 import { Position } from '../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';

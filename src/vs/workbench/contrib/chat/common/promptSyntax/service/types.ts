@@ -85,11 +85,3 @@ export interface IChatPromptSlashData {
 	readonly command: string;
 	readonly detail: string;
 }
-
-/**
- * Decoration CSS class modifiers.
- */
-// TODO: @legomushroom - move out
-export enum CssClassModifiers {
-	Inactive = '.prompt-decoration-inactive',
-}
