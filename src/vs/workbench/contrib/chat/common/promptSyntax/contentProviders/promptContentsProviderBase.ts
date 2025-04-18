@@ -128,7 +128,6 @@ export abstract class PromptContentsProviderBase<
 		// `'full'` means "everything has changed"
 		this.onContentsChanged('full');
 
-		// TODO: @legomushroom - test this?
 		// subscribe to the change event emitted by a child class
 		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 
