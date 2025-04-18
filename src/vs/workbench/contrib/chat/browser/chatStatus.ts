@@ -311,9 +311,9 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const completionsQuotaIndicator = completionsQuota ? this.createQuotaIndicator(this.element, completionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const chatQuotaIndicator = chatQuota ? this.createQuotaIndicator(this.element, chatQuota, premiumChatQuota ? localize('basicChatsLabel', "Basic chat requests") : localize('chatsLabel', "Chat requests")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat requests"), overageCount => localize('overrageDisplay', "{0} additional requests used.", overageCount)) : undefined;
+			const completionsQuotaIndicator = completionsQuota ? this.createQuotaIndicator(this.element, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
+			const chatQuotaIndicator = chatQuota ? this.createQuotaIndicator(this.element, chatQuota, premiumChatQuota ? localize('basicChatsLabel', "Basic chat requests") : localize('chatsLabel', "Chat requests"), false) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat requests"), true) : undefined;
 
 			if (resetDate) {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance renews on {0}.", this.dateFormatter.value.format(new Date(resetDate)))));
@@ -459,21 +459,21 @@ class ChatStatusDashboard extends Disposable {
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string, overageLabel?: (overage: number) => string): (quota: IQuotaSnapshot) => void {
-		const quotaText = $('span.quota-percentage');
+	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
+		const quotaValue = $('span.quota-value');
 		const quotaBit = $('div.quota-bit');
-		const overageIndicator = $('span.overage-indicator');
+		const overageLabel = $('span.overage-label');
 
 		const quotaIndicator = container.appendChild($('div.quota-indicator', undefined,
 			$('div.quota-label', undefined,
 				$('span', undefined, label),
-				quotaText
+				quotaValue
 			),
 			$('div.quota-bar', undefined,
 				quotaBit
 			),
 			$('div.overage', undefined,
-				overageIndicator
+				overageLabel
 			)
 		));
 
@@ -484,14 +484,14 @@ class ChatStatusDashboard extends Disposable {
 
 			if (quota.unlimited) {
 				quotaIndicator.classList.add('unlimited');
-				quotaText.textContent = localize('quotaUnlimited', "Included");
+				quotaValue.textContent = localize('quotaUnlimited', "Included");
 			} else {
 				let usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 				if (usedPercentage === 0) {
 					usedPercentage = 1; // indicate minimal usage as 1%
 				}
 
-				quotaText.textContent = localize('quotaDisplay', "{0}%", usedPercentage);
+				quotaValue.textContent = quota.overageCount ? localize('quotaDisplayWithOverage', "{0}% +{1}", usedPercentage, quota.overageCount) : localize('quotaDisplay', "{0}%", usedPercentage);
 				quotaBit.style.width = `${usedPercentage}%`;
 
 				if (usedPercentage >= 90 && !quota.overageEnabled) {
@@ -501,22 +501,14 @@ class ChatStatusDashboard extends Disposable {
 				}
 			}
 
-			if (overageLabel) {
+			if (supportsOverage) {
 				if (quota.overageEnabled) {
-					if (quota.overageCount > 0) {
-						overageIndicator.textContent = overageLabel(quota.overageCount);
-					} else {
-						overageIndicator.textContent = localize('additionalUsageEnabled', "Additional usage is enabled.");
-					}
+					overageLabel.textContent = localize('additionalUsageEnabled', "Pay per additional requests is enabled.");
 				} else {
-					if (quota.overageCount > 0) {
-						overageIndicator.textContent = overageLabel(quota.overageCount);
-					} else {
-						overageIndicator.textContent = localize('additionalUsageDisabled', "Additional usage is disabled.");
-					}
+					overageLabel.textContent = localize('additionalUsageDisabled', "Pay per additional requests is disabled.");
 				}
 			} else {
-				overageIndicator.textContent = '';
+				overageLabel.textContent = '';
 			}
 		};
 
