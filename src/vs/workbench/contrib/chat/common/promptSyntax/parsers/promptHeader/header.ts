@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../../../nls.js';
 import { PromptToolsMetadata } from './metadata/tools.js';
+import { PromptDescriptionMetadata } from './metadata/description.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
@@ -21,6 +22,11 @@ interface IHeaderMetadata {
 	 * Metadata for `tools` record in the header.
 	 */
 	tools?: PromptToolsMetadata;
+
+	/**
+	 * Metadata for `description` record in the header.
+	 */
+	description?: PromptDescriptionMetadata;
 }
 
 /**
