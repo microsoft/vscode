@@ -59,8 +59,6 @@ export abstract class PromptContentsProviderBase<
 		super();
 		// ensure that the `onChangeEmitter` always fires with the correct context
 		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
-		// subscribe to the change event emitted by an extending class
-		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 	}
 
 	/**
@@ -129,6 +127,10 @@ export abstract class PromptContentsProviderBase<
 
 		// `'full'` means "everything has changed"
 		this.onContentsChanged('full');
+
+		// TODO: @legomushroom
+		// subscribe to the change event emitted by an extending class
+		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 
 		return this;
 	}
