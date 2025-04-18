@@ -15,10 +15,10 @@ import { PromptInputModel, type IPromptInputModel } from './commandDetection/pro
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 
-import { ILspTerminalDictionaryService } from './lspTerminalDictionaryService.js';
+import { createTerminalLanguageVirtualUri, ILspTerminalDictionaryService } from './lspTerminalDictionaryService.js';
 // This below import doesn't break, but it seem illegal :/
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from '../../../../workbench/contrib/terminalContrib/suggest/browser/lspTerminalModelContentProvider.js';
+import { LspTerminalModelContentProvider } from '../../../../workbench/contrib/terminalContrib/suggest/browser/lspTerminalModelContentProvider.js';
 
 interface ITerminalDimensions {
 	cols: number;

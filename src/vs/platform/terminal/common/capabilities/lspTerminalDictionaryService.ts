@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../instantiation/common/extensions.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 
@@ -56,3 +58,14 @@ export class LspTerminalDictionaryService extends Disposable implements ILspTerm
 }
 
 registerSingleton(ILspTerminalDictionaryService, LspTerminalDictionaryService, InstantiationType.Delayed);
+
+
+/**
+ * Creates a terminal language virtual URI.
+ */
+export function createTerminalLanguageVirtualUri(terminalId: string, languageExtension: string): URI {
+	return URI.from({
+		scheme: Schemas.vscodeTerminal,
+		path: `/${terminalId}/terminal.${languageExtension}`,
+	});
+}

@@ -87,13 +87,3 @@ export class LspTerminalModelContentProvider extends Disposable implements IText
 		return this._modelService.createModel(content, languageSelection, resource, false);
 	}
 }
-
-/**
- * Creates a terminal language virtual URI.
- */
-export function createTerminalLanguageVirtualUri(terminalId: string, languageExtension: string): URI {
-	return URI.from({
-		scheme: Schemas.vscodeTerminal,
-		path: `/${terminalId}/terminal.${languageExtension}`,
-	});
-}

@@ -9,17 +9,8 @@ import { ITerminalCompletionProvider, type TerminalCompletionList } from './term
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
-import { Schemas } from '../../../../../base/common/network.js';
-
-export function createTerminalLanguageVirtualUri(terminalId: string, languageExtension: string): URI {
-	return URI.from({
-		scheme: Schemas.vscodeTerminal,
-		path: `/${terminalId}/terminal.${languageExtension}`,
-	});
-}
 
 // IMPORTANT: Each LSPCompletionProviderAddon should be responsible for managing ONE specific language server completion provider.
 // Rather than handling all of them.

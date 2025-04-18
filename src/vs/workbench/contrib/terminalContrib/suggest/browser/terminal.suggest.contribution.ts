@@ -33,11 +33,11 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import './terminalSymbolIcons.js';
-import { createTerminalLanguageVirtualUri, LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
+import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { ILspTerminalDictionaryService } from '../../../../../platform/terminal/common/capabilities/lspTerminalDictionaryService.js';
+import { createTerminalLanguageVirtualUri, ILspTerminalDictionaryService } from '../../../../../platform/terminal/common/capabilities/lspTerminalDictionaryService.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
