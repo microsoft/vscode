@@ -198,7 +198,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	}
 
 	private async resolveInputs(folder: IWorkspaceFolderData | undefined, section: string, target?: ConfigurationTarget): Promise<ConfiguredInput[] | undefined> {
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !section) {
+		if (!section) {
 			return undefined;
 		}
 
