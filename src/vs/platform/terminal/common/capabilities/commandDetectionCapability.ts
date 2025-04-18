@@ -13,12 +13,8 @@ import { ITerminalOutputMatcher } from '../terminal.js';
 import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
-
-
 import { createTerminalLanguageVirtualUri, ILspTerminalDictionaryService } from './lspTerminalDictionaryService.js';
-// This below import doesn't break, but it seem illegal :/
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { LspTerminalModelContentProvider } from '../../../../workbench/contrib/terminalContrib/suggest/browser/lspTerminalModelContentProvider.js';
+import { ILspTerminalModelContentProvider } from './lspTerminalCapability.js';
 
 interface ITerminalDimensions {
 	cols: number;
@@ -407,7 +403,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._handleCommandStartOptions = undefined;
 
 		if (this._lspTerminalDictionaryService) {
-			const documentModel: MutableDisposable<LspTerminalModelContentProvider> | undefined = this._lspTerminalDictionaryService.get('randomTerminalId');
+			const documentModel: MutableDisposable<ILspTerminalModelContentProvider> | undefined = this._lspTerminalDictionaryService.get('randomTerminalId');
 			if (documentModel) {
 				// TODO: Have another mapping for terminalID to Virtual Document URI
 				documentModel.value?.setContent(createTerminalLanguageVirtualUri('1', 'py'), newCommand?.command!);

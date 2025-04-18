@@ -9,10 +9,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../instantiation/common/extensions.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 
-// import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-// import { registerSingleton, InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
-// import { Disposable } from '../../../../../base/common/lifecycle.js';
-
 export const ILspTerminalDictionaryService = createDecorator<ILspTerminalDictionaryService>('lspTerminalDictionaryService');
 
 export interface ILspTerminalDictionaryService {
@@ -69,3 +65,4 @@ export function createTerminalLanguageVirtualUri(terminalId: string, languageExt
 		path: `/${terminalId}/terminal.${languageExtension}`,
 	});
 }
+

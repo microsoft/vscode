@@ -9,8 +9,9 @@ import { ITextModelContentProvider, ITextModelService } from '../../../../../edi
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ILspTerminalModelContentProvider } from '../../../../../platform/terminal/common/capabilities/lspTerminalCapability.js';
 
-export class LspTerminalModelContentProvider extends Disposable implements ITextModelContentProvider {
+export class LspTerminalModelContentProvider extends Disposable implements ILspTerminalModelContentProvider, ITextModelContentProvider {
 	static readonly scheme = Schemas.vscodeTerminal;
 	private readonly _virtualDocuments = new Map<string, string>();
 
