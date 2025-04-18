@@ -92,7 +92,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 * Event that fires when the error condition of the prompt
 	 * reference changes.
 	 *
-	 * See {@linkcode onUpdate}.
+	 * See {@link onUpdate}.
 	 */
 	protected _onUpdate = this._register(new Emitter<void>());
 	/**
@@ -108,7 +108,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	/**
 	 * Event that fires when the object is disposed.
 	 *
-	 * See {@linkcode onDispose}.
+	 * See {@link onDispose}.
 	 */
 	protected _onDispose = this._register(new Emitter<void>());
 	/**
