@@ -19,6 +19,7 @@ import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatP
  * Widget for a collection of prompt instructions attachments.
  * See {@linkcode InstructionsAttachmentWidget}.
  */
+// TODO: @legomushroom -fix linkcodes
 export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * List of child instruction attachment widgets.
@@ -28,15 +29,15 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * Event that fires when number of attachments change
 	 *
-	 * See {@linkcode onAttachmentsCountChange}.
+	 * See {@linkcode onAttachmentsChange}.
 	 */
-	private _onAttachmentsCountChange = this._register(new Emitter<void>());
+	private _onAttachmentsChange = this._register(new Emitter<void>());
 	/**
-	 * Subscribe to the `onAttachmentsCountChange` event.
+	 * Subscribe to the `onAttachmentsChange` event.
 	 * @param callback Function to invoke when number of attachments change.
 	 */
-	public onAttachmentsCountChange(callback: () => unknown): this {
-		this._register(this._onAttachmentsCountChange.event(callback));
+	public onAttachmentsChange(callback: () => unknown): this {
+		this._register(this._onAttachmentsChange.event(callback));
 
 		return this;
 	}
@@ -121,7 +122,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 			}
 
 			// fire the event to notify about the change in the number of attachments
-			this._onAttachmentsCountChange.fire();
+			this._onAttachmentsChange.fire();
 		}));
 	}
 
@@ -172,7 +173,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 		this.parentNode?.removeChild(widget.domNode);
 
 		// fire the event to notify about the change in the number of attachments
-		this._onAttachmentsCountChange.fire();
+		this._onAttachmentsChange.fire();
 
 		return this;
 	}

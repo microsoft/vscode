@@ -19,7 +19,6 @@ import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { equals } from '../../../../base/common/objects.js';
 
-
 export interface IChatAttachmentChangeEvent {
 	readonly deleted: readonly string[];
 	readonly added: readonly IChatRequestVariableEntry[];
@@ -42,18 +41,6 @@ export class ChatAttachmentModel extends Disposable {
 
 		this.promptInstructions = this._register(
 			this.initService.createInstance(ChatPromptAttachmentsCollection),
-		);
-
-		this._register(
-			this.promptInstructions.onAdd(() => {
-				this._onDidChange.fire({ added: [], deleted: [], updated: [] });
-			}),
-		);
-
-		this._register(
-			this.promptInstructions.onRemove(() => {
-				this._onDidChange.fire({ added: [], deleted: [], updated: [] });
-			}),
 		);
 	}
 
