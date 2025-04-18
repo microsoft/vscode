@@ -127,6 +127,12 @@ export interface IDiagnosticVariableEntryFilterData {
 	readonly filterRange?: IRange;
 }
 
+export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'file';
+	readonly value: URI | Location;
+	readonly isRoot: boolean;
+}
+
 export namespace IDiagnosticVariableEntryFilterData {
 	export const icon = Codicon.error;
 

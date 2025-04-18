@@ -6,13 +6,18 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { IChatRequestVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+
+/**
+ * TODO: @legomushroom
+ */
+const PROMPT_VARIABLE_ID_PREFIX = 'vscode.prompt.instructions';
 
 /**
  * Prompt IDs start with a well-defined prefix that is used by
@@ -27,7 +32,7 @@ export const createPromptVariableId = (
 	isRoot: boolean,
 ): string => {
 	// the default prefix that is used for all prompt files
-	let prefix = 'vscode.prompt.instructions';
+	let prefix = PROMPT_VARIABLE_ID_PREFIX;
 	// if the reference is the root object, add the `.root` suffix
 	if (isRoot) {
 		prefix += '.root';
@@ -53,7 +58,7 @@ export const createPromptVariableId = (
 export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
-): IChatRequestVariableEntry => {
+): IPromptVariableEntry => {
 	const { uri, isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
@@ -78,11 +83,15 @@ export const toChatVariable = (
 		value: uri,
 		kind: 'file',
 		modelDescription,
+		isRoot,
 	};
 };
 
-export function isPromptFileChatVariable(variable: IChatRequestVariableEntry): boolean {
-	return isChatRequestFileEntry(variable) && variable.name.startsWith('prompt:');
+export function isPromptFileChatVariable(
+	variable: IChatRequestVariableEntry,
+): variable is IPromptVariableEntry {
+	return isChatRequestFileEntry(variable)
+		&& variable.id.startsWith(PROMPT_VARIABLE_ID_PREFIX);
 }
 
 /**
