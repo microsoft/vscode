@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CssClassModifiers } from '../../../../service/types.js';
+import { CssClassModifiers } from '../types.js';
 import { TDecorationStyles, ReactiveDecorationBase } from './utils/index.js';
 import { FrontMatterMarker } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 

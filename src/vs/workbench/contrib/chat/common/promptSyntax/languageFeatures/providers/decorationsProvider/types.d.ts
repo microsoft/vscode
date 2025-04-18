@@ -35,3 +35,10 @@ export enum DecorationClassNames {
 	 */
 	fileReference = DecorationClassNames.default,
 }
+
+/**
+ * Decoration CSS class modifiers.
+ */
+export enum CssClassModifiers {
+	Inactive = '.prompt-decoration-inactive',
+}
