@@ -85,6 +85,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const actionOrSubmenu = actions[i];
 			let action: IAction;
 			let btn: IButton;
+			let tooltip: string = '';
 
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
 				const [first, ...rest] = actionOrSubmenu.actions;
@@ -99,9 +100,15 @@ export class WorkbenchButtonBar extends ButtonBar {
 				});
 			} else {
 				action = actionOrSubmenu;
+				const kb = this._keybindingService.lookupKeybinding(action.id);
+				if (kb) {
+					tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip || action.label, kb.getLabel());
+				} else {
+					tooltip = action.tooltip || action.label;
+				}
 				btn = this.addButton({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
-					ariaLabel: action.label,
+					ariaLabel: tooltip,
 					supportIcons: true,
 				});
 			}
@@ -128,12 +135,14 @@ export class WorkbenchButtonBar extends ButtonBar {
 					btn.element.classList.add(...action.class.split(' '));
 				}
 			}
-			const kb = this._keybindingService.lookupKeybinding(action.id);
-			let tooltip: string;
-			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip || action.label, kb.getLabel());
-			} else {
-				tooltip = action.tooltip || action.label;
+
+			if (!tooltip) {
+				const kb = this._keybindingService.lookupKeybinding(action.id);
+				if (kb) {
+					tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip || action.label, kb.getLabel());
+				} else {
+					tooltip = action.tooltip || action.label;
+				}
 			}
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
