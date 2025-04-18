@@ -13,8 +13,8 @@ import { FrontMatterMarker } from '../../../../../../../../../editor/common/code
 export enum CssClassNames {
 	main = '.prompt-front-matter-decoration-marker',
 	inline = '.prompt-front-matter-decoration-marker-inline',
-	mainInactive = `${CssClassNames.main}${CssClassModifiers.Inactive}`,
-	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.Inactive}`,
+	mainInactive = `${CssClassNames.main}${CssClassModifiers.inactive}`,
+	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.inactive}`,
 }
 
 /**

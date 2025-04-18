@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from '../../../../../../../../editor/common/core/range.ts';
-import { ModelDecorationOptions } from '../../../../../../../../editor/common/model/textModel.ts';
+import { IRange } from '../../../../../../../../editor/common/core/range.js';
+import { ModelDecorationOptions } from '../../../../../../../../editor/common/model/textModel.js';
 
 /**
  * Decoration object.
@@ -44,5 +44,5 @@ export enum CssClassModifiers {
 	 * CSS class modifier for `active` state of
 	 * a `reactive` prompt syntax decoration.
 	 */
-	Inactive = '.prompt-decoration-inactive',
+	inactive = '.prompt-decoration-inactive',
 }
