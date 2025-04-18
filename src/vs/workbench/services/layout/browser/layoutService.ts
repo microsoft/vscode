@@ -51,7 +51,10 @@ export const bubblyParts: Record<string, BubblyPartSettings> = {
 	},
 	[Parts.PANEL_PART]: defaultBubblySettings,
 	[Parts.EDITOR_PART]: defaultBubblySettings,
-	[Parts.PEAROVERLAY_PART]: defaultBubblySettings,
+	[Parts.PEAROVERLAY_PART]: {
+		borderRadius: 0,
+		margins: {left: 0, top: 0, right: 0, bottom: 0}
+	},
 	[Parts.ACTIVITYBAR_PART]: { margins: { left: 0, top: 0, right: 0, bottom: 0 }, borderRadius: 0}
 }
 
