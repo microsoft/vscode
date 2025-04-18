@@ -6,6 +6,8 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { pick } from '../../../../base/common/arrays.js';
+import { assert } from '../../../../base/common/assert.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -23,6 +25,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -49,7 +52,9 @@ import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { FilePromptParser } from '../common/promptSyntax/parsers/filePromptParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
+import { IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -244,6 +249,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -1158,8 +1164,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return { attachment, input };
 	}
 
-
-
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.requestInProgress && this.viewModel.requestPausibility !== ChatPauseState.Paused) {
 			return;
@@ -1177,28 +1181,84 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const { promptInstructions } = this.inputPart.attachmentModel;
 			const instructionsEnabled = promptInstructions.featureEnabled;
 			if (instructionsEnabled) {
-				// instruction files may have nested child references to other prompt
-				// files that are resolved asynchronously, hence we need to wait for
-				// the entire prompt instruction tree to be processed
+				// prompt files may have nested child references to other prompt
+				// files that are resolved asynchronously, hence we need to wait
+				// for the entire prompt instruction tree to be processed
 				const instructionsStarted = performance.now();
 				await promptInstructions.allSettled();
 				// allow-any-unicode-next-line
 				this.logService.trace(`[⏱] instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
 			}
 
-			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
+			let attachedContext = await this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
 			if (instructionsEnabled) {
 				const result = await this._handlePromptSlashCommand();
 				if (result.input !== undefined) {
 					input = result.input;
 				}
-				if (result.attachment) {
-					attachedContext.push(result.attachment);
+
+				const { attachment } = result;
+				if (attachment) {
+					attachedContext.push(attachment);
 				}
 
-				const promptFileChatVariable = attachedContext.filter(isPromptFileChatVariable);
-				if (promptFileChatVariable.length > 0) {
-					input = `Follow the prompt instructions from ${promptFileChatVariable.map(v => v.name).join(', ')}\n${input}`;
+				const promptFileChatVariables = attachedContext.filter(isPromptFileChatVariable);
+				if (promptFileChatVariables.length > 0) {
+					input = `Follow the prompt instructions from ${promptFileChatVariables.map(pick('name')).join(', ')}\n${input}`;
+
+					// TODO: @legomushroom - refactor
+					const toolMetadataPromises = promptFileChatVariables
+						.filter(pick('isRoot'))
+						.map((variable) => {
+							const { value } = variable;
+
+							const uri = URI.isUri(value)
+								? value
+								: value.uri;
+
+							assert(
+								URI.isUri(uri),
+								`Prompt file variable must have a URI value, got '${uri}'.`,
+							);
+
+							const prompt = this.instantiationService.createInstance(
+								FilePromptParser,
+								uri,
+								{ allowNonPromptFiles: true },
+							)
+								.start()
+								.allSettled();
+
+							return prompt;
+						});
+
+					const results = await Promise.allSettled(toolMetadataPromises);
+
+					const allToolsMetadata = results
+						.filter((result) => {
+							return (result.status === 'fulfilled');
+						})
+						.map(({ value: prompt }) => {
+							return prompt.allToolsMetadata;
+						})
+						.filter((maybeMetadata) => {
+							return (maybeMetadata !== null);
+						})
+						.flat();
+
+					if (allToolsMetadata.length > 0) {
+						this.inputPart
+							.selectedToolsModel
+							.selectOnly(allToolsMetadata);
+
+						const options: IToggleChatModeArgs = {
+							mode: ChatMode.Agent,
+						};
+
+						await this.commandService.executeCommand(
+							ToggleAgentModeActionId, options,
+						);
+					}
 				}
 			}
 

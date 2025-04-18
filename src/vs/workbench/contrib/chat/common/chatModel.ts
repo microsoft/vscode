@@ -127,6 +127,9 @@ export interface IDiagnosticVariableEntryFilterData {
 	readonly filterRange?: IRange;
 }
 
+/**
+ * Chat variable that represents an attached prompt file.
+ */
 export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'file';
 	readonly value: URI | Location;

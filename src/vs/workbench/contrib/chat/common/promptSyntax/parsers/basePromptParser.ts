@@ -139,6 +139,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return this;
 		}
 
+		// TODO: @legomushroom - what to do if the stream is not defined?
 		assertDefined(
 			this.stream,
 			'No stream reference found.',

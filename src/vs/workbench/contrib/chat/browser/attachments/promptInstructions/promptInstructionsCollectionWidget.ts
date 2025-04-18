@@ -63,6 +63,20 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	}
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	public allSettled() {
+		return this.model.allSettled();
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get toolsMetadata() {
+		return this.model.toolsMetadata;
+	}
+
+	/**
 	 * Check if child widget list is empty (no attachments present).
 	 */
 	public get empty(): boolean {
