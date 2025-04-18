@@ -87,6 +87,9 @@ export const toChatVariable = (
 	};
 };
 
+/**
+ * TODO: @legomushroom
+ */
 export function isPromptFileChatVariable(
 	variable: IChatRequestVariableEntry,
 ): variable is IPromptVariableEntry {

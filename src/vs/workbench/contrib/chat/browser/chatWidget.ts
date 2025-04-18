@@ -43,7 +43,7 @@ import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel, IPromptVariableEntry } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
@@ -1202,62 +1202,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					attachedContext.push(attachment);
 				}
 
-				const promptFileChatVariables = attachedContext.filter(isPromptFileChatVariable);
-				if (promptFileChatVariables.length > 0) {
-					input = `Follow the prompt instructions from ${promptFileChatVariables.map(pick('name')).join(', ')}\n${input}`;
+				const promptFileVariables = attachedContext.filter(isPromptFileChatVariable);
+				if (promptFileVariables.length > 0) {
+					input = `Follow the prompt instructions from ${promptFileVariables.map(pick('name')).join(', ')}\n${input}`;
 
-					// TODO: @legomushroom - refactor
-					const toolMetadataPromises = promptFileChatVariables
-						.filter(pick('isRoot'))
-						.map((variable) => {
-							const { value } = variable;
+					const allToolsMetadata = await this.getPromptFileToolsMetadata(promptFileVariables);
 
-							const uri = URI.isUri(value)
-								? value
-								: value.uri;
+					// if there are some tools defined in the prompt files, switch to
+					// the agent mode and select only the specified tools
+					if ((allToolsMetadata !== null) && (allToolsMetadata.length > 0)) {
+						const options: IToggleChatModeArgs = { mode: ChatMode.Agent };
 
-							assert(
-								URI.isUri(uri),
-								`Prompt file variable must have a URI value, got '${uri}'.`,
-							);
-
-							const prompt = this.instantiationService.createInstance(
-								FilePromptParser,
-								uri,
-								{ allowNonPromptFiles: true },
-							)
-								.start()
-								.allSettled();
-
-							return prompt;
-						});
-
-					const results = await Promise.allSettled(toolMetadataPromises);
-
-					const allToolsMetadata = results
-						.filter((result) => {
-							return (result.status === 'fulfilled');
-						})
-						.map(({ value: prompt }) => {
-							return prompt.allToolsMetadata;
-						})
-						.filter((maybeMetadata) => {
-							return (maybeMetadata !== null);
-						})
-						.flat();
-
-					if (allToolsMetadata.length > 0) {
-						this.inputPart
-							.selectedToolsModel
-							.selectOnly(allToolsMetadata);
-
-						const options: IToggleChatModeArgs = {
-							mode: ChatMode.Agent,
-						};
-
+						// tools are currently only available in agent mode hence
+						// switch to the mode before updating the selected tools
 						await this.commandService.executeCommand(
 							ToggleAgentModeActionId, options,
 						);
+
+						// update the selected tools
+						this.inputPart
+							.selectedToolsModel
+							.selectOnly(allToolsMetadata);
 					}
 				}
 			}
@@ -1517,6 +1482,89 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private updateChatInputContext() {
 		const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
 		this.agentInInput.set(!!currentAgent);
+	}
+
+	/**
+	 * Gets a list of all tools specified in the provided prompt files.
+	 */
+	public async getPromptFileToolsMetadata(
+		variables: readonly IPromptVariableEntry[],
+	): Promise<readonly string[] | null> {
+		// process starting from the 'root' prompt files
+		const rootVariables = variables
+			.filter(pick('isRoot'));
+
+		if (rootVariables.length === 0) {
+			return null;
+		}
+
+		// create tasks to parse all the prompt files
+		// and wait for all the precesses to finish
+		const toolMetadataPromises = rootVariables
+			.map((variable) => {
+				const { value } = variable;
+
+				const uri = URI.isUri(value)
+					? value
+					: value.uri;
+
+				assert(
+					URI.isUri(uri),
+					`Prompt file variable must have a URI value, got '${uri}'.`,
+				);
+
+				const prompt = this.instantiationService.createInstance(
+					FilePromptParser,
+					uri,
+					{ allowNonPromptFiles: true },
+				)
+					.start()
+					.allSettled();
+
+				return prompt;
+			});
+
+		const allToolsMetadata = (await Promise.allSettled(toolMetadataPromises))
+			.filter((result): result is PromiseFulfilledResult<FilePromptParser> => {
+				const { status } = result;
+				const isFulfilled = (status === 'fulfilled');
+
+				if (isFulfilled === false) {
+					const { reason } = result;
+
+					this.logService.error(
+						'failed to parse prompt file', reason,
+					);
+				}
+
+				return isFulfilled;
+			})
+			.map(({ value: prompt }) => {
+				return prompt.allToolsMetadata;
+			});
+
+		// flag to track whether any of the prompt files
+		// contained any tools metadata we can use
+		let hasMetadata = false;
+		const result: string[] = [];
+
+		// copy over all the tools metadata into single array
+		// keep tracking if any of them contained any metadata
+		for (const maybeMetadata of allToolsMetadata) {
+			if (maybeMetadata === null) {
+				continue;
+			}
+
+			hasMetadata = true;
+			result.push(...maybeMetadata);
+		}
+
+		// if no prompt files contained tools metadata, return null
+		if (hasMetadata === false) {
+			return null;
+		}
+
+		return result;
 	}
 }
 
