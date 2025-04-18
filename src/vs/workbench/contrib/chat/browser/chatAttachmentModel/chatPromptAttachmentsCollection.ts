@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
 
 /**
- * TODO: @legomushroom
+ * Prefix for all prompt instruction variable IDs.
  */
 const PROMPT_VARIABLE_ID_PREFIX = 'vscode.prompt.instructions';
 
@@ -88,7 +88,7 @@ export const toChatVariable = (
 };
 
 /**
- * TODO: @legomushroom
+ * Checks of a provided chat variable is a `prompt file` variable.
  */
 export function isPromptFileChatVariable(
 	variable: IChatRequestVariableEntry,
