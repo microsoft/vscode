@@ -336,7 +336,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		// Checkbox
 		const label = dom.append(data.entry, $('label.quick-input-list-label'));
 		data.outerLabel = label;
-		data.checkbox = new MutableDisposable();
+		data.checkbox = data.toDisposeTemplate.add(new MutableDisposable());
 		data.toDisposeTemplate.add(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
 			// `label` elements with role=checkboxes don't automatically toggle them like normal <checkbox> elements
 			if (data.checkbox.value && !e.defaultPrevented) {
