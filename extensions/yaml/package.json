@@ -97,8 +97,8 @@
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.defaultColorDecorators": "never",
         "editor.quickSuggestions": { 
-          "strings": true
-        }, 
+          "strings": "on"
+        }
       },
       "[dockercompose]": {
         "editor.insertSpaces": true,
