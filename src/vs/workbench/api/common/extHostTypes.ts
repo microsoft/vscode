@@ -5154,7 +5154,8 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 		public label: string,
 		public command: string,
 		public args: string[],
-		public env: Record<string, string | number | null>
+		public env: Record<string, string | number | null>,
+		public version?: string,
 	) { }
 }
 
@@ -5163,6 +5164,7 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public label: string,
 		public uri: URI,
 		public headers: Record<string, string> = {},
+		public version?: string,
 	) { }
 }
 //#endregion
