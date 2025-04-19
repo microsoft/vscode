@@ -16,12 +16,6 @@ const mcpActivationEventPrefix = 'onMcpCollection:';
 
 export const mcpActivationEvent = (collectionId: string) => mcpActivationEventPrefix + collectionId;
 
-const mcpSchemaExampleServer = {
-	command: 'node',
-	args: ['my-mcp-server.js'],
-	env: {},
-};
-
 export const enum DiscoverySource {
 	ClaudeDesktop = 'claude-desktop',
 	Windsurf = 'windsurf',
@@ -55,15 +49,17 @@ export const mcpSchemaExampleServers = {
 	}
 };
 
-const httpSchemaExample = {
-	url: 'http://localhost:3001/mcp',
-	headers: {},
+const httpSchemaExamples = {
+	'my-mcp-server': {
+		url: 'http://localhost:3001/mcp',
+		headers: {},
+	}
 };
 
 export const mcpStdioServerSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
-	examples: [mcpSchemaExampleServer],
+	examples: [mcpSchemaExampleServers['mcp-server-time']],
 	properties: {
 		type: {
 			type: 'string',
@@ -110,14 +106,14 @@ export const mcpServerSchema: IJSONSchema = {
 		servers: {
 			examples: [
 				mcpSchemaExampleServers,
-				httpSchemaExample,
+				httpSchemaExamples,
 			],
 			additionalProperties: {
 				oneOf: [mcpStdioServerSchema, {
 					type: 'object',
 					additionalProperties: false,
 					required: ['url'],
-					examples: [httpSchemaExample],
+					examples: [httpSchemaExamples['my-mcp-server']],
 					properties: {
 						type: {
 							type: 'string',

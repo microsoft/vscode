@@ -9,6 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
@@ -42,7 +43,7 @@ export class EditTool implements IToolImpl {
 		@INotebookService private readonly notebookService: INotebookService,
 	) { }
 
-	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<IToolResult> {
 		if (!invocation.context) {
 			throw new Error('toolInvocationToken is required for this tool');
 		}

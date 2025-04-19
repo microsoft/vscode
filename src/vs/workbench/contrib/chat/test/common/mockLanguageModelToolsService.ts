@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
@@ -44,6 +45,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	getToolByName(name: string): IToolData | undefined {
 		return undefined;
+	}
+
+	acceptProgress(sessionId: string | undefined, callId: string, progress: IProgressStep): void {
+
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {

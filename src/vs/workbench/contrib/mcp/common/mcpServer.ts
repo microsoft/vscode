@@ -27,6 +27,8 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
@@ -481,7 +483,31 @@ export class McpTool implements IMcpTool {
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		return this._server.callOn(h => h.callTool({ name, arguments: params }), token);
+		return this._server.callOn(h => h.callTool({ name, arguments: params }, token), token);
+	}
+
+	callWithProgress(params: Record<string, unknown>, progress: IProgress<IProgressStep>, token?: CancellationToken): Promise<MCP.CallToolResult> {
+		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
+		const name = this._definition.serverToolName ?? this._definition.name;
+		const progressToken = generateUuid();
+
+		return this._server.callOn(h => {
+			let lastProgressN = 0;
+			const listener = h.onDidReceiveProgressNotification((e) => {
+				if (e.params.progressToken === progressToken) {
+					progress.report({
+						message: e.params.message,
+						increment: e.params.progress - lastProgressN,
+						total: e.params.total,
+					});
+					lastProgressN = e.params.progress;
+				}
+			});
+
+			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token).finally(() => {
+				listener.dispose();
+			});
+		}, token);
 	}
 
 	compare(other: IMcpTool): number {

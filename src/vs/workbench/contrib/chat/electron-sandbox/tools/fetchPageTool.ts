@@ -11,6 +11,7 @@ import { ITrustedDomainService } from '../../../url/browser/trustedDomainService
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart } from '../../common/languageModelToolsService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
+import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -41,7 +42,7 @@ export class FetchWebPageTool implements IToolImpl {
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) { }
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<IToolResult> {
 		const parsedUriResults = this._parseUris((invocation.parameters as { urls?: string[] }).urls);
 		const validUris = Array.from(parsedUriResults.values()).filter((uri): uri is URI => !!uri);
 		if (!validUris.length) {

@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -45,6 +46,10 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		};
 	}
 
+	$acceptToolProgress(requestId: string | undefined, callId: string, progress: IProgressStep): void {
+		this._languageModelToolsService.acceptProgress(requestId, callId, progress);
+	}
+
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
 		const fn = this._countTokenCallbacks.get(callId);
 		if (!fn) {
@@ -58,7 +63,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		const disposable = this._languageModelToolsService.registerToolImplementation(
 			id,
 			{
-				invoke: async (dto, countTokens, token) => {
+				invoke: async (dto, countTokens, _progress, token) => {
 					try {
 						this._countTokenCallbacks.set(dto.callId, countTokens);
 						const resultDto = await this._proxy.$invokeTool(dto, token);

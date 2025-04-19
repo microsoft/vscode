@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorunWithStore } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -22,6 +23,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -64,6 +66,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		codeBlockModelCollection: CodeBlockModelCollection,
 		codeBlockStartIndex: number,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IProgressService progressService: IProgressService,
 	) {
 		super();
 
@@ -454,27 +457,37 @@ class ChatToolInvocationSubPart extends Disposable {
 	}
 
 	private createProgressPart(): HTMLElement {
-		let content: IMarkdownString;
 		if (this.toolInvocation.isComplete && this.toolInvocation.isConfirmed !== false && this.toolInvocation.pastTenseMessage) {
-			content = typeof this.toolInvocation.pastTenseMessage === 'string' ?
-				new MarkdownString().appendText(this.toolInvocation.pastTenseMessage) :
-				this.toolInvocation.pastTenseMessage;
+			const part = this.renderProgressContent(this.toolInvocation.pastTenseMessage);
+			this._register(part);
+			return part.domNode;
 		} else {
-			content = typeof this.toolInvocation.invocationMessage === 'string' ?
-				new MarkdownString().appendText(this.toolInvocation.invocationMessage + '…') :
-				MarkdownString.lift(this.toolInvocation.invocationMessage).appendText('…');
+			const container = document.createElement('div');
+			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
+			this._register(autorunWithStore((reader, store) => {
+				const progress = progressObservable?.read(reader);
+				const part = store.add(this.renderProgressContent(progress?.message || this.toolInvocation.invocationMessage));
+				dom.reset(container, part.domNode);
+			}));
+			return container;
+		}
+	}
+
+	private renderProgressContent(content: IMarkdownString | string) {
+		if (typeof content === 'string') {
+			content = new MarkdownString().appendText(content);
 		}
 
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
 			content
 		};
+
 		const iconOverride = !this.toolInvocation.isConfirmed ?
 			Codicon.error :
 			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;
-		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride));
-		return progressPart.domNode;
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride);
 	}
 
 	private createTerminalMarkdownProgressPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, terminalData: IChatTerminalToolInvocationData): HTMLElement {
