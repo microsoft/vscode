@@ -767,7 +767,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					disposables.add(SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 				}
 
-				if (!otherAgentsAndToolsDisposable.value) {
+				if (!context.state.installed && !otherAgentsAndToolsDisposable.value) {
 					const disposables = otherAgentsAndToolsDisposable.value = new DisposableStore();
 					// VSCode Agent
 					disposables.add(SetupChatAgent.registerOtherAgents(this.instantiationService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller).disposable);
