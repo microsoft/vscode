@@ -47,6 +47,7 @@ export interface IButtonStyles {
 	readonly buttonSecondaryHoverBackground: string | undefined;
 	readonly buttonSecondaryForeground: string | undefined;
 	readonly buttonBorder: string | undefined;
+	readonly buttonSecondaryBorder: string | undefined;
 }
 
 export const unthemedButtonStyles: IButtonStyles = {
@@ -57,7 +58,8 @@ export const unthemedButtonStyles: IButtonStyles = {
 	buttonBorder: undefined,
 	buttonSecondaryBackground: undefined,
 	buttonSecondaryForeground: undefined,
-	buttonSecondaryHoverBackground: undefined
+	buttonSecondaryHoverBackground: undefined,
+	buttonSecondaryBorder: undefined
 };
 
 export interface IButton extends IDisposable {
@@ -394,7 +396,10 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		// Separator styles
 		const border = options.buttonBorder;
-		if (border) {
+		if (options.secondary && options.buttonSecondaryBorder) {
+			this.separatorContainer.style.borderTop = '1px solid ' + options.buttonSecondaryBorder;
+			this.separatorContainer.style.borderBottom = '1px solid ' + options.buttonSecondaryBorder;
+		} else if (border) {
 			this.separatorContainer.style.borderTop = '1px solid ' + border;
 			this.separatorContainer.style.borderBottom = '1px solid ' + border;
 		}

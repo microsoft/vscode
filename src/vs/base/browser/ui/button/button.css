@@ -17,6 +17,10 @@
 	line-height: 18px;
 }
 
+.monaco-text-button.secondary {
+	border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+}
+
 .monaco-text-button:focus {
 	outline-offset: 2px !important;
 }
@@ -105,6 +109,10 @@
 	align-items: center;
 }
 
+.monaco-button-dropdown > .monaco-button.monaco-dropdown-button.secondary {
+	border-color: var(--vscode-button-secondaryBorder, transparent);
+}
+
 .monaco-button-dropdown > .monaco-button.monaco-text-button {
 	border-radius: 2px 0 0 2px;
 }
@@ -138,7 +146,7 @@
 /* default color styles - based on CSS variables */
 
 .monaco-button.default-colors,
-.monaco-button-dropdown.default-colors > .monaco-button{
+.monaco-button-dropdown.default-colors > .monaco-button {
 	color: var(--vscode-button-foreground);
 	background-color: var(--vscode-button-background);
 }
