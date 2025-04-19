@@ -2406,9 +2406,9 @@ export namespace LanguageModelChatMessage {
 	}
 }
 
-export namespace LanguageModelChatMessage3 {
+export namespace LanguageModelChatMessage2 {
 
-	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage3 {
+	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage2 {
 		const content = message.content.map(c => {
 			if (c.type === 'text') {
 				return new LanguageModelTextPart(c.value);
@@ -2435,11 +2435,11 @@ export namespace LanguageModelChatMessage3 {
 			}
 		});
 		const role = LanguageModelChatMessageRole.to(message.role);
-		const result = new types.LanguageModelChatMessage3(role, content, message.name);
+		const result = new types.LanguageModelChatMessage2(role, content, message.name);
 		return result;
 	}
 
-	export function from(message: vscode.LanguageModelChatMessage3): chatProvider.IChatMessage {
+	export function from(message: vscode.LanguageModelChatMessage2): chatProvider.IChatMessage {
 
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;

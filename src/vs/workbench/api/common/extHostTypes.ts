@@ -4871,17 +4871,14 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 	}
 }
 
-/**
- * This is playing double-duty as LanguageModelChatMessage2 with the DataPart and LanguageModelChatMessage3 with the ExtraDataPart.
- */
-export class LanguageModelChatMessage3 implements vscode.LanguageModelChatMessage3 {
+export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage3 {
-		return new LanguageModelChatMessage3(LanguageModelChatMessageRole.User, content, name);
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
+		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage3 {
-		return new LanguageModelChatMessage3(LanguageModelChatMessageRole.Assistant, content, name);
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
+		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
