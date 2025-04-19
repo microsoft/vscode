@@ -18,6 +18,7 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 
 interface IModelPickerActionItem {
 	model: ILanguageModelChatMetadataAndIdentifier;
@@ -99,7 +100,7 @@ export class ModelPickerWidget extends Disposable {
 	/**
 	 * Shows the picker at the specified anchor
 	 */
-	showAt(anchor: IAnchor, container?: HTMLElement): void {
+	showAt(anchor: HTMLElement | StandardMouseEvent | IAnchor, container?: HTMLElement): void {
 		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = this.getActionItems().map(item => ({
 			item: item.model,
 			kind: ActionListItemKind.Action,

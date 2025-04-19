@@ -13,6 +13,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -90,18 +92,23 @@ export class ModelPickerActionItem extends ActionViewItem {
 	 * Override the onClick to show our picker widget
 	 */
 	override onClick(event: MouseEvent): void {
-		if (!this.widget) {
+		if (!this.widget || !this.element) {
+			return;
+		}
+
+		this.show(this.element);
+
+		event.stopPropagation();
+		event.preventDefault();
+	}
+
+	show(anchor?: HTMLElement | StandardMouseEvent | IAnchor): void {
+		if (!this.widget || !this.element) {
 			return;
 		}
 
 		// Show the model picker at the current position
-		this.widget.showAt({
-			x: event.clientX,
-			y: event.clientY
-		});
-
-		event.stopPropagation();
-		event.preventDefault();
+		this.widget.showAt(anchor ?? this.element);
 	}
 
 	/**
