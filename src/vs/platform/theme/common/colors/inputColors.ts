@@ -194,8 +194,12 @@ export const checkboxSelectBorder = registerColor('checkbox.selectBorder',
 	nls.localize('checkbox.select.border', "Border color of checkbox widget when the element it's in is selected."));
 
 export const checkboxDisabledBackground = registerColor('checkbox.disabled.background',
-	{ op: ColorTransformType.Mix, color: checkboxBackground, with: checkboxForeground },
+	{ op: ColorTransformType.Mix, color: checkboxBackground, with: checkboxForeground, ratio: 0.33 },
 	nls.localize('checkbox.disabled.background', "Background of a disabled checkbox."));
+
+export const checkboxDisabledForeground = registerColor('checkbox.disabled.foreground',
+	{ op: ColorTransformType.Mix, color: checkboxForeground, with: checkboxBackground, ratio: 0.33 },
+	nls.localize('checkbox.disabled.foreground', "Foreground of a disabled checkbox."));
 
 
 // ------ keybinding label
