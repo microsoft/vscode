@@ -1032,43 +1032,21 @@ registerReusablePromptActions();
 async function startElementSelection(layoutService: ILayoutService, hostService: IHostService, webviewService: IWebviewService, token?: CancellationToken): Promise<{ displayName: string; html: string; css: string; screenshot: Uint8Array }> {
 	// target and limit to the simple browser
 	const cts = new CancellationTokenSource();
-	const targetWindow = DOM.getActiveWindow();
-	let container = targetWindow.document.querySelector('#element-selection-message') as HTMLDivElement;
-	if (container) {
-		container.remove();
-		console.log('container removed');
-	}
-	container = targetWindow.document.createElement('div');
-	container.id = 'element-selection-message';
-	container.style.position = 'absolute';
-	container.style.bottom = '10px';
-	container.style.right = '10px';
-	container.style.padding = '8px 12px';
-	container.style.background = 'rgba(0, 122, 204, 0.8)';
-	container.style.color = 'white';
-	container.style.borderRadius = '4px';
-	container.style.fontSize = '12px';
-	container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-	container.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-	container.style.zIndex = '999999';
-	container.style.display = 'flex';
-	container.style.alignItems = 'center';
-	container.style.gap = '8px';
+	const targetWindow = DOM.getActiveWindow().document;
 
-	const message = targetWindow.document.createElement('span');
+	targetWindow.querySelector('#element-selection-message')?.remove();
+
+	const container = targetWindow.createElement('div');
+	container.id = 'element-selection-message';
+	container.className = 'element-selection-message';
+
+	const message = targetWindow.createElement('span');
 	message.textContent = 'Click an element to select it...';
 	container.appendChild(message);
 
-	const cancel = targetWindow.document.createElement('button');
+	const cancel = targetWindow.createElement('button');
+	cancel.classList.add('element-selection-cancel');
 	cancel.textContent = 'Cancel';
-	cancel.style.background = 'rgba(255, 255, 255, 0.15)';
-	cancel.style.border = 'none';
-	cancel.style.color = 'white';
-	cancel.style.padding = '4px 8px';
-	cancel.style.borderRadius = '3px';
-	cancel.style.cursor = 'pointer';
-	cancel.style.fontSize = '12px';
-	cancel.style.fontFamily = 'inherit';
 
 	cancel.onclick = () => {
 		cts.cancel();
@@ -1076,16 +1054,17 @@ async function startElementSelection(layoutService: ILayoutService, hostService:
 		message.textContent = 'Element selection canceled';
 	};
 
-	const simpleBrowserIframe = targetWindow.document.querySelector('iframe.webview.ready') as HTMLIFrameElement;
+	const simpleBrowserIframe = targetWindow.querySelector('iframe.webview.ready') as HTMLIFrameElement;
 	if (!simpleBrowserIframe) {
 		throw new Error('Simple Browser iframe not found');
 	}
 
 	container.appendChild(cancel);
-	if (simpleBrowserIframe.parentElement) {
-		simpleBrowserIframe.parentElement.appendChild(container);
+	if (!simpleBrowserIframe.parentElement) {
+		throw new Error('Simple Browser iframe parent not found');
 	}
 
+	simpleBrowserIframe.parentElement.appendChild(container);
 
 	for (const webview of webviewService.webviews) {
 		console.log('some webviews');
@@ -1104,10 +1083,14 @@ async function startElementSelection(layoutService: ILayoutService, hostService:
 	// Wait 1 extra frame to make sure overlay is gone
 	await new Promise(resolve => setTimeout(resolve, 100));
 
+	// remove container so we don't block anything
+	container.remove();
 	const screenshot = await hostService.getScreenshot(bounds);
 	if (!screenshot) {
 		throw new Error('Screenshot failed');
 	}
+
+	simpleBrowserIframe.parentElement.appendChild(container);
 	message.textContent = 'Finished selecting element';
 	cancel.remove();
 
