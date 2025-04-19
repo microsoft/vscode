@@ -164,10 +164,18 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
+	readonly workspacesOverlay: IWorkspacesOverlay;
 }
 
 export interface IDensitySettings {
 	readonly editorTabHeight: 'default' | 'compact';
+}
+
+export interface IWorkspacesOverlay {
+	readonly enabled: boolean;
+	readonly hotKey: string;
+	readonly alwaysOnTop: boolean;
+	readonly snapMode: 'bottom' | 'top' | 'left' | 'right';
 }
 
 export const enum TitleBarSetting {
