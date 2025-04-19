@@ -62,6 +62,11 @@ interface ComputedStyleProperty {
 interface ComputedStyleResponse {
 	computedStyle: ComputedStyleProperty[];
 }
+interface NodeDataResponse {
+	outerHTML: string;
+	computedStyle: string;
+	bounds: IRectangle;
+}
 
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
@@ -760,25 +765,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
-	async getElementData(windowId: number | undefined, offsetX?: number, offsetY?: number, token?: CancellationToken): Promise<IElementData | undefined> {
+	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token?: CancellationToken): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId, windowId);
 		if (!window?.win) {
 			return undefined;
 		}
 
-		window?.win?.webContents.on('ipc-message', (event, channel) => {
-			if (channel === 'vscode:cancelElementSelection') {
-				debuggers.detach();
-			}
-		});
-
-
-		// Find Simple Browser webview contents
+		// Find the simple browser webview
 		const allWebContents = webContents.getAllWebContents();
-		console.log('allWebContents', allWebContents);
-		const simpleBrowserWebview = allWebContents.find(webContent => {
-			return webContent.getTitle().includes('Simple Browser');
-		});
+		const simpleBrowserWebview = allWebContents.find(webContent => webContent.getTitle().includes('Simple Browser'));
 
 		if (!simpleBrowserWebview) {
 			return undefined;
@@ -787,30 +782,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const debuggers = simpleBrowserWebview.debugger;
 		debuggers.attach();
 
-		if (token) {
-			// Set up an interval to check cancellation
-			const checkCancellation = setInterval(() => {
-				if (token.isCancellationRequested) {
-					debuggers.detach();
-					clearInterval(checkCancellation);
-				}
-			}, 100);
-
-			// Clean up interval when debugger detaches
-			debuggers.on('detach', () => {
-				clearInterval(checkCancellation);
-			});
-		}
-
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
 
 		// TODO: grab the correct vscodeBrowserReqId
 		const myTarget = targetInfos.find((t: { type: string; url: string | string[] }) => t.type === 'iframe' && t.url.includes('vscodeBrowserReqId'));
-		console.log('myTarget', myTarget);
-
 		if (!myTarget) {
-			console.error('No suitable target found');
-			return;
+			throw new Error('No target found');
 		}
 
 		const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
@@ -821,6 +798,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		await debuggers.sendCommand('DOM.enable', {}, sessionId);
 		await debuggers.sendCommand('CSS.enable', {}, sessionId);
 		await debuggers.sendCommand('Overlay.enable', {}, sessionId);
+		await debuggers.sendCommand('Debugger.enable', {}, sessionId);
+		await debuggers.sendCommand('Runtime.enable', {}, sessionId);
 
 		await debuggers.sendCommand('Overlay.setInspectMode', {
 			mode: 'searchForNode',
@@ -893,89 +872,42 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			},
 		}, sessionId);
 
-
-		const { contexts } = await debuggers.sendCommand('Runtime.enable', {}, sessionId);
-
-		try {
-
-			// TURN THIS INTO A NOTIFICATION THING FOR WHEN ITS DONE OR NOT
-			const runtime = await debuggers.sendCommand('Runtime.evaluate', {
-				expression: `
-					(function() {
-						const existing = document.getElementById('__myInjectedButton');
-						if (existing) existing.remove();
-				
-						const button = document.createElement('button');
-						button.id = '__myInjectedButton';
-						button.textContent = 'Click me!';
-						button.style.position = 'fixed';
-						button.style.bottom = '20px';
-						button.style.right = '20px';
-						button.style.zIndex = '9999';
-						button.style.padding = '10px 15px';
-						button.style.background = '#007bff';
-						button.style.color = 'white';
-						button.style.border = 'none';
-						button.style.borderRadius = '5px';
-						button.style.cursor = 'pointer';
-						button.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-						
-						button.onclick = function() {
-							alert('Button clicked!');
-							// You can do more things here
-						};
-				
-						document.body.appendChild(button);
-					})();
-			`,
-				includeCommandLineAPI: true,
-				contextId: undefined
-			}, sessionId);
-			console.log('return value', runtime);
-		} catch (error) {
-			console.error('Error injecting button:', error);
-			debuggers.detach();
-			return undefined;
-		}
-
-
-		// console.log('Injected button into the page');
-
-		const { outerHTML, computedStyle, bounds } = await this.getNodeData(sessionId, debuggers);
-		debuggers.off('message', () => { });
+		const nodeData = await this.getNodeData(sessionId, debuggers, window.win);
+		debuggers.detach();
 
 		const zoomFactor = simpleBrowserWebview.getZoomFactor();
-		const bounds2 = {
-			x: (bounds.x + (offsetX ?? 0)) * zoomFactor,
-			y: (bounds.y + (offsetY ?? 0)) * zoomFactor,
-			width: bounds.width * zoomFactor,
-			height: bounds.height * zoomFactor
+		const scaledBounds = {
+			x: (nodeData.bounds.x + offsetX) * zoomFactor,
+			y: (nodeData.bounds.y + offsetY) * zoomFactor,
+			width: nodeData.bounds.width * zoomFactor,
+			height: nodeData.bounds.height * zoomFactor
 		};
 
-		debuggers.detach();
-		return { outerHTML, computedStyle, bounds: bounds2 };
+		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
 	}
 
-	async getNodeData(sessionId: number, debuggers: any): Promise<{ outerHTML: string; computedStyle: string; bounds: { x: number; y: number; width: number; height: number } }> {
-		return new Promise((resolve, reject) => {
-			debuggers.on('message', async (event: any, method: string, params: { backendNodeId: number }) => {
+	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow): Promise<NodeDataResponse> {
+		return new Promise((resolve) => {
+			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
+					debuggers.off('message', onMessage);
 					const backendNodeId = params?.backendNodeId;
 					if (!backendNodeId) {
-						console.error('Missing backendNodeId in inspectNodeRequested event');
-						return;
+						throw new Error('Missing backendNodeId in inspectNodeRequested event');
 					}
 
 					try {
 						await debuggers.sendCommand('DOM.getDocument', {}, sessionId);
 						const { nodeIds } = await debuggers.sendCommand('DOM.pushNodesByBackendIdsToFrontend', { backendNodeIds: [backendNodeId] }, sessionId);
-
+						if (!nodeIds || nodeIds.length === 0) {
+							throw new Error('Failed to get node IDs.');
+						}
 						const nodeId = nodeIds[0];
 
-						// Get html
 						const { outerHTML } = await debuggers.sendCommand('DOM.getOuterHTML', { nodeId }, sessionId);
-
-						const response: ComputedStyleResponse = await debuggers.sendCommand('CSS.getComputedStyleForNode', { nodeId }, sessionId);
+						if (!outerHTML) {
+							throw new Error('Failed to get outerHTML.');
+						}
 
 						const { model } = await debuggers.sendCommand('DOM.getBoxModel', { nodeId }, sessionId);
 						if (!model) {
@@ -984,25 +916,36 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 						const margin = model.margin;
 						const x = margin[0];
-						const y = margin[1] + 32.4;
+						const y = margin[1] + 32.4; // 32.4 is height of the title bar
 						const width = margin[2] - margin[0];
 						const height = margin[5] - margin[1];
 
-						const bounds = { x, y, width, height };
-
+						// Turn computed css into nice string
+						const response: ComputedStyleResponse = await debuggers.sendCommand('CSS.getComputedStyleForNode', { nodeId }, sessionId);
+						if (!response || !response.computedStyle) {
+							throw new Error('Failed to get computed style.');
+						}
 						const cssString = response.computedStyle.map(({ name, value }) => `${name}: ${value};`).join(' ');
 
 						resolve({
-							outerHTML: outerHTML,
+							outerHTML,
 							computedStyle: cssString,
-							bounds
+							bounds: { x, y, width, height }
 						});
-
 					} catch (err) {
-						console.log(err);
+						throw new Error(`Failed to get node data: ${err}`);
 					}
 				}
+			};
+
+			window.webContents.on('ipc-message', (event, channel) => {
+				if (channel === 'vscode:cancelElementSelection') {
+					debuggers.off('message', onMessage);
+					debuggers.detach();
+				}
 			});
+
+			debuggers.on('message', onMessage);
 		});
 	}
 
