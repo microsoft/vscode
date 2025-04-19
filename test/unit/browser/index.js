@@ -59,7 +59,7 @@ const args = minimist(process.argv.slice(2), {
 		grep: 'only run tests matching <pattern>',
 		debug: 'do not run browsers headless',
 		sequential: 'only run suites for a single browser at a time',
-		browser: 'browsers in which tests should run',
+		browser: 'browsers in which tests should run (supports browser channels)',
 		reporter: 'the mocha reporter',
 		'reporter-options': 'the mocha reporter options',
 		tfs: 'tfs',
@@ -76,7 +76,7 @@ Options:
 --grep, -g, -f <pattern> only run tests matching <pattern>
 --debug, --debug-browser do not run browsers headless
 --sequential         only run suites for a single browser at a time
---browser <browser>  browsers in which tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
+--browser <browser>  browsers in which tests should run (e.g. chromium-msedge)
 --reporter <reporter> the mocha reporter
 --reporter-options <reporter-options> the mocha reporter options
 --tfs <tfs>          tfs
@@ -88,17 +88,18 @@ const isDebug = !!args.debug;
 
 const withReporter = (function () {
 	if (args.tfs) {
-		{
-			return (browserType, runner) => {
-				new mocha.reporters.Spec(runner);
-				new MochaJUnitReporter(runner, {
-					reporterOptions: {
-						testsuitesTitle: `${args.tfs} ${process.platform}`,
-						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-					}
-				});
-			};
-		}
+		return (browserType, runner) => {
+			new mocha.reporters.Spec(runner);
+			new MochaJUnitReporter(runner, {
+				reporterOptions: {
+					testsuitesTitle: `${args.tfs} ${process.platform}`,
+					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY 
+						? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 
+							`test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) 
+						: undefined
+				}
+			});
+		};
 	} else {
 		return (_, runner) => applyReporter(runner, args);
 	}
@@ -113,33 +114,25 @@ function ensureIsArray(a) {
 }
 
 const testModules = (async function () {
-
 	const excludeGlob = '**/{node,electron-sandbox,electron-main,electron-utility}/**/*.test.js';
 	let isDefaultModules = true;
 	let promise;
 
 	if (args.run) {
-		// use file list (--run)
 		isDefaultModules = false;
 		promise = Promise.resolve(ensureIsArray(args.run).map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
 			return path.relative(out, file);
 		}));
-
 	} else {
-		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
 		const pattern = args.runGlob || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
 			glob(pattern, { cwd: out }, (err, files) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve(files);
-				}
+				err ? reject(err) : resolve(files);
 			});
 		});
 	}
@@ -149,9 +142,8 @@ const testModules = (async function () {
 		for (const file of files) {
 			if (!minimatch(file, excludeGlob)) {
 				modules.push(file.replace(/\.js$/, ''));
-
 			} else if (!isDefaultModules) {
-				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
+				console.warn(`DROPPING ${file} - cannot run in browser`);
 			}
 		}
 		return modules;
@@ -160,25 +152,14 @@ const testModules = (async function () {
 
 function consoleLogFn(msg) {
 	const type = msg.type();
-	const candidate = console[type];
-	if (candidate) {
-		return candidate;
-	}
-
-	if (type === 'warning') {
-		return console.warn;
-	}
-
-	return console.log;
+	if (console[type]) return console[type];
+	return type === 'warning' ? console.warn : console.log;
 }
 
 async function createServer() {
-	// Demand a prefix to avoid issues with other services on the
-	// machine being able to access the test server.
 	const prefix = '/' + randomBytes(16).toString('hex');
 	const serveStatic = await yaserver.createServer({ rootDir });
 
-	/** Handles a request for a remote method call, invoking `fn` and returning the result */
 	const remoteMethod = async (req, response, fn) => {
 		const params = await new Promise((resolve, reject) => {
 			const body = [];
@@ -201,14 +182,10 @@ async function createServer() {
 			return response.writeHead(404).end();
 		}
 
-		// rewrite the URL so the static server can handle the request correctly
 		request.url = request.url.slice(prefix.length);
 
 		function massagePath(p) {
-			// TODO@jrieken FISHY but it enables snapshot
-			// in ESM browser tests
-			p = String(p).replace(/\\/g, '/').replace(prefix, rootDir);
-			return p;
+			return String(p).replace(/\\/g, '/').replace(prefix, rootDir);
 		}
 
 		switch (request.url) {
@@ -231,7 +208,6 @@ async function createServer() {
 		server.listen(0, 'localhost', () => {
 			resolve({
 				dispose: () => server.close(),
-				// @ts-ignore
 				url: `http://localhost:${server.address().port}${prefix}`
 			});
 		});
@@ -241,23 +217,34 @@ async function createServer() {
 
 async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	const server = await createServer();
-	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
+	const browser = await playwright[browserType].launch({ 
+		headless: !isDebug, 
+		devtools: isDebug, 
+		channel: browserChannel 
+	});
+
+	// Validate browser channel actually launched
+	if (browserChannel && !browser.version().includes(browserChannel)) {
+		throw new Error(`Failed to launch ${browserType}-${browserChannel}`);
+	}
+
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = new URL(server.url + '/test/unit/browser/renderer.html');
 	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
-	if (args.build) {
-		target.searchParams.set('build', 'true');
-	}
-	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-		target.searchParams.set('ci', 'true');
-	}
+	if (args.build) target.searchParams.set('build', 'true');
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) target.searchParams.set('ci', 'true');
 
-	// append CSS modules as query-param
-	await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
-		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-		target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
-	});
+	// Load CSS assets with error handling
+	try {
+		const cssModules = await promisify(glob)('**/*.css', { cwd: out });
+		const blob = await new Response(cssModules.join(',')).blob();
+		const gzipped = await new Response(blob.stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+		target.searchParams.set('_devCssData', Buffer.from(gzipped).toString('base64'));
+	} catch (error) {
+		console.error('Failed to load CSS assets:', error);
+		throw new Error('CSS asset loading failed');
+	}
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
@@ -267,37 +254,35 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	await page.goto(target.href);
 
 	if (args.build) {
-		const nlsMessages = await fs.promises.readFile(path.join(out, 'nls.messages.json'), 'utf8');
-		await page.evaluate(value => {
-			// when running from `out-build`, ensure to load the default
-			// messages file, because all `nls.localize` calls have their
-			// english values removed and replaced by an index.
-			// @ts-ignore
-			globalThis._VSCODE_NLS_MESSAGES = JSON.parse(value);
-		}, nlsMessages);
+		try {
+			const nlsMessages = await fs.promises.readFile(path.join(out, 'nls.messages.json'), 'utf8');
+			await page.evaluate(value => {
+				// @ts-ignore
+				globalThis._VSCODE_NLS_MESSAGES = JSON.parse(value);
+			}, nlsMessages);
+		} catch (error) {
+			console.error('Failed to load NLS messages:', error);
+			throw new Error('NLS initialization failed');
+		}
 	}
 
 	page.on('console', async msg => {
-		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		const args = await Promise.all(msg.args().map(arg => arg.jsonValue()));
+		consoleLogFn(msg)(msg.text(), args);
 	});
 
-	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, 
+		browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()
+	));
 
-	// collection failures for console printing
 	const failingModuleIds = [];
 	const failingTests = [];
 	emitter.on('fail', (test, err) => {
 		failingTests.push({ title: test.fullTitle, message: err.message });
 
 		if (err.stack) {
-			const regex = /(vs\/.*\.test)\.js/;
-			for (const line of String(err.stack).split('\n')) {
-				const match = regex.exec(line);
-				if (match) {
-					failingModuleIds.push(match[1]);
-					return;
-				}
-			}
+			const match = err.stack.match(/(vs\/.*\.test)\.js/);
+			if (match) failingModuleIds.push(match[1]);
 		}
 	});
 
@@ -308,40 +293,44 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 			grep: args.grep,
 		});
 	} catch (err) {
-		console.error(err);
+		console.error('Test execution failed:', err);
 	}
+
 	if (!isDebug) {
 		server?.dispose();
+		await context.close();
 		await browser.close();
+	} else {
+		console.log(`[DEBUG] Browser kept open - ${browserType} ${browser.version()}`);
 	}
 
 	if (failingTests.length > 0) {
-		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
-
+		let result = `Failed tests:\n - ${failingTests.map(t => `${t.title}: ${t.message}`).join('\n - ')}`;
 		if (failingModuleIds.length > 0) {
-			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
+			result += `\n\nDebug URL: ${target.href}?${failingModuleIds.map(m => `m=${m}`).join('&')}`;
 		}
-
-		return `${res}\n`;
+		return result;
 	}
 }
 
 class EchoRunner extends events.EventEmitter {
-
 	constructor(event, title = '') {
 		super();
 		createStatsCollector(this);
 		event.on('start', () => this.emit('start'));
 		event.on('end', () => this.emit('end'));
-		event.on('suite', (suite) => this.emit('suite', EchoRunner.deserializeSuite(suite, title)));
-		event.on('suite end', (suite) => this.emit('suite end', EchoRunner.deserializeSuite(suite, title)));
-		event.on('test', (test) => this.emit('test', EchoRunner.deserializeRunnable(test)));
-		event.on('test end', (test) => this.emit('test end', EchoRunner.deserializeRunnable(test)));
-		event.on('hook', (hook) => this.emit('hook', EchoRunner.deserializeRunnable(hook)));
-		event.on('hook end', (hook) => this.emit('hook end', EchoRunner.deserializeRunnable(hook)));
-		event.on('pass', (test) => this.emit('pass', EchoRunner.deserializeRunnable(test)));
-		event.on('fail', (test, err) => this.emit('fail', EchoRunner.deserializeRunnable(test, title), EchoRunner.deserializeError(err)));
-		event.on('pending', (test) => this.emit('pending', EchoRunner.deserializeRunnable(test)));
+		event.on('suite', suite => this.emit('suite', this.constructor.deserializeSuite(suite, title)));
+		event.on('suite end', suite => this.emit('suite end', this.constructor.deserializeSuite(suite, title)));
+		event.on('test', test => this.emit('test', this.constructor.deserializeRunnable(test)));
+		event.on('test end', test => this.emit('test end', this.constructor.deserializeRunnable(test)));
+		event.on('hook', hook => this.emit('hook', this.constructor.deserializeRunnable(hook)));
+		event.on('hook end', hook => this.emit('hook end', this.constructor.deserializeRunnable(hook)));
+		event.on('pass', test => this.emit('pass', this.constructor.deserializeRunnable(test)));
+		event.on('fail', (test, err) => this.emit('fail', 
+			this.constructor.deserializeRunnable(test, title), 
+			this.constructor.deserializeError(err)
+		));
+		event.on('pending', test => this.emit('pending', this.constructor.deserializeRunnable(test)));
 	}
 
 	static deserializeSuite(suite, titleExtra) {
@@ -362,7 +351,9 @@ class EchoRunner extends events.EventEmitter {
 	static deserializeRunnable(runnable, titleExtra) {
 		return {
 			title: runnable.title,
-			fullTitle: () => titleExtra && runnable.fullTitle ? `${runnable.fullTitle} - /${titleExtra}/` : runnable.fullTitle,
+			fullTitle: () => titleExtra && runnable.fullTitle 
+				? `${runnable.fullTitle} - /${titleExtra}/` 
+				: runnable.fullTitle,
 			titlePath: () => runnable.titlePath,
 			async: runnable.async,
 			slow: () => runnable.slow,
@@ -380,44 +371,36 @@ class EchoRunner extends events.EventEmitter {
 }
 
 testModules.then(async modules => {
-
-	// run tests in selected browsers
-	const browsers = Array.isArray(args.browser)
-		? args.browser : [args.browser];
-
+	const browsers = ensureIsArray(args.browser);
 	let messages = [];
 	let didFail = false;
 
 	try {
 		if (args.sequential) {
 			for (const browser of browsers) {
-				const [browserType, browserChannel] = browser.split('-');
-				messages.push(await runTestsInBrowser(modules, browserType, browserChannel));
+				const [type, channel] = browser.split('-');
+				messages.push(await runTestsInBrowser(modules, type, channel));
 			}
 		} else {
 			messages = await Promise.all(browsers.map(async browser => {
-				const [browserType, browserChannel] = browser.split('-');
-				return await runTestsInBrowser(modules, browserType, browserChannel);
+				const [type, channel] = browser.split('-');
+				return runTestsInBrowser(modules, type, channel);
 			}));
 		}
 	} catch (err) {
-		console.error(err);
-		if (!isDebug) {
-			process.exit(1);
-		}
+		console.error('Fatal error:', err);
+		if (!isDebug) process.exit(1);
 	}
 
-	// aftermath
 	for (const msg of messages) {
 		if (msg) {
 			didFail = true;
 			console.log(msg);
 		}
 	}
-	if (!isDebug) {
-		process.exit(didFail ? 1 : 0);
-	}
 
+	if (!isDebug) process.exit(didFail ? 1 : 0);
 }).catch(err => {
-	console.error(err);
+	console.error('Test module loading failed:', err);
+	process.exit(1);
 });
