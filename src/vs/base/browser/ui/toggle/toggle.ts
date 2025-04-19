@@ -38,6 +38,7 @@ export interface ICheckboxStyles {
 	readonly checkboxBorder: string | undefined;
 	readonly checkboxForeground: string | undefined;
 	readonly checkboxDisabledBackground: string | undefined;
+	readonly checkboxDisabledForeground: string | undefined;
 	readonly size?: number;
 }
 
@@ -305,9 +306,9 @@ export class Checkbox extends Widget {
 	}
 
 	protected applyStyles(enabled = this.enabled): void {
-		this.domNode.style.color = this.styles.checkboxForeground || '';
+		this.domNode.style.color = (enabled ? this.styles.checkboxForeground : this.styles.checkboxDisabledForeground) || '';
 		this.domNode.style.backgroundColor = (enabled ? this.styles.checkboxBackground : this.styles.checkboxDisabledBackground) || '';
-		this.domNode.style.borderColor = this.styles.checkboxBorder || '';
+		this.domNode.style.borderColor = (enabled ? this.styles.checkboxBorder : this.styles.checkboxDisabledBackground) || '';
 
 		const size = this.styles.size || 18;
 		this.domNode.style.width =
