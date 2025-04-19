@@ -37,6 +37,7 @@ export interface ICheckboxStyles {
 	readonly checkboxBackground: string | undefined;
 	readonly checkboxBorder: string | undefined;
 	readonly checkboxForeground: string | undefined;
+	readonly checkboxDisabledBackground: string | undefined;
 	readonly size?: number;
 }
 
@@ -291,19 +292,21 @@ export class Checkbox extends Widget {
 
 	enable(): void {
 		this.checkbox.enable();
+		this.applyStyles(true);
 	}
 
 	disable(): void {
 		this.checkbox.disable();
+		this.applyStyles(false);
 	}
 
 	setTitle(newTitle: string): void {
 		this.checkbox.setTitle(newTitle);
 	}
 
-	protected applyStyles(): void {
+	protected applyStyles(enabled = this.enabled): void {
 		this.domNode.style.color = this.styles.checkboxForeground || '';
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground || '';
+		this.domNode.style.backgroundColor = (enabled ? this.styles.checkboxBackground : this.styles.checkboxDisabledBackground) || '';
 		this.domNode.style.borderColor = this.styles.checkboxBorder || '';
 
 		const size = this.styles.size || 18;
