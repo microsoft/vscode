@@ -339,8 +339,10 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		data.checkbox = data.toDisposeTemplate.add(new MutableDisposable());
 		data.toDisposeTemplate.add(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
 			// `label` elements with role=checkboxes don't automatically toggle them like normal <checkbox> elements
-			if (data.checkbox.value && !e.defaultPrevented) {
-				data.checkbox.value.checked = !data.checkbox.value.checked;
+			if (data.checkbox.value && !e.defaultPrevented && data.checkbox.value.enabled) {
+				const checked = !data.checkbox.value.checked;
+				data.checkbox.value.checked = checked;
+				(data.element as QuickPickItemElement).checked = checked;
 			}
 		}));
 
