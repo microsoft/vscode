@@ -92,10 +92,6 @@ export const defaultCheckboxStyles: ICheckboxStyles = {
 	checkboxForeground: asCssVariable(checkboxForeground)
 };
 
-export function getCheckboxStyles(override: IStyleOverride<ICheckboxStyles>): ICheckboxStyles {
-	return overrideStyles(override, defaultCheckboxStyles);
-}
-
 export const defaultDialogStyles: IDialogStyles = {
 	dialogBackground: asCssVariable(editorWidgetBackground),
 	dialogForeground: asCssVariable(editorWidgetForeground),
