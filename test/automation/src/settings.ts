@@ -24,6 +24,7 @@ export class SettingsEditor {
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openUserSettingsFile();
 
+		await this.editors.selectTab('settings.json');
 		await this.code.sendKeybinding('right', () =>
 			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s)));
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
@@ -39,6 +40,7 @@ export class SettingsEditor {
 	async addUserSettings(settings: [key: string, value: string][]): Promise<void> {
 		await this.openUserSettingsFile();
 
+		await this.editors.selectTab('settings.json');
 		await this.code.sendKeybinding('right', () =>
 			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s)));
 		await this.editor.waitForTypeInEditor('settings.json', settings.map(v => `"${v[0]}": ${v[1]},`).join(''));

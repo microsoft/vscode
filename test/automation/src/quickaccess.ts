@@ -149,7 +149,9 @@ export class QuickAccess {
 						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', accept);
 						break;
 					case QuickAccessKind.Commands:
-						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', accept);
+						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p');
+						await this.code.wait(100);
+						await this.quickInput.waitForQuickInputOpened(10);
 						break;
 				}
 				break;

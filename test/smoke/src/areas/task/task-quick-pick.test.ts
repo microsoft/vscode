@@ -33,7 +33,7 @@ export function setup(options?: { skipSuite: boolean }) {
 			});
 			it('hide property - false', async () => {
 				await task.configureTask({ type, command, label, hide: false });
-				await task.assertTasks(label, [{ label }], 'run');
+				await task.assertTasks(label, [{ label, hide: false }], 'run');
 			});
 			it('hide property - undefined', async () => {
 				await task.configureTask({ type, command, label });

@@ -48,7 +48,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {

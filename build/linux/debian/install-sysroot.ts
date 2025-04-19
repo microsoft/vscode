@@ -136,7 +136,7 @@ type SysrootDictEntry = {
 export async function getVSCodeSysroot(arch: DebianArchString, isMusl: boolean = false): Promise<string> {
 	let expectedName: string;
 	let triple: string;
-	const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-8.5.0';
+	const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-10.5.0';
 	switch (arch) {
 		case 'amd64':
 			expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
