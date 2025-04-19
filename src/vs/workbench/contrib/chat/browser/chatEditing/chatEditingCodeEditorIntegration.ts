@@ -147,17 +147,14 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 
 			// done: render diff
-			if (!_entry.isCurrentlyBeingModifiedBy.read(r)) {
+			const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
-				const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
+			codeEditorObs.getOption(EditorOption.fontInfo).read(r);
+			codeEditorObs.getOption(EditorOption.lineHeight).read(r);
 
-				codeEditorObs.getOption(EditorOption.fontInfo).read(r);
-				codeEditorObs.getOption(EditorOption.lineHeight).read(r);
-
-				const reviewMode = _entry.reviewMode.read(r);
-				const diff = documentDiffInfo.read(r);
-				this._updateDiffRendering(diff, reviewMode, isDiffEditor);
-			}
+			const reviewMode = _entry.reviewMode.read(r);
+			const diff = documentDiffInfo.read(r);
+			this._updateDiffRendering(diff, reviewMode, isDiffEditor);
 		}));
 
 
