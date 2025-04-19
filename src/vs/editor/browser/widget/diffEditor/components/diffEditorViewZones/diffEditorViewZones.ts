@@ -170,7 +170,10 @@ export class DiffEditorViewZones extends Disposable {
 							if (i > originalModel.getLineCount()) {
 								return { orig: origViewZones, mod: modViewZones };
 							}
-							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null);
+							const viewModel = this._editors.original._getViewModel()!;
+							const inlineDecorations = viewModel.getInlineDecorationsOnLine(i);
+							const lineHeight = this._editors.original.getLineHeightForLineNumber(i);
+							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), lineHeight, null, inlineDecorations, null);
 						}
 					}
 				}

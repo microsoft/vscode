@@ -9,7 +9,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { FontInfo } from '../../../../common/config/fontInfo.js';
+import { BareFontInfo, FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -90,8 +90,9 @@ export class ScreenReaderSupport {
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
-		const wordWrapValue = wordWrapOverride2 !== 'inherit' ? wordWrapOverride2 : options.get(EditorOption.wordWrap);
-		this._domNode.domNode.style.textWrap = wordWrapValue === 'off' ? 'nowrap' : 'wrap';
+		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
+		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
+		this._domNode.domNode.style.textWrap = wordWrap === 'off' ? 'nowrap' : 'wrap';
 	}
 
 	public onCursorStateChanged(e: ViewCursorStateChangedEvent): void {
@@ -115,15 +116,16 @@ export class ScreenReaderSupport {
 		}
 
 		const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
-		const left = this._contentLeft + this._primaryCursorVisibleRange.left - editorScrollLeft;
-		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
+		const cursorLeft = this._contentLeft + this._primaryCursorVisibleRange.left - editorScrollLeft;
+		if (cursorLeft < this._contentLeft || cursorLeft > this._contentLeft + this._contentWidth) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
 			return;
 		}
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const positionLineNumber = this._primarySelection.positionLineNumber;
+		const position = this._primarySelection.getPosition();
+		const positionLineNumber = position.lineNumber;
 		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
@@ -135,9 +137,28 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
-		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
-		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
+		const fontInfo = this._context.viewModel.getFontInfoForPosition(position);
+		const lineNumberWithinState = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
+		const scrollTop = lineNumberWithinState * lineHeight;
+		const left = this._computeLeftOffset(position, this._primaryCursorVisibleRange, fontInfo);
+		applyFontInfo(this._domNode, fontInfo);
+		this._doRender(scrollTop, top, left, this._divWidth, lineHeight);
+	}
+
+	private _computeLeftOffset(primaryCursorPosition: Position, primaryCursorVisibleRange: HorizontalPosition, fontInfo: BareFontInfo): number {
+		let left = this._contentLeft;
+		const canvas = document.createElement('canvas');
+		const context = canvas.getContext('2d');
+		if (context) {
+			context.font = `${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`;
+			const rangeBeforeCursor = new Range(primaryCursorPosition.lineNumber, 1, primaryCursorPosition.lineNumber, primaryCursorPosition.column);
+			const contentBeforeCursor = this._context.viewModel.getValueInRange(rangeBeforeCursor, EndOfLinePreference.TextDefined);
+			const widthOfTextBeforeCursor = context.measureText(contentBeforeCursor).width;
+			left += primaryCursorVisibleRange.left - widthOfTextBeforeCursor;
+		}
+		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
+		canvas.remove();
+		return left - scrollLeft;
 	}
 
 	private _renderAtTopLeft(): void {
@@ -145,8 +166,6 @@ export class ScreenReaderSupport {
 	}
 
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
-		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this._domNode, this._fontInfo);
 
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);

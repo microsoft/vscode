@@ -44,7 +44,7 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSi
 import { ClassName } from '../../../common/model/intervalTree.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
 import { VerticalRevealType } from '../../../common/viewEvents.js';
 import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
@@ -60,6 +60,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -93,6 +94,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
+
+	private readonly _onDidChangeFont: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>({ deliveryQueue: this._deliveryQueue }));
+	public readonly onDidChangeFont: Event<ModelFontChangedEvent> = this._onDidChangeFont.event;
 
 	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
@@ -603,6 +607,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(lineNumber, 1));
 		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
+	}
+
+	public getFontInfoForPosition(position: Position): FontInfo | undefined {
+		if (!this._modelData) {
+			return;
+		}
+		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+		return this._modelData.viewModel.getFontInfoForPosition(viewPosition);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
@@ -1675,7 +1687,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._id,
 			this._configuration,
 			model,
-			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
+			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement), model),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
 			this.languageConfigurationService,
@@ -1790,7 +1802,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				case OutgoingViewModelEventKind.ModelLineHeightChanged:
 					this._onDidChangeLineHeight.fire(e.event);
 					break;
-
+				case OutgoingViewModelEventKind.ModelFontChangedEvent:
+					this._onDidChangeFont.fire(e.event);
+					break;
 			}
 		}));
 

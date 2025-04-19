@@ -2696,7 +2696,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
 		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
-		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
+		const wordWrap = 'on';  // (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
 		const isDominatedByLongLines = env.isDominatedByLongLines;

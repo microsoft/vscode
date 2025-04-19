@@ -34,13 +34,14 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration, ICustomFontChangeAccessor } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
-import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelFontChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
+import { IViewModelLines, IViewModelLinesFromProjectedModelContext, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { FontInfo } from '../config/fontInfo.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -87,9 +88,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._viewportStart = ViewportStart.create(this.model);
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
+		const customLineHeights = this._getCustomLineHeights();
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-			this._lines = new ViewModelLinesFromModelAsIs(this.model);
+			this._lines = new ViewModelLinesFromModelAsIs(this.model, this._configuration.options.get(EditorOption.fontInfo));
 
 		} else {
 			const options = this._configuration.options;
@@ -99,11 +101,22 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 
+			const context: IViewModelLinesFromProjectedModelContext = {
+				getLineHeightForLineNumber: (lineNumber: number): number => {
+					if (this.viewLayout) {
+						return this.viewLayout.getLineHeightForLineNumber(lineNumber);
+					}
+					console.log('customLineHeights : ', customLineHeights);
+					return fontInfo.lineHeight;
+				}
+			};
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
+				context,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
+				this._configuration,
 				fontInfo,
 				this.model.getOptions().tabSize,
 				wrappingStrategy,
@@ -117,7 +130,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), this._getCustomLineHeights(), scheduleAtNextAnimationFrame));
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), customLineHeights, scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
@@ -319,7 +332,10 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								lineBreaksComputer.addRequest(line, injectedText, null);
+								const lineNumber = change.fromLineNumber;
+								const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, null);
 							}
 							break;
 						}
@@ -328,7 +344,10 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, null);
+							const lineNumber = change.lineNumber;
+							const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, null);
 							break;
 						}
 					}
@@ -453,6 +472,24 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (filteredChanges.length > 0) {
 				const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
 				this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
+			}
+		}));
+
+		this._register(this.model.onDidChangeFont((e) => {
+			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+			this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
+				for (const change of filteredChanges) {
+					const { decorationId, fontDecoration } = change;
+					if (fontDecoration !== null) {
+						accessor.insertOrChangeCustomFont(decorationId, fontDecoration);
+					} else {
+						accessor.removeCustomFonts(decorationId);
+					}
+				}
+			});
+			if (filteredChanges.length > 0) {
+				const filteredEvent = new textModelEvents.ModelFontChangedEvent(filteredChanges);
+				this._eventDispatcher.emitOutgoingEvent(new ModelFontChangedEvent(filteredEvent));
 			}
 		}));
 
@@ -756,6 +793,14 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
+	public getFontInfoForPosition(position: Position): FontInfo {
+		return this._lines.getFontInfoForPosition(position);
+	}
+
+	public hasFontDecorations(lineNumber: number): boolean {
+		return this._lines.getFontSegmentsForLine(lineNumber).length > 0;
+	}
+
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
@@ -858,6 +903,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(position);
 		const resultModelPosition = this.model.modifyPosition(modelPosition, offset);
 		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
+	}
+
+	public getInlineDecorationsOnLine(lineNumber: number): InlineDecoration[] {
+		return this._lines.getInlineDecorationsOnLine(lineNumber);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
