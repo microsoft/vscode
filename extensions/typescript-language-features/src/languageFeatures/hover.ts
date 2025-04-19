@@ -11,10 +11,11 @@ import { DocumentSelector } from '../configuration/documentSelector';
 import { documentationToMarkdown } from './util/textRendering';
 import * as typeConverters from '../typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-
+import { API } from '../tsServer/api';
 
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
+	private lastHoverAndLevel: [vscode.Hover, number] | undefined;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -24,17 +25,24 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 	public async provideHover(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.Hover | undefined> {
+		token: vscode.CancellationToken,
+		context?: vscode.HoverContext,
+	): Promise<vscode.VerboseHover | undefined> {
 		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
 
+		const enableExpandableHover = vscode.workspace.getConfiguration('typescript').get('experimental.expandableHover');
+		let verbosityLevel: number | undefined;
+		if (enableExpandableHover && this.client.apiVersion.gte(API.v590)) {
+			verbosityLevel = Math.max(0, this.getPreviousLevel(context?.previousHover) + (context?.verbosityDelta ?? 0));
+		}
+		const args = { ...typeConverters.Position.toFileLocationRequestArgs(filepath, position), verbosityLevel };
+
 		const response = await this.client.interruptGetErr(async () => {
 			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 
-			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			return this.client.execute('quickinfo', args, token);
 		});
 
@@ -42,9 +50,24 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			return undefined;
 		}
 
-		return new vscode.Hover(
-			this.getContents(document.uri, response.body, response._serverType),
-			typeConverters.Range.fromTextSpan(response.body));
+		const contents = this.getContents(document.uri, response.body, response._serverType);
+		const range = typeConverters.Range.fromTextSpan(response.body);
+		const hover = verbosityLevel !== undefined ?
+			new vscode.VerboseHover(
+				contents,
+				range,
+				// @ts-expect-error
+				/*canIncreaseVerbosity*/ response.body.canIncreaseVerbosityLevel,
+				/*canDecreaseVerbosity*/ verbosityLevel !== 0
+			) : new vscode.Hover(
+				contents,
+				range
+			);
+
+		if (verbosityLevel !== undefined) {
+			this.lastHoverAndLevel = [hover, verbosityLevel];
+		}
+		return hover;
 	}
 
 	private getContents(
@@ -71,6 +94,13 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		const md = documentationToMarkdown(data.documentation, data.tags, this.client, resource);
 		parts.push(md);
 		return parts;
+	}
+
+	private getPreviousLevel(previousHover: vscode.Hover | undefined): number {
+		if (previousHover && this.lastHoverAndLevel && this.lastHoverAndLevel[0] === previousHover) {
+			return this.lastHoverAndLevel[1];
+		}
+		return 0;
 	}
 }
 
