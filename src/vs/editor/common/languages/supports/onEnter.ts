@@ -90,6 +90,17 @@ export class OnEnterSupport {
 			}
 		}
 
+		// (3): Cursor right before open bracker logic
+		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
+			if (afterEnterText.length > 0) {
+				for (let i = 0, len = this._brackets.length; i < len; i++) {
+					const bracket = this._brackets[i];
+					if (afterEnterText.trim().startsWith(bracket.open)) {
+						return { indentAction: IndentAction.None };
+					}
+				}
+			}
+		}
 
 		// (4): Open bracket based logic
 		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
