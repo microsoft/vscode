@@ -38,7 +38,20 @@ declare module 'vscode' {
 		 */
 		env: Record<string, string | number | null>;
 
-		constructor(label: string, command: string, args?: string[], env?: Record<string, string | number | null>);
+		/**
+		 * Optional version identification for the server. If this changes, the
+		 * editor will indicate that tools have changed and prompt to refresh them.
+		 */
+		version?: string;
+
+		/**
+		 * @param label The human-readable name of the server.
+		 * @param command The command used to start the server.
+		 * @param args Additional command-line arguments passed to the server.
+		 * @param env Optional additional environment information for the server.
+		 * @param version Optional version identification for the server.
+		 */
+		constructor(label: string, command: string, args?: string[], env?: Record<string, string | number | null>, version?: string);
 	}
 
 	/**
@@ -63,11 +76,17 @@ declare module 'vscode' {
 		headers: Record<string, string>;
 
 		/**
+		 * Optional version identification for the server. If this changes, the
+		 * editor will indicate that tools have changed and prompt to refresh them.
+		 */
+		version?: string;
+
+		/**
 		 * @param label The human-readable name of the server.
 		 * @param uri The URI of the server.
 		 * @param headers Optional additional heads included with each request to the server.
 		 */
-		constructor(label: string, uri: Uri, headers?: Record<string, string>);
+		constructor(label: string, uri: Uri, headers?: Record<string, string>, version?: string);
 	}
 
 	export type McpServerDefinition = McpStdioServerDefinition | McpHttpServerDefinition;
