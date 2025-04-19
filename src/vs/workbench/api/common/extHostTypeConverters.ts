@@ -2328,10 +2328,9 @@ export namespace LanguageModelChatMessage {
 					}
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
-			} else if (c.type === 'image_url') {
-				// No image support for LanguageModelChatMessage
+			} else if (c.type === 'image_url' || c.type === 'extra_data') {
+				// Non-stable types
 				return undefined;
-
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2429,6 +2428,8 @@ export namespace LanguageModelChatMessage2 {
 				};
 
 				return new types.LanguageModelDataPart(value);
+			} else if (c.type === 'extra_data') {
+				return new types.LanguageModelExtraDataPart(c.kind, c.data);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2493,6 +2494,12 @@ export namespace LanguageModelChatMessage2 {
 					type: 'text',
 					value: c.value
 				};
+			} else if (c instanceof types.LanguageModelExtraDataPart) {
+				return {
+					type: 'extra_data',
+					kind: c.kind,
+					data: c.data
+				} satisfies chatProvider.IChatMessagePart;
 			} else {
 				if (typeof c !== 'string') {
 					throw new Error('Unexpected chat message content type');
