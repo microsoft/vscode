@@ -25,6 +25,7 @@ suite('Processes', () => {
 			VSCODE_PORTABLE: '3',
 			VSCODE_PID: 'x',
 			VSCODE_SHELL_LOGIN: '1',
+			VSCODE_CODE_CACHE_PATH: 'x',
 			VSCODE_NEW_VAR: 'x',
 			GDK_PIXBUF_MODULE_FILE: 'x',
 			GDK_PIXBUF_MODULEDIR: 'x'

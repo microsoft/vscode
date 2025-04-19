@@ -6,7 +6,6 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
-import * as module from 'module';
 import { performance } from 'perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
@@ -211,12 +210,8 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	// Bootstrap ESM
 	await bootstrapESM();
 
-	if (codeCachePath) {
-		module.enableCompileCache(codeCachePath);
-	}
-
 	// Load Main
-	await import(['./vs/code/electron-main', 'main.js'].join('/')); // makes ESM not inline the module to benefit from code caching
+	await import('./vs/code/electron-main/main.js');
 	perf.mark('code/didRunMainBundle');
 }
 

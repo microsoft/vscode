@@ -13,7 +13,6 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { WindowUtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 
 export class ExtensionHostStarter extends Disposable implements IDisposable, IExtensionHostStarter {
 
@@ -29,7 +28,6 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService
 	) {
 		super();
 
@@ -74,7 +72,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 			throw canceled();
 		}
 		const id = String(++ExtensionHostStarter._lastId);
-		const extHost = new WindowUtilityProcess(this._logService, this._windowsMainService, this._telemetryService, this._lifecycleMainService, this._environmentMainService);
+		const extHost = new WindowUtilityProcess(this._logService, this._windowsMainService, this._telemetryService, this._lifecycleMainService);
 		this._extHosts.set(id, extHost);
 		const disposable = extHost.onExit(({ pid, code, signal }) => {
 			disposable.dispose();
@@ -116,8 +114,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
 			respondToAuthRequestsFromMainProcess: true,
-			correlationId: id,
-			disableCodeCache: true // for now disable code cache, otherwise extensions end up in our code cache dir
+			correlationId: id
 		});
 		const pid = await Event.toPromise(extHost.onSpawn);
 		return { pid };

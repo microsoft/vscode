@@ -145,7 +145,7 @@ export class SharedProcess extends Disposable {
 	}
 
 	private createUtilityProcess(): void {
-		this.utilityProcess = this._register(new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService, this.environmentMainService));
+		this.utilityProcess = this._register(new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService));
 
 		// Install a log listener for very early shared process warnings and errors
 		this.utilityProcessLogListener = this.utilityProcess.onMessage((e: any) => {
