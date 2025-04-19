@@ -49,7 +49,7 @@ import { IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
-import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
+import { ICellRange, INotebookRange2 } from '../../contrib/notebook/common/notebookRange.js';
 import * as search from '../../contrib/search/common/search.js';
 import { TestId } from '../../contrib/testing/common/testId.js';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
@@ -1637,6 +1637,16 @@ export namespace NotebookRange {
 	}
 }
 
+export namespace NotebookRange2 {
+	export function from(range: vscode.NotebookRange2): INotebookRange2 {
+		return {
+			cell: range.cell,
+			part: range.part,
+			...Range.from(range) ?? {}
+		};
+	}
+}
+
 export namespace NotebookCellExecutionSummary {
 	export function to(data: notebooks.NotebookCellInternalMetadata): vscode.NotebookCellExecutionSummary {
 		return {
@@ -1695,10 +1705,11 @@ export namespace NotebookCellKind {
 
 export namespace NotebookData {
 
-	export function from(data: vscode.NotebookData): extHostProtocol.NotebookDataDto {
+	export function from(data: vscode.NotebookData, mapperHandle?: number): extHostProtocol.NotebookDataDto {
 		const res: extHostProtocol.NotebookDataDto = {
 			metadata: data.metadata ?? Object.create(null),
 			cells: [],
+			mapperHandle,
 		};
 		for (const cell of data.cells) {
 			types.NotebookCellData.validate(cell);
