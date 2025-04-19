@@ -25,6 +25,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -101,9 +102,11 @@ class LanguageModelResponse {
 			this._responseStreams.set(fragment.index, res);
 		}
 
-		let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
+		let out: vscode.LanguageModelTextPart | vscode.LanguageModelDataPart | vscode.LanguageModelToolCallPart;
 		if (fragment.part.type === 'text') {
 			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
+		} else if (fragment.part.type === 'data') {
+			out = new extHostTypes.LanguageModelTextPart('');
 		} else {
 			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
 		}
@@ -210,6 +213,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };
+			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
+				part = { type: 'data', value: { mimeType: fragment.part.value.mimeType, data: VSBuffer.wrap(fragment.part.value.data) } };
 			}
 
 			if (!part) {

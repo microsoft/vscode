@@ -77,7 +77,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
 				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 			}, token);
-			return typeConvert.LanguageModelToolResult.to(revive(result));
+			return typeConvert.LanguageModelToolResult2.to(revive(result));
 		} finally {
 			this._tokenCountFuncs.delete(callId);
 		}
@@ -143,7 +143,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new CancellationError();
 		}
 
-		return typeConvert.LanguageModelToolResult.from(extensionResult, item.extension);
+		return typeConvert.LanguageModelToolResult2.from(extensionResult, item.extension);
 	}
 
 	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
