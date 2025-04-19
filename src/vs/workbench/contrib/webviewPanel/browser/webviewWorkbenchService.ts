@@ -193,7 +193,6 @@ class RevivalPool {
 
 	public reviveFor(reviver: WebviewResolver, token: CancellationToken) {
 		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
-		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
 
 		for (const { input, promise: resolve, disposable } of toRevive) {
 			reviver.resolveWebview(input, token).then(x => resolve.complete(x), err => resolve.error(err)).finally(() => {
