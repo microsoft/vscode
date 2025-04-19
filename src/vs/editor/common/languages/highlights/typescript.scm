@@ -28,6 +28,8 @@
   (template_literal_type)
 ] @string.template.ts)
 
+(template_substitution) @meta.template.expression.ts
+
 (string .
   ([
     "\""
