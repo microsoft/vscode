@@ -1515,7 +1515,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get tools() {
 				return extHostLanguageModelTools.getTools(extension);
 			},
-			fileIsIgnored(uri: vscode.Uri, token: vscode.CancellationToken) {
+			fileIsIgnored(uri: vscode.Uri, token?: vscode.CancellationToken) {
 				return extHostLanguageModels.fileIsIgnored(extension, uri, token);
 			},
 			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {

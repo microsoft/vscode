@@ -555,7 +555,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		};
 	}
 
-	fileIsIgnored(extension: IExtensionDescription, uri: vscode.Uri, token: vscode.CancellationToken): Promise<boolean> {
+	fileIsIgnored(extension: IExtensionDescription, uri: vscode.Uri, token: vscode.CancellationToken = CancellationToken.None): Promise<boolean> {
 		checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 
 		return this._proxy.$fileIsIgnored(uri, token);
