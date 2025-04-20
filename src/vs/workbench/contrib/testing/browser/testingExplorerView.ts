@@ -82,6 +82,7 @@ import './media/testing.css';
 import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
 import { TestingExplorerFilter } from './testingExplorerFilter.js';
 import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
+import { compareFileNames } from '../../../../base/common/comparers.js';
 
 const enum LastFocusState {
 	Input,
@@ -1351,7 +1352,10 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 		const sb = b.test.item.sortText;
 		// If tests are in the same location and there's no preferred sortText,
 		// keep the extension's insertion order (#163449).
-		return inSameLocation && !sa && !sb ? 0 : (sa || a.test.item.label).localeCompare(sb || b.test.item.label);
+
+		// will sort the files considering numeric order
+		return compareFileNames(sa || a.test.item.label, sb || b.test.item.label);
+
 	}
 }
 
