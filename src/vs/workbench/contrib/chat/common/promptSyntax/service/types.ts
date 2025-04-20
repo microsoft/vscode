@@ -65,9 +65,9 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * Get a list of prompt source folders based on the provided prompt type and storage.
+	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: TPromptsType, storage: TPromptsStorage): readonly IPromptPath[];
+	getSourceFolders(type: TPromptsType): readonly IPromptPath[];
 
 	/**
 	 * Returns a prompt command if the command name.

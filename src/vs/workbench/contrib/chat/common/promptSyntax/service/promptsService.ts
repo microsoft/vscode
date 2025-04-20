@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { assert } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -101,10 +101,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return prompts.flat();
 	}
 
-	public getSourceFolders(
-		type: TPromptsType,
-		storage: TPromptsStorage,
-	): readonly IPromptPath[] {
+	public getSourceFolders(type: TPromptsType): readonly IPromptPath[] {
 		// sanity check to make sure we don't miss a new
 		// prompt type that could be added in the future
 		assert(
@@ -112,21 +109,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 			`Unknown prompt type '${type}'.`,
 		);
 
-		if (storage === 'local') {
-			return this.fileLocator
-				.getConfigBasedSourceFolders()
-				.map(addType(storage, type));
-		}
+		const result: IPromptPath[] = [];
 
-		if (storage === 'user') {
-			return [this.userDataService.currentProfile.promptsHome]
-				.map(addType(storage, type));
+		for (const uri of this.fileLocator.getConfigBasedSourceFolders()) {
+			result.push({ uri, storage: 'local', type });
 		}
+		const userHome = this.userDataService.currentProfile.promptsHome;
+		result.push({ uri: userHome, storage: 'user', type });
 
-		assertNever(
-			storage,
-			`Unknown prompt storage type '${storage}'.`,
-		);
+		return result;
 	}
 
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {

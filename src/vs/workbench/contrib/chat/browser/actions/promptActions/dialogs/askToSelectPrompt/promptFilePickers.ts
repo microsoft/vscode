@@ -23,7 +23,7 @@ import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
 import { INSTRUCTIONS_COMMAND_ID } from '../../../../promptSyntax/contributions/attachInstructionsCommand.js';
-import { NEW_PROMPT_LOCAL_COMMAND_ID } from '../../../../promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
+import { NEW_PROMPT_COMMAND_ID } from '../../../../promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -239,7 +239,7 @@ export class PromptFilePickers {
 
 				const selectedItem = selectedItems[0];
 				if (selectedItem === NEW_PROMPT_FILE_OPTION) {
-					await this._commandService.executeCommand(NEW_PROMPT_LOCAL_COMMAND_ID);
+					await this._commandService.executeCommand(NEW_PROMPT_COMMAND_ID);
 					return;
 				}
 
