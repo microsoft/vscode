@@ -720,10 +720,13 @@ class GitBlameStatusBarItem {
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
 		this._controller.onDidChangeBlameInformation(() => this._onDidChangeBlameInformation(), this, this._disposables);
+
+		this._onDidChangeConfiguration();
 	}
 
-	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.commitShortHashLength') &&
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e &&
+			!e.affectsConfiguration('git.commitShortHashLength') &&
 			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}

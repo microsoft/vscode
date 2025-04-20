@@ -42,7 +42,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -63,6 +63,7 @@ import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 
 export namespace Command {
 
@@ -2655,6 +2656,15 @@ export namespace ChatResponseWarningPart {
 	}
 }
 
+export namespace ChatResponseExtensionsPart {
+	export function from(part: vscode.ChatResponseExtensionsPart): Dto<IChatExtensionsContent> {
+		return {
+			kind: 'extensions',
+			extensions: part.extensions
+		};
+	}
+}
+
 export namespace ChatResponseMovePart {
 	export function from(part: vscode.ChatResponseMovePart): Dto<IChatMoveMessage> {
 		return {
@@ -2814,7 +2824,7 @@ export namespace ChatResponseCodeCitationPart {
 
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart | vscode.ChatResponseNotebookEditPart | vscode.ChatResponseExtensionsPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2843,6 +2853,8 @@ export namespace ChatResponsePart {
 			return ChatResponseCodeCitationPart.from(part);
 		} else if (part instanceof types.ChatResponseMovePart) {
 			return ChatResponseMovePart.from(part);
+		} else if (part instanceof types.ChatResponseExtensionsPart) {
+			return ChatResponseExtensionsPart.from(part);
 		}
 
 		return {
@@ -3256,5 +3268,30 @@ export namespace LanguageModelToolResult {
 export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
+	}
+}
+
+export namespace McpServerDefinition {
+	function isHttpConfig(candidate: vscode.McpServerDefinition): candidate is vscode.McpHttpServerDefinition {
+		return !!(candidate as vscode.McpHttpServerDefinition).uri;
+	}
+
+	export function from(item: vscode.McpServerDefinition): McpServerLaunch.Serialized {
+		return McpServerLaunch.toSerialized(
+			isHttpConfig(item)
+				? {
+					type: McpServerTransportType.HTTP,
+					uri: item.uri,
+					headers: Object.entries(item.headers),
+				}
+				: {
+					type: McpServerTransportType.Stdio,
+					cwd: item.cwd,
+					args: item.args,
+					command: item.command,
+					env: item.env,
+					envFile: undefined,
+				}
+		);
 	}
 }

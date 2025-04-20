@@ -54,7 +54,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgressOrPaused,
 			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 		);
@@ -125,7 +125,8 @@ class ToggleChatModeAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.inQuickChat.negate(),
 					),
 					group: 'navigation',
 				},
@@ -169,7 +170,7 @@ class ToggleChatModeAction extends Action2 {
 			} else {
 				const confirmation = await dialogService.confirm({
 					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to continue?"),
+					message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
 					primaryButton: localize('agent.newSession.confirm', "Yes"),
 					type: 'info'
 				});
@@ -286,7 +287,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgressOrPaused,
 			ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask),
 		);
@@ -333,7 +334,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgressOrPaused,
 			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 		);
@@ -376,7 +377,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgressOrPaused,
 		);
 
@@ -430,7 +431,7 @@ class SendToNewChatAction extends Action2 {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgressOrPaused,
 		);
 

@@ -518,6 +518,7 @@ declare namespace monaco {
 		readonly altKey: boolean;
 		readonly metaKey: boolean;
 		readonly timestamp: number;
+		readonly defaultPrevented: boolean;
 		preventDefault(): void;
 		stopPropagation(): void;
 	}
@@ -1744,6 +1745,10 @@ declare namespace monaco.editor {
 		 */
 		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
+		 * If set, the decoration will override the line height of the lines it spans.
+		 */
+		lineHeight?: number | null;
+		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
 		linesDecorationsClassName?: string | null;
@@ -2277,6 +2282,11 @@ declare namespace monaco.editor {
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 */
 		getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+		/**
+		 * Gets all the decorations that contain custom line heights.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 */
+		getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
 		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
@@ -6100,6 +6110,10 @@ declare namespace monaco.editor {
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
 		/**
+		 * Get the line height for the line number.
+		 */
+		getLineHeightForLineNumber(lineNumber: number): number;
+		/**
 		 * Write the screen reader content to be the current selection
 		 */
 		writeScreenReaderContent(reason: string): void;
@@ -7365,6 +7379,7 @@ declare namespace monaco.languages {
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
 		freeInlineCompletions(completions: T): void;
+		onDidChangeInlineCompletions?: IEvent<void>;
 		/**
 		 * Only used for {@link yieldsToGroupIds}.
 		 * Multiple providers can have the same group id.

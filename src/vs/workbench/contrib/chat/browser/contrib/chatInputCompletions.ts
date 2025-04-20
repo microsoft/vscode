@@ -27,7 +27,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
@@ -38,15 +37,14 @@ import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertProblemAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -179,8 +177,8 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				const usedSubcommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart);
-				if (usedSubcommand) {
+				const usedOtherCommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashPromptPart);
+				if (usedOtherCommand) {
 					// Only one allowed
 					return;
 				}
@@ -452,7 +450,7 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
-	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:]*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:-]*`, 'g'); // MUST be using `g`-flag
 
 	private readonly queryBuilder: QueryBuilder;
 
@@ -469,7 +467,6 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@IMarkerService markerService: IMarkerService,
 	) {
 		super();
 
@@ -560,30 +557,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (range2) {
 				this.addSymbolEntries(widget, result, range2, token);
 			}
-
-			return result;
-		});
-
-		// Problems completions, we just attach all problems in this case
-		this.registerVariableCompletions(SelectAndInsertProblemAction.Name, ({ widget, range, position, model }, token) => {
-			const stats = markerService.getStatistics();
-			if (!stats.errors && !stats.warnings) {
-				return null;
-			}
-
-			const result: CompletionList = { suggestions: [] };
-
-			const completedText = `${chatVariableLeader}${SelectAndInsertProblemAction.Name}:`;
-			const afterTextRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + completedText.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}${SelectAndInsertProblemAction.Name}`,
-				insertText: completedText,
-				documentation: localize('pickProblemsLabel', "Problems in your workspace"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertProblemAction.ID, title: SelectAndInsertProblemAction.ID, arguments: [{ widget, range: afterTextRange }] },
-				sortText: 'z'
-			});
 
 			return result;
 		});
@@ -911,7 +884,6 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
 	) {
 		super();
 
@@ -932,14 +904,22 @@ class ToolCompletions extends Disposable {
 				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
 				const usedToolNames = new Set(usedTools.map(v => v.toolName));
 				const toolItems: CompletionItem[] = [];
-				toolItems.push(...Array.from(toolsService.getTools())
+				toolItems.push(...widget.input.selectedToolsModel.tools.get()
 					.filter(t => t.canBeReferencedInPrompt)
 					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
 					.map((t): CompletionItem => {
+						const source = t.source;
+						const detail = source.type === 'mcp'
+							? localize('desc', "MCP Server: {0}", source.label)
+							: source.type === 'extension'
+								? source.label
+								: undefined;
+
 						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
 						return {
 							label: withLeader,
 							range,
+							detail,
 							insertText: withLeader + ' ',
 							documentation: t.userDescription,
 							kind: CompletionItemKind.Text,

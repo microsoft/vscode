@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptPath, IPromptsService } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
+import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
+import { IChatPromptSlashData, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { localize } from '../../../../../../nls.js';
+import { basename } from '../../../../../../base/common/resources.js';
 
 /**
  * Provides prompt services.
@@ -83,34 +86,57 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(): Promise<readonly IPromptPath[]> {
+	public async listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]> {
 		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFilesIn(userLocations)
-				.then(withType('user')),
-			this.fileLocator.listFiles()
-				.then(withType('local')),
+			this.fileLocator.listFilesIn(userLocations, type)
+				.then(withType('user', type)),
+			this.fileLocator.listFiles(type)
+				.then(withType('local', type)),
 		]);
 
 		return prompts.flat();
 	}
 
 	public getSourceFolders(
-		type: IPromptPath['type'],
+		type: TPromptsType,
+		storage: TPromptsStorage,
 	): readonly IPromptPath[] {
 		// sanity check to make sure we don't miss a new
 		// prompt type that could be added in the future
 		assert(
-			type === 'local' || type === 'user',
+			type === 'prompt' || type === 'instructions',
 			`Unknown prompt type '${type}'.`,
 		);
 
-		const prompts = (type === 'user')
-			? [this.userDataService.currentProfile.promptsHome]
-			: this.fileLocator.getConfigBasedSourceFolders();
+		if (storage === 'local') {
+			return this.fileLocator
+				.getConfigBasedSourceFolders()
+				.map(addType(storage, type));
+		}
 
-		return prompts.map(addType(type));
+		if (storage === 'user') {
+			return [this.userDataService.currentProfile.promptsHome]
+				.map(addType(storage, type));
+		}
+
+		assertNever(
+			storage,
+			`Unknown prompt storage type '${storage}'.`,
+		);
+	}
+
+	public getPromptSlashData(name: string): IChatPromptSlashData | undefined {
+		if (name.endsWith(PROMPT_FILE_EXTENSION)) {
+			return { command: name, detail: localize('prompt.file.detail', 'Prompt file: {0}', name) };
+		}
+		return undefined;
+	}
+
+	public async resolvePromptSlashData(data: IChatPromptSlashData): Promise<IPromptPath | undefined> {
+		const files = await this.listPromptFiles('prompt');
+		return files.find(file => basename(file.uri) === data.command);
 	}
 }
 
@@ -118,10 +144,11 @@ export class PromptsService extends Disposable implements IPromptsService {
  * Utility to add a provided prompt `type` to a prompt URI.
  */
 const addType = (
-	type: 'local' | 'user',
+	storage: TPromptsStorage,
+	type: TPromptsType,
 ): (uri: URI) => IPromptPath => {
 	return (uri) => {
-		return { uri, type: type };
+		return { uri, storage, type };
 	};
 };
 
@@ -129,10 +156,11 @@ const addType = (
  * Utility to add a provided prompt `type` to a list of prompt URIs.
  */
 const withType = (
-	type: 'local' | 'user',
+	storage: TPromptsStorage,
+	type: TPromptsType,
 ): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
 	return (uris) => {
 		return uris
-			.map(addType(type));
+			.map(addType(storage, type));
 	};
 };

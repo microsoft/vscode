@@ -144,10 +144,6 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	}
 
 	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
-		// First resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAsync(folder, config);
-
-		// Then resolve input variables in the order in which they are encountered
 		const parsed = ConfigurationResolverExpression.parse(config);
 		await this.resolveWithInteraction(folder, parsed, section, variables, target);
 
@@ -180,9 +176,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			else if (this._contributedVariables.has(variable.inner)) {
 				result = { value: await this._contributedVariables.get(variable.inner)!() };
 			}
-			// Not something we can handle
 			else {
-				continue;
+				// Fallback to parent evaluation
+				const resolvedValue = await this.evaluateSingleVariable(variable, folder?.uri);
+				if (resolvedValue === undefined) {
+					// Not something we can handle
+					continue;
+				}
+				result = typeof resolvedValue === 'string' ? { value: resolvedValue } : resolvedValue;
 			}
 
 			if (result === undefined) {

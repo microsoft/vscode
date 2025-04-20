@@ -236,6 +236,11 @@ registerAction2(class extends Action2 {
 			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
+			menu: {
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 3,
+			},
 		});
 	}
 
@@ -283,6 +288,35 @@ registerAction2(class extends Action2 {
 		});
 		quickPick.show();
 		quickPick.busy = false;
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showNewWelcome',
+			title: localize2('welcome.showNewWelcome', 'Open New Welcome Experience'),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const options: GettingStartedEditorOptions = { selectedCategory: 'Setup', showNewExperience: true };
+
+		editorService.openEditor({
+			resource: GettingStartedInput.RESOURCE,
+			options
+		});
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'welcome.newWorkspaceChat',
+	handler: (accessor, stepID: string) => {
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#new ', isPartialQuery: true });
 	}
 });
 

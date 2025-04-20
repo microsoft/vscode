@@ -333,6 +333,7 @@ export interface IDefaultChatAgent {
 	readonly publicCodeMatchesUrl: string;
 	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
+	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 
 	readonly providerId: string;

@@ -28,7 +28,7 @@ import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommo
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 
@@ -77,7 +77,7 @@ export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVaria
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
-	readonly isPrompt: boolean;
+	readonly isPromptFile: boolean;
 	enabled: boolean;
 }
 
@@ -128,6 +128,15 @@ export interface IDiagnosticVariableEntryFilterData {
 	readonly filterRange?: IRange;
 }
 
+/**
+ * Chat variable that represents an attached prompt file.
+ */
+export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'file';
+	readonly value: URI | Location;
+	readonly isRoot: boolean;
+}
+
 export namespace IDiagnosticVariableEntryFilterData {
 	export const icon = Codicon.error;
 
@@ -146,8 +155,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 			name: label(data),
 			icon,
 			value: data,
-			kind: 'diagnostic' as const,
-			range: data.filterRange ? new OffsetRange(data.filterRange.startLineNumber, data.filterRange.endLineNumber) : undefined,
+			kind: 'diagnostic',
 			...data,
 		};
 	}
@@ -209,6 +217,10 @@ export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): o
 
 export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
 	return obj.kind === 'diagnostic';
+}
+
+export function isChatRequestFileEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry {
+	return obj.kind === 'file';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
@@ -288,7 +300,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatTask
 	| IChatTextEditGroup
 	| IChatNotebookEditGroup
-	| IChatConfirmation;
+	| IChatConfirmation
+	| IChatExtensionsContent;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -519,6 +532,7 @@ class AbstractResponse implements IResponse {
 				case 'codeblockUri':
 				case 'toolInvocation':
 				case 'toolInvocationSerialized':
+				case 'extensions':
 				case 'undoStop':
 					// Ignore
 					continue;
@@ -1718,6 +1732,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			progress.kind === 'warning' ||
 			progress.kind === 'progressTask' ||
 			progress.kind === 'confirmation' ||
+			progress.kind === 'extensions' ||
 			progress.kind === 'toolInvocation'
 		) {
 			request.response.updateContent(progress, quiet);

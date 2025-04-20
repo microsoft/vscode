@@ -186,6 +186,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 
 			this.changeIndexComputer = new PrefixSumComputer(new Uint32Array(indexes));
+			if (this.changeIndexComputer.getTotalSum() === 0) {
+				this.revertMarkupCellState();
+			}
 		}));
 
 		// Build cell integrations (responsible for navigating changes within a cell and decorating cell text changes)
@@ -426,7 +429,17 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(targetLines.startLineNumber, 0, targetLines.endLineNumberExclusive, 0));
 	}
 
-	blur(change: ICellDiffInfo | undefined) {
+	private revertMarkupCellState() {
+		for (const change of this.sortedCellChanges) {
+			const cellViewModel = this.getCellViewModel(change);
+			if (cellViewModel?.cellKind === CellKind.Markup && cellViewModel.getEditState() === CellEditState.Editing &&
+				(cellViewModel.editStateSource === 'chatEditNavigation' || cellViewModel.editStateSource === 'chatEdit')) {
+				cellViewModel.updateEditState(CellEditState.Preview, 'chatEdit');
+			}
+		}
+	}
+
+	private blur(change: ICellDiffInfo | undefined) {
 		if (!change) {
 			return;
 		}
@@ -620,13 +633,13 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
-		const diffInput = {
-			original: { resource: this._entry.originalURI, options: { selection: undefined } },
-			modified: { resource: this._entry.modifiedURI, options: { selection: undefined } },
+		const diffInput: IResourceDiffEditorInput = {
+			original: { resource: this._entry.originalURI },
+			modified: { resource: this._entry.modifiedURI },
 			label: defaultAgentName
 				? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
 				: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
-		} satisfies IResourceDiffEditorInput;
+		};
 		await this._editorService.openEditor(diffInput);
 
 	}
