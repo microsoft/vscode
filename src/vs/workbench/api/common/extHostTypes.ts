@@ -4841,27 +4841,6 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 		return this._content;
 	}
 
-	// Temp to avoid breaking changes
-	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined) {
-		if (value) {
-			this.content = value.map(part => {
-				if (typeof part === 'string') {
-					return new LanguageModelTextPart(part);
-				}
-				return part;
-			});
-		}
-	}
-
-	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined {
-		return this.content.map(part => {
-			if (part instanceof LanguageModelTextPart) {
-				return part.value;
-			}
-			return part;
-		});
-	}
-
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
