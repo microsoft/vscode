@@ -363,7 +363,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const newText = this.originalModel.getValueInRange(edit.originalRange);
 			edits.push(EditOperation.replace(edit.modifiedRange, newText));
 		}
-		this.modifiedModel.pushEditOperations(null, edits, _ => null); // here
+		this.modifiedModel.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
