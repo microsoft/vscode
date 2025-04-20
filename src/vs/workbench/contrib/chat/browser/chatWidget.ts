@@ -1154,7 +1154,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return {};
 		}
 
-		const promptPath = await this.promptsService.resolvePromptSlashData(agentSlashPromptPart.slashPromptCommand);
+		const promptPath = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
 		if (!promptPath) {
 			return {};
 		}
@@ -1197,14 +1197,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					input = result.input;
 				}
 
-				const { attachment } = result;
-				if (attachment) {
-					attachedContext.push(attachment);
+				if (result.attachment) {
+					attachedContext.push(result.attachment);
 				}
 
 				const promptFileVariables = attachedContext.filter(isPromptFileChatVariable);
 				if (promptFileVariables.length > 0) {
-					input = `Follow the prompt instructions from ${promptFileVariables.map(pick('name')).join(', ')}\n${input}`;
+					input = `Follow the prompt instructions from ${promptFileVariables.map(v => v.name).join(', ')}\n${input}`;
 
 					const allToolsMetadata = await this.getPromptFileToolsMetadata(promptFileVariables);
 

@@ -10,12 +10,13 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { IChatPromptSlashData, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { localize } from '../../../../../../nls.js';
-import { basename } from '../../../../../../base/common/resources.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { basename } from '../../../../../../base/common/path.js';
 
 /**
  * Provides prompt services.
@@ -36,6 +37,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
@@ -127,18 +129,40 @@ export class PromptsService extends Disposable implements IPromptsService {
 		);
 	}
 
-	public getPromptSlashData(name: string): IChatPromptSlashData | undefined {
-		if (name.endsWith(PROMPT_FILE_EXTENSION)) {
-			return { command: name, detail: localize('prompt.file.detail', 'Prompt file: {0}', name) };
+	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
+		if (command.match(/^prompt:[\w_\-\.]+/)) {
+			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
 		}
 		return undefined;
 	}
 
-	public async resolvePromptSlashData(data: IChatPromptSlashData): Promise<IPromptPath | undefined> {
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {
+		if (data.promptPath) {
+			return data.promptPath;
+		}
 		const files = await this.listPromptFiles('prompt');
-		return files.find(file => basename(file.uri) === data.command);
+		const command = data.command;
+		return files.find(file => getCommandName(file.uri.path) === command);
+	}
+
+	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
+		const promptFiles = await this.listPromptFiles('prompt');
+		return promptFiles.map(promptPath => {
+			const command = getCommandName(promptPath.uri.path);
+			return {
+				command,
+				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
+				promptPath
+			};
+		});
 	}
 }
+
+function getCommandName(path: string) {
+	const name = basename(path, PROMPT_FILE_EXTENSION);
+	return `prompt:${name}`;
+}
+
 
 /**
  * Utility to add a provided prompt `type` to a prompt URI.

@@ -13,7 +13,7 @@ import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
-import { IChatPromptSlashData } from './promptSyntax/service/types.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/types.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -102,6 +102,7 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
+
 		return `${chatAgentLeader}${this.agent.name}`;
 	}
 
@@ -150,7 +151,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 	static readonly Kind = 'prompt';
 	readonly kind = ChatRequestSlashPromptPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashPromptCommand: IChatPromptSlashData) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashPromptCommand: IChatPromptSlashCommand) { }
 
 	get text(): string {
 		return `${chatSubcommandLeader}${this.slashPromptCommand.command}`;
