@@ -6,7 +6,7 @@
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashData, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from '../../common/promptSyntax/service/types.js';
+import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from '../../common/promptSyntax/service/types.js';
 
 export class MockPromptsService implements IPromptsService {
 	_serviceBrand: undefined;
@@ -19,15 +19,19 @@ export class MockPromptsService implements IPromptsService {
 	getSourceFolders(type: TPromptsType, storage: TPromptsStorage): readonly IPromptPath[] {
 		throw new Error('Method not implemented.');
 	}
-	public getPromptSlashData(name: string): IChatPromptSlashData | undefined {
+	public asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined {
 		if (name.endsWith(PROMPT_FILE_EXTENSION)) {
+			const command = `prompt:${name.substring(0, -PROMPT_FILE_EXTENSION.length)}`;
 			return {
-				command: name, detail: name
+				command, detail: name,
 			};
 		}
 		return undefined;
 	}
-	resolvePromptSlashData(data: IChatPromptSlashData): Promise<IPromptPath | undefined> {
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		throw new Error('Method not implemented.');
 	}
 	dispose(): void {

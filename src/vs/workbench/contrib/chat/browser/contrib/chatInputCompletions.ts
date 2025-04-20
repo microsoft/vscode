@@ -41,6 +41,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashP
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
@@ -50,7 +51,8 @@ class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService
+		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -137,6 +139,53 @@ class SlashCommandCompletions extends Disposable {
 							sortText: c.sortText ?? 'z'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+						};
+					})
+				};
+			}
+		}));
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'promptSlashCommands',
+			triggerCharacters: ['/'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget || !widget.viewModel) {
+					return null;
+				}
+
+				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				if (!range) {
+					return null;
+				}
+
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
+				const parsedRequest = widget.parsedInput.parts;
+				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
+				if (usedAgent) {
+					// No (classic) global slash commands when an agent is used
+					return;
+				}
+
+				const promptCommands = await this.promptsService.findPromptSlashCommands();
+				if (promptCommands.length === 0) {
+					return null;
+				}
+
+				return {
+					suggestions: promptCommands.map((c, i): CompletionItem => {
+						const label = `/${c.command}`;
+						const description = c.promptPath?.storage === 'user' ? localize('promptFileDescription', 'User Prompt File') : localize('promptFileDescriptionWorkspace', 'Workspace Prompt File');
+						return {
+							label: { label, description },
+							insertText: `${label} `,
+							documentation: c.detail,
+							range,
+							sortText: 'a'.repeat(i + 1),
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 						};
 					})
 				};

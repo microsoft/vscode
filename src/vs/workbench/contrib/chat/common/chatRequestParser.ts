@@ -16,7 +16,7 @@ import { IPromptsService } from './promptSyntax/service/types.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /\/([\w_\-\.]+)(?=(\s|$|\b))/i; // A / command
+const slashReg = /\/([\w_\-\.:]+)(?=(\s|$|\b))/i; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -212,7 +212,7 @@ export class ChatRequestParser {
 			}
 
 			// if there's no agent, check if it's a prompt command
-			const promptCommand = this.promptsService.getPromptSlashData(command);
+			const promptCommand = this.promptsService.asPromptSlashCommand(command);
 			if (promptCommand) {
 				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, promptCommand);
 			}
