@@ -51,13 +51,7 @@ export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
-		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
-			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
-		);
+		const precondition = ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask);
 
 		super({
 			id: ChatSubmitAction.ID,
@@ -76,14 +70,14 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 1,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask)
+					when: precondition
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
 						whenNotInProgressOrPaused,
-						ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+						precondition,
 					),
 					group: 'navigation',
 				},
@@ -306,13 +300,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
-		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
-			ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask),
-		);
+		const precondition = ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask);
 
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
@@ -330,7 +318,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask),),
+					when: ContextKeyExpr.and(whenNotInProgressOrPaused, precondition),
 					order: 1
 				},
 				{
@@ -341,7 +329,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
 							ChatContextKeys.requestInProgress.negate(),
 						),
-						ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask),),
+						precondition),
 					group: 'navigation',
 				},
 			]
