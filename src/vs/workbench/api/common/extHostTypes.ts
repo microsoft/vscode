@@ -4878,22 +4878,21 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 	}
 }
 
-
 export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -4903,7 +4902,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] {
 		return this._content;
 	}
 
@@ -4919,7 +4918,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined {
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] | undefined {
 		return this.content.map(part => {
 			if (part instanceof LanguageModelTextPart) {
 				return part.value;
@@ -4930,7 +4929,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -4977,6 +4976,24 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
 			value: this.value,
+		};
+	}
+}
+
+export class LanguageModelExtraDataPart implements vscode.LanguageModelExtraDataPart {
+	kind: string;
+	data: any;
+
+	constructor(kind: string, data: any) {
+		this.kind = kind;
+		this.data = data;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelExtraDataPart,
+			kind: this.kind,
+			data: this.data,
 		};
 	}
 }

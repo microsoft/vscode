@@ -240,14 +240,34 @@ export class ToggleRequestPausedAction extends Action2 {
 	}
 }
 
-export const ChatSwitchToNextModelActionId = 'workbench.action.chat.switchToNextModel';
-export class SwitchToNextModelAction extends Action2 {
-	static readonly ID = ChatSwitchToNextModelActionId;
+class SwitchToNextModelAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.switchToNextModel';
 
 	constructor() {
 		super({
 			id: SwitchToNextModelAction.ID,
 			title: localize2('interactive.switchToNextModel.label', "Switch to Next Model"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		widget?.input.switchToNextModel();
+	}
+}
+
+export const ChatOpenModelPickerActionId = 'workbench.action.chat.openModelPicker';
+class OpenModelPickerAction extends Action2 {
+	static readonly ID = ChatOpenModelPickerActionId;
+
+	constructor() {
+		super({
+			id: OpenModelPickerAction.ID,
+			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
@@ -276,7 +296,9 @@ export class SwitchToNextModelAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: any[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
-		widget?.input.switchToNextModel();
+		if (widget) {
+			widget.input.openModelPicker();
+		}
 	}
 }
 
@@ -523,4 +545,5 @@ export function registerChatExecuteActions() {
 	registerAction2(ToggleChatModeAction);
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
+	registerAction2(OpenModelPickerAction);
 }

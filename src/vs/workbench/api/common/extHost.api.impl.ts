@@ -1816,6 +1816,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
 			LanguageModelDataPart: extHostTypes.LanguageModelDataPart,
+			LanguageModelExtraDataPart: extHostTypes.LanguageModelExtraDataPart,
 			ChatImageMimeType: extHostTypes.ChatImageMimeType,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,
 			PreparedTerminalToolInvocation: extHostTypes.PreparedTerminalToolInvocation,

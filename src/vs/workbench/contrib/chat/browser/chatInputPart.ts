@@ -80,7 +80,7 @@ import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptInstructionsAttachmentsCollectionWidget } from './attachments/promptInstructions/promptInstructionsCollectionWidget.js';
@@ -289,6 +289,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private promptFileAttached: IContextKey<boolean>;
 	private chatMode: IContextKey<ChatMode>;
 
+	private modelWidget: ModelPickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
 	private _onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
@@ -483,6 +484,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const nextIndex = (currentIndex + 1) % models.length;
 			this.setCurrentLanguageModel(models[nextIndex]);
 		}
+	}
+
+	public openModelPicker(): void {
+		this.modelWidget?.show();
 	}
 
 	private checkModelSupported(): void {
@@ -1005,7 +1010,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 
-				if (action.id === ChatSwitchToNextModelActionId && action instanceof MenuItemAction) {
+				if (action.id === ChatOpenModelPickerActionId && action instanceof MenuItemAction) {
 					if (!this._currentLanguageModel) {
 						this.setCurrentLanguageModelToDefault();
 					}
@@ -1018,10 +1023,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this._waitForPersistedLanguageModel.clear();
 								this.setCurrentLanguageModel(model);
 								this.renderAttachedContext();
+
+								// TODO- remove with https://github.com/microsoft/vscode/issues/246987
+								this.focus();
 							},
 							getModels: () => this.getModels()
 						};
-						return this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, itemDelegate);
+						return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, itemDelegate);
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
