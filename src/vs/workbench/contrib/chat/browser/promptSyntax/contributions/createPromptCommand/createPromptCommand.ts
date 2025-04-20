@@ -156,27 +156,32 @@ function register(type: TPromptsType, storage: TPromptsStorage, id: string, titl
 	});
 }
 
+export const NEW_PROMPT_LOCAL_COMMAND_ID = 'workbench.command.new.prompt.local';
+export const NEW_PROMPT_USER_COMMAND_ID = 'workbench.command.new.prompt.user';
+export const NEW_INSTRUCTIONS_LOCAL_COMMAND_ID = 'workbench.command.new.instructions.local';
+export const NEW_INSTRUCTIONS_USER_COMMAND_ID = 'workbench.command.new.instructions.user';
+
 register(
 	'instructions',
 	'local',
-	'workbench.command.new.instructions.local',
+	NEW_INSTRUCTIONS_LOCAL_COMMAND_ID,
 	localize('commands.new.instructions.local.title', "New Instructions File...")
 );
 register(
 	'instructions',
 	'user',
-	'workbench.command.new.instructions.user',
+	NEW_INSTRUCTIONS_USER_COMMAND_ID,
 	localize('commands.new.instructions.user.title', "New User Instructions File...")
 );
 register(
 	'prompt',
 	'local',
-	'workbench.command.new.prompt.local',
+	NEW_PROMPT_LOCAL_COMMAND_ID,
 	localize('commands.new.prompt.local.title', "New Prompt File...")
 );
 register(
 	'prompt',
 	'user',
-	'workbench.command.new.prompt.user',
+	NEW_PROMPT_USER_COMMAND_ID,
 	localize('commands.new.prompt.user.title', "New User Prompt File...")
 );
