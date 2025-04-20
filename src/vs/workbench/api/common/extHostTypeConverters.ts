@@ -34,7 +34,7 @@ import * as languageSelector from '../../../editor/common/languageSelector.js';
 import * as languages from '../../../editor/common/languages.js';
 import { EndOfLineSequence, TrackedRangeStickiness } from '../../../editor/common/model.js';
 import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
@@ -55,7 +55,7 @@ import { TestId } from '../../contrib/testing/common/testId.js';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { CommandsConverter } from './extHostCommands.js';
@@ -2897,10 +2897,11 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: vscode.LanguageModelToolInformation[] | undefined): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: vscode.LanguageModelToolInformation[] | undefined, extension: IRelaxedExtensionDescription): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
 		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
-		const requestWithoutId = {
+		const requestWithAllProps: vscode.ChatRequest = {
+			id: request.requestId,
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
@@ -2914,16 +2915,28 @@ export namespace ChatAgentRequest {
 			location2,
 			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
 			tools,
-			model
+			model,
+			editedFileEvents: request.editedFileEvents,
 		};
-		if (request.requestId) {
-			return {
-				...requestWithoutId,
-				id: request.requestId
-			};
+
+		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			delete (requestWithAllProps as any).id;
+			delete (requestWithAllProps as any).attempt;
+			delete (requestWithAllProps as any).enableCommandDetection;
+			delete (requestWithAllProps as any).isParticipantDetected;
+			delete (requestWithAllProps as any).location;
+			delete (requestWithAllProps as any).location2;
+			delete (requestWithAllProps as any).editedFileEvents;
 		}
-		// This cast is done to allow sending the stabl version of ChatRequest which does not have an id property
-		return requestWithoutId as unknown as vscode.ChatRequest;
+
+		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
+			delete requestWithAllProps.acceptedConfirmationData;
+			delete requestWithAllProps.rejectedConfirmationData;
+			delete (requestWithAllProps as any).tools;
+		}
+
+
+		return requestWithAllProps;
 	}
 }
 

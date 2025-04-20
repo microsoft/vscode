@@ -4525,6 +4525,12 @@ export enum ChatEditingSessionActionOutcome {
 	Saved = 3
 }
 
+export enum ChatRequestEditedFileEventKind {
+	Keep = 1,
+	Undo = 2,
+	UserModification = 3,
+}
+
 //#endregion
 
 //#region Interactive Editor
@@ -4718,13 +4724,14 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
-export class ChatRequestTurn implements vscode.ChatRequestTurn {
+export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
 		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
-		readonly toolReferences: vscode.ChatLanguageModelToolReference[]
+		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
+		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[]
 	) { }
 }
 
