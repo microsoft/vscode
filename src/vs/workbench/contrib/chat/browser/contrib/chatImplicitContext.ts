@@ -20,7 +20,7 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry, IPromptVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
@@ -340,13 +340,22 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	toBaseEntry(): IChatRequestFileEntry {
-		return {
+	toBaseEntry(): IChatRequestFileEntry | IPromptVariableEntry {
+		const result: IChatRequestFileEntry = {
 			kind: 'file',
 			id: this.id,
 			name: this.name,
 			value: this.value,
-			modelDescription: this.modelDescription
+			modelDescription: this.modelDescription,
+		};
+
+		if (this.isPromptFile === false) {
+			return result;
+		}
+
+		return {
+			...result,
+			isRoot: true,
 		};
 	}
 }
