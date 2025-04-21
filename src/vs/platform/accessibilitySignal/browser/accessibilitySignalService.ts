@@ -319,6 +319,7 @@ export class Sound {
 	public static readonly editsKept = Sound.register({ fileName: 'editsKept.mp3' });
 	public static readonly editsUndone = Sound.register({ fileName: 'editsUndone.mp3' });
 	public static readonly nextEditSuggestion = Sound.register({ fileName: 'nextEditSuggestion.mp3' });
+	public static readonly terminalCommandSucceeded = Sound.register({ fileName: 'terminalCommandSucceeded.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -498,7 +499,7 @@ export class AccessibilitySignal {
 
 	public static readonly terminalCommandSucceeded = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalCommandSucceeded', 'Terminal Command Succeeded'),
-		sound: Sound.success,
+		sound: Sound.terminalCommandSucceeded,
 		announcementMessage: localize('accessibility.signals.terminalCommandSucceeded', 'Command Succeeded'),
 		settingsKey: 'accessibility.signals.terminalCommandSucceeded',
 	});
