@@ -6,7 +6,7 @@
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from '../../common/promptSyntax/service/types.js';
+import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsType } from '../../common/promptSyntax/service/types.js';
 
 export class MockPromptsService implements IPromptsService {
 	_serviceBrand: undefined;
@@ -16,7 +16,7 @@ export class MockPromptsService implements IPromptsService {
 	listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]> {
 		throw new Error('Method not implemented.');
 	}
-	getSourceFolders(type: TPromptsType, storage: TPromptsStorage): readonly IPromptPath[] {
+	getSourceFolders(type: TPromptsType): readonly IPromptPath[] {
 		throw new Error('Method not implemented.');
 	}
 	public asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined {
