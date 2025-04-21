@@ -11,6 +11,7 @@ import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompl
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 // IMPORTANT: Each LSPCompletionProviderAddon should be responsible for managing ONE specific language server completion provider.
 // Rather than handling all of them.
@@ -23,23 +24,44 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	readonly triggerCharacters?: string[] | undefined;
 	private _provider: any;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
-
+	private _commandDetection: ICommandDetectionCapability | undefined;
+	private _capabilitiesStore: ITerminalCapabilityStore;
 	constructor(
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
+		capabilityStore: ITerminalCapabilityStore,
 		// triggerCharacters: string[] | undefined,
 		// id: string,
 	) {
 		super();
+		this._capabilitiesStore = capabilityStore;
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
+		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
+
 		// this.triggerCharacters = triggerCharacters;
 		// this.id = id;
+
+		this._registerCommandExecutionListener();
+
 	}
 
 	activate(terminal: Terminal): void {
 		console.log('activate');
 	}
+
+	private _registerCommandExecutionListener(): void {
+		// Listen to terminal command execution, update virtual document accordingly
+		if (this._commandDetection) {
+			this._commandDetection.onCommandFinished((e) => {
+				// TODO: Implement virtual document update logic
+				console.log('Command executed, updating virtual document...');
+				console.log('this is the terminal command detection event:');
+				console.log(e);
+			});
+		}
+	}
+
 
 	// On higher level, where we instantiate LSPCompletionProviderAddon (terminal.suggest.contribution.ts for now), we should:
 	// 1. Identify shell type
@@ -52,6 +74,8 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		// const testRealUri = this._textModelService.canHandleResource(uri);
 		// const textModel = await this._textModelService.createModelReference(uri);
 		// const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
+
+		// Update virtual document before requesting completions
 
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
@@ -98,7 +122,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 			console.log(result?.suggestions);
 		}
 		const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();
-		console.log('what is in this file');
+		console.log('what is in this file: \n');
 		console.log(whatIsIntheFile);
 
 		return completions;
