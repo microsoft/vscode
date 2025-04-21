@@ -173,6 +173,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			vendor: metadata.vendor ?? ExtensionIdentifier.toKey(extension.identifier),
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
+			description: metadata.description,
 			version: metadata.version,
 			maxInputTokens: metadata.maxInputTokens,
 			maxOutputTokens: metadata.maxOutputTokens,

@@ -103,6 +103,7 @@ export class ModelPickerWidget extends Disposable {
 	showAt(anchor: HTMLElement | StandardMouseEvent | IAnchor, container?: HTMLElement): void {
 		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = this.getActionItems().map(item => ({
 			item: item.model,
+			description: item.model.metadata.description,
 			kind: ActionListItemKind.Action,
 			canPreview: false,
 			group: { title: '', icon: ThemeIcon.fromId(item.isCurrent ? Codicon.check.id : Codicon.blank.id) },
