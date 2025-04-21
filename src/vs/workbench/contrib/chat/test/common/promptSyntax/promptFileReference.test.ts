@@ -732,6 +732,7 @@ suite('PromptFileReference (Unix)', function () {
 								'---',
 								'description: \'Root prompt description.\'',
 								'tools: [\'my-tool1\']',
+								'mode: "agent" ',
 								'---',
 								'## Files',
 								'\t- this file #file:folder1/file3.prompt.md ',
@@ -763,6 +764,7 @@ suite('PromptFileReference (Unix)', function () {
 												'---',
 												'tools: [\'my-tool1\', "my-tool2", true, , ]',
 												'something: true',
+												'mode: \'ask\'\t',
 												'---',
 												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
 												'',
@@ -810,7 +812,7 @@ suite('PromptFileReference (Unix)', function () {
 				[
 					new ExpectedReference(
 						rootUri,
-						createTestFileReference('folder1/file3.prompt.md', 6, 14),
+						createTestFileReference('folder1/file3.prompt.md', 7, 14),
 					),
 					new ExpectedReference(
 						URI.joinPath(rootUri, './folder1'),
@@ -827,8 +829,7 @@ suite('PromptFileReference (Unix)', function () {
 						URI.joinPath(rootUri, './folder1'),
 						createTestFileReference(
 							`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
-							6,
-							26,
+							6, 26,
 						),
 					),
 					new ExpectedReference(
@@ -856,13 +857,13 @@ suite('PromptFileReference (Unix)', function () {
 					new ExpectedReference(
 						rootUri,
 						new MarkdownLink(
-							7, 14,
+							8, 14,
 							'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 						),
 					),
 					new ExpectedReference(
 						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						createTestFileReference('./some-non-existing/file.prompt.md', 5, 30),
+						createTestFileReference('./some-non-existing/file.prompt.md', 6, 30),
 						new OpenFailed(
 							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
 							'Failed to open non-existing prompt snippets file',
@@ -870,7 +871,7 @@ suite('PromptFileReference (Unix)', function () {
 					),
 					new ExpectedReference(
 						URI.joinPath(rootUri, './folder1/some-other-folder'),
-						createTestFileReference('./some-non-prompt-file.md', 9, 13),
+						createTestFileReference('./some-non-prompt-file.md', 10, 13),
 						new OpenFailed(
 							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
 							'Oh no!',
@@ -879,7 +880,7 @@ suite('PromptFileReference (Unix)', function () {
 					new ExpectedReference(
 						URI.joinPath(rootUri, './some-other-folder/folder1'),
 						new MarkdownLink(
-							9, 48,
+							10, 48,
 							'[]', '(../../folder1/)',
 						),
 						new FolderReference(

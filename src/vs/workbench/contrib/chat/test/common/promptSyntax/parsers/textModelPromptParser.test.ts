@@ -18,7 +18,7 @@ import { randomBoolean } from '../../../../../../../base/test/common/testUtils.j
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
+import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -121,7 +121,13 @@ class TextModelPromptParserTest extends Disposable {
 				`Expected diagnostic #${i} be ${expectedDiagnostics[i]}, got 'undefined'.`,
 			);
 
-			expectedDiagnostics[i].validateEqual(diagnostic);
+			try {
+				expectedDiagnostics[i].validateEqual(diagnostic);
+			} catch (_error) {
+				throw new Error(
+					`Expected diagnostic #${i} to be ${expectedDiagnostics[i]}, got '${diagnostic}'.`,
+				);
+			}
 		}
 
 		assert.strictEqual(
@@ -277,16 +283,18 @@ suite('TextModelPromptParser', () => {
 				createURI('/absolute/folder/and/a/filename.txt'),
 				[
 					/* 01 */"---",
-					/* 02 */"	something: true", /* unknown metadata record */
-					/* 03 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
-					/* 04 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
-					/* 05 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
-					/* 06 */"---",
-					/* 07 */"The cactus on my desk has a thriving Instagram account.",
-					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
-					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
-					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
-					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+					/* 02 */"description: 'My prompt.'\t\t",
+					/* 03 */"	something: true", /* unknown metadata record */
+					/* 04 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
+					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
+					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 07 */"	mode: 'agent'",
+					/* 08 */"---",
+					/* 09 */"The cactus on my desk has a thriving Instagram account.",
+					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
 				],
 			);
 
@@ -295,7 +303,7 @@ suite('TextModelPromptParser', () => {
 					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 					text: '[text](./foo-bar-baz/another-file.ts)',
 					path: './foo-bar-baz/another-file.ts',
-					startLine: 8,
+					startLine: 10,
 					startColumn: 43,
 					pathStartColumn: 50,
 					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
@@ -308,22 +316,23 @@ suite('TextModelPromptParser', () => {
 				'Prompt header must be defined.',
 			);
 
-			const { tools } = metadata;
-			assertDefined(
-				tools,
-				'Tools metadata must be present.',
-			);
-
-			assert.strictEqual(
-				tools.length,
-				2,
-				`Prompt header tools metadata must have 2 tool names, got '[${tools.join(', ')}]'.`,
-			);
-
+			const { tools, mode, description } = metadata;
 			assert.deepStrictEqual(
 				tools,
 				['tool_name1', 'tool_name2'],
 				`Prompt header must have correct tools metadata.`,
+			);
+
+			assert.strictEqual(
+				mode,
+				'agent',
+				`Prompt header must have correct mode metadata.`,
+			);
+
+			assert.strictEqual(
+				description,
+				'My prompt.',
+				`Prompt header must have correct description metadata.`,
 			);
 		});
 
@@ -332,16 +341,18 @@ suite('TextModelPromptParser', () => {
 				createURI('/absolute/folder/and/a/filename.txt'),
 				[
 					/* 01 */"---",
-					/* 02 */"	something: true", /* unknown metadata record */
-					/* 03 */"tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', ,'tool_name2' ] ",
-					/* 04 */"  tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
-					/* 05 */"tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
-					/* 06 */"---",
-					/* 07 */"The cactus on my desk has a thriving Instagram account.",
-					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
-					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
-					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
-					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+					/* 02 */"	description: true \t ",
+					/* 03 */"	mode: \"ask\"",
+					/* 04 */"	something: true", /* unknown metadata record */
+					/* 05 */"tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', ,'tool_name2' ] ",
+					/* 06 */"  tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 07 */"tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 08 */"---",
+					/* 09 */"The cactus on my desk has a thriving Instagram account.",
+					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
 				],
 			);
 
@@ -350,7 +361,7 @@ suite('TextModelPromptParser', () => {
 					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 					text: '[text](./foo-bar-baz/another-file.ts)',
 					path: './foo-bar-baz/another-file.ts',
-					startLine: 8,
+					startLine: 10,
 					startColumn: 43,
 					pathStartColumn: 50,
 					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
@@ -370,36 +381,44 @@ suite('TextModelPromptParser', () => {
 			);
 
 			await test.validateHeaderDiagnostics([
+				new ExpectedDiagnosticError(
+					new Range(2, 15, 2, 15 + 4),
+					'Value of the \'description\' metadata must be \'string\', got \'boolean\'.',
+				),
 				new ExpectedDiagnosticWarning(
-					new Range(2, 2, 2, 2 + 15),
+					new Range(4, 2, 4, 2 + 15),
 					'Unknown metadata record \'something\' will be ignored.',
 				),
 				new ExpectedDiagnosticWarning(
-					new Range(3, 38, 3, 38 + 12),
+					new Range(5, 38, 5, 38 + 12),
 					'Duplicate tool name \'tool_name1\'.',
 				),
 				new ExpectedDiagnosticWarning(
-					new Range(3, 52, 3, 52 + 4),
+					new Range(5, 52, 5, 52 + 4),
 					'Expected a tool name (string), got \'true\'.',
 				),
 				new ExpectedDiagnosticWarning(
-					new Range(3, 58, 3, 58 + 5),
+					new Range(5, 58, 5, 58 + 5),
 					'Expected a tool name (string), got \'false\'.',
 				),
 				new ExpectedDiagnosticWarning(
-					new Range(3, 65, 3, 65 + 2),
+					new Range(5, 65, 5, 65 + 2),
 					'Tool name cannot be empty.',
 				),
 				new ExpectedDiagnosticWarning(
-					new Range(3, 70, 3, 70 + 12),
+					new Range(5, 70, 5, 70 + 12),
 					'Duplicate tool name \'tool_name2\'.',
 				),
 				new ExpectedDiagnosticWarning(
-					new Range(4, 3, 4, 3 + 37),
+					new Range(3, 2, 3, 2 + 11),
+					'Record \'mode\' is implied to have the \'agent\' value if \'tools\' record is present so the specified value will be ignored.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(6, 3, 6, 3 + 37),
 					'Duplicate metadata record \'tools\' will be ignored.',
 				),
 				new ExpectedDiagnosticWarning(
-					new Range(5, 1, 5, 1 + 19),
+					new Range(7, 1, 7, 1 + 19),
 					'Duplicate metadata record \'tools\' will be ignored.',
 				),
 			]);
