@@ -48,6 +48,7 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { ChatModelCategoryService, IChatModelCategoryService } from '../common/modelPicker/chatModelCategoryService.js';
 import { PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerReusablePromptLanguageFeatures } from '../common/promptSyntax/languageFeatures/providers/index.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -654,6 +655,7 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
+registerSingleton(IChatModelCategoryService, ChatModelCategoryService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 
