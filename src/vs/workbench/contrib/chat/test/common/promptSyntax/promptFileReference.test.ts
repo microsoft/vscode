@@ -1401,7 +1401,7 @@ suite('PromptFileReference (Unix)', function () {
 
 				assert.deepStrictEqual(
 					mode,
-					undefined,
+					ChatMode.Agent,
 					'Must have correct tools metadata.',
 				);
 

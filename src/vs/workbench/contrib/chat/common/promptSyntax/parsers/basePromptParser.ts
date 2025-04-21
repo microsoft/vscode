@@ -497,27 +497,38 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 */
 	public get metadata(): IPromptMetadata {
 		if (this.header === undefined) {
-			return {};
+			return {
+				mode: ChatMode.Ask,
+			};
 		}
 
 		const { metadata } = this.header;
 		if (metadata === undefined) {
-			return {};
+			return {
+				mode: ChatMode.Ask,
+			};
 		}
 
-		const result: IPromptMetadata = {};
 
 		const { tools, mode, description } = metadata;
-		if (tools !== undefined) {
-			result.tools = tools.toolNames;
-		}
 
-		if (mode !== undefined) {
-			result.mode = mode.chatMode;
-		}
+		// compute resulting mode based on presence
+		// of `tools` metadata in the prompt header
+		const resultingMode = (tools !== undefined)
+			? ChatMode.Agent
+			: mode?.chatMode;
+
+		// fallback to `ask` mode if no mode is defined
+		const result: IPromptMetadata = {
+			mode: resultingMode ?? ChatMode.Ask,
+		};
 
 		if (description !== undefined) {
 			result.description = description.text ?? undefined;
+		}
+
+		if (tools !== undefined) {
+			result.tools = tools.toolNames;
 		}
 
 		return result;

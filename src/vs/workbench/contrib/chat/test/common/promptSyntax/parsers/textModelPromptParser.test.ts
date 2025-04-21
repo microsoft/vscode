@@ -463,7 +463,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							undefined,
+							ChatMode.Agent,
 							'Mode metadata must have correct value.',
 						);
 
@@ -503,7 +503,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							undefined,
+							ChatMode.Agent,
 							'Mode metadata must have correct value.',
 						);
 
@@ -577,7 +577,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							undefined,
+							ChatMode.Agent,
 							'Mode metadata must have correct value.',
 						);
 
@@ -743,7 +743,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							undefined,
+							ChatMode.Ask,
 							'Mode metadata must have correct value.',
 						);
 
