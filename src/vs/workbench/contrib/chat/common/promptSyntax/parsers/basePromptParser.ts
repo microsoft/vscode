@@ -30,6 +30,7 @@ import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCod
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
+import { ChatMode } from '../../constants.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -530,11 +531,21 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		let hasTools = false;
 		const result: string[] = [];
 
-		const { tools } = this.metadata;
+		const { tools, mode } = this.metadata;
 
 		if (tools !== undefined) {
 			result.push(...tools);
 			hasTools = true;
+		}
+
+		const isRootInAgentMode = ((hasTools === true) || (mode === ChatMode.Agent));
+
+		// the top-level mode defines the overall mode for all
+		// nested prompt references, therefore if mode of
+		// the top-level prompt is not equal to `agent`, then
+		// ignore all `tools` metadata of the nested references
+		if (isRootInAgentMode === false) {
+			return null;
 		}
 
 		for (const reference of this.references) {
