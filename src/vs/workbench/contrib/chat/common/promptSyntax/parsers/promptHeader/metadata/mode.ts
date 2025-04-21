@@ -28,6 +28,10 @@ const VALID_MODES = Object.freeze([
  * Prompt `mode` metadata record inside the prompt header.
  */
 export class PromptModeMetadata extends PromptMetadataRecord {
+	public override get recordName(): string {
+		return RECORD_NAME;
+	}
+
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
@@ -44,12 +48,12 @@ export class PromptModeMetadata extends PromptMetadataRecord {
 	/**
 	 * Private field for tracking the chat mode value.
 	 */
-	private modeValue: ChatMode | undefined;
+	private value: ChatMode | undefined;
 	/**
 	 * Chat mode value of the metadata record.
 	 */
-	public get mode(): ChatMode | undefined {
-		return this.modeValue;
+	public get chatMode(): ChatMode | undefined {
+		return this.value;
 	}
 
 	constructor(
@@ -98,7 +102,7 @@ export class PromptModeMetadata extends PromptMetadataRecord {
 		const validModes: string[] = [...VALID_MODES];
 		const index = validModes.indexOf(cleanText);
 		if (index !== -1) {
-			this.modeValue = VALID_MODES[index];
+			this.value = VALID_MODES[index];
 			return;
 		}
 

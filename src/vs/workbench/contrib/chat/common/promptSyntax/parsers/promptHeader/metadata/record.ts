@@ -23,6 +23,11 @@ export abstract class PromptMetadataRecord {
 	) { }
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	public abstract get recordName(): string;
+
+	/**
 	 * List of all `error` issue diagnostics.
 	 */
 	public get errorDiagnostics(): readonly PromptMetadataError[] {
