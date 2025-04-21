@@ -36,6 +36,7 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
+	readonly description?: string;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
@@ -45,6 +46,7 @@ interface IActionMenuTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly text: HTMLElement;
+	readonly description?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
 }
 
@@ -100,9 +102,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		text.className = 'title';
 		container.append(text);
 
+		const description = document.createElement('span');
+		description.className = 'description';
+		container.append(description);
+
 		const keybinding = new KeybindingLabel(container, OS);
 
-		return { container, icon, text, keybinding };
+		return { container, icon, text, description, keybinding };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -123,6 +129,14 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		dom.setVisibility(!element.hideIcon, data.icon);
 
 		data.text.textContent = stripNewlines(element.label);
+
+		if (element.description) {
+			data.description!.textContent = stripNewlines(element.description);
+			data.description!.style.display = 'inline';
+		} else {
+			data.description!.textContent = '';
+			data.description!.style.display = 'none';
+		}
 
 		data.keybinding.set(element.keybinding);
 		dom.setVisibility(!!element.keybinding, data.keybinding.element);
