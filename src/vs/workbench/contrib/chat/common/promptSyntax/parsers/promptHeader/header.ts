@@ -53,7 +53,15 @@ export class PromptHeader extends Disposable {
 	 * Metadata records.
 	 */
 	public get metadata(): Readonly<IHeaderMetadata> {
-		return this.meta;
+		const result = { ...this.meta };
+
+		// if the `tools` and `mode` metadata are compatible,
+		// then drop the `mode` metadata from the result
+		if (this.toolsAndModeCompatible === false) {
+			delete result.mode;
+		}
+
+		return result;
 	}
 
 	/**
@@ -193,7 +201,7 @@ export class PromptHeader extends Disposable {
 	/**
 	 * TODO: @legomushroom
 	 */
-	public get toolsAndModeCompatible(): boolean {
+	private get toolsAndModeCompatible(): boolean {
 		const { tools, mode } = this.meta;
 
 		// if `mode` is not set or equal to `agent` mode,
@@ -223,7 +231,7 @@ export class PromptHeader extends Disposable {
 
 		const { tools, mode } = this.meta;
 
-		// sanity checks on the behavior of the `toolsAndModeCompatible` method
+		// sanity checks on the behavior of the `toolsAndModeCompatible` getter
 		assertDefined(
 			tools,
 			'Tools metadata must have been present.',

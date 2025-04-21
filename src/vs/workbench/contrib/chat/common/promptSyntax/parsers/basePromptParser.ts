@@ -499,7 +499,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return {};
 		}
 
-		const { metadata, toolsAndModeCompatible } = this.header;
+		const { metadata } = this.header;
 		if (metadata === undefined) {
 			return {};
 		}
@@ -509,13 +509,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		const { tools, mode, description } = metadata;
 		if (tools !== undefined) {
 			result.tools = tools.toolNames;
+		}
 
-			// copy over the `mode` metadata value only if
-			// the `tools` and `mode` metadata are compatible,
-			// otherwise ignore the `mode` metadata completely
-			if (toolsAndModeCompatible === true) {
-				result.mode = mode?.chatMode;
-			}
+		if (mode !== undefined) {
+			result.mode = mode.chatMode;
 		}
 
 		if (description !== undefined) {
