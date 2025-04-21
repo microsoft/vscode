@@ -262,8 +262,11 @@ export class InlineCompletionsController extends Disposable {
 
 			await timeout(50, cancelOnDispose(store));
 			await waitForState(this._suggestWidgetAdapter.selectedItem, isUndefined, () => false, cancelOnDispose(store));
-
-			await this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion);
+			if (state.kind === 'ghostText') {
+				await this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion);
+			} else {
+				await this._accessibilitySignalService.playSignal(AccessibilitySignal.nextEditSuggestion, { userGesture: true });
+			}
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 				if (state.kind === 'ghostText') {
 					this._provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));

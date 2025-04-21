@@ -434,7 +434,13 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.lineHasInlineSuggestion',
 		settingsKey: 'accessibility.signals.lineHasInlineSuggestion',
 	});
-
+	public static readonly nextEditSuggestion = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.nextEditSuggestion.name', 'Next Edit Suggestion on Line'),
+		sound: Sound.quickFixes,
+		legacySoundSettingsKey: 'audioCues.nextEditSuggestion',
+		settingsKey: 'accessibility.signals.nextEditSuggestion',
+		announcementMessage: localize('accessibility.signals.nextEditSuggestion', 'Next Edit Suggestion'),
+	});
 	public static readonly terminalQuickFix = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalQuickFix.name', 'Terminal Quick Fix'),
 		sound: Sound.quickFixes,
