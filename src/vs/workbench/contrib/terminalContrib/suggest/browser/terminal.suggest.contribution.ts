@@ -165,24 +165,26 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-		// Load and register the LSP completion providers (one per language server)
-		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider);
 		// TODO: Create with different languages by checking shell type
-		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri('1', 'py');
-		// this._lspModelProvider.value.setContent(virtualTerminalDocumentUri, 'import ast');
-		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
-		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
+		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(12345, 'py');
+
+		// Load and register the LSP completion providers (one per language server)
+		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri);
 
 		if (this._lspTerminalDictionaryService) {
 			// set it up so terminal can access the model and set content
 			// TODO: use actual terminal ID
-			this._lspTerminalDictionaryService.set('randomTerminalId', this._lspModelProvider);
+			this._lspTerminalDictionaryService.set(12345, this._lspModelProvider);
 		}
+
+		// this._lspModelProvider.value.setContent(virtualTerminalDocumentUri, 'import ast');
+		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
+		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
 
 		// only take a provider with ms-python.python(.["') name
 		const provider = virtualProviders.find(p => p._debugDisplayName === `ms-python.python(.["')`);
 		if (provider) {
-			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._ctx.instance.capabilities);
+			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel);
 			xterm.loadAddon(lspCompletionProviderAddon);
 			this.add(this._terminalCompletionService.registerTerminalCompletionProvider('lsp', lspCompletionProviderAddon.id, lspCompletionProviderAddon));
 		}

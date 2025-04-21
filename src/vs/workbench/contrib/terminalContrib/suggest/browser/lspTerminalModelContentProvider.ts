@@ -9,41 +9,66 @@ import { ITextModelContentProvider, ITextModelService } from '../../../../../edi
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { ILspTerminalModelContentProvider } from '../../../../../platform/terminal/common/capabilities/lspTerminalCapability.js';
+import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ILspTerminalModelContentProvider } from '../../../../browser/lspTerminalCapability.js';
 
 export class LspTerminalModelContentProvider extends Disposable implements ILspTerminalModelContentProvider, ITextModelContentProvider {
 	static readonly scheme = Schemas.vscodeTerminal;
-	private readonly _virtualDocuments = new Map<string, string>();
+	private _commandDetection: ICommandDetectionCapability | undefined;
+	private _capabilitiesStore: ITerminalCapabilityStore;
+	private readonly _terminalId: number;
+	private readonly _virtualTerminalDocumentUri: URI;
 
 	constructor(
+		capabilityStore: ITerminalCapabilityStore,
+		terminalId: number,
+		virtualTerminalDocument: URI,
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
-		@ILanguageService private readonly _languageService: ILanguageService
+		@ILanguageService private readonly _languageService: ILanguageService,
+
 	) {
 		super();
 		this._register(textModelService.registerTextModelContentProvider(LspTerminalModelContentProvider.scheme, this));
+		this._capabilitiesStore = capabilityStore;
+		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
+		this._registerTerminalCommandFinishedListener();
+		this._terminalId = terminalId;
+		this._virtualTerminalDocumentUri = virtualTerminalDocument;
 	}
 
 	/**
 	 * Sets or updates content for a terminal virtual document.
 	 */
-	setContent(resource: URI, content: string): void {
-		const key = resource.toString();
-		this._virtualDocuments.set(key, content);
-
+	setContent(content: string): void {
 		// If model exists, update its content
-		const model = this._modelService.getModel(resource);
+		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		if (model) {
-			model.setValue(content);
+			// append to existing content
+			const existingContent = model.getValue();
+			const newContent = existingContent + content + '\n';
+			model.setValue(newContent);
+			console.log('new content is: ', newContent);
 		}
 	}
 
-	/**
-	 * Gets the current content of a virtual document.
-	 */
-	getContent(resource: URI): string {
-		const key = resource.toString();
-		return this._virtualDocuments.get(key) || '';
+	private _registerTerminalCommandFinishedListener(): void {
+		// Have to listen to onDidAddCapabilityType because command detection is not available until later
+		this._store.add(this._capabilitiesStore.onDidAddCapabilityType(e => {
+			if (e === TerminalCapability.CommandDetection) {
+				this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
+				if (this._commandDetection) {
+					this._store.add(this._commandDetection.onCommandFinished((e) => {
+						if (e.exitCode === 0) {
+							// If command was successful, update virtual document
+							this.setContent(e.command);
+						}
+					}));
+				}
+
+			}
+		}));
+
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
@@ -51,9 +76,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
-
-		// Get content for this URI, or empty string if not set
-		const content = this.getContent(resource);
 
 		// Extract language from file extension
 		const extension = resource.path.split('.').pop();
@@ -85,6 +107,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			this._languageService.createById(languageId) :
 			this._languageService.createById('plaintext');
 
-		return this._modelService.createModel(content, languageSelection, resource, false);
+
+		return this._modelService.createModel('', languageSelection, resource, false);
 	}
 }

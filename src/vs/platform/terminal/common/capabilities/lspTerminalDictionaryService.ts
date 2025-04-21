@@ -13,17 +13,17 @@ export const ILspTerminalDictionaryService = createDecorator<ILspTerminalDiction
 
 export interface ILspTerminalDictionaryService {
 	readonly _serviceBrand: undefined;
-	set<T>(key: string, value: T): void;
-	get<T>(key: string): T | undefined;
-	has(key: string): boolean;
-	delete(key: string): boolean;
+	set<T>(key: number, value: T): void;
+	get<T>(key: number): T | undefined;
+	has(key: number): boolean;
+	delete(key: number): boolean;
 	clear(): void;
 }
 
 export class LspTerminalDictionaryService extends Disposable implements ILspTerminalDictionaryService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _dictionary = new Map<string, any>();
+	private readonly _dictionary = new Map<number, any>();
 	// TODO may need to have two dictionary total
 	// One that maps terminalId to virtualTerminalLspDocumentUri
 	// One that maps virtualTerminalLspDocumentUri to actual textModelProvider that we can use to edit contents of it.
@@ -32,19 +32,19 @@ export class LspTerminalDictionaryService extends Disposable implements ILspTerm
 		super();
 	}
 
-	set<T>(key: string, value: T): void {
+	set<T>(key: number, value: T): void {
 		this._dictionary.set(key, value);
 	}
 
-	get<T>(key: string): T | undefined {
+	get<T>(key: number): T | undefined {
 		return this._dictionary.get(key);
 	}
 
-	has(key: string): boolean {
+	has(key: number): boolean {
 		return this._dictionary.has(key);
 	}
 
-	delete(key: string): boolean {
+	delete(key: number): boolean {
 		return this._dictionary.delete(key);
 	}
 
@@ -59,7 +59,7 @@ registerSingleton(ILspTerminalDictionaryService, LspTerminalDictionaryService, I
 /**
  * Creates a terminal language virtual URI.
  */
-export function createTerminalLanguageVirtualUri(terminalId: string, languageExtension: string): URI {
+export function createTerminalLanguageVirtualUri(terminalId: number, languageExtension: string): URI {
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,
 		path: `/${terminalId}/terminal.${languageExtension}`,

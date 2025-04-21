@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js'; //Now this complains :/
+import { ITextModelContentProvider } from '../../editor/common/services/resolverService.js';
 
 export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
-	setContent(resource: URI, content: string): void;
-	getContent(resource: URI): string;
+	setContent(content: string): void;
 	dispose(): void;
 }
