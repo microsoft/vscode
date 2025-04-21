@@ -13,7 +13,6 @@ import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
-import { IPromptReference, IResolveError, ITopError } from './types.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
@@ -22,14 +21,15 @@ import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IPromptMetadata, IPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
-import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -492,19 +492,30 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Associated `tools` metadata for the current reference.
+	 * Metadata defined in the prompt header.
 	 */
-	public get toolsMetadata(): readonly string[] | null {
+	public get metadata(): IPromptMetadata {
 		if (this.header === undefined) {
-			return null;
+			return {};
 		}
 
-		const { tools } = this.header.metadata;
-		if (tools === undefined) {
-			return null;
+		const { metadata } = this.header;
+		if (metadata === undefined) {
+			return {};
 		}
 
-		return tools.toolNames;
+		const result: IPromptMetadata = {};
+
+		const { tools, description } = metadata;
+		if (tools !== undefined) {
+			result.tools = tools.toolNames;
+		}
+
+		if (description !== undefined) {
+			result.description = description.text ?? undefined;
+		}
+
+		return result;
 	}
 
 	/**
@@ -515,8 +526,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		let hasTools = false;
 		const result: string[] = [];
 
-		if (this.toolsMetadata !== null) {
-			result.push(...this.toolsMetadata);
+		const { tools } = this.metadata;
+
+		if (tools !== undefined) {
+			result.push(...tools);
 			hasTools = true;
 		}
 
@@ -819,8 +832,8 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		return this.parser.allReferences;
 	}
 
-	public get toolsMetadata(): readonly string[] | null {
-		return this.parser.toolsMetadata;
+	public get metadata(): IPromptMetadata {
+		return this.parser.metadata;
 	}
 
 	public get allToolsMetadata(): readonly string[] | null {

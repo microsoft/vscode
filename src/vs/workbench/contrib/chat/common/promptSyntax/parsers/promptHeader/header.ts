@@ -15,16 +15,16 @@ import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/fro
 import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
 /**
- * Metadata associated with the prompt header.
+ * Metadata defined in the prompt header.
  */
-interface IHeaderMetadata {
+export interface IHeaderMetadata {
 	/**
-	 * Metadata for `tools` record in the header.
+	 * Tools metadata in the prompt header.
 	 */
 	tools?: PromptToolsMetadata;
 
 	/**
-	 * Metadata for `description` record in the header.
+	 * Description metadata in the prompt header.
 	 */
 	description?: PromptDescriptionMetadata;
 }
@@ -39,11 +39,11 @@ export class PromptHeader extends Disposable {
 	private readonly stream: FrontMatterDecoder;
 
 	/**
-	 * Metadata records associated with the header.
+	 * Metadata records.
 	 */
 	private readonly meta: IHeaderMetadata;
 	/**
-	 * Metadata records associated with the header.
+	 * Metadata records.
 	 */
 	public get metadata(): Readonly<IHeaderMetadata> {
 		return this.meta;
