@@ -301,7 +301,6 @@ const configuration: IConfigurationNode = {
 				'announcement': {
 					'description': localize('accessibility.signals.nextEditSuggestion.announcement', "Announces when there is a next edit suggestion."),
 					...announcementFeatureBase,
-					default: 'auto'
 				},
 			}
 		},
