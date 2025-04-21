@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ChatMode } from '../../../common/constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -29,7 +31,6 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { IFileContentsProviderOptions } from '../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
 
 /**
  * Represents a file reference with an expected
@@ -899,13 +900,13 @@ suite('PromptFileReference (Unix)', function () {
 			assert.deepStrictEqual(
 				tools,
 				['my-tool1'],
-				'Must have correct tools metadata',
+				'Must have correct tools metadata.',
 			);
 
 			assert.deepStrictEqual(
 				description,
 				'Root prompt description.',
-				'Must have correct description metadata',
+				'Must have correct description metadata.',
 			);
 
 			assertDefined(
@@ -915,8 +916,512 @@ suite('PromptFileReference (Unix)', function () {
 			assert.deepStrictEqual(
 				allToolsMetadata,
 				['my-tool1', 'my-tool3', 'my-tool2'],
-				'Must have correct all tools metadata',
+				'Must have correct all tools metadata.',
 			);
+		});
+
+		suite('• tools and mode compatibility', () => {
+			test('• tools are ignored if root prompt in the ask mode', async function () {
+				if (isWindows) {
+					this.skip();
+				}
+
+				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolder = `/${rootFolderName}`;
+				const rootUri = URI.file(rootFolder);
+
+				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+					/**
+					 * The file structure to be created on the disk for the test.
+					 */
+					[{
+						name: rootFolderName,
+						children: [
+							{
+								name: 'file1.prompt.md',
+								contents: [
+									'## Some Header',
+									'some contents',
+									' ',
+								],
+							},
+							{
+								name: 'file2.prompt.md',
+								contents: [
+									'---',
+									'description: \'Description of my prompt.\'',
+									'mode: "ask" ',
+									'---',
+									'## Files',
+									'\t- this file #file:folder1/file3.prompt.md ',
+									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+									' ',
+								],
+							},
+							{
+								name: 'folder1',
+								children: [
+									{
+										name: 'file3.prompt.md',
+										contents: [
+											'---',
+											'tools: [ false, \'my-tool1\' , ]',
+											'mode: \'agent\'\t',
+											'---',
+											' some more\t content',
+										],
+									},
+									{
+										name: 'some-other-folder',
+										children: [
+											{
+												name: 'file4.prompt.md',
+												contents: [
+													'---',
+													'tools: [\'my-tool1\', "my-tool2", true, , ]',
+													'something: true',
+													'mode: \'ask\'\t',
+													'---',
+													'',
+													'',
+													'and some more content',
+												],
+											},
+										],
+									},
+								],
+							},
+						],
+					}],
+					/**
+					 * The root file path to start the resolve process from.
+					 */
+					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					/**
+					 * The expected references to be resolved.
+					 */
+					[
+						new ExpectedReference(
+							rootUri,
+							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+						),
+						new ExpectedReference(
+							rootUri,
+							new MarkdownLink(
+								7, 14,
+								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
+							),
+						),
+					]
+				));
+
+				const rootReference = await test.run();
+
+				const { metadata, allToolsMetadata } = rootReference;
+				const { tools, mode, description } = metadata;
+
+				assert.deepStrictEqual(
+					tools,
+					undefined,
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					mode,
+					ChatMode.Ask,
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					description,
+					'Description of my prompt.',
+					'Must have correct description metadata.',
+				);
+
+				assert.deepStrictEqual(
+					allToolsMetadata,
+					null,
+					'Must have correct all tools metadata.',
+				);
+			});
+
+			test('• tools are ignored if root prompt in the edit mode', async function () {
+				if (isWindows) {
+					this.skip();
+				}
+
+				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolder = `/${rootFolderName}`;
+				const rootUri = URI.file(rootFolder);
+
+				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+					/**
+					 * The file structure to be created on the disk for the test.
+					 */
+					[{
+						name: rootFolderName,
+						children: [
+							{
+								name: 'file1.prompt.md',
+								contents: [
+									'## Some Header',
+									'some contents',
+									' ',
+								],
+							},
+							{
+								name: 'file2.prompt.md',
+								contents: [
+									'---',
+									'description: \'Description of my prompt.\'',
+									'mode:\t\t"edit"\t\t',
+									'---',
+									'## Files',
+									'\t- this file #file:folder1/file3.prompt.md ',
+									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+									' ',
+								],
+							},
+							{
+								name: 'folder1',
+								children: [
+									{
+										name: 'file3.prompt.md',
+										contents: [
+											'---',
+											'tools: [ false, \'my-tool1\' , ]',
+											'---',
+											' some more\t content',
+										],
+									},
+									{
+										name: 'some-other-folder',
+										children: [
+											{
+												name: 'file4.prompt.md',
+												contents: [
+													'---',
+													'tools: [\'my-tool1\', "my-tool2", true, , ]',
+													'something: true',
+													'mode: \'agent\'\t',
+													'---',
+													'',
+													'',
+													'and some more content',
+												],
+											},
+										],
+									},
+								],
+							},
+						],
+					}],
+					/**
+					 * The root file path to start the resolve process from.
+					 */
+					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					/**
+					 * The expected references to be resolved.
+					 */
+					[
+						new ExpectedReference(
+							rootUri,
+							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+						),
+						new ExpectedReference(
+							rootUri,
+							new MarkdownLink(
+								7, 14,
+								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
+							),
+						),
+					]
+				));
+
+				const rootReference = await test.run();
+
+				const { metadata, allToolsMetadata } = rootReference;
+				const { tools, mode, description } = metadata;
+
+				assert.deepStrictEqual(
+					tools,
+					undefined,
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					mode,
+					ChatMode.Edit,
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					description,
+					'Description of my prompt.',
+					'Must have correct description metadata.',
+				);
+
+				assert.deepStrictEqual(
+					allToolsMetadata,
+					null,
+					'Must have correct all tools metadata.',
+				);
+			});
+
+			test('• tools are not ignored if root prompt in the agent mode', async function () {
+				if (isWindows) {
+					this.skip();
+				}
+
+				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolder = `/${rootFolderName}`;
+				const rootUri = URI.file(rootFolder);
+
+				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+					/**
+					 * The file structure to be created on the disk for the test.
+					 */
+					[{
+						name: rootFolderName,
+						children: [
+							{
+								name: 'file1.prompt.md',
+								contents: [
+									'## Some Header',
+									'some contents',
+									' ',
+								],
+							},
+							{
+								name: 'file2.prompt.md',
+								contents: [
+									'---',
+									'description: \'Description of my prompt.\'',
+									'mode: \t\t "agent" \t\t ',
+									'---',
+									'## Files',
+									'\t- this file #file:folder1/file3.prompt.md ',
+									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+									' ',
+								],
+							},
+							{
+								name: 'folder1',
+								children: [
+									{
+										name: 'file3.prompt.md',
+										contents: [
+											'---',
+											'tools: [ false, \'my-tool1\' , ]',
+											'---',
+											' some more\t content',
+										],
+									},
+									{
+										name: 'some-other-folder',
+										children: [
+											{
+												name: 'file4.prompt.md',
+												contents: [
+													'---',
+													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
+													'something: true',
+													'mode: \'agent\'\t',
+													'---',
+													'',
+													'',
+													'and some more content',
+												],
+											},
+										],
+									},
+								],
+							},
+						],
+					}],
+					/**
+					 * The root file path to start the resolve process from.
+					 */
+					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					/**
+					 * The expected references to be resolved.
+					 */
+					[
+						new ExpectedReference(
+							rootUri,
+							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+						),
+						new ExpectedReference(
+							rootUri,
+							new MarkdownLink(
+								7, 14,
+								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
+							),
+						),
+					]
+				));
+
+				const rootReference = await test.run();
+
+				const { metadata, allToolsMetadata } = rootReference;
+				const { tools, mode, description } = metadata;
+
+				assert.deepStrictEqual(
+					tools,
+					undefined,
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					mode,
+					ChatMode.Agent,
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					description,
+					'Description of my prompt.',
+					'Must have correct description metadata.',
+				);
+
+				assert.deepStrictEqual(
+					allToolsMetadata,
+					[
+						'my-tool1',
+						'my-tool2',
+						'my-tool3',
+					],
+					'Must have correct all tools metadata.',
+				);
+			});
+
+			test('• tools are not ignored if root prompt implicitly in the agent mode', async function () {
+				if (isWindows) {
+					this.skip();
+				}
+
+				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolder = `/${rootFolderName}`;
+				const rootUri = URI.file(rootFolder);
+
+				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+					/**
+					 * The file structure to be created on the disk for the test.
+					 */
+					[{
+						name: rootFolderName,
+						children: [
+							{
+								name: 'file1.prompt.md',
+								contents: [
+									'## Some Header',
+									'some contents',
+									' ',
+								],
+							},
+							{
+								name: 'file2.prompt.md',
+								contents: [
+									'---',
+									'tools: [ false, \'my-tool12\' , ]',
+									'description: \'Description of my prompt.\'',
+									'---',
+									'## Files',
+									'\t- this file #file:folder1/file3.prompt.md ',
+									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+									' ',
+								],
+							},
+							{
+								name: 'folder1',
+								children: [
+									{
+										name: 'file3.prompt.md',
+										contents: [
+											'---',
+											'tools: [ false, \'my-tool1\' , ]',
+											'---',
+											' some more\t content',
+										],
+									},
+									{
+										name: 'some-other-folder',
+										children: [
+											{
+												name: 'file4.prompt.md',
+												contents: [
+													'---',
+													'tools: [\'my-tool1\', "my-tool2", true, , \'my-tool3\' , ]',
+													'something: true',
+													'mode: \'agent\'\t',
+													'---',
+													'',
+													'',
+													'and some more content',
+												],
+											},
+										],
+									},
+								],
+							},
+						],
+					}],
+					/**
+					 * The root file path to start the resolve process from.
+					 */
+					URI.file(`/${rootFolderName}/file2.prompt.md`),
+					/**
+					 * The expected references to be resolved.
+					 */
+					[
+						new ExpectedReference(
+							rootUri,
+							createTestFileReference('folder1/file3.prompt.md', 6, 14),
+						),
+						new ExpectedReference(
+							rootUri,
+							new MarkdownLink(
+								7, 14,
+								'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
+							),
+						),
+					]
+				));
+
+				const rootReference = await test.run();
+
+				const { metadata, allToolsMetadata } = rootReference;
+				const { tools, mode, description } = metadata;
+
+				assert.deepStrictEqual(
+					tools,
+					['my-tool12'],
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					mode,
+					undefined,
+					'Must have correct tools metadata.',
+				);
+
+				assert.deepStrictEqual(
+					description,
+					'Description of my prompt.',
+					'Must have correct description metadata.',
+				);
+
+				assert.deepStrictEqual(
+					allToolsMetadata,
+					[
+						'my-tool12',
+						'my-tool1',
+						'my-tool2',
+						'my-tool3',
+					],
+					'Must have correct all tools metadata.',
+				);
+			});
 		});
 	});
 });
