@@ -106,6 +106,7 @@ import './promptSyntax/contributions/attachInstructionsCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './actions/promptActions/chatSaveToPromptAction.js';
 import { assertDefined } from '../../../../base/common/types.js';
+import { ChatModelPickerCategoryHandler } from '../common/modelPicker/chatModelPickerCategory.contribution.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -614,6 +615,7 @@ registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEdi
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatModelPickerCategoryHandler.ID, ChatModelPickerCategoryHandler, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();
