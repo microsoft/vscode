@@ -302,25 +302,26 @@ suite('TextModelPromptParser', () => {
 				}),
 			]);
 
-			const { header, toolsMetadata } = test.parser;
+			const { header, metadata } = test.parser;
 			assertDefined(
 				header,
 				'Prompt header must be defined.',
 			);
 
+			const { tools } = metadata;
 			assertDefined(
-				toolsMetadata,
+				tools,
 				'Tools metadata must be present.',
 			);
 
 			assert.strictEqual(
-				toolsMetadata.length,
+				tools.length,
 				2,
-				`Prompt header tools metadata must have 2 tool names, got '[${toolsMetadata.join(', ')}]'.`,
+				`Prompt header tools metadata must have 2 tool names, got '[${tools.join(', ')}]'.`,
 			);
 
 			assert.deepStrictEqual(
-				toolsMetadata,
+				tools,
 				['tool_name1', 'tool_name2'],
 				`Prompt header must have correct tools metadata.`,
 			);
@@ -356,14 +357,15 @@ suite('TextModelPromptParser', () => {
 				}),
 			]);
 
-			const { header, toolsMetadata } = test.parser;
+			const { header, metadata } = test.parser;
 			assertDefined(
 				header,
 				'Prompt header must be defined.',
 			);
 
+			const { tools } = metadata;
 			assertDefined(
-				toolsMetadata,
+				tools,
 				'Tools metadata must be defined.',
 			);
 
