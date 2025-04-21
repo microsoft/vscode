@@ -52,14 +52,31 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 	private _registerCommandExecutionListener(): void {
 		// Listen to terminal command execution, update virtual document accordingly
-		if (this._commandDetection) {
-			this._commandDetection.onCommandFinished((e) => {
-				// TODO: Implement virtual document update logic
-				console.log('Command executed, updating virtual document...');
-				console.log('this is the terminal command detection event:');
-				console.log(e);
-			});
-		}
+		// if (this._commandDetection) {
+		// 	this._commandDetection.onCommandFinished((e) => {
+		// 		// TODO: Implement virtual document update logic
+		// 		console.log('Command executed, updating virtual document...');
+		// 		console.log('this is the terminal command detection event:');
+		// 		console.log(e);
+		// 	});
+		// }
+
+		// Have to listen to onDidAddCapabilityType because command detection is not available until later
+		this._capabilitiesStore.onDidAddCapabilityType(e => {
+			if (e === TerminalCapability.CommandDetection) {
+				this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
+				if (this._commandDetection) {
+					this._commandDetection.onCommandFinished((e) => {
+
+						console.log('Command executed, updating virtual document...');
+						console.log('this is the terminal command detection event:');
+						console.log(e);
+					});
+				}
+
+			}
+		});
+
 	}
 
 
