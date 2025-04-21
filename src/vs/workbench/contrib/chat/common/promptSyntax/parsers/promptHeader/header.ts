@@ -193,7 +193,7 @@ export class PromptHeader extends Disposable {
 	/**
 	 * TODO: @legomushroom
 	 */
-	private toolsAndModeCompatible(): boolean {
+	public get toolsAndModeCompatible(): boolean {
 		const { tools, mode } = this.meta;
 
 		// if `mode` is not set or equal to `agent` mode,
@@ -217,7 +217,7 @@ export class PromptHeader extends Disposable {
 	 * TODO: @legomushroom
 	 */
 	private checkToolsAndModeCompatibility(): void {
-		if (this.toolsAndModeCompatible() === true) {
+		if (this.toolsAndModeCompatible === true) {
 			return;
 		}
 

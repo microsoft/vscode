@@ -492,23 +492,30 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Metadata defined in the prompt header.
+	 * Valid metadata records defined in the prompt header.
 	 */
 	public get metadata(): IPromptMetadata {
 		if (this.header === undefined) {
 			return {};
 		}
 
-		const { metadata } = this.header;
+		const { metadata, toolsAndModeCompatible } = this.header;
 		if (metadata === undefined) {
 			return {};
 		}
 
 		const result: IPromptMetadata = {};
 
-		const { tools, description } = metadata;
+		const { tools, mode, description } = metadata;
 		if (tools !== undefined) {
 			result.tools = tools.toolNames;
+
+			// copy over the `mode` metadata value only if
+			// the `tools` and `mode` metadata are compatible,
+			// otherwise ignore the `mode` metadata completely
+			if (toolsAndModeCompatible === true) {
+				result.mode = mode?.chatMode;
+			}
 		}
 
 		if (description !== undefined) {
