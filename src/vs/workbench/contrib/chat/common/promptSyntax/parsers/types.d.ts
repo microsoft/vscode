@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatMode } from '../../constants.ts';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
-import { IHeaderMetadata } from './promptHeader/header.ts';
 
 /**
  * A resolve error with a parent prompt URI, if any.
@@ -49,19 +49,26 @@ export interface ITopError extends IResolveError {
 	readonly localizedMessage: string;
 }
 
+// TODO: @legomushroom - remove the `.d.ts` of the file name?
+
 /**
  * Metadata defined in the prompt header.
  */
 export interface IPromptMetadata {
+	/**
+	 * Description metadata in the prompt header.
+	 */
+	description?: string;
+
 	/**
 	 * Tools metadata in the prompt header.
 	 */
 	tools?: readonly string[];
 
 	/**
-	 * Description metadata in the prompt header.
+	 * Chat mode metadata in the prompt header.
 	 */
-	description?: string;
+	mode?: ChatMode;
 }
 
 /**
