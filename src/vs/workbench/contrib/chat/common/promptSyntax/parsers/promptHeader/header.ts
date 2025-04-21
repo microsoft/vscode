@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
+import { assert } from '../../../../../../../base/common/assert.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
@@ -12,9 +15,6 @@ import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCod
 import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
-import { ChatMode } from '../../../constants.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
-import { assert } from '../../../../../../../base/common/assert.js';
 
 /**
  * Metadata defined in the prompt header.
@@ -53,15 +53,9 @@ export class PromptHeader extends Disposable {
 	 * Metadata records.
 	 */
 	public get metadata(): Readonly<IHeaderMetadata> {
-		const result = { ...this.meta };
-
-		// if the `tools` and `mode` metadata are compatible,
-		// then drop the `mode` metadata from the result
-		if (this.toolsAndModeCompatible === false) {
-			delete result.mode;
-		}
-
-		return result;
+		return Object.freeze({
+			...this.meta,
+		});
 	}
 
 	/**
