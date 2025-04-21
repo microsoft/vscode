@@ -56,7 +56,7 @@ import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerialized
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
@@ -3299,12 +3299,13 @@ export namespace LanguageModelToolResult2 {
 		}));
 	}
 
-	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> {
+	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
 		if (result.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
 
-		return {
+		let hasBuffers = false;
+		const dto: Dto<IToolResult> = {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
 					return {
@@ -3317,6 +3318,7 @@ export namespace LanguageModelToolResult2 {
 						value: item.value,
 					};
 				} else if (item instanceof types.LanguageModelDataPart) {
+					hasBuffers = true;
 					return {
 						kind: 'data',
 						value: {
@@ -3331,6 +3333,8 @@ export namespace LanguageModelToolResult2 {
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
 		};
+
+		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
 	}
 }
 

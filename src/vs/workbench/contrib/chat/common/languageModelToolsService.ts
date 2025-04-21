@@ -105,6 +105,10 @@ export interface IToolResult {
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
 }
 
+export function toolResultHasBuffers(result: IToolResult): boolean {
+	return result.content.some(part => part.kind === 'data');
+}
+
 export interface IToolResultPromptTsxPart {
 	kind: 'promptTsx';
 	value: unknown;
