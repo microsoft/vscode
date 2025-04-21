@@ -161,6 +161,18 @@ export class PromptHeader extends Disposable {
 			return;
 		}
 
+		// if the record might be a "mode" metadata
+		// add it to the list of parsed metadata records
+		if (PromptModeMetadata.isModeRecord(token)) {
+			const modeMetadata = new PromptModeMetadata(token);
+			const { diagnostics } = modeMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.mode = modeMetadata;
+			this.recordNames.add(recordName);
+			return;
+		}
+
 		// all other records are currently not supported
 		this.issues.push(
 			new PromptMetadataWarning(
