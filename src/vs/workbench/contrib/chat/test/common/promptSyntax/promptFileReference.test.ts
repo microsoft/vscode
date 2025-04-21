@@ -730,6 +730,7 @@ suite('PromptFileReference (Unix)', function () {
 							name: 'file2.prompt.md',
 							contents: [
 								'---',
+								'description: \'Root prompt description.\'',
 								'tools: [\'my-tool1\']',
 								'---',
 								'## Files',
@@ -809,7 +810,7 @@ suite('PromptFileReference (Unix)', function () {
 				[
 					new ExpectedReference(
 						rootUri,
-						createTestFileReference('folder1/file3.prompt.md', 5, 14),
+						createTestFileReference('folder1/file3.prompt.md', 6, 14),
 					),
 					new ExpectedReference(
 						URI.joinPath(rootUri, './folder1'),
@@ -855,7 +856,7 @@ suite('PromptFileReference (Unix)', function () {
 					new ExpectedReference(
 						rootUri,
 						new MarkdownLink(
-							6, 14,
+							7, 14,
 							'[file4.prompt.md]', '(./folder1/some-other-folder/file4.prompt.md)',
 						),
 					),
@@ -891,16 +892,19 @@ suite('PromptFileReference (Unix)', function () {
 
 			const rootReference = await test.run();
 
-			const { toolsMetadata, allToolsMetadata } = rootReference;
+			const { metadata, allToolsMetadata } = rootReference;
+			const { tools, description } = metadata;
 
-			assertDefined(
-				toolsMetadata,
-				'Tools metadata must to be defined.',
-			);
 			assert.deepStrictEqual(
-				toolsMetadata,
+				tools,
 				['my-tool1'],
 				'Must have correct tools metadata',
+			);
+
+			assert.deepStrictEqual(
+				description,
+				'Root prompt description.',
+				'Must have correct description metadata',
 			);
 
 			assertDefined(
