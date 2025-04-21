@@ -32,12 +32,12 @@ export class PromptDescriptionMetadata extends PromptMetadataRecord {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Value token reference of the record.
 	 */
 	private valueToken: FrontMatterString | undefined;
 
 	/**
-	 * TODO: @legomushroom
+	 * Clean text value of the record.
 	 */
 	public get text(): string | null {
 		const { valueToken } = this;
