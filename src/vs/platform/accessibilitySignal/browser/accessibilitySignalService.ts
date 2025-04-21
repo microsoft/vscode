@@ -318,6 +318,7 @@ export class Sound {
 	public static readonly chatEditModifiedFile = Sound.register({ fileName: 'chatEditModifiedFile.mp3' });
 	public static readonly editsKept = Sound.register({ fileName: 'editsKept.mp3' });
 	public static readonly editsUndone = Sound.register({ fileName: 'editsUndone.mp3' });
+	public static readonly nextEditSuggestion = Sound.register({ fileName: 'nextEditSuggestion.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -436,7 +437,7 @@ export class AccessibilitySignal {
 	});
 	public static readonly nextEditSuggestion = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.nextEditSuggestion.name', 'Next Edit Suggestion on Line'),
-		sound: Sound.quickFixes,
+		sound: Sound.nextEditSuggestion,
 		legacySoundSettingsKey: 'audioCues.nextEditSuggestion',
 		settingsKey: 'accessibility.signals.nextEditSuggestion',
 		announcementMessage: localize('accessibility.signals.nextEditSuggestion', 'Next Edit Suggestion'),
