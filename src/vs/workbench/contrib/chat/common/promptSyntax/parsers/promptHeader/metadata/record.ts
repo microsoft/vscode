@@ -23,7 +23,7 @@ export abstract class PromptMetadataRecord {
 	) { }
 
 	/**
-	 * TODO: @legomushroom
+	 * Name of the metadata record.
 	 */
 	public abstract get recordName(): string;
 

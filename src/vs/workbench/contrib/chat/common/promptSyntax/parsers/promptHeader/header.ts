@@ -169,7 +169,7 @@ export class PromptHeader extends Disposable {
 			this.meta.tools = toolsMetadata;
 			this.recordNames.add(recordName);
 
-			return this.checkToolsAndModeCompatibility();
+			return this.validateToolsAndModeCompatibility();
 		}
 
 		// if the record might be a "mode" metadata
@@ -182,7 +182,7 @@ export class PromptHeader extends Disposable {
 			this.meta.mode = modeMetadata;
 			this.recordNames.add(recordName);
 
-			return this.checkToolsAndModeCompatibility();
+			return this.validateToolsAndModeCompatibility();
 		}
 
 		// all other records are currently not supported
@@ -199,7 +199,8 @@ export class PromptHeader extends Disposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Check if value of `tools` and `mode` metadata
+	 * are compatible with each other.
 	 */
 	private get toolsAndModeCompatible(): boolean {
 		const { tools, mode } = this.meta;
@@ -222,9 +223,10 @@ export class PromptHeader extends Disposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Validate that the `tools` and `mode` metadata are compatible
+	 * with each other. If not, add a warning diagnostic.
 	 */
-	private checkToolsAndModeCompatibility(): void {
+	private validateToolsAndModeCompatibility(): void {
 		if (this.toolsAndModeCompatible === true) {
 			return;
 		}
@@ -250,7 +252,7 @@ export class PromptHeader extends Disposable {
 				mode.range,
 				localize(
 					'prompt.header.metadata.mode.diagnostics.incompatible-with-tools',
-					"Unknown metadata record '{0}' can only have the '{1}' value if '{2}' record is present so it will be ignored.",
+					"Record '{0}' is implied to have the '{1}' value if '{2}' record is present so the specified value will be ignored.",
 					mode.recordName,
 					ChatMode.Agent,
 					tools.recordName,
