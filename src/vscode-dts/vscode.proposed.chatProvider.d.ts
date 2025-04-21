@@ -41,6 +41,11 @@ declare module 'vscode' {
 		readonly family: string;
 
 		/**
+		 * An optional, human-readable description of the language model.
+		 */
+		readonly description?: string;
+
+		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
 		 * and subject to change while the identifier is stable.
 		 */
