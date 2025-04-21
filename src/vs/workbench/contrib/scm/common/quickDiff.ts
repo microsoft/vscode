@@ -102,6 +102,7 @@ export interface IQuickDiffService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeQuickDiffProviders: Event<void>;
+	readonly providers: readonly QuickDiffProvider[];
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable;
 	getQuickDiffs(uri: URI, language?: string, isSynchronized?: boolean): Promise<QuickDiff[]>;
 	toggleQuickDiffVisibility(label: string): void;
