@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../nls.js';
-import { PromptToolsMetadata } from './metadata/tools.js';
-import { PromptDescriptionMetadata } from './metadata/description.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
 import { TokenStream } from '../../../../../../../editor/common/codecs/utils/tokenStream.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
@@ -27,6 +26,11 @@ export interface IHeaderMetadata {
 	 * Description metadata in the prompt header.
 	 */
 	description?: PromptDescriptionMetadata;
+
+	/**
+	 * Chat mode metadata in the prompt header.
+	 */
+	mode?: PromptModeMetadata;
 }
 
 /**
