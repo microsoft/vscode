@@ -7,6 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { IHeaderMetadata } from './promptHeader/header.ts';
 
 /**
  * A resolve error with a parent prompt URI, if any.
@@ -46,6 +47,21 @@ export interface ITopError extends IResolveError {
 	 * Localized error message.
 	 */
 	readonly localizedMessage: string;
+}
+
+/**
+ * Metadata defined in the prompt header.
+ */
+export interface IPromptMetadata {
+	/**
+	 * Tools metadata in the prompt header.
+	 */
+	tools?: readonly string[];
+
+	/**
+	 * Description metadata in the prompt header.
+	 */
+	description?: string;
 }
 
 /**
@@ -151,15 +167,15 @@ interface IPromptReferenceBase extends IDisposable {
 	readonly allValidReferences: readonly IPromptReference[];
 
 	/**
-	 * Associated `tools` metadata for the current reference.
-	 */
-	readonly toolsMetadata?: readonly string[] | null;
-
-	/**
 	 * Entire associated `tools` metadata for this reference and
 	 * all possible nested child references.
 	 */
 	readonly allToolsMetadata: readonly string[] | null;
+
+	/**
+	 * Metadata defined in the prompt header.
+	 */
+	readonly metadata: IPromptMetadata;
 
 	/**
 	 * Returns a promise that resolves when the reference contents
