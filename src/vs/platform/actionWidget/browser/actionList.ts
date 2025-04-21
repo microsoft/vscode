@@ -40,6 +40,7 @@ export interface IActionListItem<T> {
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
+	readonly tooltip?: string;
 }
 
 interface IActionMenuTemplateData {
@@ -144,7 +145,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', element.disabled);
-		if (element.disabled) {
+		if (element.tooltip) {
+			data.container.title = element.tooltip;
+		} else if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
