@@ -1178,19 +1178,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let input = !query ? editorValue : query.query;
 			const isUserQuery = !query;
 
+			let attachedContext = await this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
+
 			const { promptInstructions } = this.inputPart.attachmentModel;
 			const instructionsEnabled = promptInstructions.featureEnabled;
-			if (instructionsEnabled) {
-				// prompt files may have nested child references to other prompt
-				// files that are resolved asynchronously, hence we need to wait
-				// for the entire prompt instruction tree to be processed
-				const instructionsStarted = performance.now();
-				await promptInstructions.allSettled();
-				// allow-any-unicode-next-line
-				this.logService.trace(`[⏱] instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
-			}
-
-			let attachedContext = await this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
 			if (instructionsEnabled) {
 				const result = await this._handlePromptSlashCommand();
 				if (result.input !== undefined) {
@@ -1201,29 +1192,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					attachedContext.push(result.attachment);
 				}
 
-				const promptFileVariables = attachedContext.filter(isPromptFileChatVariable);
-				if (promptFileVariables.length > 0) {
-					input = `Follow the prompt instructions from ${promptFileVariables.map(v => v.name).join(', ')}\n${input}`;
-
-					const allToolsMetadata = await this.getPromptFileToolsMetadata(promptFileVariables);
-
-					// if there are some tools defined in the prompt files, switch to
-					// the agent mode and select only the specified tools
-					if ((allToolsMetadata !== null) && (allToolsMetadata.length > 0)) {
-						const options: IToggleChatModeArgs = { mode: ChatMode.Agent };
-
-						// tools are currently only available in agent mode hence
-						// switch to the mode before updating the selected tools
-						await this.commandService.executeCommand(
-							ToggleAgentModeActionId, options,
-						);
-
-						// update the selected tools
-						this.inputPart
-							.selectedToolsModel
-							.selectOnly(allToolsMetadata);
-					}
-				}
+				await this.setupChatModeAndTools(
+					attachedContext.filter(isPromptFileChatVariable),
+				);
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
@@ -1484,11 +1455,64 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/**
-	 * Gets a list of all tools specified in the provided prompt files.
+	 * Set's up the `chat mode` and selects required `tools` based on
+	 * the metadata defined in headers of attached prompt files.
 	 */
-	private async getPromptFileToolsMetadata(
+	private async setupChatModeAndTools(
+		promptFileVariables: readonly IPromptVariableEntry[],
+	): Promise<void> {
+		if (promptFileVariables.length === 0) {
+			return;
+		}
+
+		const metadata = await this.getPromptFilesMetadata(promptFileVariables);
+		if (metadata !== null) {
+			const { allToolsMetadata, resultingChatMode } = metadata;
+
+			// switch to appropriate chat mode if needed
+			if (resultingChatMode !== this.inputPart.currentMode) {
+				const toggleModeOptions: IToggleChatModeArgs = {
+					mode: resultingChatMode,
+				};
+
+				await this.commandService.executeCommand(
+					ToggleAgentModeActionId, toggleModeOptions,
+				);
+			}
+
+			// if there are some tools defined in the prompt files, switch to
+			// the agent mode and select only the specified tools
+			if ((allToolsMetadata !== undefined) && (allToolsMetadata.length > 0)) {
+				// sanity check on the logic of the `getPromptFilesMetadata` method
+				// and the code above in case this block is moved around somewhere else
+				assert(
+					this.inputPart.currentMode === ChatMode.Agent,
+					`Chat mode must be 'agent' when there are 'tools' defined, got ${this.inputPart.currentMode}.`,
+				);
+
+				// update the selected tools
+				this.inputPart
+					.selectedToolsModel
+					.selectOnly(allToolsMetadata);
+			}
+		}
+	}
+
+	/**
+	 * Collect metadata from all headers of all attached prompt files,
+	 * and computes resulting `chat mode` and `tools` metadata.
+	 *
+	 * The `tools` metadata is combined into a single list across all prompt files.
+	 * On the other hand, the `chat mode` is computed as the single safest mode
+	 * that will satisfy all prompt file attachments. For instance:
+	 *
+	 *   - `Ask`, `Ask`, `Ask` -> `Ask`
+	 *   - `Ask`, `Ask`, `Edit` -> `Edit`
+	 *   - `Agent`, `Ask`, `Edit` -> `Agent`
+	 */
+	private async getPromptFilesMetadata(
 		variables: readonly IPromptVariableEntry[],
-	): Promise<readonly string[] | null> {
+	): Promise<IPromptFilesMetadata | null> {
 		// process starting from the 'root' prompt files
 		const rootVariables = variables
 			.filter(pick('isRoot'));
@@ -1523,7 +1547,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return prompt;
 			});
 
-		const allToolsMetadata = (await Promise.allSettled(toolMetadataPromises))
+		const allMetadata = (await Promise.allSettled(toolMetadataPromises))
 			.filter((result): result is PromiseFulfilledResult<FilePromptParser> => {
 				const { status } = result;
 				const isFulfilled = (status === 'fulfilled');
@@ -1539,32 +1563,67 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return isFulfilled;
 			})
 			.map(({ value: prompt }) => {
-				return prompt.allToolsMetadata;
+				return {
+					allToolsMetadata: prompt.allToolsMetadata,
+					mode: prompt.metadata.mode,
+				};
 			});
 
 		// flag to track whether any of the prompt files
 		// contained any tools metadata we can use
 		let hasMetadata = false;
 		const result: string[] = [];
+		let resultingMode: ChatMode | undefined;
 
 		// copy over all the tools metadata into single array
 		// keep tracking if any of them contained any metadata
-		for (const maybeMetadata of allToolsMetadata) {
-			if (maybeMetadata === null) {
+		for (const { allToolsMetadata, mode } of allMetadata) {
+			if (allToolsMetadata !== null) {
+				hasMetadata = true;
+				result.push(...allToolsMetadata);
+			}
+
+			/**
+			 * TODO: @legomushroom
+			 */
+
+			if (resultingMode === undefined) {
+				resultingMode = mode;
+
 				continue;
 			}
 
-			hasMetadata = true;
-			result.push(...maybeMetadata);
+			if (resultingMode === ChatMode.Agent) {
+				continue;
+			}
+
+			if (mode === ChatMode.Agent) {
+				resultingMode = mode;
+				continue;
+			}
+
+			if (resultingMode === ChatMode.Edit) {
+				continue;
+			}
+
+			resultingMode = mode;
 		}
 
-		// if no prompt files contained tools metadata, return null
-		if (hasMetadata === false) {
-			return null;
-		}
-
-		return result;
+		return {
+			allToolsMetadata: (hasMetadata === false)
+				? undefined
+				: result,
+			resultingChatMode: resultingMode ?? ChatMode.Ask,
+		};
 	}
+}
+
+/**
+ * Return value of the {@link ChatWidget.getPromptFilesMetadata} method.
+ */
+interface IPromptFilesMetadata {
+	readonly allToolsMetadata?: readonly string[];
+	readonly resultingChatMode: ChatMode;
 }
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {

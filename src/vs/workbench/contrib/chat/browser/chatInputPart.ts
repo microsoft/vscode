@@ -182,8 +182,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			);
 		}
 
+		// prompt files may have nested child references to other prompt
+		// files that are resolved asynchronously, hence we need to wait
+		// for the entire prompt instruction tree to be processed
+		const instructionsStarted = performance.now();
+
 		// wait for all prompt files resolve precesses to settle
 		await this.promptInstructionsAttachmentsPart.allSettled();
+
+		// allow-any-unicode-next-line
+		this.logService.trace(`[⏱] instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
 
 		contextArr
 			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
