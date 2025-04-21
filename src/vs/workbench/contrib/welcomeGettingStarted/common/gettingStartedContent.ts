@@ -175,17 +175,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
-		id: 'topLevelShowWalkthroughs',
-		title: localize('gettingStarted.topLevelShowWalkthroughs.title', "Open a Walkthrough..."),
-		description: localize('gettingStarted.topLevelShowWalkthroughs.description', "View a walkthrough on the editor or an extension"),
-		icon: Codicon.checklist,
-		when: 'allWalkthroughsHidden',
-		content: {
-			type: 'startEntry',
-			command: 'command:welcome.showAllWalkthroughs',
-		}
-	},
-	{
 		id: 'topLevelRemoteOpen',
 		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
 		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
@@ -205,6 +194,17 @@ export const startEntries: GettingStartedStartEntryContent = [
 		content: {
 			type: 'startEntry',
 			command: 'command:workbench.action.remote.showWebStartEntryActions',
+		}
+	},
+	{
+		id: 'topLevelNewWorkspaceChat',
+		title: localize('gettingStarted.newWorkspaceChat.title', "New Workspace with Copilot..."),
+		description: localize('gettingStarted.newWorkspaceChat.description', "Create a new workspace with Copilot"),
+		icon: Codicon.copilot,
+		when: '!isWeb && !chatSetupHidden',
+		content: {
+			type: 'startEntry',
+			command: 'command:welcome.newWorkspaceChat',
 		}
 	},
 ];

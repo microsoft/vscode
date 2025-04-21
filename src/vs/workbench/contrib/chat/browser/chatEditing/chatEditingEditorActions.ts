@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -80,7 +81,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					ctxHasEditorModification,
-					EditorContextKeys.focus
+					ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)
 				),
 			},
 			f1: true,
@@ -233,8 +234,8 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 				icon: _accept ? Codicon.check : Codicon.discard,
 				f1: true,
 				keybinding: {
-					when: EditorContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
 						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace

@@ -113,6 +113,9 @@ unset VSCODE_NONCE
 __vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
 unset VSCODE_SHELL_ENV_REPORTING
 
+envVarsToReport=()
+IFS=',' read -rA envVarsToReport <<< "$__vscode_shell_env_reporting"
+
 builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
 
 # Report prompt type
@@ -150,23 +153,6 @@ __update_env_cache_aa() {
 	fi
 }
 
-__track_missing_env_vars_aa() {
-	if [ $__vsc_use_aa -eq 1 ]; then
-		typeset -A currentEnvMap
-		while IFS='=' read -r key value; do
-			currentEnvMap["$key"]="$value"
-		done < <(env)
-
-		for k in "${(@k)vsc_aa_env}"; do
-			# if currentEnvMap does not have the key, then it is missing
-			if ! [[ -v currentEnvMap[$k] ]]; then
-				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${(Q)k}" "$(__vsc_escape_value "${vsc_aa_env[$k]}")" "$__vsc_nonce"
-				builtin unset "vsc_aa_env[$k]"
-			fi
-		done
-	fi
-}
-
 __update_env_cache() {
 	local key="$1"
 	local value="$2"
@@ -187,69 +173,49 @@ __update_env_cache() {
 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
-__track_missing_env_vars() {
-	local currentEnvKeys=();
-
-	while IFS='=' read -r key value; do
-		currentEnvKeys+=("$key");
-	done < <(env);
-
-	# Compare __vsc_env_keys with user's currentEnvKeys
-	for ((i = 1; i <= ${#__vsc_env_keys[@]}; i++)); do
-		local found=0;
-		for envKey in "${currentEnvKeys[@]}"; do
-			if [[ "${__vsc_env_keys[$i]}" == "$envKey" ]]; then
-				found=1;
-				break;
-			fi;
-		done;
-		if [ "$found" = 0 ]; then
-			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${__vsc_env_keys[$i]}" "$(__vsc_escape_value "${__vsc_env_values[$i]}")" "$__vsc_nonce";
-			unset "__vsc_env_keys[$i]";
-			unset "__vsc_env_values[$i]";
-		fi;
-	done;
-
-	# Remove gaps from unset
-	__vsc_env_keys=("${(@)__vsc_env_keys}");
-	__vsc_env_values=("${(@)__vsc_env_values}");
-}
-
-
 __vsc_update_env() {
-	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
+	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
 		if [ $__vsc_use_aa -eq 1 ]; then
 			if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
 				# Associative array is empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_aa_env["$key"]="$value"
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				for key in "${envVarsToReport[@]}"; do
+					if [[ -v $key ]]; then
+						vsc_aa_env["$key"]="${(P)key}"
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${(P)key}")" "$__vsc_nonce"
+					fi
+				done
 			else
 				# Diff approach for associative array
-				while IFS='=' read -r key value; do
-					__update_env_cache_aa "$key" "$value"
-				done < <(env)
-				__track_missing_env_vars_aa
-
+				for var in "${envVarsToReport[@]}"; do
+					if [[ -v $var ]]; then
+						value="${(P)var}"
+						__update_env_cache_aa "$var" "$value"
+					fi
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		else
 			# Two arrays approach
 			if [[ ${#__vsc_env_keys[@]} -eq 0 ]] && [[ ${#__vsc_env_values[@]} -eq 0 ]]; then
 				# Non-associative arrays are both empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					__vsc_env_keys+=("$key")
-					__vsc_env_values+=("$value")
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				for key in "${envVarsToReport[@]}"; do
+					if [[ -v $key ]]; then
+						value="${(P)key}"
+						__vsc_env_keys+=("$key")
+						__vsc_env_values+=("$value")
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
+				done
 			else
 				# Diff approach for non-associative arrays
-				while IFS='=' read -r key value; do
-					__update_env_cache "$key" "$value"
-				done < <(env)
-				__track_missing_env_vars
-
+				for var in "${envVarsToReport[@]}"; do
+					if [[ -v $var ]]; then
+						value="${(P)var}"
+						__update_env_cache "$var" "$value"
+					fi
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		fi
 

@@ -55,6 +55,11 @@ export const mcpSchemaExampleServers = {
 	}
 };
 
+const httpSchemaExample = {
+	url: 'http://localhost:3001/mcp',
+	headers: {},
+};
+
 export const mcpStdioServerSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
@@ -103,27 +108,26 @@ export const mcpServerSchema: IJSONSchema = {
 	additionalProperties: false,
 	properties: {
 		servers: {
-			examples: [mcpSchemaExampleServers],
+			examples: [
+				mcpSchemaExampleServers,
+				httpSchemaExample,
+			],
 			additionalProperties: {
 				oneOf: [mcpStdioServerSchema, {
 					type: 'object',
 					additionalProperties: false,
-					required: ['url', 'type'],
-					examples: [{
-						type: 'sse',
-						url: 'http://localhost:3001',
-						headers: {},
-					}],
+					required: ['url'],
+					examples: [httpSchemaExample],
 					properties: {
 						type: {
 							type: 'string',
-							enum: ['sse'],
+							enum: ['http', 'sse'],
 							description: localize('app.mcp.json.type', "The type of the server.")
 						},
 						url: {
 							type: 'string',
 							format: 'uri',
-							description: localize('app.mcp.json.url', "The URL of the server-sent-event (SSE) server.")
+							description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
 						},
 						headers: {
 							type: 'object',

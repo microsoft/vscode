@@ -100,6 +100,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const info = this.getTransferredOrPersistedSessionInfo();
 					this._restoringSession =
 						(info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : Promise.resolve(undefined)).then(async model => {
+							if (!this._widget) {
+								// renderBody has not been called yet
+								return;
+							}
+
 							// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
 							// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
 							// so it should fire onDidChangeViewWelcomeState.

@@ -30,7 +30,7 @@ const SUPPORTED_DECORATIONS: readonly TDecorationClass<TDecoratedToken>[] = Obje
 /**
  * Prompt syntax decorations provider for text models.
  */
-export class TextModelPromptDecorator extends ProviderInstanceBase {
+export class PromptDecorator extends ProviderInstanceBase {
 	/**
 	 * Currently active decorations.
 	 */
@@ -49,7 +49,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 		await this.parser.allSettled();
 
 		this.removeAllDecorations();
-		this.addDecorations(this.parser.tokens);
+		this.addDecorations();
 
 		return this;
 	}
@@ -117,14 +117,14 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	/**
 	 * Add a decorations for all prompt tokens.
 	 */
-	private addDecorations(
-		tokens: readonly BaseToken[],
-	): this {
-		if (tokens.length === 0) {
-			return this;
-		}
-
+	private addDecorations(): this {
 		this.model.changeDecorations((accessor) => {
+			const { tokens } = this.parser;
+
+			if (tokens.length === 0) {
+				return;
+			}
+
 			for (const token of tokens) {
 				for (const Decoration of SUPPORTED_DECORATIONS) {
 					if (Decoration.handles(token) === false) {
@@ -189,8 +189,8 @@ registerThemingParticipant((_theme, collector) => {
 /**
  * Provider for prompt syntax decorators on text models.
  */
-export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<TextModelPromptDecorator> {
+export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<PromptDecorator> {
 	protected override get InstanceClass() {
-		return TextModelPromptDecorator;
+		return PromptDecorator;
 	}
 }

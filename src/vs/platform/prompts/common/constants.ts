@@ -12,6 +12,11 @@ import { basename } from '../../../base/common/path.js';
 export const PROMPT_FILE_EXTENSION = '.prompt.md';
 
 /**
+ * File extension for the reusable instruction files.
+ */
+export const INSTRUCTION_FILE_EXTENSION = '.instructions.md';
+
+/**
  * Copilot custom instructions file name.
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
@@ -33,18 +38,33 @@ export const LOCATIONS_CONFIG_KEY: string = 'chat.promptFilesLocations';
 export const DEFAULT_SOURCE_FOLDER = '.github/prompts';
 
 /**
- * Check if provided URI points to a file that with prompt file extension.
+ * Gets the prompt file type from the provided path.
  */
-export const isPromptFile = (
-	fileUri: URI,
-): boolean => {
+export function getPromptFileType(fileUri: URI): 'instructions' | 'prompt' | undefined {
 	const filename = basename(fileUri.path);
 
-	const hasPromptFileExtension = filename.endsWith(PROMPT_FILE_EXTENSION);
-	const isCustomInstructionsFile = (filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+	if (filename.endsWith(PROMPT_FILE_EXTENSION)) {
+		return 'prompt';
+	}
 
-	return hasPromptFileExtension || isCustomInstructionsFile;
-};
+	if (filename.endsWith(INSTRUCTION_FILE_EXTENSION) || (filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME)) {
+		return 'instructions';
+	}
+
+	return undefined;
+}
+
+/**
+ * Check if provided URI points to a file that with prompt file extension.
+ */
+export function isPromptOrInstructionsFile(fileUri: URI): boolean {
+	return getPromptFileType(fileUri) !== undefined;
+}
+
+
+export function getPromptFileExtension(type: 'instructions' | 'prompt'): string {
+	return type === 'instructions' ? INSTRUCTION_FILE_EXTENSION : PROMPT_FILE_EXTENSION;
+}
 
 /**
  * Check whether provided URI belongs to an `untitled` document.
@@ -57,29 +77,27 @@ export const isUntitled = (
 
 /**
  * Gets clean prompt name without file extension.
- *
- * @throws If provided path is not a prompt file
- * 		   (does not end with {@link PROMPT_FILE_EXTENSION}).
  */
 export const getCleanPromptName = (
 	fileUri: URI,
 ): string => {
-	// if an untitled document, use it's `path` component as the name
-	if (isUntitled(fileUri)) {
-		return fileUri.path;
+	const fileName = basename(fileUri.path);
+
+	if (fileName.endsWith(PROMPT_FILE_EXTENSION)) {
+		return basename(fileUri.path, PROMPT_FILE_EXTENSION);
 	}
 
-	// any file can be a prompt file if user selects the "prompt" language in
-	// the editor, so in this case return the full file name with file extension
-	if (isPromptFile(fileUri) === false) {
-		return basename(fileUri.path);
+	if (fileName.endsWith(INSTRUCTION_FILE_EXTENSION)) {
+		return basename(fileUri.path, INSTRUCTION_FILE_EXTENSION);
 	}
 
-	// if a Copilot custom instructions file, remove `markdown` file extension
-	// otherwise, remove the `prompt` file extension
-	const fileExtension = (fileUri.path.endsWith(COPILOT_CUSTOM_INSTRUCTIONS_FILENAME))
-		? '.md'
-		: PROMPT_FILE_EXTENSION;
+	if (fileName === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
+		return basename(fileUri.path, '.md');
+	}
 
-	return basename(fileUri.path, fileExtension);
+	// because we now rely on the `prompt` language ID that can be explicitly
+	// set for any document in the editor, any file can be a "prompt" file, so
+	// to account for that, we return the full file name including the file
+	// extension for all other cases
+	return basename(fileUri.path);
 };

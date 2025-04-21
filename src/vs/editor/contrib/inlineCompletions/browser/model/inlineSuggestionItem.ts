@@ -12,7 +12,7 @@ import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
-import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/positionToOffset.js';
+import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
@@ -20,7 +20,7 @@ import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.j
 import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
-import { IDisplayLocation as IInlineCompletionDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
+import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
@@ -42,6 +42,7 @@ abstract class InlineSuggestionItemBase {
 	constructor(
 		protected readonly _data: InlineSuggestData,
 		public readonly identity: InlineSuggestionIdentity,
+		public readonly displayLocation: InlineSuggestDisplayLocation | undefined
 	) { }
 
 	/**
@@ -60,7 +61,6 @@ abstract class InlineSuggestionItemBase {
 	public get command(): Command | undefined { return this._sourceInlineCompletion.command; }
 	public get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
 	public get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
-	public get displayLocation(): IInlineCompletionDisplayLocation | undefined { return this._data.displayLocation; }
 	public get hash() {
 		return JSON.stringify([
 			this.getSingleTextEdit().text,
@@ -140,6 +140,43 @@ export class InlineSuggestionIdentity {
 	}
 }
 
+class InlineSuggestDisplayLocation implements IDisplayLocation {
+
+	public static create(displayLocation: IDisplayLocation, textmodel: ITextModel) {
+		const offsetRange = new OffsetRange(
+			textmodel.getOffsetAt(displayLocation.range.getStartPosition()),
+			textmodel.getOffsetAt(displayLocation.range.getEndPosition())
+		);
+
+		return new InlineSuggestDisplayLocation(
+			offsetRange,
+			displayLocation.range,
+			displayLocation.label,
+		);
+	}
+
+	private constructor(
+		private readonly _offsetRange: OffsetRange,
+		public readonly range: Range,
+		public readonly label: string,
+	) { }
+
+	public withEdit(edit: OffsetEdit, positionOffsetTransformer: PositionOffsetTransformer): InlineSuggestDisplayLocation | undefined {
+		const newOffsetRange = applyEditsToRanges([this._offsetRange], edit)[0];
+		if (!newOffsetRange || newOffsetRange.length !== this._offsetRange.length) {
+			return undefined;
+		}
+
+		const newRange = positionOffsetTransformer.getRange(newOffsetRange);
+
+		return new InlineSuggestDisplayLocation(
+			newOffsetRange,
+			newRange,
+			this.label,
+		);
+	}
+}
+
 export class InlineCompletionItem extends InlineSuggestionItemBase {
 	public static create(
 		data: InlineSuggestData,
@@ -148,8 +185,9 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		const identity = new InlineSuggestionIdentity();
 		const textEdit = new SingleTextEdit(data.range, data.insertText);
 		const edit = getPositionOffsetTransformerFromTextModel(textModel).getSingleOffsetEdit(textEdit);
+		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
 
-		return new InlineCompletionItem(edit, textEdit, data.range, data.snippetInfo, data.additionalTextEdits, data, identity);
+		return new InlineCompletionItem(edit, textEdit, data.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
 	}
 
 	public readonly isInlineEdit = false;
@@ -163,8 +201,9 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 
 		data: InlineSuggestData,
 		identity: InlineSuggestionIdentity,
+		displayLocation: InlineSuggestDisplayLocation | undefined,
 	) {
-		super(data, identity);
+		super(data, identity, displayLocation);
 	}
 
 	override getSingleTextEdit(): SingleTextEdit { return this._textEdit; }
@@ -178,6 +217,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this.additionalTextEdits,
 			this._data,
 			identity,
+			this.displayLocation
 		);
 	}
 
@@ -187,7 +227,17 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			return undefined;
 		}
 		const newEdit = new SingleOffsetEdit(newEditRange[0], this._textEdit.text);
-		const newTextEdit = getPositionOffsetTransformerFromTextModel(textModel).getSingleTextEdit(newEdit);
+		const positionOffsetTransformer = getPositionOffsetTransformerFromTextModel(textModel);
+		const newTextEdit = positionOffsetTransformer.getSingleTextEdit(newEdit);
+
+		let newDisplayLocation = this.displayLocation;
+		if (newDisplayLocation) {
+			newDisplayLocation = newDisplayLocation.withEdit(textModelEdit, positionOffsetTransformer);
+			if (!newDisplayLocation) {
+				return undefined;
+			}
+		}
+
 		return new InlineCompletionItem(
 			newEdit,
 			newTextEdit,
@@ -196,6 +246,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this.additionalTextEdits,
 			this._data,
 			this.identity,
+			newDisplayLocation
 		);
 	}
 
@@ -265,7 +316,8 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			const replacedText = textModel.getValueInRange(replacedRange);
 			return SingleUpdatedNextEdit.create(edit, replacedText);
 		});
-		return new InlineEditItem(offsetEdit, singleTextEdit, data, identity, edits, false, textModel.getVersionId());
+		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
+		return new InlineEditItem(offsetEdit, singleTextEdit, data, identity, edits, displayLocation, false, textModel.getVersionId());
 	}
 
 	public readonly snippetInfo: SnippetInfo | undefined = undefined;
@@ -280,10 +332,11 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 
 		identity: InlineSuggestionIdentity,
 		private readonly _edits: readonly SingleUpdatedNextEdit[],
+		displayLocation: InlineSuggestDisplayLocation | undefined,
 		private readonly _lastChangePartOfInlineEdit = false,
 		private readonly _inlineEditModelVersion: number,
 	) {
-		super(data, identity);
+		super(data, identity, displayLocation);
 	}
 
 	public get updatedEditModelVersion(): number { return this._inlineEditModelVersion; }
@@ -300,6 +353,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			this._data,
 			identity,
 			this._edits,
+			this.displayLocation,
 			this._lastChangePartOfInlineEdit,
 			this._inlineEditModelVersion,
 		);
@@ -339,16 +393,25 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			return undefined; // the completion has been typed by the user
 		}
 
-		const edit = new OffsetEdit(edits.map(edit => edit.edit!));
+		const newEdit = new OffsetEdit(edits.map(edit => edit.edit!));
+		const positionOffsetTransformer = getPositionOffsetTransformerFromTextModel(textModel);
+		const newTextEdit = positionOffsetTransformer.getTextEdit(newEdit).toSingle(new TextModelText(textModel));
 
-		const textEdit = getPositionOffsetTransformerFromTextModel(textModel).getTextEdit(edit).toSingle(new TextModelText(textModel));
+		let newDisplayLocation = this.displayLocation;
+		if (newDisplayLocation) {
+			newDisplayLocation = newDisplayLocation.withEdit(textModelChanges, positionOffsetTransformer);
+			if (!newDisplayLocation) {
+				return undefined;
+			}
+		}
 
 		return new InlineEditItem(
-			edit,
-			textEdit,
+			newEdit,
+			newTextEdit,
 			this._data,
 			this.identity,
 			edits,
+			newDisplayLocation,
 			lastChangePartOfInlineEdit,
 			inlineEditModelVersion,
 		);

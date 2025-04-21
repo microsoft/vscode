@@ -36,6 +36,12 @@ export interface IChatMessageImagePart {
 	value: IChatImageURLPart;
 }
 
+export interface IChatMessageExtraDataPart {
+	type: 'extra_data';
+	kind: string;
+	data: any;
+}
+
 export interface IChatImageURLPart {
 	/**
 	 * The image's MIME type (e.g., "image/png", "image/jpeg").
@@ -75,7 +81,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageExtraDataPart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
@@ -119,6 +125,7 @@ export interface ILanguageModelChatMetadata {
 	readonly id: string;
 	readonly vendor: string;
 	readonly version: string;
+	readonly description?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;

@@ -409,7 +409,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
-		this.revertMarkdownPreviewStates();
 		this.updateCellDiffInfo([], tx);
 		const snapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		restoreSnapshot(this.originalModel, snapshot);
@@ -431,10 +430,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 			});
 		}
-	}
-
-	private revertMarkdownPreviewStates() {
-		this.cellEntryMap.forEach(entry => !entry.disposed && entry.revertMarkdownPreviewState());
 	}
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {

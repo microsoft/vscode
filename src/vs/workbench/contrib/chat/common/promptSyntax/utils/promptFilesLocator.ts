@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TPromptsType } from '../service/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -13,7 +14,7 @@ import { PromptsConfig } from '../../../../../../platform/prompts/common/config.
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { getPromptFileType, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 
 /**
  * Utility class to locate prompt files.
@@ -30,11 +31,11 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(): Promise<readonly URI[]> {
+	public async listFiles(type: TPromptsType): Promise<readonly URI[]> {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService);
 		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
 
-		return await this.listFilesIn(absoluteLocations);
+		return await this.listFilesIn(absoluteLocations, type);
 	}
 
 	/**
@@ -47,8 +48,9 @@ export class PromptFilesLocator {
 	 */
 	public async listFilesIn(
 		folders: readonly URI[],
+		type: TPromptsType,
 	): Promise<readonly URI[]> {
-		return await this.findInstructionFiles(folders);
+		return await this.findFilesInLocations(folders, type);
 	}
 
 	/**
@@ -112,9 +114,11 @@ export class PromptFilesLocator {
 	 * @param absoluteLocations List of prompt file source folders to search for prompt files in. Must be absolute paths.
 	 * @returns List of prompt files found in the provided source folders.
 	 */
-	private async findInstructionFiles(
+	private async findFilesInLocations(
 		absoluteLocations: readonly URI[],
+		type: TPromptsType,
 	): Promise<readonly URI[]> {
+
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
@@ -124,26 +128,33 @@ export class PromptFilesLocator {
 				`Provided location must be an absolute path, got '${absoluteLocation.path}'.`,
 			);
 
-			// normalize the glob pattern to always end with "any prompt file" pattern
-			// unless the last part of the path is already a glob pattern itself; this is
-			// to handle the case when a user specifies a file glob pattern at the end, e.g.,
-			// "my-folder/*.md" or "my-folder/*" already include the prompt files
-			const location = (isValidGlob(basename(absoluteLocation)) || absoluteLocation.path.endsWith(PROMPT_FILE_EXTENSION))
-				? absoluteLocation
-				: extUri.joinPath(absoluteLocation, `*${PROMPT_FILE_EXTENSION}`);
-
-			// find all prompt files in entire file tree, starting from
-			// a first parent folder that does not contain a glob pattern
-			const promptFiles = await findAllPromptFiles(
-				firstNonGlobParent(location),
-				this.fileService,
-			);
-
-			// filter out found prompt files to only include those that match
-			// the original glob pattern specified in the settings (if any)
-			for (const file of promptFiles) {
-				if (match(location.path, file.path)) {
+			const nonGlobParent = firstNonGlobParent(absoluteLocation);
+			if (nonGlobParent === absoluteLocation) {
+				// the path does not contain a glob pattern, so we can
+				// just find all prompt files in the provided location
+				const promptFiles = await findFilesInLocation(
+					absoluteLocation,
+					type,
+					this.fileService,
+				);
+				for (const file of promptFiles) {
 					paths.add(file);
+				}
+			} else {
+				// the path contains a glob pattern
+				// need to discuss whether to keep it or how to limit it (not documented yet)
+				const promptFiles = await findFilesInLocation(
+					nonGlobParent,
+					type,
+					this.fileService,
+				);
+
+				// filter out found prompt files to only include those that match
+				// the original glob pattern specified in the settings (if any)
+				for (const file of promptFiles) {
+					if (match(absoluteLocation.path, file.path)) {
+						paths.add(file);
+					}
 				}
 			}
 		}
@@ -266,8 +277,9 @@ export const firstNonGlobParent = (
 /**
  * Finds all `prompt files` in the provided location and all of its subfolders.
  */
-const findAllPromptFiles = async (
+const findFilesInLocation = async (
 	location: URI,
+	type: TPromptsType,
 	fileService: IFileService,
 ): Promise<readonly URI[]> => {
 	const result: URI[] = [];
@@ -275,7 +287,7 @@ const findAllPromptFiles = async (
 	try {
 		const info = await fileService.resolve(location);
 
-		if (info.isFile && isPromptFile(info.resource)) {
+		if (info.isFile && getPromptFileType(info.resource) === type) {
 			result.push(info.resource);
 
 			return result;
@@ -283,14 +295,14 @@ const findAllPromptFiles = async (
 
 		if (info.isDirectory && info.children) {
 			for (const child of info.children) {
-				if (child.isFile && isPromptFile(child.resource)) {
+				if (child.isFile && getPromptFileType(child.resource) === type) {
 					result.push(child.resource);
 
 					continue;
 				}
 
 				if (child.isDirectory) {
-					const promptFiles = await findAllPromptFiles(child.resource, fileService);
+					const promptFiles = await findFilesInLocation(child.resource, type, fileService);
 					result.push(...promptFiles);
 
 					continue;

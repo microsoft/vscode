@@ -207,6 +207,7 @@ class QuickDiffWidget extends PeekViewWidget {
 		const labeledChange = this.model.changes[index];
 		const change = labeledChange.change;
 		this._index = index;
+		this.contextKeyService.createKey('originalResource', this.model.changes[index].original.toString());
 		this.contextKeyService.createKey('originalResourceScheme', this.model.changes[index].original.scheme);
 		this.updateActions();
 
@@ -294,7 +295,7 @@ class QuickDiffWidget extends PeekViewWidget {
 			}
 		}
 		let closestLesserIndex = this._index > 0 ? this._index - 1 : this.model.changes.length - 1;
-		for (let i = closestLesserIndex; i !== this._index; i >= 0 ? i-- : i = this.model.changes.length - 1) {
+		for (let i = closestLesserIndex; i !== this._index; i > 0 ? i-- : i = this.model.changes.length - 1) {
 			if (this.model.changes[i].label === newProvider) {
 				closestLesserIndex = i;
 				break;
@@ -307,12 +308,15 @@ class QuickDiffWidget extends PeekViewWidget {
 	}
 
 	private shouldUseDropdown(): boolean {
-		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
-		const visibleQuickDiffResults = this.model.getQuickDiffResults()
-			.filter(result => visibleQuickDiffs.some(quickDiff => quickDiff.label === result.label));
+		const change = this.model.changes[this._index];
+		const quickDiffWithChange = this.model.changes
+			.filter(c => change.change2.modified.overlapOrTouch(c.change2.modified))
+			.map(c => c.label);
 
-		return visibleQuickDiffResults
-			.filter(quickDiff => quickDiff.changes.length > 0).length > 1;
+		const quickDiffs = this.model.quickDiffs
+			.filter(quickDiff => quickDiff.visible && quickDiffWithChange.includes(quickDiff.label));
+
+		return quickDiffs.length > 1;
 	}
 
 	private updateActions(): void {

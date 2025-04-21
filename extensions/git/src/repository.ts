@@ -68,15 +68,13 @@ export class Resource implements SourceControlResourceState {
 				return 'U';
 			case Status.IGNORED:
 				return 'I';
-			case Status.DELETED_BY_THEM:
-				return 'D';
-			case Status.DELETED_BY_US:
-				return 'D';
 			case Status.INDEX_COPIED:
 				return 'C';
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
 			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
@@ -892,6 +890,7 @@ export class Repository implements Disposable {
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
 		this._sourceControl.quickDiffProvider = this;
+		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
 
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
@@ -1240,6 +1239,9 @@ export class Repository implements Disposable {
 			Operation.RevertFiles(!this.optimisticUpdateEnabled()),
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
+				for (const resource of resources) {
+					this._onDidChangeOriginalResource.fire(resource);
+				}
 				this.closeDiffEditors([...resources.length !== 0 ?
 					resources.map(r => r.fsPath) :
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
@@ -2803,29 +2805,19 @@ export class Repository implements Disposable {
 }
 
 export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
-	readonly visible: boolean = false;
-
-	private _disposables: IDisposable[] = [];
+	readonly visible: boolean = true;
+	readonly label = l10n.t('Git local changes (index)');
 
 	constructor(
-		private readonly _repositoryResolver: IRepositoryResolver,
+		private readonly _repository: Repository,
 		private readonly logger: LogOutputChannel
-	) {
-		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (working tree + index)')));
-	}
+	) { }
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
 		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource: ${uri.toString()}`);
 
-		// Ignore resources outside a repository
-		const repository = this._repositoryResolver.getRepository(uri);
-		if (!repository) {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
-			return undefined;
-		}
-
 		// Ignore resources that are not in the index group
-		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
 			return undefined;
 		}
@@ -2833,9 +2825,5 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
 		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
 		return originalResource;
-	}
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
 	}
 }

@@ -48,7 +48,7 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
+import { PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerReusablePromptLanguageFeatures } from '../common/promptSyntax/languageFeatures/providers/index.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
@@ -101,8 +101,10 @@ import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
-import './promptSyntax/contributions/usePromptCommand.js';
+import './promptSyntax/contributions/attachInstructionsCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './actions/promptActions/chatSaveToPromptAction.js';
+import { assertDefined } from '../../../../base/common/types.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -282,7 +284,7 @@ configurationRegistry.registerConfiguration({
 				'chat.reusablePrompts.config.enabled.description',
 				"Enable reusable prompt files (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
 				PROMPT_FILE_EXTENSION,
-				DOCUMENTATION_URL,
+				PROMPT_DOCUMENTATION_URL,
 			),
 			default: true,
 			restricted: true,
@@ -306,7 +308,7 @@ configurationRegistry.registerConfiguration({
 				'chat.reusablePrompts.config.locations.description',
 				"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				PROMPT_FILE_EXTENSION,
-				DOCUMENTATION_URL,
+				PROMPT_DOCUMENTATION_URL,
 			),
 			default: {
 				[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
@@ -488,7 +490,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
 		@ICommandService commandService: ICommandService,
 		@IChatAgentService chatAgentService: IChatAgentService,
-		@IChatVariablesService chatVariablesService: IChatVariablesService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -500,6 +502,22 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Panel]
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: SAVE_TO_PROMPT_SLASH_COMMAND_NAME,
+			detail: nls.localize('save-chat-to-prompt-file', "Save chat to a prompt file"),
+			sortText: `z3_${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`,
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Panel]
+		}, async () => {
+			const { lastFocusedWidget } = chatWidgetService;
+			assertDefined(
+				lastFocusedWidget,
+				'No currently active chat widget found.',
+			);
+
+			runSaveToPromptAction({ chat: lastFocusedWidget }, commandService);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',

@@ -326,7 +326,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
-		const collection = this._collections.get().find(c => c.id === collectionRef.id);
+		let collection = this._collections.get().find(c => c.id === collectionRef.id);
+		if (collection?.lazy) {
+			await collection.lazy.load();
+			collection = this._collections.get().find(c => c.id === collectionRef.id);
+		}
+
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
 		if (!collection || !definition) {
 			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
@@ -356,7 +361,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-		let launch: McpServerLaunch | undefined;
+		let launch: McpServerLaunch | undefined = definition.launch;
+		if (collection.resolveServerLanch) {
+			launch = await collection.resolveServerLanch(definition);
+			if (!launch) {
+				return undefined; // interaction cancelled by user
+			}
+		}
+
 		try {
 			launch = await this._replaceVariablesInLaunch(definition, definition.launch);
 		} catch (e) {

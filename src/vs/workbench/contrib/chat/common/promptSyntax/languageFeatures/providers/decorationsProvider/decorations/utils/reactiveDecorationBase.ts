@@ -71,16 +71,24 @@ export abstract class ReactiveDecorationBase<
 	 * Whether cursor is currently inside the decoration range.
 	 */
 	protected get active(): boolean {
-		if (!this.cursorPosition) {
-			return false;
-		}
+		return true;
 
-		// when cursor is at the end of a range, the range considered to
-		// not contain the position, but we want to include it
-		const atEnd = (this.range.endLineNumber === this.cursorPosition.lineNumber)
-			&& (this.range.endColumn === this.cursorPosition.column);
-
-		return atEnd || this.range.containsPosition(this.cursorPosition);
+		/**
+		 * Temporarily disable until we have a proper way to get
+		 * the cursor position inside active editor.
+		 */
+		/**
+		 * if (!this.cursorPosition) {
+		 * 	return false;
+		 * }
+		 *
+		 * // when cursor is at the end of a range, the range considered to
+		 * // not contain the position, but we want to include it
+		 * const atEnd = (this.range.endLineNumber === this.cursorPosition.lineNumber)
+		 * 	&& (this.range.endColumn === this.cursorPosition.column);
+		 *
+		 * return atEnd || this.range.containsPosition(this.cursorPosition);
+		 */
 	}
 
 	/**

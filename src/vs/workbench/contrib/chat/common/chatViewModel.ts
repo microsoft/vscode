@@ -137,6 +137,7 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	isPaused: boolean;
+	setPaused(paused: boolean): void;
 }
 
 /**
