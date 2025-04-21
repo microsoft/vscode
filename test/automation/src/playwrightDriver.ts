@@ -174,7 +174,7 @@ export class PlaywrightDriver {
 		await this.page.reload();
 	}
 
-	async exitApplication() {
+	async close() {
 
 		// Stop tracing
 		try {
@@ -194,22 +194,11 @@ export class PlaywrightDriver {
 			}
 		}
 
-		// Web: exit via `close` method
-		if (this.options.web) {
-			try {
-				await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error closing appliction (${error})`);
-			}
-		}
-
-		// Desktop: exit via `driver.exitApplication`
-		else {
-			try {
-				await measureAndLog(() => this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error exiting appliction (${error})`);
-			}
+		//  exit via `close` method
+		try {
+			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
+		} catch (error) {
+			this.options.logger.log(`Error closing appliction (${error})`);
 		}
 
 		// Server: via `teardown`
@@ -229,7 +218,7 @@ export class PlaywrightDriver {
 		}
 	}
 
-	async dispatchKeybinding(keybinding: string) {
+	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
@@ -256,7 +245,9 @@ export class PlaywrightDriver {
 			}
 		}
 
-		await this.wait(100);
+		if (accept) {
+			await accept();
+		}
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
@@ -317,7 +308,7 @@ export class PlaywrightDriver {
 	}
 
 	wait(ms: number): Promise<void> {
-		return new Promise<void>(resolve => setTimeout(resolve, ms));
+		return wait(ms);
 	}
 
 	whenWorkbenchRestored(): Promise<void> {
@@ -327,4 +318,17 @@ export class PlaywrightDriver {
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}
+
+	async isAlive(): Promise<boolean> {
+		try {
+			await this.getDriverHandle();
+			return true;
+		} catch (error) {
+			return false;
+		}
+	}
+}
+
+export function wait(ms: number): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }

@@ -65,6 +65,8 @@ export class BaseIssueReporterService extends Disposable {
 	public delayedSubmit = new Delayer<void>(300);
 	public previewButton!: Button;
 	public nonGitHubIssueUrl = false;
+	public needsUpdate = false;
+	public acknowledged = false;
 
 	constructor(
 		public disableExtensions: boolean,
@@ -103,7 +105,7 @@ export class BaseIssueReporterService extends Disposable {
 		//TODO: Handle case where extension is not activated
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
+			this.previewButton = this._register(new Button(issueReporterElement, unthemedButtonStyles));
 			const issueRepoName = document.createElement('a');
 			issueReporterElement.appendChild(issueRepoName);
 			issueRepoName.id = 'show-repo-name';
@@ -141,7 +143,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		iconsStyleSheet.onDidChange(() => delayer.schedule());
+		this._register(iconsStyleSheet.onDidChange(() => delayer.schedule()));
 		delayer.schedule();
 
 		this.handleExtensionData(data.enabledExtensions);
@@ -387,12 +389,25 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
+	private updateAcknowledgementState() {
+		const acknowledgementCheckbox = this.getElementById<HTMLInputElement>('includeAcknowledgement');
+		if (acknowledgementCheckbox) {
+			this.acknowledged = acknowledgementCheckbox.checked;
+			this.updatePreviewButtonState();
+		}
+	}
+
 	public setEventHandlers(): void {
 		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
+		});
+
+		this.addEventListener('includeAcknowledgement', 'click', (event: Event) => {
+			event.stopPropagation();
+			this.updateAcknowledgementState();
 		});
 
 		const showInfoElements = this.window.document.getElementsByClassName('showInfo');
@@ -439,14 +454,16 @@ export class BaseIssueReporterService extends Disposable {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			let fileOnExtension, fileOnMarketplace = false;
+			let fileOnExtension, fileOnMarketplace, fileOnProduct = false;
 			if (value === IssueSource.Extension) {
 				fileOnExtension = true;
 			} else if (value === IssueSource.Marketplace) {
 				fileOnMarketplace = true;
+			} else if (value === IssueSource.VSCode) {
+				fileOnProduct = true;
 			}
 
-			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace, fileOnProduct });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -490,11 +507,11 @@ export class BaseIssueReporterService extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this.previewButton.onDidClick(async () => {
+		this._register(this.previewButton.onDidClick(async () => {
 			this.delayedSubmit.trigger(async () => {
 				this.createIssue();
 			});
-		});
+		}));
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			this.issueFormService.reloadWithExtensionsDisabled();
@@ -561,7 +578,11 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public updatePreviewButtonState() {
-		if (this.isPreviewEnabled()) {
+
+		if (!this.acknowledged && this.needsUpdate) {
+			this.previewButton.label = localize('acknowledge', "Confirm Version Acknowledgement");
+			this.previewButton.enabled = false;
+		} else if (this.isPreviewEnabled()) {
 			if (this.data.githubAccessToken) {
 				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
 			} else {
@@ -1134,9 +1155,11 @@ export class BaseIssueReporterService extends Disposable {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
+		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
+
 		if (url.length > MAX_URL_LENGTH) {
 			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = await this.writeToClipboard(baseUrl, issueBody) + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
@@ -1155,6 +1178,20 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+	}
+
+	public addTemplateToUrl(owner?: string, repositoryName?: string): string {
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isCopilot = owner === 'microsoft' && repositoryName === 'vscode-copilot-release';
+		if (isVscode) {
+			return `&template=bug_report.md`;
+		}
+
+		if (isCopilot) {
+			return `&template=bug_report_chat.md`;
+		}
+
+		return '';
 	}
 
 	public getIssueUrl(): string {

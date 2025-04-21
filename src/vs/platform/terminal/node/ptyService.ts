@@ -234,6 +234,21 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _reviveTerminalProcess(workspaceId: string, terminal: ISerializedTerminalState): Promise<void> {
 		const restoreMessage = localize('terminal-history-restored', "History restored");
+
+		// Conpty v1.22+ uses passthrough and doesn't reprint the buffer often, this means that when
+		// the terminal is revived, the cursor would be at the bottom of the buffer then when
+		// PSReadLine requests `GetConsoleCursorInfo` it will be handled by conpty itself by design.
+		// This causes the cursor to move to the top into the replayed terminal contents. To avoid
+		// this, the post restore message will print new lines to get a clear viewport and put the
+		// cursor back at to top left.
+		let postRestoreMessage = '';
+		if (isWindows) {
+			const lastReplayEvent = terminal.replayEvent.events.length > 0 ? terminal.replayEvent.events.at(-1) : undefined;
+			if (lastReplayEvent) {
+				postRestoreMessage += '\r\n'.repeat(lastReplayEvent.rows - 1) + `\x1b[H`;
+			}
+		}
+
 		// TODO: We may at some point want to show date information in a hover via a custom sequence:
 		//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
 		//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
@@ -244,7 +259,7 @@ export class PtyService extends Disposable implements IPtyService {
 				color: terminal.processDetails.color,
 				icon: terminal.processDetails.icon,
 				name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-				initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
+				initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true }) + postRestoreMessage
 			},
 			terminal.processDetails.cwd,
 			terminal.replayEvent.events[0].cols,

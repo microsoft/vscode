@@ -88,10 +88,12 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 						}
 					}
 
-					if (failed.length) {
-						_logService.info(`Reporting the following extensions as failed to install: ${failed.map(f => f.id).join(', ')}`);
+					if (!failed.length) {
+						_logService.trace(`No extensions to report as failed`);
+						return { failed: [] };
 					}
 
+					_logService.info(`Relaying the following extensions to install later: ${failed.map(f => f.id).join(', ')}`);
 					return { failed };
 				});
 		}

@@ -11,7 +11,6 @@ import { Action, IAction } from '../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from './terminalActions.js';
@@ -51,6 +50,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { InstanceContext, TerminalContextActionRunner } from './terminalContextMenu.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -81,7 +81,6 @@ export class TerminalViewPane extends ViewPane {
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -92,7 +91,7 @@ export class TerminalViewPane extends ViewPane {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
 			this._onDidChangeViewWelcomeState.fire();
 		}));
@@ -547,15 +546,17 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	private _openContextMenu() {
+		const actionRunner = new TerminalContextActionRunner();
 		this._contextMenuService.showContextMenu({
-			actionRunner: new TerminalContextActionRunner(),
+			actionRunner,
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
 			// The context is always the active instance in the terminal view
 			getActionsContext: () => {
 				const instance = this._terminalGroupService.activeInstance;
 				return instance ? [new InstanceContext(instance)] : [];
-			}
+			},
+			onHide: () => actionRunner.dispose()
 		});
 	}
 }
@@ -660,7 +661,8 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
 	}
 
@@ -675,8 +677,8 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 		if (!instance) {
 			return;
 		}
-		const hoverInfo = getInstanceHoverInfo(instance);
-		return this._hoverService.showHover({
+		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
+		return this._hoverService.showInstantHover({
 			...options,
 			content: hoverInfo.content,
 			actions: hoverInfo.actions

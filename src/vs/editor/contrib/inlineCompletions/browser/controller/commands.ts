@@ -139,7 +139,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.acceptNextWord(controller.editor);
+		await controller?.model.get()?.acceptNextWord();
 	}
 }
 
@@ -163,7 +163,7 @@ export class AcceptNextLineOfInlineCompletion extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.acceptNextLine(controller.editor);
+		await controller?.model.get()?.acceptNextLine();
 	}
 }
 
@@ -349,7 +349,7 @@ export class DevExtractReproSample extends EditorAction {
 			id: 'editor.action.inlineSuggest.dev.extractRepro',
 			label: nls.localize('action.inlineSuggest.dev.extractRepro', "Developer: Extract Inline Suggest State"),
 			alias: 'Developer: Inline Suggest Extract Repro',
-			precondition: InlineCompletionContextKeys.inlineEditVisible,
+			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineEditVisible, InlineCompletionContextKeys.inlineSuggestionVisible),
 		});
 	}
 

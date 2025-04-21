@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -53,10 +53,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			alert(progress.content.value);
 		}
 		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
-		const markdown = new MarkdownString(progress.content.value, {
-			supportThemeIcons: true
-		});
-		const result = this._register(renderer.render(markdown));
+		const result = this._register(renderer.render(progress.content));
 		result.element.classList.add('progress-step');
 		this.renderFileWidgets(result.element);
 
@@ -70,11 +67,14 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private renderFileWidgets(element: HTMLElement): void {
 		const links = element.querySelectorAll('a');
 		links.forEach(a => {
-			const href = a.getAttribute('data-href');
-			const uri = href ? URI.parse(href) : undefined;
-			if (uri?.scheme) {
-				const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
-				this._register(this.chatMarkdownAnchorService.register(widget));
+			// Empty link text -> render file widget
+			if (!a.textContent?.trim()) {
+				const href = a.getAttribute('data-href');
+				const uri = href ? URI.parse(href) : undefined;
+				if (uri?.scheme) {
+					const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
+					this._register(this.chatMarkdownAnchorService.register(widget));
+				}
 			}
 		});
 	}
@@ -108,12 +108,37 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			kind: 'progressMessage',
 			content: workingProgress.isPaused ?
 				new MarkdownString().appendText(localize('pausedMessage', "Paused")) :
-				new MarkdownString().appendText(localize('workingMessage', "Working"))
+				new MarkdownString().appendText(localize('workingMessage', "Working..."))
 		};
 		super(progressMessage, renderer, context, undefined, undefined, workingProgress.isPaused ? Codicon.debugPause : undefined, instantiationService, chatMarkdownAnchorService);
+
+		if (workingProgress.isPaused) {
+			this.domNode.style.cursor = 'pointer';
+			this.domNode.title = localize('resume', "Click to resume");
+			this._register(addDisposableListener(this.domNode, EventType.CLICK, () => {
+				workingProgress.setPaused(false);
+			}));
+		}
 	}
 
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'working' && this.workingProgress.isPaused === other.isPaused;
+	}
+}
+
+export class ChatCustomProgressPart {
+	public readonly domNode: HTMLElement;
+
+	constructor(
+		messageElement: HTMLElement,
+		icon: ThemeIcon,
+	) {
+		this.domNode = $('.progress-container');
+		const iconElement = $('div');
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		append(this.domNode, iconElement);
+
+		messageElement.classList.add('progress-step');
+		append(this.domNode, messageElement);
 	}
 }

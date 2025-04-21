@@ -44,7 +44,7 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSi
 import { ClassName } from '../../../common/model/intervalTree.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../../../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
 import { VerticalRevealType } from '../../../common/viewEvents.js';
 import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
@@ -90,6 +90,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
+
+	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>({ deliveryQueue: this._deliveryQueue }));
+	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
 
 	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
@@ -231,8 +234,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _commandService: ICommandService;
 	private readonly _themeService: IThemeService;
 
-	private readonly _focusTracker: CodeEditorWidgetFocusTracker;
-
 	private _contentWidgets: { [key: string]: IContentWidgetData };
 	private _overlayWidgets: { [key: string]: IOverlayWidgetData };
 	private _glyphMarginWidgets: { [key: string]: IGlyphMarginWidgetData };
@@ -305,11 +306,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 
 		this._modelData = null;
-
-		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement, this._overflowWidgetsDomNode);
-		this._register(this._focusTracker.onChange(() => {
-			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
-		}));
 
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
@@ -406,7 +402,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public override dispose(): void {
 		this._codeEditorService.removeCodeEditor(this);
 
-		this._focusTracker.dispose();
 		this._actions.clear();
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
@@ -506,8 +501,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const hasTextFocus = this.hasTextFocus();
 			const detachedModel = this._detachModel();
 			this._attachModel(model);
-			if (hasTextFocus && this.hasModel()) {
-				this.focus();
+			if (this.hasModel()) {
+				// we have a new model (with a new view)!
+				if (hasTextFocus) {
+					this.focus();
+				}
+			} else {
+				// we have no model (and no view) anymore
+				// make sure the outside world knows we are not focused
+				this._editorTextFocus.setValue(false);
+				this._editorWidgetFocus.setValue(false);
 			}
 
 			this._removeDecorationTypes();
@@ -592,6 +595,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
+	}
+
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(lineNumber, 1));
+		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
@@ -1033,7 +1044,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public onHide(): void {
 		this._modelData?.view.refreshFocusState();
-		this._focusTracker.refreshState();
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null {
@@ -1315,7 +1325,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
-	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): readonly string[] {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1355,6 +1365,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		return this._decorationTypeKeysToIds[decorationTypeKey] || [];
 	}
 
 	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
@@ -1451,7 +1462,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public hasWidgetFocus(): boolean {
-		return this._focusTracker && this._focusTracker.hasFocus();
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return false;
+		}
+		return this._modelData.view.isWidgetFocused();
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -1595,11 +1609,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
 		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
-
+		const height = this.getLineHeightForLineNumber(position.lineNumber);
 		return {
 			top: top,
 			left: left,
-			height: options.get(EditorOption.lineHeight)
+			height
 		};
 	}
 
@@ -1690,6 +1704,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				case OutgoingViewModelEventKind.FocusChanged:
 					this._editorTextFocus.setValue(e.hasFocus);
 					break;
+				case OutgoingViewModelEventKind.WidgetFocusChanged:
+					this._editorWidgetFocus.setValue(e.hasFocus);
+					break;
 				case OutgoingViewModelEventKind.ScrollChanged:
 					this._onDidScrollChange.fire(e);
 					break;
@@ -1769,6 +1786,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ModelTokensChanged:
 					this._onDidChangeModelTokens.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelLineHeightChanged:
+					this._onDidChangeLineHeight.fire(e.event);
 					break;
 
 			}
@@ -1873,6 +1893,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(
+			this._domElement,
 			this.getId(),
 			commandDelegate,
 			this._configuration,
@@ -2029,11 +2050,11 @@ const enum BooleanEventValue {
 }
 
 export class BooleanEventEmitter extends Disposable {
-	private readonly _onDidChangeToTrue: Emitter<void> = this._register(new Emitter<void>(this._emitterOptions));
-	public readonly onDidChangeToTrue: Event<void> = this._onDidChangeToTrue.event;
+	private readonly _onDidChangeToTrue: Emitter<void>;
+	public readonly onDidChangeToTrue: Event<void>;
 
-	private readonly _onDidChangeToFalse: Emitter<void> = this._register(new Emitter<void>(this._emitterOptions));
-	public readonly onDidChangeToFalse: Event<void> = this._onDidChangeToFalse.event;
+	private readonly _onDidChangeToFalse: Emitter<void>;
+	public readonly onDidChangeToFalse: Event<void>;
 
 	private _value: BooleanEventValue;
 
@@ -2041,6 +2062,10 @@ export class BooleanEventEmitter extends Disposable {
 		private readonly _emitterOptions: EmitterOptions
 	) {
 		super();
+		this._onDidChangeToTrue = this._register(new Emitter<void>(this._emitterOptions));
+		this.onDidChangeToTrue = this._onDidChangeToTrue.event;
+		this._onDidChangeToFalse = this._register(new Emitter<void>(this._emitterOptions));
+		this.onDidChangeToFalse = this._onDidChangeToFalse.event;
 		this._value = BooleanEventValue.NotSet;
 	}
 
@@ -2301,66 +2326,6 @@ export class EditorModeContext extends Disposable {
 	}
 }
 
-class CodeEditorWidgetFocusTracker extends Disposable {
-
-	private _hasDomElementFocus: boolean;
-	private readonly _domFocusTracker: dom.IFocusTracker;
-	private readonly _overflowWidgetsDomNode: dom.IFocusTracker | undefined;
-
-	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onChange: Event<void> = this._onChange.event;
-
-	private _overflowWidgetsDomNodeHasFocus: boolean;
-
-	private _hadFocus: boolean | undefined = undefined;
-
-	constructor(domElement: HTMLElement, overflowWidgetsDomNode: HTMLElement | undefined) {
-		super();
-
-		this._hasDomElementFocus = false;
-		this._domFocusTracker = this._register(dom.trackFocus(domElement));
-
-		this._overflowWidgetsDomNodeHasFocus = false;
-
-		this._register(this._domFocusTracker.onDidFocus(() => {
-			this._hasDomElementFocus = true;
-			this._update();
-		}));
-		this._register(this._domFocusTracker.onDidBlur(() => {
-			this._hasDomElementFocus = false;
-			this._update();
-		}));
-
-		if (overflowWidgetsDomNode) {
-			this._overflowWidgetsDomNode = this._register(dom.trackFocus(overflowWidgetsDomNode));
-			this._register(this._overflowWidgetsDomNode.onDidFocus(() => {
-				this._overflowWidgetsDomNodeHasFocus = true;
-				this._update();
-			}));
-			this._register(this._overflowWidgetsDomNode.onDidBlur(() => {
-				this._overflowWidgetsDomNodeHasFocus = false;
-				this._update();
-			}));
-		}
-	}
-
-	private _update() {
-		const focused = this._hasDomElementFocus || this._overflowWidgetsDomNodeHasFocus;
-		if (this._hadFocus !== focused) {
-			this._hadFocus = focused;
-			this._onChange.fire(undefined);
-		}
-	}
-
-	public hasFocus(): boolean {
-		return this._hadFocus ?? false;
-	}
-
-	public refreshState(): void {
-		this._domFocusTracker.refreshState();
-		this._overflowWidgetsDomNode?.refreshState?.();
-	}
-}
 
 class EditorDecorationsCollection implements editorCommon.IEditorDecorationsCollection {
 

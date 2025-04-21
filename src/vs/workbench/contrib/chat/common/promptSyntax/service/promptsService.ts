@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptPath, IPromptsService } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
@@ -11,8 +10,13 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
+import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { localize } from '../../../../../../nls.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { basename } from '../../../../../../base/common/path.js';
 
 /**
  * Provides prompt services.
@@ -28,13 +32,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Prompt files locator utility.
 	 */
-	private readonly fileLocator = this.initService.createInstance(PromptFilesLocator);
+	private readonly fileLocator: PromptFilesLocator;
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
+
+		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
 
 		// the factory function below creates a new prompt parser object
 		// for the provided model, if no active non-disposed parser exists
@@ -81,45 +88,82 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(): Promise<readonly IPromptPath[]> {
-		const globalLocations = [this.userDataService.currentProfile.promptsHome];
+	public async listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]> {
+		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFilesIn(globalLocations, [])
-				.then(withType('global')),
-			this.fileLocator.listFiles([])
-				.then(withType('local')),
+			this.fileLocator.listFilesIn(userLocations, type)
+				.then(withType('user', type)),
+			this.fileLocator.listFiles(type)
+				.then(withType('local', type)),
 		]);
 
 		return prompts.flat();
 	}
 
-	public getSourceFolders(
-		type: IPromptPath['type'],
-	): readonly IPromptPath[] {
-		// sanity check to make sure we don't miss a new prompt type
-		// added in the future
+	public getSourceFolders(type: TPromptsType): readonly IPromptPath[] {
+		// sanity check to make sure we don't miss a new
+		// prompt type that could be added in the future
 		assert(
-			type === 'local' || type === 'global',
+			type === 'prompt' || type === 'instructions',
 			`Unknown prompt type '${type}'.`,
 		);
 
-		const prompts = (type === 'global')
-			? [this.userDataService.currentProfile.promptsHome]
-			: this.fileLocator.getConfigBasedSourceFolders();
+		const result: IPromptPath[] = [];
 
-		return prompts.map(addType(type));
+		for (const uri of this.fileLocator.getConfigBasedSourceFolders()) {
+			result.push({ uri, storage: 'local', type });
+		}
+		const userHome = this.userDataService.currentProfile.promptsHome;
+		result.push({ uri: userHome, storage: 'user', type });
+
+		return result;
+	}
+
+	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
+		if (command.match(/^prompt:[\w_\-\.]+/)) {
+			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
+		}
+		return undefined;
+	}
+
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {
+		if (data.promptPath) {
+			return data.promptPath;
+		}
+		const files = await this.listPromptFiles('prompt');
+		const command = data.command;
+		return files.find(file => getCommandName(file.uri.path) === command);
+	}
+
+	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
+		const promptFiles = await this.listPromptFiles('prompt');
+		return promptFiles.map(promptPath => {
+			const command = getCommandName(promptPath.uri.path);
+			return {
+				command,
+				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
+				promptPath
+			};
+		});
 	}
 }
+
+function getCommandName(path: string) {
+	const name = basename(path, PROMPT_FILE_EXTENSION);
+	return `prompt:${name}`;
+}
+
 
 /**
  * Utility to add a provided prompt `type` to a prompt URI.
  */
 const addType = (
-	type: 'local' | 'global',
+	storage: TPromptsStorage,
+	type: TPromptsType,
 ): (uri: URI) => IPromptPath => {
 	return (uri) => {
-		return { uri, type: type };
+		return { uri, storage, type };
 	};
 };
 
@@ -127,10 +171,11 @@ const addType = (
  * Utility to add a provided prompt `type` to a list of prompt URIs.
  */
 const withType = (
-	type: 'local' | 'global',
+	storage: TPromptsStorage,
+	type: TPromptsType,
 ): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
 	return (uris) => {
 		return uris
-			.map(addType(type));
+			.map(addType(storage, type));
 	};
 };

@@ -257,12 +257,12 @@ import { assertNoRpc, poll } from '../utils';
 
 		test('onDidChangeTerminalState should fire with shellType when created', async () => {
 			const terminal = window.createTerminal();
-			if (terminal.state.shellType) {
+			if (terminal.state.shell) {
 				return;
 			}
 			await new Promise<void>(r => {
 				disposables.push(window.onDidChangeTerminalState(e => {
-					if (e === terminal && e.state.shellType) {
+					if (e === terminal && e.state.shell) {
 						r();
 					}
 				}));

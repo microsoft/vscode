@@ -1,6 +1,6 @@
 [package]
 name = "inno_updater"
-version = "0.12.1"
+version = "0.14.2"
 authors = ["Microsoft <monacotools@microsoft.com>"]
 build = "build.rs"
 

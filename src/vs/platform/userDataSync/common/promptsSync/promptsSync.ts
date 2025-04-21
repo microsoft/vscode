@@ -13,6 +13,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { isPromptOrInstructionsFile } from '../../../prompts/common/constants.js';
 import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { areSame, IMergeResult as IPromptsMergeResult, merge } from './promptsMerge.js';
@@ -33,7 +34,7 @@ export function parsePrompts(syncData: ISyncData): IStringDictionary<string> {
 }
 
 /**
- * Synchronizer class for the global prompt files.
+ * Synchronizer class for the "user" prompt files.
  * Adopted from {@link SnippetsSynchroniser}.
  */
 export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDataSynchroniser {
@@ -516,7 +517,7 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
 
-			if (!resource.path.endsWith('.prompt.md')) {
+			if (isPromptOrInstructionsFile(resource) === false) {
 				continue;
 			}
 

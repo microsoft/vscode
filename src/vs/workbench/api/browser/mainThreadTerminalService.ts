@@ -276,11 +276,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			id,
 			provideCompletions: async (commandLine, cursorPosition, allowFallbackCompletions, token) => {
 				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition, allowFallbackCompletions }, token);
-				if (Array.isArray(completions)) {
-					return completions.map(c => ({ ...c, provider: id }));
-				} else {
-					return { items: completions?.items.map(c => ({ ...c, provider: id })), resourceRequestConfig: completions?.resourceRequestConfig };
-				}
+				return {
+					items: completions?.items.map(c => ({ ...c, provider: id })),
+					resourceRequestConfig: completions?.resourceRequestConfig
+				};
 			}
 		}, ...triggerCharacters));
 	}

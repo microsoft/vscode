@@ -32,10 +32,25 @@ declare module 'vscode' {
 
 		warning?: InlineCompletionWarning;
 
-		/** If set to `true`, this item is rendered as inline edit. */
+		/** If set to `true`, this item is treated as inline edit. */
 		isInlineEdit?: boolean;
 
+		/**
+		 * A range specifying when the edit can be shown based on the cursor position.
+		 * If the cursor is within this range, the inline edit can be displayed.
+		 */
+		showRange?: Range;
+
+		showInlineEditMenu?: boolean;
+
 		action?: Command;
+
+		displayLocation?: InlineCompletionDisplayLocation;
+	}
+
+	export interface InlineCompletionDisplayLocation {
+		range: Range;
+		label: string;
 	}
 
 	export interface InlineCompletionWarning {
@@ -51,6 +66,8 @@ declare module 'vscode' {
 		yieldTo?: string[];
 
 		debounceDelayMs?: number;
+
+		displayName?: string;
 	}
 
 	export interface InlineCompletionItemProvider {
@@ -63,6 +80,29 @@ declare module 'vscode' {
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
+		 * @param info Additional info for the partial accepted trigger.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
+
+		/**
+		 * Is called when an inline completion item is no longer being used.
+		 * Provides a reason of why it is not used anymore.
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleEndOfLifetime?(completionItem: InlineCompletionItem, reason: InlineCompletionEndOfLifeReason): void;
+
+		readonly debounceDelayMs?: number;
+
+		onDidChange?: Event<void>;
+
+		// #region Deprecated methods
+
+		/** @deprecated */
+		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
+
+		/**
+		 * Is called when an inline completion item was accepted partially.
 		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
 		 * @deprecated Use `handleDidPartiallyAcceptCompletionItem` with `PartialAcceptInfo` instead.
 		 */
@@ -70,16 +110,30 @@ declare module 'vscode' {
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
 
 		/**
-		 * Is called when an inline completion item was accepted partially.
-		 * @param info Additional info for the partial accepted trigger.
-		 */
+		 * @param completionItem The completion item that was rejected.
+		 * @deprecated Use {@link handleEndOfLifetime} instead.
+		*/
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
+		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
 
-		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
-
-		readonly debounceDelayMs?: number;
+		// #endregion
 	}
+
+	export enum InlineCompletionEndOfLifeReasonKind {
+		Accepted = 0,
+		Rejected = 1,
+		Ignored = 2,
+	}
+
+	export type InlineCompletionEndOfLifeReason = {
+		kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	} | {
+		kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
+	} | {
+		kind: InlineCompletionEndOfLifeReasonKind.Ignored;
+		supersededBy?: InlineCompletionItem;
+		userTypingDisagreed: boolean;
+	};
 
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
@@ -110,7 +164,7 @@ declare module 'vscode' {
 		commands?: Command[];
 
 		/**
-		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+		 * When set and the user types a suggestion without deviating from it, the inline suggestion is not updated.
 		 * Defaults to false (might change).
 		 */
 		enableForwardStability?: boolean;

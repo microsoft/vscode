@@ -177,7 +177,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		await this.withProfileExtensions(profileLocation, profileExtensions => {
 			const result: IScannedProfileExtension[] = [];
 			for (const profileExtension of profileExtensions) {
-				const extension = extensions.find(([e]) => areSameExtensions(e.identifier, profileExtension.identifier) && e.manifest.version === profileExtension.version);
+				const extension = extensions.find(([e]) => areSameExtensions({ id: e.identifier.id }, { id: profileExtension.identifier.id }) && e.manifest.version === profileExtension.version);
 				if (extension) {
 					profileExtension.metadata = { ...profileExtension.metadata, ...extension[1] };
 					updatedExtensions.push(profileExtension);
@@ -270,8 +270,9 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						migrate = true;
 						e.metadata.hasPreReleaseVersion = true;
 					}
+					const uuid = e.metadata?.id ?? e.identifier.uuid;
 					extensions.push({
-						identifier: e.identifier,
+						identifier: uuid ? { id: e.identifier.id, uuid } : { id: e.identifier.id },
 						location,
 						version: e.version,
 						metadata: e.metadata,

@@ -102,43 +102,8 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 			// initiate the data sending flow
 			this.sendData(inputData);
 
-			// consume the decoder tokens based on specified
-			// (or randomly generated) tokens consume method
-			const receivedTokens: T[] = [];
-			switch (tokensConsumeMethod) {
-				// test the `async iterator` code path
-				case 'async-generator': {
-					for await (const token of this.decoder) {
-						if (token === null) {
-							break;
-						}
-
-						receivedTokens.push(token);
-					}
-
-					break;
-				}
-				// test the `.consumeAll()` method code path
-				case 'consume-all-method': {
-					receivedTokens.push(...(await this.decoder.consumeAll()));
-					break;
-				}
-				// test the `.onData()` event consume flow
-				case 'on-data-event': {
-					this.decoder.onData((token) => {
-						receivedTokens.push(token);
-					});
-
-					// in this case we also test the `settled` promise of the decoder
-					await this.decoder.settled;
-
-					break;
-				}
-				// ensure that the switch block is exhaustive
-				default: {
-					throw new Error(`Unknown consume method '${tokensConsumeMethod}'.`);
-				}
-			}
+			// receive tokens from the decoder stream
+			const receivedTokens = await this.receiveTokens(tokensConsumeMethod);
 
 			// validate the received tokens
 			this.validateReceivedTokens(
@@ -158,6 +123,8 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 			// add the tokens consume method to the error message so we
 			// would know which method of consuming the tokens failed exactly
 			error.message = `[${tokensConsumeMethod}] ${error.message}`;
+
+			throw error;
 		}
 	}
 
@@ -188,6 +155,55 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 	}
 
 	/**
+	 * Receive all tokens from the decoder stream using the specified consume method.
+	 */
+	public async receiveTokens(
+		tokensConsumeMethod: TTokensConsumeMethod = this.randomTokensConsumeMethod(),
+	): Promise<readonly T[]> {
+		// consume the decoder tokens based on specified
+		// (or randomly generated) tokens consume method
+		const receivedTokens: T[] = [];
+		switch (tokensConsumeMethod) {
+			// test the `async iterator` code path
+			case 'async-generator': {
+				for await (const token of this.decoder) {
+					if (token === null) {
+						break;
+					}
+
+					receivedTokens.push(token);
+				}
+
+				break;
+			}
+			// test the `.consumeAll()` method code path
+			case 'consume-all-method': {
+				receivedTokens.push(...(await this.decoder.consumeAll()));
+				break;
+			}
+			// test the `.onData()` event consume flow
+			case 'on-data-event': {
+				this.decoder.onData((token) => {
+					receivedTokens.push(token);
+				});
+
+				this.decoder.start();
+
+				// in this case we also test the `settled` promise of the decoder
+				await this.decoder.settled;
+
+				break;
+			}
+			// ensure that the switch block is exhaustive
+			default: {
+				throw new Error(`Unknown consume method '${tokensConsumeMethod}'.`);
+			}
+		}
+
+		return receivedTokens;
+	}
+
+	/**
 	 * Validate that received tokens list is equal to the expected one.
 	 */
 	private validateReceivedTokens(
@@ -196,23 +212,37 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 	) {
 		for (let i = 0; i < expectedTokens.length; i++) {
 			const expectedToken = expectedTokens[i];
-			const receivedtoken = receivedTokens[i];
+			const receivedToken = receivedTokens[i];
 
 			assertDefined(
-				receivedtoken,
+				receivedToken,
 				`Expected token '${i}' to be '${expectedToken}', got 'undefined'.`,
 			);
 
 			assert(
-				receivedtoken.equals(expectedToken),
-				`Expected token '${i}' to be '${expectedToken}', got '${receivedtoken}'.`,
+				receivedToken.equals(expectedToken),
+				`Expected token '${i}' to be '${expectedToken}', got '${receivedToken}'.`,
 			);
 		}
 
-		assert.strictEqual(
-			receivedTokens.length,
-			expectedTokens.length,
-			'Must produce correct number of tokens.',
+		if (receivedTokens.length === expectedTokens.length) {
+			return;
+		}
+
+		// sanity check - if received/expected list lengths are not equal, the received
+		// list must be longer than the expected one, because the other way around case
+		// must have been caught by the comparison loop above
+		assert(
+			receivedTokens.length > expectedTokens.length,
+			'Must have received more tokens than expected.',
+		);
+
+		const index = expectedTokens.length;
+		throw new Error(
+			[
+				`Expected no '${index}' token present, got '${receivedTokens[index]}'.`,
+				`(received ${receivedTokens.length} tokens in total)`,
+			].join(' '),
 		);
 	}
 }

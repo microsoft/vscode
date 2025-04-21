@@ -137,6 +137,7 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	isPaused: boolean;
+	setPaused(paused: boolean): void;
 }
 
 /**
@@ -583,14 +584,18 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}
 
 		this._register(_model.onDidChange(() => {
-			// This should be true, if the model is changing
+			// This is set when the response is loading, but the model can change later for other reasons
 			if (this._contentUpdateTimings) {
 				const now = Date.now();
 				const wordCount = countWords(_model.entireResponse.getMarkdown());
 
-				if (wordCount > 0 && wordCount === this._contentUpdateTimings.lastWordCount) {
+				if (wordCount === this._contentUpdateTimings.lastWordCount) {
 					this.trace('onDidChange', `Update- no new words`);
 				} else {
+					if (this._contentUpdateTimings.lastWordCount === 0) {
+						this._contentUpdateTimings.lastUpdateTime = now;
+					}
+
 					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
 					const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
 					const impliedWordLoadRate = wordCount / (newTotalTime / 1000);
@@ -604,9 +609,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 						lastWordCount: wordCount
 					};
 				}
-
-			} else {
-				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}
 
 			// new data -> new id, new content to render

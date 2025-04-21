@@ -8,14 +8,17 @@ import { createURI } from '../testUtils/createUri.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ExpectedReference } from '../testUtils/expectedReference.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { FileOpenFailed } from '../../../../common/promptFileReferenceErrors.js';
+import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -78,13 +81,53 @@ class TextModelPromptParserTest extends Disposable {
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
-			expectedReferences[i].validateEqual(references[i]);
+			const reference = references[i];
+
+			assertDefined(
+				reference,
+				`Expected reference #${i} be ${expectedReferences[i]}, got 'undefined'.`,
+			);
+
+			expectedReferences[i].validateEqual(reference);
 		}
 
 		assert.strictEqual(
 			expectedReferences.length,
 			references.length,
 			`[${this.model.uri}] Unexpected number of references.`,
+		);
+	}
+
+	/**
+	 * Validate list of diagnostic objects of the prompt header.
+	 */
+	public async validateHeaderDiagnostics(
+		expectedDiagnostics: readonly TExpectedDiagnostic[],
+	) {
+		await this.parser.allSettled();
+
+		const { header } = this.parser;
+		assertDefined(
+			header,
+			'Prompt header must be defined.',
+		);
+		const { diagnostics } = header;
+
+		for (let i = 0; i < expectedDiagnostics.length; i++) {
+			const diagnostic = diagnostics[i];
+
+			assertDefined(
+				diagnostic,
+				`Expected diagnostic #${i} be ${expectedDiagnostics[i]}, got 'undefined'.`,
+			);
+
+			expectedDiagnostics[i].validateEqual(diagnostic);
+		}
+
+		assert.strictEqual(
+			expectedDiagnostics.length,
+			diagnostics.length,
+			`Expected '${expectedDiagnostics.length}' diagnostic objects, got '${diagnostics.length}'.`,
 		);
 	}
 }
@@ -116,7 +159,7 @@ suite('TextModelPromptParser', () => {
 		);
 	};
 
-	test('core logic #1', async () => {
+	test('• core logic #1', async () => {
 		const test = createTest(
 			createURI('/foo/bar.md'),
 			[
@@ -127,11 +170,11 @@ suite('TextModelPromptParser', () => {
 				/* 05 */"Sometimes, the best code is the one you never have to write.",
 				/* 06 */"A lone kangaroo once hopped into the local cafe, seeking free Wi-Fi.",
 				/* 07 */"Critical #file:./folder/binary.file thinking is like coffee; best served strong [md link](/etc/hosts/random-file.txt) and without sugar.",
-				/* 08 */"Music is the mind’s way of doodling in the air.",
+				/* 08 */"Music is the mind's way of doodling in the air.",
 				/* 09 */"Stargazing is just turning your eyes into cosmic explorers.",
 				/* 10 */"Never trust a balloon salesman who hates birthdays.",
 				/* 11 */"Running backward can be surprisingly enlightening.",
-				/* 12 */"There’s an art to whispering loudly.",
+				/* 12 */"There's an art to whispering loudly.",
 			],
 		);
 
@@ -143,7 +186,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 1,
 				startColumn: 27,
 				pathStartColumn: 33,
-				childrenOrError: new FileOpenFailed(createURI('/abs/path/to/file.md'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/abs/path/to/file.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/foo/folder/binary.file'),
@@ -152,7 +195,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 10,
 				pathStartColumn: 16,
-				childrenOrError: new FileOpenFailed(createURI('/foo/folder/binary.file'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/foo/folder/binary.file'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/etc/hosts/random-file.txt'),
@@ -161,12 +204,12 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 81,
 				pathStartColumn: 91,
-				childrenOrError: new FileOpenFailed(createURI('/etc/hosts/random-file.txt'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/etc/hosts/random-file.txt'), 'File not found.'),
 			}),
 		]);
 	});
 
-	test('core logic #2', async () => {
+	test('• core logic #2', async () => {
 		const test = createTest(
 			createURI('/absolute/folder/and/a/filename.txt'),
 			[
@@ -196,7 +239,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 3,
 				startColumn: 43,
 				pathStartColumn: 55,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/absolute/c/file_name.prompt.md'),
@@ -205,7 +248,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 6,
 				startColumn: 7,
 				pathStartColumn: 17,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/c/file_name.prompt.md'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/c/file_name.prompt.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/absolute/folder/main.rs'),
@@ -214,7 +257,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 36,
 				pathStartColumn: 42,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/folder/main.rs'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/folder/main.rs'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/absolute/folder/and/a/samefile.jpeg'),
@@ -223,12 +266,145 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 56,
 				pathStartColumn: 62,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
 			}),
 		]);
 	});
 
-	test('gets disposed with the model', async () => {
+	suite('• header', () => {
+		test('• has correct metadata', async function () {
+			const test = createTest(
+				createURI('/absolute/folder/and/a/filename.txt'),
+				[
+					/* 01 */"---",
+					/* 02 */"	something: true", /* unknown metadata record */
+					/* 03 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
+					/* 04 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
+					/* 05 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 06 */"---",
+					/* 07 */"The cactus on my desk has a thriving Instagram account.",
+					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+				],
+			);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+					text: '[text](./foo-bar-baz/another-file.ts)',
+					path: './foo-bar-baz/another-file.ts',
+					startLine: 8,
+					startColumn: 43,
+					pathStartColumn: 50,
+					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				}),
+			]);
+
+			const { header, toolsMetadata } = test.parser;
+			assertDefined(
+				header,
+				'Prompt header must be defined.',
+			);
+
+			assertDefined(
+				toolsMetadata,
+				'Tools metadata must be present.',
+			);
+
+			assert.strictEqual(
+				toolsMetadata.length,
+				2,
+				`Prompt header tools metadata must have 2 tool names, got '[${toolsMetadata.join(', ')}]'.`,
+			);
+
+			assert.deepStrictEqual(
+				toolsMetadata,
+				['tool_name1', 'tool_name2'],
+				`Prompt header must have correct tools metadata.`,
+			);
+		});
+
+		test('• has correct diagnostics', async function () {
+			const test = createTest(
+				createURI('/absolute/folder/and/a/filename.txt'),
+				[
+					/* 01 */"---",
+					/* 02 */"	something: true", /* unknown metadata record */
+					/* 03 */"tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', ,'tool_name2' ] ",
+					/* 04 */"  tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 05 */"tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 06 */"---",
+					/* 07 */"The cactus on my desk has a thriving Instagram account.",
+					/* 08 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 09 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 10 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 11 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+				],
+			);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+					text: '[text](./foo-bar-baz/another-file.ts)',
+					path: './foo-bar-baz/another-file.ts',
+					startLine: 8,
+					startColumn: 43,
+					pathStartColumn: 50,
+					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				}),
+			]);
+
+			const { header, toolsMetadata } = test.parser;
+			assertDefined(
+				header,
+				'Prompt header must be defined.',
+			);
+
+			assertDefined(
+				toolsMetadata,
+				'Tools metadata must be defined.',
+			);
+
+			await test.validateHeaderDiagnostics([
+				new ExpectedDiagnosticWarning(
+					new Range(2, 2, 2, 2 + 15),
+					'Unknown metadata record \'something\' will be ignored.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 38, 3, 38 + 12),
+					'Duplicate tool name \'tool_name1\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 52, 3, 52 + 4),
+					'Expected a tool name (string), got \'true\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 58, 3, 58 + 5),
+					'Expected a tool name (string), got \'false\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 65, 3, 65 + 2),
+					'Tool name cannot be empty.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(3, 70, 3, 70 + 12),
+					'Duplicate tool name \'tool_name2\'.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(4, 3, 4, 3 + 37),
+					'Duplicate metadata record \'tools\' will be ignored.',
+				),
+				new ExpectedDiagnosticWarning(
+					new Range(5, 1, 5, 1 + 19),
+					'Duplicate metadata record \'tools\' will be ignored.',
+				),
+			]);
+		});
+	});
+
+	test('• gets disposed with the model', async () => {
 		const test = createTest(
 			createURI('/some/path/file.prompt.md'),
 			[
@@ -249,7 +425,7 @@ suite('TextModelPromptParser', () => {
 		);
 	});
 
-	test('toString() implementation', async () => {
+	test('• toString() implementation', async () => {
 		const modelUri = createURI('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,

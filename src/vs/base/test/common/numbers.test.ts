@@ -54,8 +54,8 @@ suite('randomInt', () => {
 				});
 			}
 
-			test(`should include min and max`, async () => {
-				let iterations = 100;
+			test('should include min and max', async () => {
+				let iterations = 125;
 				const results = [];
 				while (iterations-- > 0) {
 					results.push(randomInt(max, min));
@@ -74,9 +74,9 @@ suite('randomInt', () => {
 	};
 
 	suite('positive numbers', () => {
-		testRandomIntUtil(5, 2, 'max: 5, min: 2');
-		testRandomIntUtil(5, 0, 'max: 5, min: 0');
-		testRandomIntUtil(5, undefined, 'max: 5, min: undefined');
+		testRandomIntUtil(4, 2, 'max: 4, min: 2');
+		testRandomIntUtil(4, 0, 'max: 4, min: 0');
+		testRandomIntUtil(4, undefined, 'max: 4, min: undefined');
 		testRandomIntUtil(1, 0, 'max: 0, min: 0');
 	});
 
@@ -137,14 +137,14 @@ suite('randomInt', () => {
 
 		test('should throw if "min" is > "max" #5', () => {
 			assert.throws(() => {
-				randomInt(-5, 0);
-			}, `"max"(-5) param should be greater than "min"(0)."`);
+				randomInt(-4, 0);
+			}, `"max"(-4) param should be greater than "min"(0)."`);
 		});
 
 		test('should throw if "min" is > "max" #6', () => {
 			assert.throws(() => {
-				randomInt(-5);
-			}, `"max"(-5) param should be greater than "min"(0)."`);
+				randomInt(-4);
+			}, `"max"(-4) param should be greater than "min"(0)."`);
 		});
 
 		test('should throw if "max" is `NaN`', () => {
@@ -155,7 +155,7 @@ suite('randomInt', () => {
 
 		test('should throw if "min" is `NaN`', () => {
 			assert.throws(() => {
-				randomInt(5, NaN);
+				randomInt(4, NaN);
 			}, `"min" param is not a number."`);
 		});
 

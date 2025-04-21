@@ -132,7 +132,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					await this.openGettingStarted();
+					await this.openGettingStarted(true);
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -219,10 +219,6 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
 			return welcomeEnabled.value;
 		}
-	}
-
-	if (startupEditor.value !== startupEditor.userRemoteValue) {
-		logService.info(`Startup editor is configured to be "${startupEditor.value}". This setting will be overridden by "${startupEditor.userRemoteValue}".`);
 	}
 
 	return startupEditor.value === 'welcomePage'

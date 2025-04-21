@@ -1311,7 +1311,7 @@ suite('vscode API - workspace', () => {
 		return deleteFile(file);
 	}
 
-	test('text document encodings', async () => {
+	test('encoding: text document encodings', async () => {
 		const uri1 = await createRandomFile();
 		const uri2 = await createRandomFile(new Uint8Array([0xEF, 0xBB, 0xBF]) /* UTF-8 with BOM */);
 		const uri3 = await createRandomFile(new Uint8Array([0xFF, 0xFE]) /* UTF-16 LE BOM */);
@@ -1333,22 +1333,88 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(doc5.encoding, 'utf8');
 	});
 
-	test('fs.decode', async function () {
+	test('encoding: openTextDocument', async () => {
+		const uri1 = await createRandomFile();
+
+		let doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'cp1252' });
+		assert.strictEqual(doc1.encoding, 'cp1252');
+
+		let listener: vscode.Disposable | undefined;
+		const documentChangePromise = new Promise<void>(resolve => {
+			listener = vscode.workspace.onDidChangeTextDocument(e => {
+				if (e.document.uri.toString() === uri1.toString()) {
+					resolve();
+				}
+			});
+		});
+
+		doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'utf16le' });
+		assert.strictEqual(doc1.encoding, 'utf16le');
+		await documentChangePromise;
+
+		const doc2 = await vscode.workspace.openTextDocument({ encoding: 'utf16be' });
+		assert.strictEqual(doc2.encoding, 'utf16be');
+
+		const doc3 = await vscode.workspace.openTextDocument({ content: 'Hello World', encoding: 'utf16le' });
+		assert.strictEqual(doc3.encoding, 'utf16le');
+
+		listener?.dispose();
+	});
+
+	test('encoding: openTextDocument - throws for dirty documents', async () => {
+		const uri1 = await createRandomFile();
+
+		const doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'cp1252' });
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(doc1.uri, new vscode.Position(0, 0), 'Hello World');
+		await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(doc1.isDirty, true);
+
+		let err;
+		try {
+			await vscode.workspace.decode(new Uint8Array([0, 0, 0, 0]), { uri: doc1.uri });
+		} catch (e) {
+			err = e;
+		}
+		assert.ok(err);
+	});
+
+	test('encoding: openTextDocument - invalid encoding falls back to default', async () => {
+		const uri1 = await createRandomFile();
+
+		const doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'foobar123' });
+		assert.strictEqual(doc1.encoding, 'utf8');
+	});
+
+	test('encoding: openTextDocument - multiple requests with different encoding work', async () => {
+		const uri1 = await createRandomFile();
+
+		const doc1P = vscode.workspace.openTextDocument(uri1);
+		const doc2P = vscode.workspace.openTextDocument(uri1, { encoding: 'cp1252' });
+
+		const [doc1, doc2] = await Promise.all([doc1P, doc2P]);
+
+		assert.strictEqual(doc1.encoding, 'cp1252');
+		assert.strictEqual(doc2.encoding, 'cp1252');
+	});
+
+	test('encoding: decode', async function () {
 		const uri = root.with({ path: posix.join(root.path, 'file.txt') });
 
 		// without setting
-		assert.strictEqual(await vscode.workspace.decode(Buffer.from('Hello World'), uri), 'Hello World');
-		assert.strictEqual(await vscode.workspace.decode(Buffer.from('Hellö Wörld'), uri), 'Hellö Wörld');
-		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]), uri), 'Hello World'); // UTF-8 with BOM
-		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100]), uri), 'Hello World'); // UTF-16 BE with BOM
-		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0]), uri), 'Hello World'); // UTF-16 LE with BOM
-		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100]), uri), 'Hello World');
-		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0]), uri), 'Hello World');
+		assert.strictEqual(await vscode.workspace.decode(Buffer.from('Hello World'), { uri }), 'Hello World');
+		assert.strictEqual(await vscode.workspace.decode(Buffer.from('Hellö Wörld'), { uri }), 'Hellö Wörld');
+		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]), { uri }), 'Hello World'); // UTF-8 with BOM
+		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100]), { uri }), 'Hello World'); // UTF-16 BE with BOM
+		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0]), { uri }), 'Hello World'); // UTF-16 LE with BOM
+		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100]), { uri }), 'Hello World');
+		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0]), { uri }), 'Hello World');
 
 		// with auto-guess encoding
 		try {
 			await vscode.workspace.getConfiguration('files', uri).update('autoGuessEncoding', true, vscode.ConfigurationTarget.Global);
-			assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100]), uri), 'Hellö Wörld');
+			assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100]), { uri }), 'Hellö Wörld');
 		} finally {
 			await vscode.workspace.getConfiguration('files', uri).update('autoGuessEncoding', false, vscode.ConfigurationTarget.Global);
 		}
@@ -1356,55 +1422,55 @@ suite('vscode API - workspace', () => {
 		// with encoding setting
 		try {
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'windows1252', vscode.ConfigurationTarget.Global);
-			assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100]), uri), 'Hellö Wörld');
+			assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100]), { uri }), 'Hellö Wörld');
 		} finally {
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf8', vscode.ConfigurationTarget.Global);
 		}
 
 		// with encoding provided
-		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100]), uri, { encoding: 'windows1252' }), 'Hellö Wörld');
-		assert.strictEqual(await vscode.workspace.decode(Buffer.from('Hello World'), uri, { encoding: 'foobar123' }), 'Hello World');
+		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100]), { encoding: 'windows1252' }), 'Hellö Wörld');
+		assert.strictEqual(await vscode.workspace.decode(Buffer.from('Hello World'), { encoding: 'foobar123' }), 'Hello World');
 
 		// binary
 		let err;
 		try {
-			await vscode.workspace.decode(new Uint8Array([0, 0, 0, 0]), uri);
+			await vscode.workspace.decode(new Uint8Array([0, 0, 0, 0]), { uri });
 		} catch (e) {
 			err = e;
 		}
 		assert.ok(err);
 	});
 
-	test('fs.encode', async function () {
+	test('encoding: encode', async function () {
 		const uri = root.with({ path: posix.join(root.path, 'file.txt') });
 
 		// without setting
-		assert.strictEqual((await vscode.workspace.encode('Hello World', uri)).toString(), 'Hello World');
+		assert.strictEqual((await vscode.workspace.encode('Hello World', { uri })).toString(), 'Hello World');
 
 		// with encoding setting
 		try {
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf8bom', vscode.ConfigurationTarget.Global);
-			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri), new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
+			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { uri }), new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
 
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf16le', vscode.ConfigurationTarget.Global);
-			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri), new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0])));
+			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { uri }), new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0])));
 
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf16be', vscode.ConfigurationTarget.Global);
-			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri), new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100])));
+			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { uri }), new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100])));
 
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'cp1252', vscode.ConfigurationTarget.Global);
-			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hellö Wörld', uri), new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100])));
+			assert.ok(equalsUint8Array(await vscode.workspace.encode('Hellö Wörld', { uri }), new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100])));
 		} finally {
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf8', vscode.ConfigurationTarget.Global);
 		}
 
 		// with encoding provided
-		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf8' }), new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
-		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf8bom' }), new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
-		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf16le' }), new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0])));
-		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf16be' }), new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100])));
-		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hellö Wörld', uri, { encoding: 'cp1252' }), new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100])));
-		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'foobar123' }), new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { encoding: 'utf8' }), new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { encoding: 'utf8bom' }), new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { encoding: 'utf16le' }), new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { encoding: 'utf16be' }), new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hellö Wörld', { encoding: 'cp1252' }), new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', { encoding: 'foobar123' }), new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
 	});
 
 	function equalsUint8Array(a: Uint8Array, b: Uint8Array): boolean {
@@ -1421,4 +1487,39 @@ suite('vscode API - workspace', () => {
 		}
 		return true;
 	}
+
+	test('encoding: save text document with a different encoding', async () => {
+		const originalText = 'Hellö\nWörld';
+		const uri = await createRandomFile(originalText);
+
+		let doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.encoding, 'utf8');
+
+		const text = doc.getText();
+		assert.strictEqual(text, originalText);
+		const buf = await vscode.workspace.encode(text, { encoding: 'windows1252' });
+		await vscode.workspace.fs.writeFile(uri, buf);
+
+		doc = await vscode.workspace.openTextDocument(uri, { encoding: 'windows1252' });
+		assert.strictEqual(doc.encoding, 'windows1252');
+		const updatedText = doc.getText();
+		assert.strictEqual(updatedText, text);
+	});
+
+	test('encoding: utf8bom does not explode (https://github.com/microsoft/vscode/issues/242132)', async function () {
+		const buffer = [0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100];
+		const uri = await createRandomFile(new Uint8Array(buffer) /* UTF-8 with BOM */);
+
+		let doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.encoding, 'utf8bom');
+
+		doc = await vscode.workspace.openTextDocument(uri, { encoding: 'utf8bom' });
+		assert.strictEqual(doc.encoding, 'utf8bom');
+
+		const decoded = await vscode.workspace.decode(new Uint8Array(buffer), { encoding: 'utf8bom' });
+		assert.strictEqual(decoded, 'Hello World');
+
+		const encoded = await vscode.workspace.encode('Hello World', { encoding: 'utf8bom' });
+		assert.ok(equalsUint8Array(encoded, new Uint8Array(buffer)));
+	});
 });

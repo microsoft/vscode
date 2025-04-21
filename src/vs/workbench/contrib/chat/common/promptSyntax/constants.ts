@@ -3,19 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LanguageSelector } from '../../../../../editor/common/languageSelector.js';
+
 /**
  * Documentation link for the reusable prompts feature.
  */
-export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
 
 /**
- * File extension for the reusable prompt files.
+ * Language ID for the reusable prompt syntax.
  */
-export const PROMPT_FILE_EXTENSION = '.prompt.md';
+export const PROMPT_LANGUAGE_ID = 'prompt';
 
 /**
- * Prompt files language selector.
+ * Language ID for instructions syntax.
  */
-export const LANGUAGE_SELECTOR = Object.freeze({
-	pattern: `**/*${PROMPT_FILE_EXTENSION}`,
-});
+export const INSTRUCTIONS_LANGUAGE_ID = 'instructions';
+
+/**
+ * Prompt and instructions files language selector.
+ */
+export const PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID];

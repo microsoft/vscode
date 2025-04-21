@@ -11,7 +11,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { Emitter, Relay } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement } from '../../../../base/browser/dom.js';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $ } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -208,16 +208,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.handleGroupContextKeys();
 
 			// Title container
-			this.titleContainer = document.createElement('div');
-			this.titleContainer.classList.add('title');
+			this.titleContainer = $('.title');
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
 			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model));
 
 			// Editor container
-			this.editorContainer = document.createElement('div');
-			this.editorContainer.classList.add('editor-container');
+			this.editorContainer = $('.editor-container');
 			this.element.appendChild(this.editorContainer);
 
 			// Editor pane
@@ -406,8 +404,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private createContainerToolbar(): void {
 
 		// Toolbar Container
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('editor-group-container-toolbar');
+		const toolbarContainer = $('.editor-group-container-toolbar');
 		this.element.appendChild(toolbarContainer);
 
 		// Toolbar
@@ -682,16 +679,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				editor.dispose();
 			}
 		}
-
-		/* __GDPR__
-			"editorClosed" : {
-				"owner": "isidorn",
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(editor));
 
 		// Update container
 		this.updateContainer();
@@ -1784,12 +1771,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			await this.hostService.focus(getWindow(this.element));
 
 			// Let editor handle confirmation if implemented
+			let handlerDidError = false;
 			if (typeof editor.closeHandler?.confirm === 'function') {
-				confirmation = await editor.closeHandler.confirm([{ editor, groupId: this.id }]);
+				try {
+					confirmation = await editor.closeHandler.confirm([{ editor, groupId: this.id }]);
+				} catch (e) {
+					this.logService.error(e);
+					handlerDidError = true;
+				}
 			}
 
-			// Show a file specific confirmation
-			else {
+			// Show a file specific confirmation if there is no handler or it errored
+			if (typeof editor.closeHandler?.confirm !== 'function' || handlerDidError) {
 				let name: string;
 				if (editor instanceof SideBySideEditorInput) {
 					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
@@ -1852,7 +1845,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private shouldConfirmClose(editor: EditorInput): boolean {
 		if (editor.closeHandler) {
-			return editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			try {
+				return editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			} catch (error) {
+				this.logService.error(error);
+			}
 		}
 
 		return editor.isDirty() && !editor.isSaving(); // editor must be dirty and not saving
@@ -1938,7 +1935,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeAllEditors()
 
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> {
+	closeAllEditors(options: { excludeConfirming: true }): boolean;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): boolean | Promise<boolean> {
 		if (this.isEmpty) {
 
 			// If the group is empty and the request is to close all editors, we still close
@@ -1951,22 +1950,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return true;
 		}
 
-		// Apply the `excludeConfirming` filter if present
-		let editors = this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options);
+		// We can go ahead and close "sync" when we exclude confirming editors
 		if (options?.excludeConfirming) {
-			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+			this.doCloseAllEditors(options);
+			return true;
 		}
 
-		// Check for confirmation and veto
-		const veto = await this.handleCloseConfirmation(editors);
-		if (veto) {
-			return false;
-		}
+		// Otherwise go through potential confirmation "async"
+		return this.handleCloseConfirmation(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options)).then(veto => {
+			if (veto) {
+				return false;
+			}
 
-		// Do close
-		this.doCloseAllEditors(options);
-
-		return true;
+			this.doCloseAllEditors(options);
+			return true;
+		});
 	}
 
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
@@ -2151,7 +2149,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region ISerializableView
 
-	readonly element: HTMLElement = document.createElement('div');
+	readonly element: HTMLElement = $('div');
 
 	get minimumWidth(): number { return this.editorPane.minimumWidth; }
 	get minimumHeight(): number { return this.editorPane.minimumHeight; }

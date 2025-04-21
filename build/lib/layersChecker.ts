@@ -77,10 +77,22 @@ const CORE_TYPES = [
 	'PerformanceMark',
 	'PerformanceObserver',
 	'ImportMeta',
+	'structuredClone',
 
 	// webcrypto has been available since Node.js 19, but still live in dom.d.ts
 	'Crypto',
-	'SubtleCrypto'
+	'SubtleCrypto',
+	'JsonWebKey',
+	'MessageEvent',
+
+	// node web types
+	'ReadableStream',
+	'ReadableStreamReadResult',
+	'ReadableStreamGenericReader',
+	'ReadableStreamDefaultReader',
+	'value',
+	'done',
+	'DOMException',
 ];
 
 // Types that are defined in a common layer but are known to be only

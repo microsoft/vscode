@@ -16,22 +16,25 @@ export interface IDataTransferFile {
 }
 
 export interface IDataTransferItem {
+	id?: string;
 	asString(): Thenable<string>;
 	asFile(): IDataTransferFile | undefined;
 	value: any;
 }
 
-export function createStringDataTransferItem(stringOrPromise: string | Promise<string>): IDataTransferItem {
+export function createStringDataTransferItem(stringOrPromise: string | Promise<string>, id?: string): IDataTransferItem {
 	return {
+		id,
 		asString: async () => stringOrPromise,
 		asFile: () => undefined,
 		value: typeof stringOrPromise === 'string' ? stringOrPromise : undefined,
 	};
 }
 
-export function createFileDataTransferItem(fileName: string, uri: URI | undefined, data: () => Promise<Uint8Array>): IDataTransferItem {
+export function createFileDataTransferItem(fileName: string, uri: URI | undefined, data: () => Promise<Uint8Array>, id?: string): IDataTransferItem {
 	const file = { id: generateUuid(), name: fileName, uri, data };
 	return {
+		id,
 		asString: async () => '',
 		asFile: () => file,
 		value: undefined,

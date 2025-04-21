@@ -41,6 +41,7 @@ import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.j
 import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 enum HostShutdownReason {
 
@@ -154,7 +155,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
 				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
 				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, disposables),
-			)(focus => emitter.fire(focus));
+			)(focus => emitter.fire(focus), undefined, disposables);
 		}, { window: mainWindow, disposables: this._store }));
 
 		return Event.latch(emitter.event, undefined, this._store);
@@ -587,7 +588,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#region Screenshots
 
-	async getScreenshot(): Promise<ArrayBufferLike | undefined> {
+	async getScreenshot(): Promise<VSBuffer | undefined> {
 		// Gets a screenshot from the browser. This gets the screenshot via the browser's display
 		// media API which will typically offer a picker of all available screens and windows for
 		// the user to select. Using the video stream provided by the display media API, this will
@@ -633,8 +634,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 				throw new Error('Failed to create blob from canvas');
 			}
 
-			// Convert the Blob to an ArrayBuffer
-			return blob.arrayBuffer();
+			const buf = await blob.bytes();
+			return VSBuffer.wrap(buf);
 
 		} catch (error) {
 			console.error('Error taking screenshot:', error);

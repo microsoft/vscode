@@ -16,6 +16,7 @@ import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration
 import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { env as processEnv } from '../../../../../base/common/process.js';
 import type { IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -50,6 +51,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: UriComponents;
 	pathSeparator: string;
 	env?: { [key: string]: string | null | undefined };
@@ -165,7 +167,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 				return undefined;
 			}
-			const completions: ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined = await provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token);
+			const completions = await Promise.race([
+				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+				timeout(5000)
+			]);
 			if (!completions) {
 				return undefined;
 			}
@@ -189,9 +194,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (resourceCompletions) {
 					completionItems.push(...resourceCompletions);
 				}
-				return completionItems;
 			}
-			return;
+			return completionItems;
 		});
 
 		const results = await Promise.all(completionPromises);
@@ -209,6 +213,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// provide diagnostics when a folder is provided where a file is expected.
 		const foldersRequested = (resourceRequestConfig.foldersRequested || resourceRequestConfig.filesRequested) ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
+		const fileExtensions = resourceRequestConfig.fileExtensions ?? undefined;
 
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		if (!cwd || (!foldersRequested && !filesRequested)) {
@@ -378,6 +383,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label += resourceRequestConfig.pathSeparator;
 			}
 
+			if (child.isFile && fileExtensions) {
+				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
+				if (extension && !fileExtensions.includes(extension)) {
+					continue;
+				}
+			}
+
 			resourceCompletions.push({
 				label,
 				provider,
@@ -476,9 +488,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	private _getEnvVar(key: string, capabilities: ITerminalCapabilityStore): string | undefined {
-		const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
+		const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.value as { [key: string]: string | undefined };
 		if (env) {
-			return env.get(key);
+			return env[key];
 		}
 		return this._processEnv[key];
 	}

@@ -159,10 +159,14 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 		this.getShowDotFiles();
 		const disposableStore = this._register(new DisposableStore());
-		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'remoteFileDialog.showDotFiles', disposableStore)(e => {
+		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'remoteFileDialog.showDotFiles', disposableStore)(async _ => {
 			this.getShowDotFiles();
 			this.setButtons();
-			this.tryUpdateItems(this.filePickBox.value, this.filePickBoxValue(), true);
+			const startingValue = this.filePickBox.value;
+			const folderValue = this.pathFromUri(this.currentFolder, true);
+			this.filePickBox.value = folderValue;
+			await this.tryUpdateItems(folderValue, this.currentFolder, true);
+			this.filePickBox.value = startingValue;
 		});
 	}
 
@@ -472,7 +476,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	private setButtons() {
 		this.filePickBox.buttons = [{
-			iconClass: this._showDotFiles ? ThemeIcon.asClassName(Codicon.eyeClosed) : ThemeIcon.asClassName(Codicon.eye),
+			iconClass: this._showDotFiles ? ThemeIcon.asClassName(Codicon.eye) : ThemeIcon.asClassName(Codicon.eyeClosed),
 			tooltip: this._showDotFiles ? nls.localize('remoteFileDialog.hideDotFiles', "Hide dot files") : nls.localize('remoteFileDialog.showDotFiles', "Show dot files"),
 			alwaysVisible: true
 		}];

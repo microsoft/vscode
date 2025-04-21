@@ -164,11 +164,11 @@ suite('UserDataAutoSyncService', () => {
 				{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 				// Extensions
 				{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-				// Profiles
-				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Prompts
 				{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '0' } },
+				// Profiles
+				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Manifest
 				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 				// Machines

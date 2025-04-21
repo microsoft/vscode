@@ -589,4 +589,11 @@ export const codiconsLibrary = {
 	keyboardTab: register('keyboard-tab', 0xec3c),
 	copilotBlocked: register('copilot-blocked', 0xec3d),
 	copilotNotConnected: register('copilot-not-connected', 0xec3e),
+	flag: register('flag', 0xec3f),
+	lightbulbEmpty: register('lightbulb-empty', 0xec40),
+	symbolMethodArrow: register('symbol-method-arrow', 0xec41),
+	copilotUnavailable: register('copilot-unavailable', 0xec42),
+	repoPinned: register('repo-pinned', 0xec43),
+	keyboardTabAbove: register('keyboard-tab-above', 0xec44),
+	keyboardTabBelow: register('keyboard-tab-below', 0xec45),
 } as const;

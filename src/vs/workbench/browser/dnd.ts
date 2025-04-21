@@ -216,7 +216,11 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			return undefined; // editor without resource
 		}
 
-		return { ...resourceOrEditor, resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource };
+		return {
+			resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource,
+			isDirectory: resourceOrEditor.isDirectory,
+			selection: resourceOrEditor.selection,
+		};
 	}));
 
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
@@ -334,9 +338,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
+	}
 
-		// Add a URI list entry
-		const uriListEntries: URI[] = [];
+	// Add a URI list entry
+	const draggedDirectories: URI[] = fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource);
+	if (draggedEditors.length || draggedDirectories.length) {
+		const uriListEntries: URI[] = [...draggedDirectories];
 		for (const editor of draggedEditors) {
 			if (editor.resource) {
 				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);
@@ -646,16 +653,22 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const resources: URI[] = [];
-		for (const element of (data as ElementsDragAndDropData<T>).elements) {
+		const elements = (data as ElementsDragAndDropData<T>).elements;
+		for (const element of elements) {
 			const resource = this.toResource(element);
 			if (resource) {
 				resources.push(resource);
 			}
 		}
+		this.onWillDragElements(elements, originalEvent);
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
+	}
+
+	protected onWillDragElements(elements: readonly T[], originalEvent: DragEvent): void {
+		// noop
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {

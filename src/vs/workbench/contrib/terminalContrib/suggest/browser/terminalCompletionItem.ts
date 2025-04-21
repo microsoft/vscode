@@ -10,12 +10,15 @@ import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/su
 export enum TerminalCompletionItemKind {
 	File = 0,
 	Folder = 1,
-	Flag = 2,
-	Method = 3,
+	Method = 2,
+	Alias = 3,
 	Argument = 4,
-	Alias = 5,
-	InlineSuggestion = 6,
-	InlineSuggestionAlwaysOnTop = 7,
+	Option = 5,
+	OptionValue = 6,
+	Flag = 7,
+	// Kinds only for core
+	InlineSuggestion = 100,
+	InlineSuggestionAlwaysOnTop = 101,
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {

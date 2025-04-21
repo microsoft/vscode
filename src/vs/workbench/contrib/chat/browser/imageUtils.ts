@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 /**
  * Resizes an image provided as a UInt8Array string. Resizing is based on Open AI's algorithm for tokenzing images.
  * https://platform.openai.com/docs/guides/vision#calculating-costs
@@ -11,18 +10,24 @@
  * @returns A promise that resolves to the UInt8Array string of the resized image.
  */
 
-export async function resizeImage(data: Uint8Array): Promise<Uint8Array> {
-	const blob = new Blob([data]);
-	const img = new Image();
-	const url = URL.createObjectURL(blob);
-	img.src = url;
+export async function resizeImage(data: Uint8Array | string, mimeType?: string): Promise<Uint8Array> {
+	const isGif = mimeType === 'image/gif';
+
+	if (typeof data === 'string') {
+		data = convertStringToUInt8Array(data);
+	}
 
 	return new Promise((resolve, reject) => {
+		const blob = new Blob([data], { type: mimeType });
+		const img = new Image();
+		const url = URL.createObjectURL(blob);
+		img.src = url;
+
 		img.onload = () => {
 			URL.revokeObjectURL(url);
 			let { width, height } = img;
 
-			if (width < 768 || height < 768) {
+			if ((width <= 768 || height <= 768) && !isGif) {
 				resolve(data);
 				return;
 			}
@@ -65,4 +70,35 @@ export async function resizeImage(data: Uint8Array): Promise<Uint8Array> {
 			reject(error);
 		};
 	});
+}
+
+export function convertStringToUInt8Array(data: string): Uint8Array {
+	const base64Data = data.includes(',') ? data.split(',')[1] : data;
+	if (isValidBase64(base64Data)) {
+		return Uint8Array.from(atob(base64Data), char => char.charCodeAt(0));
+	}
+	return new TextEncoder().encode(data);
+}
+
+// Only used for URLs
+export function convertUint8ArrayToString(data: Uint8Array): string {
+	try {
+		const decoder = new TextDecoder();
+		const decodedString = decoder.decode(data);
+		return decodedString;
+	} catch {
+		return '';
+	}
+}
+
+function isValidBase64(str: string): boolean {
+	// checks if the string is a valid base64 string that is NOT encoded
+	return /^[A-Za-z0-9+/]*={0,2}$/.test(str) && (() => {
+		try {
+			atob(str);
+			return true;
+		} catch {
+			return false;
+		}
+	})();
 }
