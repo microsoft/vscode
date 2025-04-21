@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatMode } from '../../constants.ts';
+import { ChatMode } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -48,8 +48,6 @@ export interface ITopError extends IResolveError {
 	 */
 	readonly localizedMessage: string;
 }
-
-// TODO: @legomushroom - remove the `.d.ts` of the file name?
 
 /**
  * Metadata defined in the prompt header.
