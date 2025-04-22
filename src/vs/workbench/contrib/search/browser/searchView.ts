@@ -1958,43 +1958,30 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
-		let currentKeyword = keywords.shift()?.keyword || '';
 		const messageEl = this.clearMessage();
+		messageEl.classList.add('ai-keywords');
 
-		// Refresh icon
-		if (keywords.length !== 0) {
-			const icon = dom.append(messageEl, dom.$(''));
-			icon.ariaLabel = nls.localize('search.refresh', "Get new suggestion");
-			icon.role = 'button';
-			icon.tabIndex = 0;
-			icon.classList.add('codicon', 'codicon-refresh', 'keyword-refresh');
-			icon.onclick = () => {
-				// change the keyword to the next one
-				const nextKeyword = keywords.shift();
-				if (nextKeyword) {
-					currentKeyword = nextKeyword.keyword;
-					textButton.element.textContent = currentKeyword;
-				}
-				if (keywords.length === 0) {
-					icon.remove();
-				}
-			};
+		if (keywords.length === 0) {
+			// Do not display anything if there are no keywords
+			return;
 		}
 
-		// Unclickable message
+		// Add unclickable message
 		const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
-		this.tree.ariaLabel = resultMsg + nls.localize('aiSearchForTerm', " - Search: {0}", currentKeyword);
 		dom.append(messageEl, resultMsg);
 
-		const textButton = this.messageDisposables.add(new SearchLinkButton(
-			currentKeyword,
-			() => this.handleKeywordClick(currentKeyword),
-			this.hoverService,
-		));
-
-		dom.append(messageEl, textButton.element);
-
-
+		const topKeywords = keywords.slice(0, 3);
+		topKeywords.forEach((keyword, index) => {
+			if (index > 0 && index < topKeywords.length) {
+				dom.append(messageEl, ', ');
+			}
+			const button = this.messageDisposables.add(new SearchLinkButton(
+				keyword.keyword,
+				() => this.handleKeywordClick(keyword.keyword),
+				this.hoverService
+			));
+			dom.append(messageEl, button.element);
+		});
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
