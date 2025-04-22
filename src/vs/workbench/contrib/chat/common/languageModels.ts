@@ -127,6 +127,7 @@ export interface ILanguageModelChatMetadata {
 
 	readonly isDefault?: boolean;
 	readonly isUserSelectable?: boolean;
+	readonly modelPickerCategory: string;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;

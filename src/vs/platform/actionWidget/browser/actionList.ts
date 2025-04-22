@@ -75,7 +75,7 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: IHeaderTemplateData): void {
-		templateData.text.textContent = element.group?.title ?? '';
+		templateData.text.textContent = element.group?.title ?? element.label ?? '';
 	}
 
 	disposeTemplate(_templateData: IHeaderTemplateData): void {
