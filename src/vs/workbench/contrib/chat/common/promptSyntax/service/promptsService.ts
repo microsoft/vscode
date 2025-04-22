@@ -204,7 +204,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return result;
 		}
 
-		// TODO: @legomushroom - return all "global" patterns even if files list is empty
+		// TODO: @legomushroom - return all "global" patterns even if files list is empty?
 		for (const { uri: instructionUri, rule } of includeRules) {
 			for (const file of files) {
 				if (match(rule, file.fsPath)) {
