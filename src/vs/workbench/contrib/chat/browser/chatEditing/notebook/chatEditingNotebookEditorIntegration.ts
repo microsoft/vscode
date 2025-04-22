@@ -250,7 +250,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					}
 				} else {
 					const diff2 = observableValue(`diff${cell.handle}`, diff);
-					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
+					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2, true);
 					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
 					this._register(integration);
 					this._register(editor.onDidDispose(() => {
@@ -286,10 +286,18 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const modifiedChanges = changes.filter(c => c.type === 'modified');
 
 			this.createDecorators();
-			this.insertedCellDecorator?.apply(changes);
-			this.modifiedCellDecorator?.apply(modifiedChanges);
-			this.deletedCellDecorator?.apply(changes, originalModel);
-			this.overlayToolbarDecorator?.decorate(changes.filter(c => c.type === 'insert' || c.type === 'modified'));
+			// If all cells are just inserts, then no need to show any decorations.
+			if (changes.every(c => c.type === 'insert')) {
+				this.insertedCellDecorator?.apply([]);
+				this.modifiedCellDecorator?.apply([]);
+				this.deletedCellDecorator?.apply([], originalModel);
+				this.overlayToolbarDecorator?.decorate([]);
+			} else {
+				this.insertedCellDecorator?.apply(changes);
+				this.modifiedCellDecorator?.apply(modifiedChanges);
+				this.deletedCellDecorator?.apply(changes, originalModel);
+				this.overlayToolbarDecorator?.decorate(changes.filter(c => c.type === 'insert' || c.type === 'modified'));
+			}
 		}));
 	}
 
