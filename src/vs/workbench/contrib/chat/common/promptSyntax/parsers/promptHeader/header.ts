@@ -5,6 +5,7 @@
 
 import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
+import { PromptIncludeMetadata } from './metadata/include.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
@@ -34,6 +35,11 @@ export interface IHeaderMetadata {
 	 * Chat mode metadata in the prompt header.
 	 */
 	mode?: PromptModeMetadata;
+
+	/**
+	 * Chat include metadata in the prompt header.
+	 */
+	include?: PromptIncludeMetadata;
 }
 
 /**
@@ -174,6 +180,19 @@ export class PromptHeader extends Disposable {
 
 			this.issues.push(...diagnostics);
 			this.meta.mode = modeMetadata;
+			this.recordNames.add(recordName);
+
+			return this.validateToolsAndModeCompatibility();
+		}
+
+		// if the record might be a "include" metadata
+		// add it to the list of parsed metadata records
+		if (PromptIncludeMetadata.isIncludeRecord(token)) {
+			const includeMetadata = new PromptIncludeMetadata(token);
+			const { diagnostics } = includeMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.include = includeMetadata;
 			this.recordNames.add(recordName);
 
 			return this.validateToolsAndModeCompatibility();
