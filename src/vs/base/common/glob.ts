@@ -305,6 +305,24 @@ const NULL = function (): string | null {
 	return null;
 };
 
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - add unit tests
+export const isEmptyPattern = (
+	pattern: ParsedPattern | ParsedExpression,
+): pattern is (typeof FALSE | typeof NULL) => {
+	if (pattern === FALSE) {
+		return true;
+	}
+
+	if (pattern === NULL) {
+		return true;
+	}
+
+	return false;
+};
+
 function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
 	if (!arg1) {
 		return NULL;

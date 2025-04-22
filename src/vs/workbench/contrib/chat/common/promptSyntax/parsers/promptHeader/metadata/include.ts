@@ -6,7 +6,8 @@
 import { PromptStringMetadata } from './record.js';
 import { localize } from '../../../../../../../../nls.js';
 import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
-import { PromptMetadataDiagnostic, PromptMetadataError } from '../diagnostics.js';
+import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
+import { isEmptyPattern, parse } from '../../../../../../../../base/common/glob.js';
 import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
@@ -33,7 +34,25 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 			...super.validate(),
 		];
 
-		// TODO: @legomushroom - validate that is a valid glob pattern
+		if (this.valueToken === undefined) {
+			return result;
+		}
+
+		const { cleanText } = this.valueToken;
+		const globPattern = parse(cleanText);
+		// TODO: @legomushroom - add unit tests?
+		if (isEmptyPattern(globPattern)) {
+			result.push(
+				new PromptMetadataWarning(
+					this.valueToken.range,
+					localize(
+						'prompt.header.metadata.include.diagnostics.non-valid-glob',
+						"Invalid glob pattern '{0}'.",
+						cleanText,
+					),
+				),
+			);
+		}
 
 		return result;
 	}
