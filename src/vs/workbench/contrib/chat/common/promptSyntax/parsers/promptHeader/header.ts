@@ -84,6 +84,7 @@ export class PromptHeader extends Disposable {
 
 	constructor(
 		public readonly contentsToken: Text,
+		public readonly languageId: string,
 	) {
 		super();
 
@@ -191,11 +192,18 @@ export class PromptHeader extends Disposable {
 			const includeMetadata = new PromptIncludeMetadata(token);
 			const { diagnostics } = includeMetadata;
 
-			this.issues.push(...diagnostics);
-			this.meta.include = includeMetadata;
-			this.recordNames.add(recordName);
+			const languageIssues = includeMetadata
+				.validateDocumentLanguage(this.languageId);
 
-			return this.validateToolsAndModeCompatibility();
+			this.issues.push(...diagnostics, ...languageIssues);
+
+			// TODO: @legomushroom
+			if (languageIssues.length === 0) {
+				this.meta.include = includeMetadata;
+				this.recordNames.add(recordName);
+			}
+
+			return;
 		}
 
 		// all other records are currently not supported

@@ -46,7 +46,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	}
 
 	constructor(
-		private readonly recordToken: FrontMatterRecord,
+		recordToken: FrontMatterRecord,
 	) {
 		// sanity check on the name of the tools record
 		// TODO: @legomushroom - move to the base class?
@@ -55,7 +55,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			`Record token must be a tools token, got '${recordToken.nameToken.text}'.`,
 		);
 
-		super(recordToken.range);
+		super(recordToken);
 	}
 
 	/**

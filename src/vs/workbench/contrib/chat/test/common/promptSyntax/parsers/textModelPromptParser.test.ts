@@ -346,8 +346,9 @@ suite('TextModelPromptParser', () => {
 
 			assert.strictEqual(
 				include,
-				'frontend/**/*spec.ts',
-				`Prompt header must have correct 'include' metadata.`,
+				undefined,
+				`Prompt header must have no 'include' metadata.`,
+				// TODO: @legomushroom - test this for an instructions file
 			);
 		});
 

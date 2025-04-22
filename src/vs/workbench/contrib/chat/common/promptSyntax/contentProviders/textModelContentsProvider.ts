@@ -28,6 +28,10 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		return this.model.uri;
 	}
 
+	public override get languageId(): string {
+		return this.model.getLanguageId();
+	}
+
 	constructor(
 		private readonly model: ITextModel,
 		@IInstantiationService private readonly initService: IInstantiationService,
