@@ -21,7 +21,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	// TODO: Define this, it's determined by the language features that we don't get until later currently?
 	//	- Depending on the providerthat gets passed into constructor & shell info, use different triggerCharacters
 	readonly triggerCharacters?: string[] | undefined;
-	private _provider: any;
+	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	// private _commandDetection: ICommandDetectionCapability | undefined;
 	// private _capabilitiesStore: ITerminalCapabilityStore;
@@ -52,7 +52,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 		// Hardcoded Python file, good for testing.
-		// const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/usePylance.py');
+		// const uri = URI.file('/Users/anthonykim/Desktop/Skeleton/my_test.py');
 		// const testRealUri = this._textModelService.canHandleResource(uri);
 		// const textModel = await this._textModelService.createModelReference(uri);
 		// const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
@@ -87,7 +87,9 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
-			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, position, { triggerKind: CompletionTriggerKind.Invoke }, token);
+			// const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, new Position(4, 7), { triggerKind: CompletionTriggerKind.Invoke }, token);
+			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, position, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
+			console.log('position is: ', position);
 			// TODO: Discard duplicates (i.e. language should take precendence over word based completions)
 			// TODO: Discard completion items that we cannot map to terminal items (complex edits?)
 			completions.push(...(result?.suggestions || []).map((e: any) => ({
@@ -104,6 +106,8 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 			console.log(result?.suggestions);
 		}
 		const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();
+		const lineInLspProviderAdd = this._textVirtualModel.object.textEditorModel.getLineCount();
+		console.log('this is line inside lsp provider of the text virtual model: ' + lineInLspProviderAdd + '\n');
 		console.log('what is in this file: \n');
 		console.log(whatIsIntheFile);
 

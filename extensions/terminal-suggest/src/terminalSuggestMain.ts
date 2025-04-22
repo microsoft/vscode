@@ -148,6 +148,17 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}, '/', '\\'));
 	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
+
+	vscode.workspace.onDidChangeTextDocument((e) => {
+		if (e && e.document && e.document.uri) {
+			if (e.document.uri.toString().includes('py')) {
+				// Handle changes to the virtual document
+				console.log('Virtual document changed:', e.document.getText());
+			}
+		}
+
+	});
+
 }
 
 /**

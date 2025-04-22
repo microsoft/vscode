@@ -43,13 +43,22 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	setContent(content: string): void {
 		// If model exists, update its content
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		if (model) {
-			// append to existing content
-			const existingContent = model.getValue();
-			const newContent = existingContent + content + '\n';
-			model.setValue(newContent);
-			console.log('new content is: ', newContent);
+		// Remove hardcoded banned content, check with shell type
+		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
+			content !== `export PYTHONSTARTUP=/Users/anthonykim/Desktop/vscode-python/python_files/pythonrc.py`
+			&& content !== 'exit()') {
+
+			if (model) {
+				// append to existing content
+				const existingContent = model.getValue();
+				const newContent = existingContent + content + '\n';
+				model.setValue(newContent);
+				console.log('existing content was: ' + existingContent + '\n');
+				console.log('appending conent: ' + content + '\n');
+				console.log('new content is: ', newContent + '\n');
+			}
 		}
+
 	}
 
 	private _registerTerminalCommandFinishedListener(): void {
@@ -72,6 +81,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		console.log('how many times am I here??');
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
@@ -107,7 +117,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			this._languageService.createById(languageId) :
 			this._languageService.createById('plaintext');
 
-
-		return this._modelService.createModel('', languageSelection, resource, false);
+		return this._modelService.createModel('import ast\r\n', languageSelection, resource, false);
 	}
 }
