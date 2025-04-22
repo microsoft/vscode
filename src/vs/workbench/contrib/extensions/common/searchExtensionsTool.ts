@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { SortBy } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
-import { ExtensionState, IExtensionsWorkbenchService } from '../common/extensions.js';
+import { ExtensionState, IExtensionsWorkbenchService, IExtension } from '../common/extensions.js';
 
 export const SearchExtensionsToolId = 'vscode_searchExtensions_internal';
 
@@ -21,7 +21,7 @@ export const SearchExtensionsToolData: IToolData = {
 	icon: ThemeIcon.fromId(Codicon.extensions.id),
 	supportsToolPicker: true,
 	displayName: localize('searchExtensionsTool.displayName', 'Search Extensions'),
-	modelDescription: localize('searchExtensionsTool.modelDescription', "This tool helps the model search for VS Code extensions from the Marketplace. The model should specify the category of extensions and keywords to search for. Note that the results may include false positives, so further filtering by reviewing the results is recommended."),
+	modelDescription: localize('searchExtensionsTool.modelDescription', "This is a tool for browsing Visual Studio Code Extensions Marketplace. It allows the model to search for extensions and retrieve detailed information about them. The model should use this tool whenever it needs to discover extensions or resolve information about known ones. To use the tool, the model has to provide the category of the extensions, relevant search keywords, or known extension IDs. Note that search results may include false positives, so reviewing and filtering is recommended."),
 	source: { type: 'internal' },
 	inputSchema: {
 		type: 'object',
@@ -38,6 +38,13 @@ export const SearchExtensionsToolData: IToolData = {
 				},
 				description: 'The keywords to search for',
 			},
+			ids: {
+				type: 'array',
+				items: {
+					type: 'string',
+				},
+				description: 'The ids of the extensions to search for',
+			},
 		},
 	}
 };
@@ -45,6 +52,7 @@ export const SearchExtensionsToolData: IToolData = {
 type InputParams = {
 	category?: string;
 	keywords?: string;
+	ids?: string[];
 };
 
 type ExtensionData = {
@@ -66,16 +74,35 @@ export class SearchExtensionsTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as InputParams;
-		if (!params.keywords?.length && !params.category) {
+		if (!params.keywords?.length && !params.category && !params.ids?.length) {
 			return {
 				content: [{
 					kind: 'text',
-					value: localize('searchExtensionsTool.noInput', 'Please provide a category or keyword to search for.')
+					value: localize('searchExtensionsTool.noInput', 'Please provide a category or keywords or ids to search for.')
 				}]
 			};
 		}
 
 		const extensionsMap = new Map<string, ExtensionData>();
+
+		const addExtension = (extensions: IExtension[]) => {
+			for (const extension of extensions) {
+				if (extension.deprecationInfo || extension.isMalicious) {
+					continue;
+				}
+				extensionsMap.set(extension.identifier.id.toLowerCase(), {
+					id: extension.identifier.id,
+					name: extension.displayName,
+					description: extension.description,
+					installed: extension.state === ExtensionState.Installed,
+					installCount: extension.installCount ?? 0,
+					rating: extension.rating ?? 0,
+					categories: extension.categories ?? [],
+					tags: extension.gallery?.tags ?? []
+				});
+			}
+		};
+
 		const queryAndAddExtensions = async (text: string) => {
 			const extensions = await this.extensionWorkbenchService.queryGallery({
 				text,
@@ -83,23 +110,15 @@ export class SearchExtensionsTool implements IToolImpl {
 				sortBy: SortBy.InstallCount
 			}, token);
 			if (extensions.firstPage.length) {
-				for (const extension of extensions.firstPage) {
-					if (extension.deprecationInfo || extension.isMalicious) {
-						continue;
-					}
-					extensionsMap.set(extension.identifier.id.toLowerCase(), {
-						id: extension.identifier.id,
-						name: extension.displayName,
-						description: extension.description,
-						installed: extension.state === ExtensionState.Installed,
-						installCount: extension.installCount ?? 0,
-						rating: extension.rating ?? 0,
-						categories: extension.categories ?? [],
-						tags: extension.gallery?.tags ?? []
-					});
-				}
+				addExtension(extensions.firstPage);
 			}
 		};
+
+		// Search for extensions by their ids
+		if (params.ids?.length) {
+			const extensions = await this.extensionWorkbenchService.getExtensions(params.ids.map(id => ({ id })), token);
+			addExtension(extensions);
+		}
 
 		if (params.keywords?.length) {
 			for (const keyword of params.keywords ?? []) {
@@ -120,7 +139,7 @@ export class SearchExtensionsTool implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Here are the list of extensions:\n${JSON.stringify(result)}\n. Use the following format to display extensions to the user because there is a renderer available to parse these extensions in this format and display them with all details. So, do not describe about the extensions to the user.\n\`\`\`vscode-extensions\nextensionId1,extensionId2\n\`\`\`\n.`
+				value: `Here are the list of extensions:\n${JSON.stringify(result)}\n. Important: Use the following format to display extensions to the user because there is a renderer available to parse these extensions in this format and display them with all details. So, do not describe about the extensions to the user.\n\`\`\`vscode-extensions\nextensionId1,extensionId2\n\`\`\`\n.`
 			}],
 			toolResultDetails: {
 				input: JSON.stringify(params),
