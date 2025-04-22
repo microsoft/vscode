@@ -67,18 +67,19 @@ export const editorGutterItemGlyphForeground = registerColor('editorGutter.itemG
 export const editorGutterItemBackground = registerColor('editorGutter.itemBackground', { dark: opaque(listInactiveSelectionBackground, editorBackground), light: darken(opaque(listInactiveSelectionBackground, editorBackground), .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterItemBackground', 'Editor gutter decoration color for gutter item background. This color should be opaque.'));
 
 export interface QuickDiffProvider {
-	label: string;
-	rootUri: URI | undefined;
-	selector?: LanguageSelector;
-	visible: boolean;
+	readonly id: string;
+	readonly label: string;
+	readonly rootUri: URI | undefined;
+	readonly selector?: LanguageSelector;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
 export interface QuickDiff {
-	label: string;
-	originalResource: URI;
-	visible: boolean;
+	readonly id: string;
+	readonly label: string;
+	readonly originalResource: URI;
+	readonly visible: boolean;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 }
 
@@ -105,7 +106,8 @@ export interface IQuickDiffService {
 	readonly providers: readonly QuickDiffProvider[];
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable;
 	getQuickDiffs(uri: URI, language?: string, isSynchronized?: boolean): Promise<QuickDiff[]>;
-	toggleQuickDiffVisibility(label: string): void;
+	toggleQuickDiffProviderVisibility(id: string): void;
+	isQuickDiffProviderVisible(id: string): boolean;
 }
 
 export enum ChangeType {

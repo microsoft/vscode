@@ -10,6 +10,7 @@ import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { score } from '../../../../editor/common/languageSelector.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffProvider) => number {
 	return (a, b) => {
@@ -51,63 +52,98 @@ function providerComparer(a: QuickDiffProvider, b: QuickDiffProvider): number {
 
 export class QuickDiffService extends Disposable implements IQuickDiffService {
 	declare readonly _serviceBrand: undefined;
+	private static readonly STORAGE_KEY = 'workbench.scm.quickDiffProviders.hidden';
 
-	private quickDiffProviders: Set<QuickDiffProvider> = new Set();
+	private quickDiffProviders: Map<string, QuickDiffProvider> = new Map();
 	get providers(): readonly QuickDiffProvider[] {
-		return Array.from(this.quickDiffProviders).sort(providerComparer);
+		return Array.from(this.quickDiffProviders.values()).sort(providerComparer);
 	}
 
 	private readonly _onDidChangeQuickDiffProviders = this._register(new Emitter<void>());
 	readonly onDidChangeQuickDiffProviders = this._onDidChangeQuickDiffProviders.event;
 
-	constructor(@IUriIdentityService private readonly uriIdentityService: IUriIdentityService) {
+	private hiddenQuickDiffProviders = new Set<string>();
+
+	constructor(
+		@IStorageService private readonly storageService: IStorageService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	) {
 		super();
+
+		this.loadState();
 	}
 
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable {
-		this.quickDiffProviders.add(quickDiff);
+		this.quickDiffProviders.set(quickDiff.id, quickDiff);
 		this._onDidChangeQuickDiffProviders.fire();
 		return {
 			dispose: () => {
-				this.quickDiffProviders.delete(quickDiff);
+				this.quickDiffProviders.delete(quickDiff.id);
 				this._onDidChangeQuickDiffProviders.fire();
 			}
 		};
 	}
 
-	private isQuickDiff(diff: { originalResource?: URI; label?: string }): diff is QuickDiff {
-		return !!diff.originalResource && (typeof diff.label === 'string');
-	}
-
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
-		const providers = Array.from(this.quickDiffProviders)
+		const providers = Array.from(this.quickDiffProviders.values())
 			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
 			.sort(createProviderComparer(uri));
 
 		const quickDiffs = await Promise.all(providers.map(async provider => {
+			const visible = this.isQuickDiffProviderVisible(provider.id);
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
 			const originalResource = scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined;
 
 			return {
-				originalResource,
+				id: provider.id,
 				label: provider.label,
-				visible: provider.visible,
-				kind: provider.kind
+				visible: visible,
+				kind: provider.kind,
+				originalResource
 			} satisfies Partial<QuickDiff>;
 		}));
 
 		return quickDiffs.filter(this.isQuickDiff);
 	}
 
-	toggleQuickDiffVisibility(label: string): void {
-		const quickDiff = Array.from(this.quickDiffProviders)
-			.find(provider => provider.label === label);
-		if (!quickDiff) {
+	toggleQuickDiffProviderVisibility(id: string): void {
+		if (!this.quickDiffProviders.has(id)) {
 			return;
 		}
 
-		quickDiff.visible = !quickDiff.visible;
+		if (this.isQuickDiffProviderVisible(id)) {
+			this.hiddenQuickDiffProviders.add(id);
+		} else {
+			this.hiddenQuickDiffProviders.delete(id);
+		}
+
+		this.saveState();
 		this._onDidChangeQuickDiffProviders.fire();
+	}
+
+	isQuickDiffProviderVisible(id: string): boolean {
+		return !this.hiddenQuickDiffProviders.has(id);
+	}
+
+	private loadState(): void {
+		const raw = this.storageService.get(QuickDiffService.STORAGE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				this.hiddenQuickDiffProviders = new Set(JSON.parse(raw));
+			} catch { }
+		}
+	}
+
+	private saveState(): void {
+		if (this.hiddenQuickDiffProviders.size === 0) {
+			this.storageService.remove(QuickDiffService.STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(QuickDiffService.STORAGE_KEY, JSON.stringify(Array.from(this.hiddenQuickDiffProviders)), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	private isQuickDiff(diff: { id?: string; label?: string; originalResource?: URI }): diff is QuickDiff {
+		return typeof diff.id === 'string' && typeof diff.label === 'string' && !!diff.originalResource;
 	}
 }
 
