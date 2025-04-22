@@ -65,14 +65,14 @@ export class PromptDescriptionMetadata extends PromptMetadataRecord {
 		super(recordToken.range);
 
 		this.issues = [];
-		this.collectDiagnostics();
+		this.validate();
 	}
 
 	/**
 	 * Validate the metadata record and collect all issues
 	 * related to its content.
 	 */
-	private collectDiagnostics(): void {
+	private validate(): void {
 		const { valueToken } = this.recordToken;
 
 		// validate that the record value is a string
