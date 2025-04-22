@@ -192,6 +192,7 @@ export class PromptHeader extends Disposable {
 			const includeMetadata = new PromptIncludeMetadata(token);
 			const { diagnostics } = includeMetadata;
 
+			// TODO: @legomushroom - do this on language change?
 			const languageIssues = includeMetadata
 				.validateDocumentLanguage(this.languageId);
 

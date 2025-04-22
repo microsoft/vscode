@@ -4,17 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptStringMetadata } from './record.js';
+import { localize } from '../../../../../../../../nls.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
 import { PromptMetadataDiagnostic, PromptMetadataError } from '../diagnostics.js';
 import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
-import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
-import { localize } from '../../../../../../../../nls.js';
-
-/**
- * TODO: @legomushroom - list
- * - find all instruction files
- * - when a file (non-prompt?) referenced by `user`, find all instructions that match
- * - when a file (non-prompt?) referenced by `chatbot`, find all instructions that match
- */
 
 /**
  * Name of the metadata record in the prompt header.
@@ -48,7 +41,6 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 	/**
 	 * TODO: @legomushroom
 	 */
-	// TODO: @legomushroom - use this on language change?
 	public validateDocumentLanguage(
 		languageId: string,
 	): readonly PromptMetadataDiagnostic[] {
