@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { count } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -245,12 +246,14 @@ class ChatToolInvocationSubPart extends Disposable {
 				};
 
 				const langId = this.languageService.getLanguageIdByLanguageName('json');
+				const rawJsonInput = JSON.stringify(inputData.rawInput ?? {}, null, 1);
+				const canSeeMore = count(rawJsonInput, '\n') > 2; // if more than one key:value
 				const model = this._register(this.modelService.createModel(
-					JSON.stringify(inputData.rawInput ?? {}, undefined, 2),
+					// View a single JSON line by default until they 'see more'
+					rawJsonInput.replace(/\n */g, ' '),
 					this.languageService.createById(langId),
 					createToolInputUri(toolInvocation.toolId)
 				));
-
 
 				const markerOwner = generateUuid();
 				const schemaUri = createToolSchemaUri(toolInvocation.toolId);
@@ -313,6 +316,21 @@ class ChatToolInvocationSubPart extends Disposable {
 				}));
 
 				elements.editor.append(editor.object.element);
+
+				if (canSeeMore) {
+					const seeMore = dom.h('div.see-more', [dom.h('a@link')]);
+					seeMore.link.textContent = localize('seeMore', "See more");
+					this._register(dom.addDisposableGenericMouseDownListener(seeMore.link, () => {
+						try {
+							const parsed = JSON.parse(model.getValue());
+							model.setValue(JSON.stringify(parsed, null, 2));
+						} catch {
+							// ignored
+						}
+						seeMore.root.remove();
+					}));
+					elements.editor.append(seeMore.root);
+				}
 			}
 
 			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
@@ -324,7 +342,6 @@ class ChatToolInvocationSubPart extends Disposable {
 				title,
 				subtitle,
 				elements.root,
-				toolInvocation.toolSpecificData?.kind === 'input',
 				buttons
 			));
 		}
@@ -438,7 +455,6 @@ class ChatToolInvocationSubPart extends Disposable {
 			title,
 			undefined,
 			element,
-			false,
 			buttons
 		));
 
