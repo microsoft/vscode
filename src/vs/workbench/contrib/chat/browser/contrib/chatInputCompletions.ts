@@ -692,8 +692,8 @@ class BuiltinDynamicCompletions extends Disposable {
 		// HISTORY
 		// always take the last N items
 		for (const item of this.historyService.getHistory()) {
-			if (!item.resource || !this.workspaceContextService.getWorkspaceFolder(item.resource)) {
-				// ignore "forgein" editors
+			if (!item.resource) {
+				// ignore editors without a resource
 				continue;
 			}
 
