@@ -24,6 +24,8 @@ import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMerg
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { transaction } from '../../../../../base/common/observable.js';
 import { ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 abstract class MergeEditorAction extends Action2 {
 	constructor(desc: Readonly<IAction2Options>) {
@@ -621,8 +623,15 @@ export class AcceptMerge extends MergeEditorAction2 {
 			id: 'mergeEditor.acceptMerge',
 			category: mergeEditorCategory,
 			title: localize2('mergeEditor.acceptMerge', "Complete Merge"),
-			f1: false,
-			precondition: ctxIsMergeEditor
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: KeybindingWeight.EditorContrib,
+					when: ctxIsMergeEditor,
+				}
+			]
 		});
 	}
 

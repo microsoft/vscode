@@ -29,6 +29,7 @@ export class MergeEditorAccessibilityHelpProvider implements IAccessibleViewImpl
 			localize('msg1', "You are in a merge editor."),
 			localize('msg2', "Navigate between merge conflicts using the commands Go to Next Unhandled Conflict{0} and Go to Previous Unhandled Conflict{1}.", '<keybinding:merge.goToNextUnhandledConflict>', '<keybinding:merge.goToPreviousUnhandledConflict>'),
 			localize('msg3', "Run the command Merge Editor: Accept All Incoming Changes from the Left{0} and Merge Editor: Accept All Current Changes from the Right{1}", '<keybinding:merge.acceptAllInput1>', '<keybinding:merge.acceptAllInput2>'),
+			localize('msg4', "Complete the Merge{0}.", '<keybinding:mergeEditor.acceptMerge>'),
 		];
 
 		return new AccessibleContentProvider(
