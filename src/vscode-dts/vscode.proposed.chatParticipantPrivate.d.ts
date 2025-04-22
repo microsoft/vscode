@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 7
+// version: 8
 
 declare module 'vscode' {
 
@@ -77,6 +77,67 @@ declare module 'vscode' {
 		 * or terminal. Will be `undefined` for the chat panel.
 		 */
 		readonly location2: ChatRequestEditorData | ChatRequestNotebookData | undefined;
+
+		/**
+		 * Events for edited files in this session collected since the last request.
+		 */
+		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+	}
+
+	export enum ChatRequestEditedFileEventKind {
+		Keep = 1,
+		Undo = 2,
+		UserModification = 3,
+	}
+
+	export interface ChatRequestEditedFileEvent {
+		readonly uri: Uri;
+		readonly eventKind: ChatRequestEditedFileEventKind;
+	}
+
+	/**
+	 * ChatRequestTurn + private additions. Note- at runtime this is the SAME as ChatRequestTurn and instanceof is safe.
+	 */
+	export class ChatRequestTurn2 {
+		/**
+		 * The prompt as entered by the user.
+		 *
+		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
+		 *
+		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
+		 * are not part of the prompt.
+		 */
+		readonly prompt: string;
+
+		/**
+		 * The id of the chat participant to which this request was directed.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the {@link ChatCommand command} that was selected for this request.
+		 */
+		readonly command?: string;
+
+		/**
+		 * The references that were used in this message.
+		 */
+		readonly references: ChatPromptReference[];
+
+		/**
+		 * The list of tools were attached to this request.
+		 */
+		readonly toolReferences: readonly ChatLanguageModelToolReference[];
+
+		/**
+		 * Events for edited files in this session collected between the previous request and this one.
+		 */
+		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+
+		/**
+		 * @hidden
+		 */
+		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
 	}
 
 	export interface ChatParticipant {

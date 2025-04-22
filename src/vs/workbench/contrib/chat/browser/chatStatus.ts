@@ -99,6 +99,7 @@ const defaultChat = {
 	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
 	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
+	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 };
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
@@ -171,8 +172,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let kind: StatusbarEntryKind | undefined;
 
 		if (!isNewUser(this.chatEntitlementService)) {
-			const freeChatQuotaExceeded = this.chatEntitlementService.quotas.freeChat?.percentRemaining === 0;
-			const freeCompletionsQuotaExceeded = this.chatEntitlementService.quotas.freeCompletions?.percentRemaining === 0;
+			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
+			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
 			// Signed out
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
@@ -184,14 +185,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Free Quota Exceeded
-			else if (freeChatQuotaExceeded || freeCompletionsQuotaExceeded) {
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited && (chatQuotaExceeded || completionsQuotaExceeded)) {
 				let quotaWarning: string;
-				if (freeChatQuotaExceeded && !freeCompletionsQuotaExceeded) {
-					quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
-				} else if (freeCompletionsQuotaExceeded && !freeChatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
+				if (chatQuotaExceeded && !completionsQuotaExceeded) {
+					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
+				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+					quotaWarning = localize('completionsQuotaExceededStatus', "Completions quota reached");
 				} else {
-					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Limit reached");
+					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}
 
 				text = `$(copilot-warning) ${quotaWarning}`;
@@ -233,7 +234,8 @@ function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
 function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
 	const newUser = isNewUser(chatEntitlementService);
 	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	const allFreeQuotaReached = chatEntitlementService.quotas.freeChat?.percentRemaining === 0 && chatEntitlementService.quotas.freeCompletions?.percentRemaining === 0;
+	const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
+	const allFreeQuotaReached = limited && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
 	return !newUser && !signedOut && !allFreeQuotaReached;
 }
@@ -298,11 +300,10 @@ class ChatStatusDashboard extends Disposable {
 		};
 
 		// Quota Indicator
-		const { freeChat: freeChatQuota, freeCompletions: freeCompletionsQuota, premiumChat: premiumChatQuota } = this.chatEntitlementService.quotas;
-		if (freeChatQuota || freeCompletionsQuota || premiumChatQuota) {
-			const limitedPlan = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
+		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate } = this.chatEntitlementService.quotas;
+		if (chatQuota || completionsQuota || premiumChatQuota) {
 
-			addSeparator(limitedPlan ? localize('limitedUsageTitle', "Copilot Free Plan Usage") : localize('proUsageTitle', "Copilot Usage"), toAction({
+			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
 				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Copilot"),
 				tooltip: localize('quotaTooltip', "Manage Copilot"),
@@ -310,19 +311,19 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const freeChatQuotaIndicator = freeChatQuota ? this.createQuotaIndicator(this.element, freeChatQuota, localize('chatsLabel', "Chat")) : undefined;
-			const freeCompletionsQuotaIndicator = freeCompletionsQuota ? this.createQuotaIndicator(this.element, freeCompletionsQuota, localize('completionsLabel', "Code completions")) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), overageCount => localize('overrageDisplay', "{0} additional requests used.", overageCount)) : undefined;
+			const completionsQuotaIndicator = completionsQuota ? this.createQuotaIndicator(this.element, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
+			const chatQuotaIndicator = chatQuota ? this.createQuotaIndicator(this.element, chatQuota, premiumChatQuota ? localize('basicChatsLabel', "Basic chat requests") : localize('chatsLabel', "Chat requests"), false) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat requests"), true) : undefined;
 
-			const resetDate = freeChatQuota?.resetDate ? new Date(freeChatQuota.resetDate) : freeCompletionsQuota?.resetDate ? new Date(freeCompletionsQuota.resetDate) : premiumChatQuota?.resetDate ? new Date(premiumChatQuota.resetDate) : undefined;
 			if (resetDate) {
-				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", this.dateFormatter.value.format(resetDate))));
+				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance renews on {0}.", this.dateFormatter.value.format(new Date(resetDate)))));
 			}
 
-			if (freeChatQuota?.percentRemaining === 0 || freeCompletionsQuota?.percentRemaining === 0 || (premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
-				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				upgradePlanButton.label = limitedPlan ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Additional Usage");
-				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
+			const limited = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
+			if ((limited && (chatQuota?.percentRemaining === 0 || completionsQuota?.percentRemaining === 0)) || (!limited && premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
+				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
+				button.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Pay for Additional Requests");
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(limited ? 'workbench.action.chat.upgradePlan' : () => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 			}
 
 			(async () => {
@@ -331,15 +332,15 @@ class ChatStatusDashboard extends Disposable {
 					return;
 				}
 
-				const { freeChat, freeCompletions, premiumChat } = this.chatEntitlementService.quotas;
-				if (freeChat) {
-					freeChatQuotaIndicator?.(freeChat);
+				const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota } = this.chatEntitlementService.quotas;
+				if (completionsQuota) {
+					completionsQuotaIndicator?.(completionsQuota);
 				}
-				if (freeCompletions) {
-					freeCompletionsQuotaIndicator?.(freeCompletions);
+				if (chatQuota) {
+					chatQuotaIndicator?.(chatQuota);
 				}
-				if (premiumChat) {
-					premiumChatQuotaIndicator?.(premiumChat);
+				if (premiumChatQuota) {
+					premiumChatQuotaIndicator?.(premiumChatQuota);
 				}
 			})();
 		}
@@ -458,58 +459,56 @@ class ChatStatusDashboard extends Disposable {
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string, overageLabel?: (overage: number) => string): (quota: IQuotaSnapshot) => void {
-		const quotaText = $('span.quota-percentage');
+	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
+		const quotaValue = $('span.quota-value');
 		const quotaBit = $('div.quota-bit');
-		const overageIndicator = $('span.overage-indicator');
+		const overageLabel = $('span.overage-label');
 
 		const quotaIndicator = container.appendChild($('div.quota-indicator', undefined,
 			$('div.quota-label', undefined,
 				$('span', undefined, label),
-				quotaText
+				quotaValue
 			),
 			$('div.quota-bar', undefined,
 				quotaBit
 			),
 			$('div.overage', undefined,
-				overageIndicator
+				overageLabel
 			)
 		));
 
 		const update = (quota: IQuotaSnapshot) => {
 			quotaIndicator.classList.remove('error');
 			quotaIndicator.classList.remove('warning');
+			quotaIndicator.classList.remove('unlimited');
 
-			let usedPercentage = Math.max(0, 100 - quota.percentRemaining);
-			if (usedPercentage === 0) {
-				usedPercentage = 1; // indicate minimal usage as 1%
+			if (quota.unlimited) {
+				quotaIndicator.classList.add('unlimited');
+				quotaValue.textContent = localize('quotaUnlimited', "Included");
+			} else {
+				let usedPercentage = Math.max(0, 100 - quota.percentRemaining);
+				if (usedPercentage === 0) {
+					usedPercentage = 1; // indicate minimal usage as 1%
+				}
+
+				quotaValue.textContent = quota.overageCount ? localize('quotaDisplayWithOverage', "{0}% +{1}", usedPercentage, quota.overageCount) : localize('quotaDisplay', "{0}%", usedPercentage);
+				quotaBit.style.width = `${usedPercentage}%`;
+
+				if (usedPercentage >= 90 && !quota.overageEnabled) {
+					quotaIndicator.classList.add('error');
+				} else if (usedPercentage >= 75) {
+					quotaIndicator.classList.add('warning');
+				}
 			}
 
-			quotaText.textContent = localize('quotaDisplay', "{0}%", usedPercentage);
-			quotaBit.style.width = `${usedPercentage}%`;
-
-			if (usedPercentage >= 90 && !quota.overageEnabled) {
-				quotaIndicator.classList.add('error');
-			} else if (usedPercentage >= 75) {
-				quotaIndicator.classList.add('warning');
-			}
-
-			if (overageLabel) {
+			if (supportsOverage) {
 				if (quota.overageEnabled) {
-					if (quota.overageCount > 0) {
-						overageIndicator.textContent = overageLabel(quota.overageCount);
-					} else {
-						overageIndicator.textContent = localize('additionalUsageEnabled', "Additional usage is enabled.");
-					}
+					overageLabel.textContent = localize('additionalUsageEnabled', "Pay per additional requests is enabled.");
 				} else {
-					if (quota.overageCount > 0) {
-						overageIndicator.textContent = overageLabel(quota.overageCount);
-					} else {
-						overageIndicator.textContent = localize('additionalUsageDisabled', "Additional usage is disabled.");
-					}
+					overageLabel.textContent = localize('additionalUsageDisabled', "Pay per additional requests is disabled.");
 				}
 			} else {
-				overageIndicator.textContent = '';
+				overageLabel.textContent = '';
 			}
 		};
 
@@ -536,13 +535,13 @@ class ChatStatusDashboard extends Disposable {
 		// --- Next Edit Suggestions
 		{
 			const setting = append(settings, $('div.setting'));
-			this.createNextEditSuggestionsSetting(setting, localize('settings.nextEditSuggestions', "Next Edit Suggestions"), modeId, this.getCompletionsSettingAccessor(modeId), disposables);
+			this.createNextEditSuggestionsSetting(setting, localize('settings.nextEditSuggestions', "Next Edit Suggestions"), this.getCompletionsSettingAccessor(modeId), disposables);
 		}
 
 		return settings;
 	}
 
-	private createSetting(container: HTMLElement, settingId: string, label: string, accessor: ISettingsAccessor, disposables: DisposableStore): Checkbox {
+	private createSetting(container: HTMLElement, settingIdsToReEvaluate: string[], label: string, accessor: ISettingsAccessor, disposables: DisposableStore): Checkbox {
 		const checkbox = disposables.add(new Checkbox(label, Boolean(accessor.readSetting()), defaultCheckboxStyles));
 		container.appendChild(checkbox.domNode);
 
@@ -565,7 +564,7 @@ class ChatStatusDashboard extends Disposable {
 		}));
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(settingId)) {
+			if (settingIdsToReEvaluate.some(id => e.affectsConfiguration(id))) {
 				checkbox.checked = Boolean(accessor.readSetting());
 			}
 		}));
@@ -573,13 +572,14 @@ class ChatStatusDashboard extends Disposable {
 		if (!canUseCopilot(this.chatEntitlementService)) {
 			container.classList.add('disabled');
 			checkbox.disable();
+			checkbox.checked = false;
 		}
 
 		return checkbox;
 	}
 
 	private createCodeCompletionsSetting(container: HTMLElement, label: string, modeId: string | undefined, disposables: DisposableStore): void {
-		this.createSetting(container, defaultChat.completionsEnablementSetting, label, this.getCompletionsSettingAccessor(modeId), disposables);
+		this.createSetting(container, [defaultChat.completionsEnablementSetting], label, this.getCompletionsSettingAccessor(modeId), disposables);
 	}
 
 	private getCompletionsSettingAccessor(modeId = '*'): ISettingsAccessor {
@@ -598,13 +598,13 @@ class ChatStatusDashboard extends Disposable {
 		};
 	}
 
-	private createNextEditSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined, completionsSettingAccessor: ISettingsAccessor, disposables: DisposableStore): void {
+	private createNextEditSuggestionsSetting(container: HTMLElement, label: string, completionsSettingAccessor: ISettingsAccessor, disposables: DisposableStore): void {
 		const nesSettingId = defaultChat.nextEditSuggestionsSetting;
 		const completionsSettingId = defaultChat.completionsEnablementSetting;
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		const checkbox = this.createSetting(container, nesSettingId, label, {
-			readSetting: () => this.textResourceConfigurationService.getValue<boolean>(resource, nesSettingId),
+		const checkbox = this.createSetting(container, [nesSettingId, completionsSettingId], label, {
+			readSetting: () => completionsSettingAccessor.readSetting() && this.textResourceConfigurationService.getValue<boolean>(resource, nesSettingId),
 			writeSetting: (value: boolean) => this.textResourceConfigurationService.updateValue(resource, nesSettingId, value)
 		}, disposables);
 

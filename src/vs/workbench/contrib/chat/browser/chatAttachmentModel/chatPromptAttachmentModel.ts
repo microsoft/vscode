@@ -43,7 +43,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 */
 	public get references(): readonly URI[] {
 		const { reference } = this;
-		const { errorCondition } = this.reference;
+		const { errorCondition } = reference;
 
 		// return no references if the attachment is disabled
 		// or if this object itself has an error
@@ -57,6 +57,19 @@ export class ChatPromptAttachmentModel extends Disposable {
 			...reference.allValidReferencesUris,
 			reference.uri,
 		];
+	}
+
+	/**
+	 * Get list of all tools associated with the prompt.
+	 *
+	 * Note! This property returns pont-in-time state of the tools metadata
+	 *       and does not take into account if the prompt or its nested child
+	 *       references are still being resolved. Please use the {@link settled}
+	 *       or {@link allSettled} properties if you need to retrieve the final
+	 *       list of the tools available.
+	 */
+	public get toolsMetadata(): readonly string[] | null {
+		return this.reference.allToolsMetadata;
 	}
 
 	/**
@@ -79,7 +92,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 * Event that fires when the error condition of the prompt
 	 * reference changes.
 	 *
-	 * See {@linkcode onUpdate}.
+	 * See {@link onUpdate}.
 	 */
 	protected _onUpdate = this._register(new Emitter<void>());
 	/**
@@ -95,7 +108,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	/**
 	 * Event that fires when the object is disposed.
 	 *
-	 * See {@linkcode onDispose}.
+	 * See {@link onDispose}.
 	 */
 	protected _onDispose = this._register(new Emitter<void>());
 	/**
@@ -115,14 +128,15 @@ export class ChatPromptAttachmentModel extends Disposable {
 	) {
 		super();
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
 		this._reference = this._register(this.initService.createInstance(
 			BasePromptParser,
 			this.getContentsProvider(uri),
 			[],
 		));
 
-		this._reference.onUpdate(this._onUpdate.fire);
+		this._reference.onUpdate(
+			this._onUpdate.fire.bind(this._onUpdate),
+		);
 	}
 
 	/**

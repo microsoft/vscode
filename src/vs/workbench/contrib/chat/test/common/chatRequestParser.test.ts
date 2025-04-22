@@ -20,7 +20,9 @@ import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatMode, ChatAgentLocation } from '../../common/constants.js';
 import { IToolData } from '../../common/languageModelToolsService.js';
+import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { MockChatService } from './mockChatService.js';
+import { MockPromptsService } from './mockPromptsService.js';
 
 suite('ChatRequestParser', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +39,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IPromptsService, testDisposables.add(new MockPromptsService()));
 
 		variableService = mockObject<IChatVariablesService>()();
 		variableService.getDynamicVariables.returns([]);

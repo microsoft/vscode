@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
-import { dirname, extUri } from '../../../../../../../../base/common/resources.js';
+import { OS } from '../../../../../../../../base/common/platform.js';
+import { assert } from '../../../../../../../../base/common/assert.js';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
+import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
 import { IPromptPath } from '../../../../../common/promptSyntax/service/types.js';
+import { dirname, extUri } from '../../../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
 import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
-import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
-import { localize } from '../../../../../../../../nls.js';
-import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../../../../base/common/codicons.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
 import { getCleanPromptName } from '../../../../../../../../platform/prompts/common/constants.js';
 import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
-import { OS } from '../../../../../../../../base/common/platform.js';
-import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
+import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
+import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
+import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID } from '../../../../promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -58,31 +60,39 @@ export interface ISelectPromptResult {
 }
 
 /**
- * A special quick pick item that links to the documentation of prompt file.
+ * Button that opems the documentation.
  */
-const PROMPT_DOCS_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
-	type: 'item',
-	label: localize(
-		'commands.prompts.use.select-dialog.docs-label',
-		'Learn how to create reusable prompts',
-	),
-	description: PROMPT_DOCUMENTATION_URL,
-	tooltip: PROMPT_DOCUMENTATION_URL,
-	value: URI.parse(PROMPT_DOCUMENTATION_URL),
+const HELP_BUTTON: IQuickInputButton = Object.freeze({
+	tooltip: localize('help', "help"),
+	iconClass: ThemeIcon.asClassName(Codicon.question),
 });
 
 /**
- * A special quick pick item that links to the custom instructions documentation.
+ * A quick pick item that starts the 'New Prompt File' command.
  */
-const INSTRUCTIONS_DOCS_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
+const NEW_PROMPT_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 	type: 'item',
-	label: localize(
-		'commands.instructions.use.select-dialog.docs-label',
-		'Learn how to create custom instructions',
-	),
-	description: INSTRUCTIONS_DOCUMENTATION_URL,
-	tooltip: INSTRUCTIONS_DOCUMENTATION_URL,
+	label: `$(plus) ${localize(
+		'commands.new-promptfile.select-dialog.label',
+		'New prompt file...'
+	)}`,
+	value: URI.parse(PROMPT_DOCUMENTATION_URL),
+	pickable: false,
+	buttons: [HELP_BUTTON],
+});
+
+/**
+ * A quick pick item that starts the 'New Instructions File' command.
+ */
+const NEW_INSTRUCTIONS_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
+	type: 'item',
+	label: `$(plus) ${localize(
+		'commands.new-instructionsfile.select-dialog.label',
+		'New instructions file...',
+	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
+	pickable: false,
+	buttons: [HELP_BUTTON],
 });
 
 
@@ -108,13 +118,13 @@ const DELETE_BUTTON: IQuickInputButton = Object.freeze({
 
 
 export class PromptFilePickers {
-
 	constructor(
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IFileService private readonly _fileService: IFileService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 	}
 	/**
@@ -126,11 +136,7 @@ export class PromptFilePickers {
 	public async selectInstructionsFiles(options: ISelectOptions): Promise<URI[] | undefined> {
 
 		const fileOptions = this._createPromptPickItems(options);
-
-		const hasMultipleEntries = fileOptions.length > 1;
-		if (!hasMultipleEntries) {
-			fileOptions.push(INSTRUCTIONS_DOCS_OPTION);
-		}
+		fileOptions.splice(0, 0, NEW_INSTRUCTIONS_FILE_OPTION);
 
 		const quickPick = this._quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 		quickPick.activeItems = fileOptions.length ? [fileOptions[0]] : [];
@@ -138,7 +144,7 @@ export class PromptFilePickers {
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
 		quickPick.items = fileOptions;
-		quickPick.canSelectMany = hasMultipleEntries;
+		quickPick.canSelectMany = true;
 
 		return new Promise<URI[] | undefined>(resolve => {
 			const disposables = new DisposableStore();
@@ -161,8 +167,8 @@ export class PromptFilePickers {
 			disposables.add(quickPick.onDidAccept(async (event) => {
 				const { selectedItems } = quickPick;
 
-				if (!hasMultipleEntries && selectedItems[0] === INSTRUCTIONS_DOCS_OPTION) {
-					await this._openerService.open(selectedItems[0].value);
+				if (selectedItems[0] === NEW_INSTRUCTIONS_FILE_OPTION) {
+					await this._commandService.executeCommand(NEW_INSTRUCTIONS_COMMAND_ID);
 					return;
 				}
 
@@ -199,9 +205,8 @@ export class PromptFilePickers {
 	public async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
 
 		const fileOptions = this._createPromptPickItems(options);
-		fileOptions.push(PROMPT_DOCS_OPTION);
+		fileOptions.splice(0, 0, NEW_PROMPT_FILE_OPTION);
 
-		// otherwise show the prompt file selection dialog
 		const quickPick = this._quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 		quickPick.activeItems = fileOptions.length ? [fileOptions[0]] : [];
 		quickPick.placeholder = options.placeholder;
@@ -232,8 +237,8 @@ export class PromptFilePickers {
 				const { keyMods } = quickPick;
 
 				const selectedItem = selectedItems[0];
-				if (selectedItem === PROMPT_DOCS_OPTION) {
-					await this._openerService.open(selectedItem.value);
+				if (selectedItem === NEW_PROMPT_FILE_OPTION) {
+					await this._commandService.executeCommand(NEW_PROMPT_COMMAND_ID);
 					return;
 				}
 
@@ -413,6 +418,12 @@ export class PromptFilePickers {
 				quickPick.activeItems = newActiveItem ? [newActiveItem] : [];
 			}
 
+			return;
+		}
+
+		if (button === HELP_BUTTON) {
+			// open the documentation
+			await this._openerService.open(item.value);
 			return;
 		}
 

@@ -6,13 +6,18 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+
+/**
+ * Prefix for all prompt instruction variable IDs.
+ */
+const PROMPT_VARIABLE_ID_PREFIX = 'vscode.prompt.instructions';
 
 /**
  * Prompt IDs start with a well-defined prefix that is used by
@@ -27,7 +32,7 @@ export const createPromptVariableId = (
 	isRoot: boolean,
 ): string => {
 	// the default prefix that is used for all prompt files
-	let prefix = 'vscode.prompt.instructions';
+	let prefix = PROMPT_VARIABLE_ID_PREFIX;
 	// if the reference is the root object, add the `.root` suffix
 	if (isRoot) {
 		prefix += '.root';
@@ -53,7 +58,7 @@ export const createPromptVariableId = (
 export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
-): IChatRequestVariableEntry => {
+): IPromptVariableEntry => {
 	const { uri, isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
@@ -78,14 +83,56 @@ export const toChatVariable = (
 		value: uri,
 		kind: 'file',
 		modelDescription,
+		isRoot,
 	};
 };
+
+/**
+ * Checks of a provided chat variable is a `prompt file` variable.
+ */
+export function isPromptFileChatVariable(
+	variable: IChatRequestVariableEntry,
+): variable is IPromptVariableEntry {
+	return isChatRequestFileEntry(variable)
+		&& variable.id.startsWith(PROMPT_VARIABLE_ID_PREFIX);
+}
 
 /**
  * Model for a collection of prompt instruction attachments.
  * See {@linkcode ChatPromptAttachmentModel} for individual attachment.
  */
 export class ChatPromptAttachmentsCollection extends Disposable {
+	/**
+	 * Event that fires then this model is updated.
+	 *
+	 * See {@linkcode onUpdate}.
+	 */
+	protected _onUpdate = this._register(new Emitter<void>());
+	/**
+	 * Subscribe to the `onUpdate` event.
+	 */
+	public onUpdate = this._onUpdate.event;
+
+	/**
+	 * Event that fires when a new prompt instruction attachment is added.
+	 * See {@linkcode onAdd}.
+	 */
+	protected _onAdd = this._register(new Emitter<ChatPromptAttachmentModel>());
+	/**
+	 * The `onAdd` event fires when a new prompt instruction attachment is added.
+	 */
+	public onAdd = this._onAdd.event;
+
+	/**
+	 * Event that fires when a new prompt instruction attachment is removed.
+	 * See {@linkcode onRemove}.
+	 */
+	protected _onRemove = this._register(new Emitter<ChatPromptAttachmentModel>());
+	/**
+	 * The `onRemove` event fires when a new prompt instruction attachment is removed.
+	 */
+	public onRemove = this._onRemove.event;
+
 	/**
 	 * List of all prompt instruction attachments.
 	 */
@@ -104,6 +151,26 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Get list of tools associated with all attached prompt files.
+	 */
+	public get toolsMetadata(): readonly string[] | null {
+		const result = [];
+
+		for (const child of this.attachments.values()) {
+			const { toolsMetadata } = child;
+
+			if (toolsMetadata === null) {
+				continue;
+			}
+
+			result.push(...toolsMetadata);
+		}
+
+		// return unique list of all tools
+		return [...new Set(result)];
 	}
 
 	/**
@@ -144,7 +211,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	 * Promise that resolves when parsing of all attached prompt instruction
 	 * files completes, including parsing of all its possible child references.
 	 */
-	public async allSettled(): Promise<void> {
+	public async allSettled(): Promise<this> {
 		const attachments = [...this.attachments.values()];
 
 		await Promise.allSettled(
@@ -152,36 +219,6 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				return attachment.allSettled;
 			}),
 		);
-	}
-
-	/**
-	 * Event that fires then this model is updated.
-	 *
-	 * See {@linkcode onUpdate}.
-	 */
-	protected _onUpdate = this._register(new Emitter<void>());
-	/**
-	 * Subscribe to the `onUpdate` event.
-	 * @param callback Function to invoke on update.
-	 */
-	public onUpdate(callback: () => unknown): this {
-		this._register(this._onUpdate.event(callback));
-
-		return this;
-	}
-
-	/**
-	 * Event that fires when a new prompt instruction attachment is added.
-	 * See {@linkcode onAdd}.
-	 */
-	protected _onAdd = this._register(new Emitter<ChatPromptAttachmentModel>());
-	/**
-	 * The `onAdd` event fires when a new prompt instruction attachment is added.
-	 *
-	 * @param callback Function to invoke on add.
-	 */
-	public onAdd(callback: (attachment: ChatPromptAttachmentModel) => unknown): this {
-		this._register(this._onAdd.event(callback));
 
 		return this;
 	}
@@ -214,13 +251,18 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				//       alternative results in an infinite loop of calling this callback
 				this.attachments.deleteAndLeak(uri.path);
 				this._onUpdate.fire();
+				this._onRemove.fire(instruction);
 			});
 
-		this.attachments.set(uri.path, instruction);
+		// start resolving all references in the prompt
 		instruction.resolve();
+		this.attachments.set(uri.path, instruction);
 
 		this._onAdd.fire(instruction);
 		this._onUpdate.fire();
+
+		// start resolving all references in the prompt
+		instruction.resolve();
 
 		return false;
 	}

@@ -45,7 +45,6 @@ export interface IPromptPath {
 	readonly type: TPromptsType;
 }
 
-
 /**
  * Provides prompt services.
  */
@@ -66,14 +65,30 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * Get a list of prompt source folders based on the provided prompt type and storage.
+	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: TPromptsType, storage: TPromptsStorage): readonly IPromptPath[];
+	getSourceFolders(type: TPromptsType): readonly IPromptPath[];
+
+	/**
+	 * Returns a prompt command if the command name.
+	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 */
+	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
+
+	/**
+	 * Gets the prompt file for a slash command.
+	 */
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined>;
+
+	/**
+	 * Returns a prompt command if the command name is valid.
+	 */
+	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+
 }
 
-/**
- * Decoration CSS class modifiers.
- */
-export enum CssClassModifiers {
-	Inactive = '.prompt-decoration-inactive',
+export interface IChatPromptSlashCommand {
+	readonly command: string;
+	readonly detail: string;
+	readonly promptPath?: IPromptPath;
 }

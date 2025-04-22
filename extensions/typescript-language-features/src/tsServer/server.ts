@@ -224,7 +224,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		}
 	}
 
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
+	public executeImpl(command: keyof TypeScriptRequests, args: unknown, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request,
@@ -269,9 +269,9 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		}
 
 		this._requestQueue.enqueue(requestInfo);
-		if (typeof args.$traceId === 'string') {
+		if (args && typeof (args as any).$traceId === 'string') {
 			const queueLength = this._requestQueue.length - 1;
-			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', args.$traceId, JSON.stringify({ command, queueLength }));
+			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', (args as any).$traceId, JSON.stringify({ command, queueLength }));
 		}
 		this.sendNextRequests();
 

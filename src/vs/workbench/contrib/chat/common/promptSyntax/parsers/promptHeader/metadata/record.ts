@@ -23,6 +23,11 @@ export abstract class PromptMetadataRecord {
 	) { }
 
 	/**
+	 * Name of the metadata record.
+	 */
+	public abstract get recordName(): string;
+
+	/**
 	 * List of all `error` issue diagnostics.
 	 */
 	public get errorDiagnostics(): readonly PromptMetadataError[] {

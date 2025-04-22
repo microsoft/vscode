@@ -45,6 +45,9 @@ export interface McpCollectionDefinition {
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
 
+	/** Resolves a server definition. If present, always called before a server starts. */
+	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
+
 	/** For lazy-loaded collections only: */
 	readonly lazy?: {
 		/** True if `serverDefinitions` were loaded from the cache */
@@ -79,6 +82,8 @@ export namespace McpCollectionDefinition {
 		readonly label: string;
 		readonly isTrustedByDefault: boolean;
 		readonly scope: StorageScope;
+		readonly canResolveLaunch: boolean;
+		readonly extensionId: string;
 	}
 
 	export function equals(a: McpCollectionDefinition, b: McpCollectionDefinition): boolean {
@@ -100,6 +105,8 @@ export interface McpServerDefinition {
 	readonly roots?: URI[] | undefined;
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
+	/** Nonce used for caching the server. Changing the nonce will indicate that tools need to be refreshed. */
+	readonly cacheNonce?: string;
 
 	readonly presentation?: {
 		/** Sort order of the definition. */
@@ -113,6 +120,7 @@ export namespace McpServerDefinition {
 	export interface Serialized {
 		readonly id: string;
 		readonly label: string;
+		readonly cacheNonce?: string;
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
 	}
@@ -125,6 +133,7 @@ export namespace McpServerDefinition {
 		return {
 			id: def.id,
 			label: def.label,
+			cacheNonce: def.cacheNonce,
 			launch: McpServerLaunch.fromSerialized(def.launch),
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
@@ -229,6 +238,8 @@ export const enum McpServerToolsState {
 	Unknown,
 	/** Tools were read from the cache */
 	Cached,
+	/** Tools were read from the cache or live, but they may be outdated. */
+	Outdated,
 	/** Tools are refreshing for the first time */
 	RefreshingFromUnknown,
 	/** Tools are refreshing and the current tools are cached */

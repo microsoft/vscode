@@ -410,7 +410,7 @@ export interface IFileEditorFactory {
 	typeId: string;
 
 	/**
-	 * Creates new new editor capable of showing files.
+	 * Creates new editor capable of showing files.
 	 */
 	createFileEditor(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredLanguageId: string | undefined, preferredContents: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
