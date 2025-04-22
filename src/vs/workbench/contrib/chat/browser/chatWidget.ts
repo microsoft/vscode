@@ -1210,10 +1210,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}).filter(isDefined),
 			);
 
-			// TODO: @legomushroom - make these sticky
+			// add instructions to the final context list
 			attachedContext.push(...automaticInstructions.map((uri) => {
 				return toChatVariable({ uri, isPromptFile: true }, true);
 			}));
+
+			// add to attached list to make the instructions sticky
+			promptInstructions.add(automaticInstructions);
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
