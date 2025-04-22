@@ -152,7 +152,6 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	acceptProgress(sessionId: string | undefined, callId: string, progress: IProgressStep): void;
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;

@@ -23,7 +23,6 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
-import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -66,7 +65,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		codeBlockModelCollection: CodeBlockModelCollection,
 		codeBlockStartIndex: number,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProgressService progressService: IProgressService,
 	) {
 		super();
 

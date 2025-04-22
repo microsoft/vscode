@@ -22,7 +22,6 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -41,7 +40,7 @@ interface IToolEntry {
 	impl?: IToolImpl;
 }
 
-interface TrackedCall {
+interface ITrackedCall {
 	invocation?: ChatToolInvocation;
 	store: IDisposable;
 }
@@ -59,7 +58,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
 
-	private _callsByRequestId = new Map<string, TrackedCall[]>();
+	private _callsByRequestId = new Map<string, ITrackedCall[]>();
 
 	private _workspaceToolConfirmStore: Lazy<ToolConfirmStore>;
 	private _profileToolConfirmStore: Lazy<ToolConfirmStore>;
@@ -95,17 +94,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
-	}
-
-	acceptProgress(sessionId: string | undefined, callId: string, progress: IProgressStep): void {
-		if (!sessionId) {
-			return; // not supported, yet
-		}
-
-		this._callsByRequestId.get(sessionId)
-			?.find(call => call.invocation?.toolCallId === callId)
-			?.invocation
-			?.acceptProgress(progress);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -252,7 +240,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				if (!this._callsByRequestId.has(requestId)) {
 					this._callsByRequestId.set(requestId, []);
 				}
-				const trackedCall: TrackedCall = { store };
+				const trackedCall: ITrackedCall = { store };
 				this._callsByRequestId.get(requestId)!.push(trackedCall);
 
 				const source = new CancellationTokenSource();

@@ -37,7 +37,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
@@ -518,7 +518,7 @@ class SetupTool extends Disposable implements IToolImpl {
 		super();
 	}
 
-	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<IToolResult> {
 		const result: IToolResult = {
 			content: [
 				{

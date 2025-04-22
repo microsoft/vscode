@@ -138,18 +138,20 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		const progress: vscode.Progress<{ message?: string; increment?: number }> = {
-			report: value => {
-				checkProposedApiEnabled(item.extension, 'toolProgress');
-				this._proxy.$acceptToolProgress(dto.chatRequestId, dto.callId, {
-					message: value.message,
-					increment: value.increment,
-					total: 100,
-				});
-			}
-		};
+		let progress: vscode.Progress<{ message?: string; increment?: number }> | undefined;
+		if (isProposedApiEnabled(item.extension, 'toolProgress')) {
+			progress = {
+				report: value => {
+					this._proxy.$acceptToolProgress(dto.callId, {
+						message: value.message,
+						increment: value.increment,
+						total: 100,
+					});
+				}
+			};
+		}
 
-		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token, progress)), token);
+		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token, progress!)), token);
 		if (!extensionResult) {
 			throw new CancellationError();
 		}

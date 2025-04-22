@@ -6,9 +6,9 @@
 declare module 'vscode' {
 
 	/**
-	 * todo@connor4312: `vscode.window.withProgres` can take this interface as well.
+	 * A progress update during an {@link LanguageModelTool.invoke} call.
 	 */
-	export interface ProgressStep {
+	export interface ToolProgressStep {
 		/**
 		 * A progress message that represents a chunk of work
 		 */
@@ -20,6 +20,6 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelTool<T> {
-		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken, progress: Progress<ProgressStep>): ProviderResult<LanguageModelToolResult>;
+		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken, progress: Progress<ToolProgressStep>): ProviderResult<LanguageModelToolResult>;
 	}
 }

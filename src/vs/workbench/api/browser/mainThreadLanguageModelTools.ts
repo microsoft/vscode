@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { IProgressStep } from '../../../platform/progress/common/progress.js';
+import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -17,7 +17,10 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 
 	private readonly _proxy: ExtHostLanguageModelToolsShape;
 	private readonly _tools = this._register(new DisposableMap<string>());
-	private readonly _countTokenCallbacks = new Map</* call ID */string, CountTokensCallback>();
+	private readonly _runningToolCalls = new Map</* call ID */string, {
+		countTokens: CountTokensCallback;
+		progress: IProgress<IProgressStep>;
+	}>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -46,30 +49,30 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		};
 	}
 
-	$acceptToolProgress(requestId: string | undefined, callId: string, progress: IProgressStep): void {
-		this._languageModelToolsService.acceptProgress(requestId, callId, progress);
+	$acceptToolProgress(callId: string, progress: IProgressStep): void {
+		this._runningToolCalls.get(callId)?.progress.report(progress);
 	}
 
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
-		const fn = this._countTokenCallbacks.get(callId);
+		const fn = this._runningToolCalls.get(callId);
 		if (!fn) {
 			throw new Error(`Tool invocation call ${callId} not found`);
 		}
 
-		return fn(input, token);
+		return fn.countTokens(input, token);
 	}
 
 	$registerTool(id: string): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
 			id,
 			{
-				invoke: async (dto, countTokens, _progress, token) => {
+				invoke: async (dto, countTokens, progress, token) => {
 					try {
-						this._countTokenCallbacks.set(dto.callId, countTokens);
+						this._runningToolCalls.set(dto.callId, { countTokens, progress });
 						const resultDto = await this._proxy.$invokeTool(dto, token);
 						return revive(resultDto) as IToolResult;
 					} finally {
-						this._countTokenCallbacks.delete(dto.callId);
+						this._runningToolCalls.delete(dto.callId);
 					}
 				},
 				prepareToolInvocation: (parameters, token) => this._proxy.$prepareToolInvocation(id, parameters, token),
