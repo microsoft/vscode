@@ -6,8 +6,8 @@
 import { PromptStringMetadata } from './record.js';
 import { localize } from '../../../../../../../../nls.js';
 import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
-import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
 import { isEmptyPattern, parse } from '../../../../../../../../base/common/glob.js';
+import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
 import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
@@ -39,9 +39,8 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 		}
 
 		const { cleanText } = this.valueToken;
-		const globPattern = parse(cleanText);
 		// TODO: @legomushroom - add unit tests?
-		if (isEmptyPattern(globPattern)) {
+		if (this.isValidGlob(cleanText) === false) {
 			result.push(
 				new PromptMetadataWarning(
 					this.valueToken.range,
@@ -55,6 +54,24 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 		}
 
 		return result;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private isValidGlob(
+		pattern: string,
+	): boolean {
+		try {
+			const globPattern = parse(pattern);
+			if (isEmptyPattern(globPattern)) {
+				return false;
+			}
+
+			return true;
+		} catch (_error) {
+			return false;
+		}
 	}
 
 	/**

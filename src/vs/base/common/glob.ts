@@ -308,7 +308,6 @@ const NULL = function (): string | null {
 /**
  * TODO: @legomushroom
  */
-// TODO: @legomushroom - add unit tests
 export const isEmptyPattern = (
 	pattern: ParsedPattern | ParsedExpression,
 ): pattern is (typeof FALSE | typeof NULL) => {
