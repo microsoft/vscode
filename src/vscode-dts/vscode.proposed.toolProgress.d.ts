@@ -19,7 +19,14 @@ declare module 'vscode' {
 		increment?: number;
 	}
 
+	export interface LanguageModelToolInvocation<T> extends LanguageModelToolInvocationOptions<T> {
+		/**
+		 * Progress interface to report updates as the tool is running.
+		 */
+		progress: Progress<ToolProgressStep>;
+	}
+
 	export interface LanguageModelTool<T> {
-		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken, progress: Progress<ToolProgressStep>): ProviderResult<LanguageModelToolResult>;
+		invoke(invocation: LanguageModelToolInvocation<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 	}
 }
