@@ -26,8 +26,7 @@ import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
-import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/types.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
@@ -242,7 +241,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	 * If the implicit context references a prompt file, this field
 	 * holds a reference to an associated prompt parser instance.
 	 */
-	private prompt: TextModelPromptParser | undefined;
+	private prompt: TSharedPrompt | undefined;
 
 	get id() {
 		if (this.prompt !== undefined) {
@@ -409,7 +408,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	 * Remove and dispose prompt parser instance.
 	 */
 	private removePrompt(): void {
-		this.prompt?.dispose();
 		delete this.prompt;
 	}
 
