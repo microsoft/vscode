@@ -5,8 +5,10 @@
 
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { match } from '../../../../../../base/common/glob.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
+import { FilePromptParser } from '../parsers/filePromptParser.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -17,8 +19,6 @@ import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
-import { FilePromptParser } from '../parsers/filePromptParser.js';
-import { match } from '../../../../../../base/common/glob.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 
