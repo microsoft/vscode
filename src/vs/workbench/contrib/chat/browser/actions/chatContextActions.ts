@@ -61,7 +61,7 @@ import { IToolData } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
-import { createFolderQuickPick } from '../contrib/chatDynamicVariables.js';
+import { createFilesAndFolderQuickPick } from '../contrib/chatDynamicVariables.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
 import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/attachInstructionsCommand.js';
@@ -747,7 +747,7 @@ export class AttachContextAction extends Action2 {
 
 		quickPickItems.push({
 			kind: 'folder',
-			label: localize('chatContext.folder', 'Folders...'),
+			label: localize('chatContext.folder', 'Files & Folders...'),
 			iconClass: ThemeIcon.asClassName(Codicon.folder),
 			id: 'folder',
 		});
@@ -935,7 +935,7 @@ export class AttachContextAction extends Action2 {
 	}
 
 	private async _showFolders(instantiationService: IInstantiationService): Promise<IFolderResultQuickPickItem | undefined> {
-		const folder = await instantiationService.invokeFunction(accessor => createFolderQuickPick(accessor));
+		const folder = await instantiationService.invokeFunction(createFilesAndFolderQuickPick);
 		if (!folder) {
 			return undefined;
 		}
