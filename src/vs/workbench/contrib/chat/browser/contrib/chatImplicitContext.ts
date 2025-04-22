@@ -9,11 +9,11 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
-import { assertDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
@@ -25,8 +25,10 @@ import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { createPromptVariableId } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -235,20 +237,16 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
+	/**
+	 * TODO: @legomushroom
+	 */
+	private prompt: TextModelPromptParser | undefined;
+
 	get id() {
-		// IDs for prompt files need to start with a special prefix
-		// that is used by the copilot extension to identify them
-		if (this.isPromptFile) {
-			assertDefined(
-				this.value,
-				'Implicit prompt attachments must have a value.',
-			);
+		if (this.prompt !== undefined) {
+			const variable = toChatVariable(this.prompt, true);
 
-			const uri = URI.isUri(this.value)
-				? this.value
-				: this.value.uri;
-
-			return createPromptVariableId(uri, true);
+			return variable.id;
 		}
 
 		if (URI.isUri(this.value)) {
@@ -265,12 +263,16 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
-		const fileType = this.isPromptFile ? 'prompt' : 'file';
+		if (this.prompt !== undefined) {
+			const variable = toChatVariable(this.prompt, true);
+
+			return variable.name;
+		}
 
 		if (URI.isUri(this.value)) {
-			return `${fileType}:${basename(this.value)}`;
+			return `file:${basename(this.value)}`;
 		} else if (this.value) {
-			return `${fileType}:${basename(this.value.uri)}`;
+			return `file:${basename(this.value.uri)}`;
 		} else {
 			return 'implicit';
 		}
@@ -279,14 +281,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
-		if (this.isPromptFile) {
-			if (URI.isUri(this.value)) {
-				return `User's active prompt file`;
-			} else if (this._isSelection) {
-				return `User's active selection inside prompt file`;
-			} else {
-				return `User's current visible prompt text`;
-			}
+		if (this.prompt !== undefined) {
+			const variable = toChatVariable(this.prompt, true);
+
+			return variable.modelDescription;
 		}
 
 		if (URI.isUri(this.value)) {
@@ -313,11 +311,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._value;
 	}
 
-	private _languageId: string | undefined;
-	get isPromptFile() {
-		return (this._languageId === PROMPT_LANGUAGE_ID);
-	}
-
 	private _enabled = true;
 	get enabled() {
 		return this._enabled;
@@ -328,7 +321,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	constructor(value?: Location | URI) {
+	constructor(
+		// TODO: @legomushroom - remove the constructor param?
+		value: Location | URI | undefined,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IModelService private readonly modelService: IModelService,
+	) {
 		super();
 		this._value = value;
 	}
@@ -336,26 +334,85 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	setValue(value: Location | URI | undefined, isSelection: boolean, languageId?: string): void {
 		this._value = value;
 		this._isSelection = isSelection;
-		this._languageId = languageId;
+
+		// remove and dispose existent prompt parser instance
+		this.removePrompt();
+		// if language ID is a 'prompt' language, create a prompt parser instance
+		if (value && (languageId === PROMPT_LANGUAGE_ID)) {
+			this.addPrompt(value);
+		}
+
 		this._onDidChangeValue.fire();
 	}
 
-	toBaseEntry(): IChatRequestFileEntry | IPromptVariableEntry {
-		const result: IChatRequestFileEntry = {
+	// TODO: @legomushroom - update the return type
+	async toBaseEntries(): Promise<readonly (IChatRequestFileEntry | IPromptVariableEntry)[]> {
+		if (this.prompt !== undefined) {
+			const result = [
+				...this.prompt.allValidReferences.map((link) => {
+					return toChatVariable(link, false);
+				}),
+				toChatVariable({
+					uri: this.prompt.uri,
+					// TODO: @legomushroom - check the comment correctness
+					// the attached file must have been a prompt file therefore
+					// we force that assumption here; this makes sure that prompts
+					// in untitled documents can be also attached to the chat input
+					isPromptFile: true,
+				}, true),
+			];
+
+			return result;
+		}
+
+		return [{
 			kind: 'file',
 			id: this.id,
 			name: this.name,
 			value: this.value,
 			modelDescription: this.modelDescription,
-		};
+		}];
+	}
 
-		if (this.isPromptFile === false) {
-			return result;
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get isPromptFile() {
+		return (this.prompt !== undefined);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private addPrompt(
+		value: URI | Location,
+	): void {
+		const uri = URI.isUri(value)
+			? value
+			: value.uri;
+
+		const model = this.modelService.getModel(uri);
+		if ((model === null) || model.isDisposed()) {
+			// TODO: @legomushroom - log a warning
+			return;
 		}
 
-		return {
-			...result,
-			isRoot: true,
-		};
+		this.prompt = this.promptsService
+			.getSyntaxParserFor(model)
+			.start();
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private removePrompt(): void {
+		this.prompt?.dispose();
+		delete this.prompt;
+	}
+
+	public override dispose(): void {
+		this.removePrompt();
+
+		super.dispose();
 	}
 }

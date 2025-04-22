@@ -135,6 +135,7 @@ export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'file';
 	readonly value: URI | Location;
 	readonly isRoot: boolean;
+	readonly modelDescription: string;
 }
 
 export namespace IDiagnosticVariableEntryFilterData {

@@ -75,7 +75,7 @@ export const toChatVariable = (
 
 	const modelDescription = (isPromptFile)
 		? 'Prompt instructions file'
-		: undefined;
+		: 'File attachment';
 
 	return {
 		id,
