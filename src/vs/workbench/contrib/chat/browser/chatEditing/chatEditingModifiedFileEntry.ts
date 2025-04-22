@@ -184,10 +184,10 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			return;
 		}
 
+		this._notifyAction('rejected');
 		await this._doReject(tx);
 		this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 		this._autoAcceptCtrl.set(undefined, tx);
-		this._notifyAction('rejected');
 	}
 
 	protected abstract _doReject(tx: ITransaction | undefined): Promise<void>;
