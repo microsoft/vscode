@@ -661,3 +661,34 @@ export class AcceptMerge extends MergeEditorAction2 {
 		};
 	}
 }
+
+export class ToggleBetweenInputs extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.toggleBetweenInputs',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.toggleBetweenInputs', "Toggle Between Merge Editor Inputs"),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+					// Override reopen closed editor
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: ctxIsMergeEditor,
+				}
+			]
+		});
+	}
+
+	override runWithMergeEditor({ viewModel }: MergeEditorAction2Args, accessor: ServicesAccessor) {
+		const input1IsFocused = viewModel.inputCodeEditorView1.editor.hasWidgetFocus();
+
+		// Toggle focus between inputs
+		if (input1IsFocused) {
+			viewModel.inputCodeEditorView2.editor.focus();
+		} else {
+			viewModel.inputCodeEditorView1.editor.focus();
+		}
+	}
+}
