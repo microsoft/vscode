@@ -2,7 +2,7 @@
 
 
 :   '
-@overview A function that returns the root directory for a given entry (file or directory) 
+@overview A function that returns the root directory for a given entry (file or directory)
 by going up a specified number of levels.
 
 :param $1 type(string) // Path (can be relative or absolute) for which to find the root directory.
@@ -10,7 +10,7 @@ by going up a specified number of levels.
 
 :return type(string) // The root directory after going up the specified number of levels.
 '
-function get_root_dir_for_entry 
+function get_root_dir_for_entry
 {
 	# Declaration variables
 	local target=$1
@@ -47,7 +47,7 @@ function get_root_dir_for_entry
 	[[ $target == ~* ]] && target="${target/#\~/$HOME}"
 
 	# If the path is absolute (starts with '/')
-	if [[ "${target:0:1}" == "/" ]]; 
+	if [[ "${target:0:1}" == "/" ]];
 	then
 		current_path_for_entry="$target"
 	else
@@ -69,7 +69,7 @@ function get_root_dir_for_entry
 			current_path_for_entry=$(readlink -f "$current_path_for_entry")
 
 		else
-				    # Use a manual workaround (I prefer to raise an error/exception)
+			# Use a manual workaround (I prefer to raise an error/exception)
 			current_path_for_entry=$(cd "$(dirname "$current_path_for_entry")" && pwd)/$(basename "$current_path_for_entry")
 		fi
 	fi
@@ -85,8 +85,8 @@ function get_root_dir_for_entry
 	echo "$root_entry"
 }
 
- 
-# Call of function : Get the root directory of the project by going up 2 levels from the script's directory 
+
+# Call of function : Get the root directory of the project by going up 2 levels from the script's directory
 ROOT=$(get_root_dir_for_entry "$0" 2)
 
 
