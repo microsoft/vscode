@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -22,8 +22,7 @@ import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDe
 
 interface ISyncedToolData {
 	toolData: IToolData;
-	toolDispose: IDisposable;
-	implDispose: IDisposable;
+	store: DisposableStore;
 }
 
 type IMcpServerRec = IReference<IMcpServer>;
@@ -111,27 +110,32 @@ export class McpService extends Disposable implements IMcpService {
 					tags: ['mcp'],
 				};
 
+				const registerTool = (store: DisposableStore) => {
+					store.add(this._toolsService.registerToolData(toolData));
+					store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
+				};
+
+
 				if (existing) {
 					if (!equals(existing.toolData, toolData)) {
 						existing.toolData = toolData;
-						existing.toolDispose.dispose();
-						existing.toolDispose = this._toolsService.registerToolData(toolData);
+						existing.store.clear();
+						// We need to re-register both the data and implementation, as the
+						// implementation is discarded when the data is removed (#245921)
+						registerTool(store);
 					}
 					toDelete.delete(tool.id);
 				} else {
-					tools.set(tool.id, {
-						toolData,
-						toolDispose: this._toolsService.registerToolData(toolData),
-						implDispose: this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)),
-					});
+					const store = new DisposableStore();
+					registerTool(store);
+					tools.set(tool.id, { toolData, store });
 				}
 			}
 
 			for (const id of toDelete) {
 				const tool = tools.get(id);
 				if (tool) {
-					tool.toolDispose.dispose();
-					tool.implDispose.dispose();
+					tool.store.dispose();
 					tools.delete(id);
 				}
 			}
@@ -139,8 +143,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		store.add(toDisposable(() => {
 			for (const tool of tools.values()) {
-				tool.toolDispose.dispose();
-				tool.implDispose.dispose();
+				tool.store.dispose();
 			}
 		}));
 	}
