@@ -19,6 +19,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../platform/act
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY, IChatModelCategoryService } from '../../common/modelPicker/chatModelCategoryService.js';
 
 interface IModelPickerActionItem {
 	model: ILanguageModelChatMetadataAndIdentifier;
@@ -41,6 +42,7 @@ export class ModelPickerWidget extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatModelCategoryService private readonly modelCategoryService: IChatModelCategoryService,
 	) {
 		super();
 	}
@@ -101,16 +103,65 @@ export class ModelPickerWidget extends Disposable {
 	 * Shows the picker at the specified anchor
 	 */
 	showAt(anchor: HTMLElement | StandardMouseEvent | IAnchor, container?: HTMLElement): void {
-		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = this.getActionItems().map(item => ({
-			item: item.model,
-			description: item.model.metadata.description,
-			kind: ActionListItemKind.Action,
-			canPreview: false,
-			group: { title: '', icon: ThemeIcon.fromId(item.isCurrent ? Codicon.check.id : Codicon.blank.id) },
-			disabled: false,
-			hideIcon: false,
-			label: item.model.metadata.name,
-		} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>));
+		const actionItems = this.getActionItems();
+		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = [];
+
+		// Group models by categories
+		const modelsByCategory = new Map<string, IModelPickerActionItem[]>();
+
+		// First, group models by their categories
+		for (const item of actionItems) {
+			const category = this.modelCategoryService.getCategoryById(item.model.metadata.modelPickerCategory);
+			if (category) {
+				if (!modelsByCategory.has(category.id)) {
+					modelsByCategory.set(category.id, []);
+				}
+				modelsByCategory.get(category.id)!.push(item);
+				continue;
+			}
+
+			// If no category or category not found, add to default category
+			if (!modelsByCategory.has(DEFAULT_MODEL_PICKER_CATEGORY)) {
+				modelsByCategory.set(DEFAULT_MODEL_PICKER_CATEGORY, []);
+			}
+			modelsByCategory.get(DEFAULT_MODEL_PICKER_CATEGORY)!.push(item);
+		}
+
+		const categories = this.modelCategoryService.getCategories();
+		for (const category of categories) {
+			const modelsInCategory = modelsByCategory.get(category.id) || [];
+
+			// Skip empty categories
+			if (modelsInCategory.length === 0) {
+				continue;
+			}
+
+			// Add category header
+			items.push({
+				label: category.name,
+				kind: ActionListItemKind.Header,
+				canPreview: false,
+				disabled: false,
+				hideIcon: true,
+			} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>);
+
+			// Add models in this category
+			for (const item of modelsInCategory) {
+				items.push({
+					item: item.model,
+					description: item.model.metadata.description,
+					kind: ActionListItemKind.Action,
+					canPreview: false,
+					group: { title: '', icon: ThemeIcon.fromId(item.isCurrent ? Codicon.check.id : Codicon.blank.id) },
+					disabled: false,
+					hideIcon: false,
+					label: item.model.metadata.name,
+				} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>);
+			}
+
+			// Remove this category from the map so we don't process it again
+			modelsByCategory.delete(category.id);
+		}
 
 		const delegate = {
 			onSelect: (item: ILanguageModelChatMetadataAndIdentifier) => {

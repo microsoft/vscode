@@ -70,6 +70,13 @@ declare module 'vscode' {
 			readonly toolCalling?: boolean;
 			readonly agentMode?: boolean;
 		};
+
+		/**
+		 * Optional ID of the category this model belongs to.
+		 * Categories are contributed via the `chatModelPickerCategories` extension point.
+		 * If not specified, the model will appear in the "Other Models" category.
+		 */
+		readonly categoryId?: string;
 	}
 
 	export interface ChatResponseProviderMetadata {
