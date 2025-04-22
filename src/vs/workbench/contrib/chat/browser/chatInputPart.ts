@@ -902,7 +902,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
-				this.instantiationService.createInstance(ChatImplicitContext, undefined),
+				this.instantiationService.createInstance(ChatImplicitContext),
 			);
 
 			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));

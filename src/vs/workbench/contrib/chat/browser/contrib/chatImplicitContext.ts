@@ -322,13 +322,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	constructor(
-		// TODO: @legomushroom - remove the constructor param?
-		value: Location | URI | undefined,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		this._value = value;
 	}
 
 	setValue(value: Location | URI | undefined, isSelection: boolean, languageId?: string): void {
