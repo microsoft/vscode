@@ -48,7 +48,6 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { ChatModelCategoryService, IChatModelCategoryService } from '../common/modelPicker/chatModelCategoryService.js';
 import { PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerReusablePromptLanguageFeatures } from '../common/promptSyntax/languageFeatures/providers/index.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -106,7 +105,6 @@ import './promptSyntax/contributions/attachInstructionsCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './actions/promptActions/chatSaveToPromptAction.js';
 import { assertDefined } from '../../../../base/common/types.js';
-import { ChatModelPickerCategoryHandler } from '../common/modelPicker/chatModelPickerCategory.contribution.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -615,7 +613,6 @@ registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEdi
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(ChatModelPickerCategoryHandler.ID, ChatModelPickerCategoryHandler, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();
@@ -657,7 +654,6 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
-registerSingleton(IChatModelCategoryService, ChatModelCategoryService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 

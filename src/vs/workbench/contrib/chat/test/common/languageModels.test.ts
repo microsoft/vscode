@@ -14,7 +14,7 @@ import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, La
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/chatModelCategoryService.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 
 suite('LanguageModels', function () {
 

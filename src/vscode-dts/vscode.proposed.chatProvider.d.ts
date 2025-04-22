@@ -72,11 +72,11 @@ declare module 'vscode' {
 		};
 
 		/**
-		 * Optional ID of the category this model belongs to.
-		 * Categories are contributed via the `chatModelPickerCategories` extension point.
+		 * Optional category to group models by in the model picker.
+		 * Has no effect if `isUserSelectable` is `false`.
 		 * If not specified, the model will appear in the "Other Models" category.
 		 */
-		readonly categoryId?: string;
+		readonly category?: { label: string };
 	}
 
 	export interface ChatResponseProviderMetadata {

@@ -19,7 +19,6 @@ import { ActionListItemKind, IActionListItem } from '../../../../../platform/act
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY, IChatModelCategoryService } from '../../common/modelPicker/chatModelCategoryService.js';
 
 interface IModelPickerActionItem {
 	model: ILanguageModelChatMetadataAndIdentifier;
@@ -42,7 +41,6 @@ export class ModelPickerWidget extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IChatModelCategoryService private readonly modelCategoryService: IChatModelCategoryService,
 	) {
 		super();
 	}
@@ -111,26 +109,14 @@ export class ModelPickerWidget extends Disposable {
 
 		// First, group models by their categories
 		for (const item of actionItems) {
-			const category = this.modelCategoryService.getCategoryById(item.model.metadata.modelPickerCategory);
-			if (category) {
-				if (!modelsByCategory.has(category.id)) {
-					modelsByCategory.set(category.id, []);
-				}
-				modelsByCategory.get(category.id)!.push(item);
-				continue;
+			const category = item.model.metadata.modelPickerCategory;
+			if (!modelsByCategory.has(category.label)) {
+				modelsByCategory.set(category.label, []);
 			}
-
-			// If no category or category not found, add to default category
-			if (!modelsByCategory.has(DEFAULT_MODEL_PICKER_CATEGORY)) {
-				modelsByCategory.set(DEFAULT_MODEL_PICKER_CATEGORY, []);
-			}
-			modelsByCategory.get(DEFAULT_MODEL_PICKER_CATEGORY)!.push(item);
+			modelsByCategory.get(category.label)!.push(item);
 		}
 
-		const categories = this.modelCategoryService.getCategories();
-		for (const category of categories) {
-			const modelsInCategory = modelsByCategory.get(category.id) || [];
-
+		for (const [categoryLabel, modelsInCategory] of modelsByCategory.entries()) {
 			// Skip empty categories
 			if (modelsInCategory.length === 0) {
 				continue;
@@ -138,7 +124,7 @@ export class ModelPickerWidget extends Disposable {
 
 			// Add category header
 			items.push({
-				label: category.name,
+				label: categoryLabel,
 				kind: ActionListItemKind.Header,
 				canPreview: false,
 				disabled: false,
@@ -160,7 +146,7 @@ export class ModelPickerWidget extends Disposable {
 			}
 
 			// Remove this category from the map so we don't process it again
-			modelsByCategory.delete(category.id);
+			modelsByCategory.delete(categoryLabel);
 		}
 
 		const delegate = {
