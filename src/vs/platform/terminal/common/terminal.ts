@@ -1009,6 +1009,17 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 * won't have shell integration in the end.
 	 */
 	UnsupportedShell = 'unsupportedShell',
+
+
+	/**
+	 * For zsh, we failed to set the sticky bit on the shell integration script folder.
+	 */
+	FailedToSetStickyBit = 'failedToSetStickyBit',
+
+	/**
+	 * For zsh, we failed to create a temp directory for the shell integration script.
+	 */
+	FailedToCreateTmpDir = 'failedToCreateTmpDir',
 }
 
 export enum TerminalExitReason {

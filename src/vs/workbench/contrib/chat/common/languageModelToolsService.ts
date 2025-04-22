@@ -43,6 +43,7 @@ export interface IToolData {
 export type ToolDataSource =
 	| {
 		type: 'extension';
+		label: string;
 		extensionId: ExtensionIdentifier;
 		/**
 		 * True for tools contributed through extension API from third-party extensions, so they can be disabled by policy.
@@ -50,7 +51,12 @@ export type ToolDataSource =
 		 */
 		isExternalTool: boolean;
 	}
-	| { type: 'mcp'; collectionId: string; definitionId: string }
+	| {
+		type: 'mcp';
+		label: string;
+		collectionId: string;
+		definitionId: string;
+	}
 	| { type: 'internal' };
 
 export namespace ToolDataSource {
@@ -123,6 +129,7 @@ export interface IPreparedToolInvocation {
 	pastTenseMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
+	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 }
 

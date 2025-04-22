@@ -574,6 +574,7 @@ export class GitBlameController {
 }
 
 class GitBlameEditorDecoration implements HoverProvider {
+	private _template = '';
 	private _decoration: TextEditorDecorationType;
 
 	private _hoverDisposable: IDisposable | undefined;
@@ -633,6 +634,10 @@ class GitBlameEditorDecoration implements HoverProvider {
 			return;
 		}
 
+		// Cache the decoration template
+		const config = workspace.getConfiguration('git');
+		this._template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
+
 		this._registerHoverProvider();
 		this._onDidChangeBlameInformation();
 	}
@@ -663,12 +668,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 		}
 
 		// Set decorations for the editor
-		const config = workspace.getConfiguration('git');
-		const template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
-
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation !== 'string'
-				? this._controller.formatBlameInformationMessage(textEditor.document.uri, template, blame.blameInformation)
+				? this._controller.formatBlameInformationMessage(textEditor.document.uri, this._template, blame.blameInformation)
 				: blame.blameInformation;
 
 			return this._createDecoration(blame.lineNumber, contentText);
@@ -708,6 +710,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 }
 
 class GitBlameStatusBarItem {
+	private _template = '';
 	private _statusBarItem: StatusBarItem;
 	private _disposables: IDisposable[] = [];
 
@@ -718,13 +721,20 @@ class GitBlameStatusBarItem {
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
 		this._controller.onDidChangeBlameInformation(() => this._onDidChangeBlameInformation(), this, this._disposables);
+
+		this._onDidChangeConfiguration();
 	}
 
-	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.commitShortHashLength') &&
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e &&
+			!e.affectsConfiguration('git.commitShortHashLength') &&
 			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}
+
+		// Cache the decoration template
+		const config = workspace.getConfiguration('git');
+		this._template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
 
 		this._onDidChangeBlameInformation();
 	}
@@ -746,11 +756,8 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.tooltip = l10n.t('Git Blame Information');
 			this._statusBarItem.command = undefined;
 		} else {
-			const config = workspace.getConfiguration('git');
-			const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
-
 			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(
-				window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
+				window.activeTextEditor.document.uri, this._template, blameInformation[0].blameInformation)}`;
 
 			this._statusBarItem.tooltip2 = (cancellationToken: CancellationToken) => {
 				return this._provideTooltip(window.activeTextEditor!.document.uri,

@@ -55,6 +55,7 @@ type ServerBootStateClassification = {
 };
 
 interface IToolCacheEntry {
+	readonly nonce: string | undefined;
 	/** Cached tools so we can show what's available before it's started */
 	readonly tools: readonly IValidatedMcpTool[];
 }
@@ -109,13 +110,13 @@ export class McpServerMetadataCache extends Disposable {
 	}
 
 	/** Gets cached tools for a server (used before a server is running) */
-	getTools(definitionId: string): readonly IValidatedMcpTool[] | undefined {
-		return this.cache.get(definitionId)?.tools;
+	getTools(definitionId: string) {
+		return this.cache.get(definitionId);
 	}
 
 	/** Sets cached tools for a server */
-	storeTools(definitionId: string, tools: readonly IValidatedMcpTool[]): void {
-		this.cache.set(definitionId, { ...this.cache.get(definitionId), tools });
+	storeTools(definitionId: string, nonce: string | undefined, tools: readonly IValidatedMcpTool[]): void {
+		this.cache.set(definitionId, { ...this.cache.get(definitionId), nonce, tools });
 		this.didChange = true;
 	}
 
@@ -154,17 +155,33 @@ export class McpServer extends Disposable implements IMcpServer {
 	private get toolsFromCache() {
 		return this._toolCache.getTools(this.definition.id);
 	}
-	private readonly toolsFromServerPromise = observableValue<ObservablePromise<readonly IValidatedMcpTool[]> | undefined>(this, undefined);
+	private readonly toolsFromServerPromise = observableValue<ObservablePromise<{
+		readonly tools: IValidatedMcpTool[];
+		readonly nonce: string | undefined;
+	}> | undefined>(this, undefined);
 	private readonly toolsFromServer = derived(reader => this.toolsFromServerPromise.read(reader)?.promiseResult.read(reader)?.data);
 
 	public readonly tools: IObservable<readonly IMcpTool[]>;
 
 	public readonly toolsState = derived(reader => {
+		const currentNonce = () => this._mcpRegistry.collections.read(reader)
+			.find(c => c.id === this.collection.id)
+			?.serverDefinitions.read(reader)
+			.find(d => d.id === this.definition.id)
+			?.cacheNonce;
+		const stateWhenServingFromCache = () => {
+			if (!this.toolsFromCache) {
+				return McpServerToolsState.Unknown;
+			}
+
+			return currentNonce() === this.toolsFromCache.nonce ? McpServerToolsState.Cached : McpServerToolsState.Outdated;
+		};
+
 		const fromServer = this.toolsFromServerPromise.read(reader);
 		const connectionState = this.connectionState.read(reader);
 		const isIdle = McpConnectionState.canBeStarted(connectionState.state) && !fromServer;
 		if (isIdle) {
-			return this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown;
+			return stateWhenServingFromCache();
 		}
 
 		const fromServerResult = fromServer?.promiseResult.read(reader);
@@ -172,7 +189,11 @@ export class McpServer extends Disposable implements IMcpServer {
 			return this.toolsFromCache ? McpServerToolsState.RefreshingFromCached : McpServerToolsState.RefreshingFromUnknown;
 		}
 
-		return fromServerResult.error ? (this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown) : McpServerToolsState.Live;
+		if (fromServerResult.error) {
+			return stateWhenServingFromCache();
+		}
+
+		return fromServerResult.data?.nonce === currentNonce() ? McpServerToolsState.Live : McpServerToolsState.Outdated;
 	});
 
 	private readonly _loggerId: string;
@@ -228,29 +249,22 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		// 2. Populate this.tools when we connect to a server.
 		this._register(autorunWithStore((reader, store) => {
-			const cnx = this._connection.read(reader)?.handler.read(reader);
-			if (cnx) {
-				this.populateLiveData(cnx, store);
+			const cnx = this._connection.read(reader);
+			const handler = cnx?.handler.read(reader);
+			if (handler) {
+				this.populateLiveData(handler, cnx?.definition.cacheNonce, store);
 			} else {
 				this.resetLiveData();
 			}
 		}));
 
-		// 3. Update the cache when tools update
-		this._register(autorun(reader => {
-			const tools = this.toolsFromServer.read(reader);
-			if (tools) {
-				this._toolCache.storeTools(definition.id, tools);
-			}
-		}));
-
-		// 4. Publish tools
+		// 3. Publish tools
 		const toolPrefix = this._mcpRegistry.collectionToolPrefix(this.collection);
 		this.tools = derived(reader => {
 			const serverTools = this.toolsFromServer.read(reader);
-			const definitions = serverTools ?? this.toolsFromCache ?? [];
+			const definitions = serverTools?.tools ?? this.toolsFromCache?.tools ?? [];
 			const prefix = toolPrefix.read(reader);
-			return definitions.map(def => new McpTool(this, prefix, def));
+			return definitions.map(def => new McpTool(this, prefix, def)).sort((a, b) => a.compare(b));
 		});
 	}
 
@@ -384,7 +398,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		return validated;
 	}
 
-	private populateLiveData(handler: McpServerRequestHandler, store: DisposableStore) {
+	private populateLiveData(handler: McpServerRequestHandler, cacheNonce: string | undefined, store: DisposableStore) {
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
 
@@ -394,11 +408,11 @@ export class McpServer extends Disposable implements IMcpServer {
 			const toolPromise = handler.capabilities.tools ? handler.listTools({}, cts.token) : Promise.resolve([]);
 			const toolPromiseSafe = toolPromise.then(async tools => {
 				handler.logger.info(`Discovered ${tools.length} tools`);
-				return this._getValidatedTools(handler, tools);
+				return { tools: await this._getValidatedTools(handler, tools), nonce: cacheNonce };
 			});
 			this.toolsFromServerPromise.set(new ObservablePromise(toolPromiseSafe), tx);
 
-			return [toolPromise];
+			return [toolPromiseSafe];
 		};
 
 		store.add(handler.onDidChangeToolList(() => {
@@ -411,7 +425,9 @@ export class McpServer extends Disposable implements IMcpServer {
 			promises = updateTools(tx);
 		});
 
-		Promise.all(promises!).then(([tools]) => {
+		Promise.all(promises!).then(([{ tools }]) => {
+			this._toolCache.storeTools(this.definition.id, cacheNonce, tools);
+
 			this._telemetryService.publicLog2<ServerBootData, ServerBootClassification>('mcp/serverBoot', {
 				supportsLogging: !!handler.capabilities.logging,
 				supportsPrompts: !!handler.capabilities.prompts,
@@ -482,6 +498,10 @@ export class McpTool implements IMcpTool {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		return this._server.callOn(h => h.callTool({ name, arguments: params }), token);
+	}
+
+	compare(other: IMcpTool): number {
+		return this._definition.name.localeCompare(other.definition.name);
 	}
 }
 

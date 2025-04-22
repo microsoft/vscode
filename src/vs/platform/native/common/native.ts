@@ -95,6 +95,7 @@ export interface ICommonNativeHostService {
 
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
+	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.

@@ -16,6 +16,7 @@ import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '.
 import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IExtensionGalleryManifest } from './extensionGalleryManifest.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -347,8 +348,13 @@ export interface ISearchPrefferedResults {
 	readonly preferredResults?: string[];
 }
 
+export type MaliciousExtensionInfo = {
+	readonly extensionOrPublisher: IExtensionIdentifier | string;
+	readonly learnMoreLink?: string;
+};
+
 export interface IExtensionsControlManifest {
-	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
+	readonly malicious: ReadonlyArray<MaliciousExtensionInfo>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
 }
@@ -697,6 +703,7 @@ export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
 export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
+export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({
@@ -771,3 +778,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			}
 		}
 	});
+
+export function shouldRequireRepositorySignatureFor(isPrivate: boolean, galleryManifest: IExtensionGalleryManifest | null): boolean {
+	if (isPrivate) {
+		return galleryManifest?.capabilities.signing?.allPrivateRepositorySigned === true;
+	}
+	return galleryManifest?.capabilities.signing?.allPublicRepositorySigned === true;
+}
+

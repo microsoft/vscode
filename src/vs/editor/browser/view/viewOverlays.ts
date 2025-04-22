@@ -24,7 +24,7 @@ export class ViewOverlays extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._visibleLines = new VisibleLinesCollection({
+		this._visibleLines = new VisibleLinesCollection(this._context, {
 			createLine: () => new ViewOverlayLine(this._dynamicOverlays)
 		});
 		this.domNode = this._visibleLines.domNode;
@@ -178,6 +178,8 @@ export class ViewOverlayLine implements IVisibleLine {
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
+		sb.appendString(String(lineHeight));
 		sb.appendString('px;">');
 		sb.appendString(result);
 		sb.appendString('</div>');
@@ -189,6 +191,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		if (this._domNode) {
 			this._domNode.setTop(deltaTop);
 			this._domNode.setHeight(lineHeight);
+			this._domNode.setLineHeight(lineHeight);
 		}
 	}
 }

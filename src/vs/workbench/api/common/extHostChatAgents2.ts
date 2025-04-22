@@ -255,6 +255,7 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
+						part instanceof extHostTypes.ChatResponseExtensionsPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -409,8 +410,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const includeInteractionId = isProposedApiEnabled(detector.extension, 'chatParticipantPrivate');
-		const extRequest = typeConvert.ChatAgentRequest.to(includeInteractionId ? request : { ...request, requestId: '' }, location, model, this.getDiagnosticsWhenEnabled(detector.extension), this.getToolsForRequest(detector.extension, request));
+		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(detector.extension), this.getToolsForRequest(detector.extension, request), detector.extension);
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -494,13 +494,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
-			const includeInteractionId = isProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 			const extRequest = typeConvert.ChatAgentRequest.to(
-				includeInteractionId ? request : { ...request, requestId: '' },
+				request,
 				location,
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
-				this.getToolsForRequest(agent.extension, request)
+				this.getToolsForRequest(agent.extension, request),
+				agent.extension
 			);
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
 			this._inFlightRequests.add(inFlightRequest);
@@ -584,7 +584,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			const toolReferences = h.request.variables.variables
 				.filter(v => v.kind === 'tool')
 				.map(typeConvert.ChatLanguageModelToolReference.to);
-			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences);
+			const editedFileEvents = isProposedApiEnabled(extension, 'chatParticipantPrivate') ? h.request.editedFileEvents : undefined;
+			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents);
 			res.push(turn);
 
 			// RESPONSE turn

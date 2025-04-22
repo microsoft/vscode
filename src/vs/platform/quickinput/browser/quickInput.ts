@@ -13,7 +13,7 @@ import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { equals } from '../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -103,7 +103,7 @@ export interface QuickInputUI {
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	inlineActionBar: ActionBar;
-	checkAll: HTMLInputElement;
+	checkAll: Checkbox;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
@@ -1056,6 +1056,9 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		}
 		if (this.ui.list.ariaLabel !== ariaLabel) {
 			this.ui.list.ariaLabel = ariaLabel ?? null;
+		}
+		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+			this.ui.inputBox.ariaLabel = ariaLabel ?? 'input';
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;

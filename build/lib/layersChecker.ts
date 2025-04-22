@@ -86,7 +86,12 @@ const CORE_TYPES = [
 	'MessageEvent',
 
 	// node web types
+	'ReadableStream',
+	'ReadableStreamReadResult',
+	'ReadableStreamGenericReader',
 	'ReadableStreamDefaultReader',
+	'value',
+	'done',
 	'DOMException',
 ];
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -80,6 +81,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	private _refCounter: number = 1;
 
 	readonly abstract originalURI: URI;
+
+	protected readonly _userEditScheduler = this._register(new RunOnceScheduler(() => this._notifyAction('userModified'), 1000));
 
 	constructor(
 		readonly modifiedURI: URI,
@@ -189,7 +192,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _doReject(tx: ITransaction | undefined): Promise<void>;
 
-	private _notifyAction(outcome: 'accepted' | 'rejected') {
+	protected _notifyAction(outcome: 'accepted' | 'rejected' | 'userModified') {
 		this._chatService.notifyUserAction({
 			action: { kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome },
 			agentId: this._telemetryInfo.agentId,

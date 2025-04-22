@@ -44,6 +44,9 @@ export interface McpCollectionDefinition {
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
 
+	/** Resolves a server definition. If present, always called before a server starts. */
+	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
+
 	/** For lazy-loaded collections only: */
 	readonly lazy?: {
 		/** True if `serverDefinitions` were loaded from the cache */
@@ -78,6 +81,8 @@ export namespace McpCollectionDefinition {
 		readonly label: string;
 		readonly isTrustedByDefault: boolean;
 		readonly scope: StorageScope;
+		readonly canResolveLaunch: boolean;
+		readonly extensionId: string;
 	}
 
 	export function equals(a: McpCollectionDefinition, b: McpCollectionDefinition): boolean {
@@ -99,6 +104,8 @@ export interface McpServerDefinition {
 	readonly roots?: URI[] | undefined;
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
+	/** Nonce used for caching the server. Changing the nonce will indicate that tools need to be refreshed. */
+	readonly cacheNonce?: string;
 
 	readonly presentation?: {
 		/** Sort order of the definition. */
@@ -112,6 +119,7 @@ export namespace McpServerDefinition {
 	export interface Serialized {
 		readonly id: string;
 		readonly label: string;
+		readonly cacheNonce?: string;
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
 	}
@@ -124,6 +132,7 @@ export namespace McpServerDefinition {
 		return {
 			id: def.id,
 			label: def.label,
+			cacheNonce: def.cacheNonce,
 			launch: McpServerLaunch.fromSerialized(def.launch),
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
@@ -228,6 +237,8 @@ export const enum McpServerToolsState {
 	Unknown,
 	/** Tools were read from the cache */
 	Cached,
+	/** Tools were read from the cache or live, but they may be outdated. */
+	Outdated,
 	/** Tools are refreshing for the first time */
 	RefreshingFromUnknown,
 	/** Tools are refreshing and the current tools are cached */
@@ -254,7 +265,7 @@ export const enum McpServerTransportType {
 	/** A command-line MCP server communicating over standard in/out */
 	Stdio = 1 << 0,
 	/** An MCP server that uses Server-Sent Events */
-	SSE = 1 << 1,
+	HTTP = 1 << 1,
 }
 
 /**
@@ -271,22 +282,23 @@ export interface McpServerTransportStdio {
 }
 
 /**
- * MCP server launched on the command line which communicated over server-sent-events.
+ * MCP server launched on the command line which communicated over SSE or Streamable HTTP.
  * https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/transports/#http-with-sse
+ * https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http
  */
-export interface McpServerTransportSSE {
-	readonly type: McpServerTransportType.SSE;
+export interface McpServerTransportHTTP {
+	readonly type: McpServerTransportType.HTTP;
 	readonly uri: URI;
 	readonly headers: [string, string][];
 }
 
 export type McpServerLaunch =
 	| McpServerTransportStdio
-	| McpServerTransportSSE;
+	| McpServerTransportHTTP;
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.SSE; uri: UriComponents; headers: [string, string][] }
+		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][] }
 		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -295,7 +307,7 @@ export namespace McpServerLaunch {
 
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
-			case McpServerTransportType.SSE:
+			case McpServerTransportType.HTTP:
 				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers };
 			case McpServerTransportType.Stdio:
 				return {

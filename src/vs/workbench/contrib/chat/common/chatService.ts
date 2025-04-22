@@ -255,7 +255,13 @@ export interface IChatToolInvocationSerialized {
 	isConfirmed: boolean | undefined;
 	isComplete: boolean;
 	toolCallId: string;
+	toolId: string;
 	kind: 'toolInvocationSerialized';
+}
+
+export interface IChatExtensionsContent {
+	extensions: string[];
+	kind: 'extensions';
 }
 
 export type IChatProgress =
@@ -278,6 +284,7 @@ export type IChatProgress =
 	| IChatConfirmation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
+	| IChatExtensionsContent
 	| IChatUndoStop;
 
 export interface IChatFollowup {
@@ -374,7 +381,7 @@ export interface IChatEditingSessionAction {
 	kind: 'chatEditingSessionAction';
 	uri: URI;
 	hasRemainingEdits: boolean;
-	outcome: 'accepted' | 'rejected' | 'saved';
+	outcome: 'accepted' | 'rejected' | 'userModified';
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
@@ -474,11 +481,6 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
-
-	/**
-	 * Flag to indicate whether a prompt instructions attachment is present.
-	 */
-	hasInstructionAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -522,6 +524,8 @@ export interface IChatService {
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
+
+	readonly edits2Enabled: boolean;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

@@ -20,7 +20,6 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
 import { IMcpService, IMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
@@ -94,9 +93,9 @@ export class AttachToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 			menu: {
 				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-				id: MenuId.ChatInputAttachmentToolbar,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1
+				order: 100
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
@@ -111,7 +110,6 @@ export class AttachToolsAction extends Action2 {
 		const quickPickService = accessor.get(IQuickInputService);
 		const mcpService = accessor.get(IMcpService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
-		const extensionService = accessor.get(IExtensionService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
@@ -185,7 +183,8 @@ export class AttachToolsAction extends Action2 {
 				if (!mcpServer) {
 					continue;
 				}
-				bucket = toolBuckets.get(mcpServer.definition.id) ?? {
+				const key = tool.source.type + mcpServer.definition.id;
+				bucket = toolBuckets.get(key) ?? {
 					type: 'item',
 					label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
 					status: localize('mcpstatus', "From {0} ({1})", mcpServer.collection.label, McpConnectionState.toString(mcpServer.connectionState.get())),
@@ -194,23 +193,19 @@ export class AttachToolsAction extends Action2 {
 					picked: false,
 					children: []
 				};
-				toolBuckets.set(mcpServer.definition.id, bucket);
+				toolBuckets.set(key, bucket);
 			} else if (tool.source.type === 'extension') {
-				const extensionId = tool.source.extensionId;
-				const ext = extensionService.extensions.find(value => ExtensionIdentifier.equals(value.identifier, extensionId));
-				if (!ext) {
-					continue;
-				}
+				const key = tool.source.type + ExtensionIdentifier.toKey(tool.source.extensionId);
 
-				bucket = toolBuckets.get(ExtensionIdentifier.toKey(extensionId)) ?? {
+				bucket = toolBuckets.get(key) ?? {
 					type: 'item',
-					label: ext.displayName ?? ext.name,
+					label: tool.source.label,
 					ordinal: BucketOrdinal.Extension,
 					picked: false,
 					source: tool.source,
 					children: []
 				};
-				toolBuckets.set(ExtensionIdentifier.toKey(ext.identifier), bucket);
+				toolBuckets.set(key, bucket);
 			} else if (tool.source.type === 'internal') {
 				bucket = defaultBucket;
 			} else {

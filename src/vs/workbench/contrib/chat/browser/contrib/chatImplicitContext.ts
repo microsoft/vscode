@@ -9,6 +9,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { assertDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -19,11 +20,13 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry, IPromptVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { createPromptVariableId } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -55,7 +58,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						Event.any(
 							codeEditor.onDidChangeModel,
 							codeEditor.onDidChangeCursorSelection,
-							codeEditor.onDidScrollChange),
+							codeEditor.onDidScrollChange,
+							codeEditor.onDidChangeModelLanguage),
 						() => undefined,
 						500)(() => this.updateImplicitContext()));
 				}
@@ -104,7 +108,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				return;
 			}
 			if (this._implicitContextEnablement[widget.location] === 'first' && widget.viewModel?.getItems().length !== 0) {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}));
 		this._register(this.chatWidgetService.onDidAddWidget(async (widget) => {
@@ -153,7 +157,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const selection = codeEditor?.getSelection();
 		let newValue: Location | URI | undefined;
 		let isSelection = false;
+
+		let languageId: string | undefined;
 		if (model) {
+			languageId = model.getLanguageId();
 			if (selection && !selection.isEmpty()) {
 				newValue = { uri: model.uri, range: selection } satisfies Location;
 				isSelection = true;
@@ -217,11 +224,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if (setting === 'first' && !isFirstInteraction) {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
-				widget.input.implicitContext.setValue(newValue, isSelection);
+				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
 			} else if (setting === 'never') {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}
 	}
@@ -229,6 +236,21 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
 	get id() {
+		// IDs for prompt files need to start with a special prefix
+		// that is used by the copilot extension to identify them
+		if (this.isPromptFile) {
+			assertDefined(
+				this.value,
+				'Implicit prompt attachments must have a value.',
+			);
+
+			const uri = URI.isUri(this.value)
+				? this.value
+				: this.value.uri;
+
+			return createPromptVariableId(uri, true);
+		}
+
 		if (URI.isUri(this.value)) {
 			return 'vscode.implicit.file';
 		} else if (this.value) {
@@ -243,10 +265,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
+		const fileType = this.isPromptFile ? 'prompt' : 'file';
+
 		if (URI.isUri(this.value)) {
-			return `file:${basename(this.value)}`;
+			return `${fileType}:${basename(this.value)}`;
 		} else if (this.value) {
-			return `file:${basename(this.value.uri)}`;
+			return `${fileType}:${basename(this.value.uri)}`;
 		} else {
 			return 'implicit';
 		}
@@ -255,6 +279,16 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
+		if (this.isPromptFile) {
+			if (URI.isUri(this.value)) {
+				return `User's active prompt file`;
+			} else if (this._isSelection) {
+				return `User's active selection inside prompt file`;
+			} else {
+				return `User's current visible prompt text`;
+			}
+		}
+
 		if (URI.isUri(this.value)) {
 			return `User's active file`;
 		} else if (this._isSelection) {
@@ -271,12 +305,17 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._isSelection;
 	}
 
-	private _onDidChangeValue = new Emitter<void>();
+	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
 	private _value: Location | URI | undefined;
 	get value() {
 		return this._value;
+	}
+
+	private _languageId: string | undefined;
+	get isPromptFile() {
+		return (this._languageId === PROMPT_LANGUAGE_ID);
 	}
 
 	private _enabled = true;
@@ -294,19 +333,29 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._value = value;
 	}
 
-	setValue(value: Location | URI | undefined, isSelection: boolean) {
+	setValue(value: Location | URI | undefined, isSelection: boolean, languageId?: string): void {
 		this._value = value;
 		this._isSelection = isSelection;
+		this._languageId = languageId;
 		this._onDidChangeValue.fire();
 	}
 
-	toBaseEntry(): IChatRequestFileEntry {
-		return {
+	toBaseEntry(): IChatRequestFileEntry | IPromptVariableEntry {
+		const result: IChatRequestFileEntry = {
 			kind: 'file',
 			id: this.id,
 			name: this.name,
 			value: this.value,
-			modelDescription: this.modelDescription
+			modelDescription: this.modelDescription,
+		};
+
+		if (this.isPromptFile === false) {
+			return result;
+		}
+
+		return {
+			...result,
+			isRoot: true,
 		};
 	}
 }

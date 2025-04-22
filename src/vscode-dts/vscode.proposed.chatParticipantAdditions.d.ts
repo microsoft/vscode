@@ -79,7 +79,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -157,6 +157,13 @@ declare module 'vscode' {
 		 * THis is currently only implemented for symbol links.
 		 */
 		resolve?(token: CancellationToken): Thenable<void>;
+	}
+
+	export class ChatResponseExtensionsPart {
+
+		readonly extensions: string[];
+
+		constructor(extensions: string[]);
 	}
 
 	export interface ChatResponseStream {
@@ -405,7 +412,7 @@ declare module 'vscode' {
 	}
 
 	export namespace lm {
-		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
+		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
 
 	export interface ChatVariableValue {

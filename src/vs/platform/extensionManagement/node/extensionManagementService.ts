@@ -34,6 +34,8 @@ import {
 	ExtensionSignatureVerificationCode,
 	computeSize,
 	IAllowedExtensionsService,
+	VerifyExtensionSignatureConfigKey,
+	shouldRequireRepositorySignatureFor,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -53,7 +55,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { isLinux } from '../../../base/common/platform.js';
 import { IExtensionGalleryManifestService } from '../common/extensionGalleryManifest.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
@@ -330,18 +331,17 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		if (verifySignature) {
-			const value = this.configurationService.getValue('extensions.verifySignature');
+			const value = this.configurationService.getValue(VerifyExtensionSignatureConfigKey);
 			verifySignature = isBoolean(value) ? value : true;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
-		const shouldRequireSignature = (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned;
+		const shouldRequireSignature = shouldRequireRepositorySignatureFor(extension.private, await this.extensionGalleryManifestService.getExtensionGalleryManifest());
 
 		if (
 			verificationStatus !== ExtensionSignatureVerificationCode.Success
 			&& !(verificationStatus === ExtensionSignatureVerificationCode.NotSigned && !shouldRequireSignature)
 			&& verifySignature
 			&& this.environmentService.isBuilt
-			&& !(isLinux && this.productService.quality === 'stable')
 		) {
 			try {
 				await this.extensionsDownloader.delete(location);

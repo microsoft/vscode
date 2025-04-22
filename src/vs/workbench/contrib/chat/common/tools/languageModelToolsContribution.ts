@@ -193,16 +193,14 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
 					const tool: IToolData = {
 						...rawTool,
-						source: { type: 'extension', extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
+						source: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
 						requiresConfirmation: !isBuiltinTool,
 						alwaysDisplayInputOutput: !isBuiltinTool,
-						supportsToolPicker: isBuiltinTool ?
-							false :
-							rawTool.canBeReferencedInPrompt
+						supportsToolPicker: rawTool.canBeReferencedInPrompt
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

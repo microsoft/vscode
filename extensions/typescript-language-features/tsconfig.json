@@ -14,6 +14,7 @@
 		"../../src/vscode-dts/vscode.proposed.codeActionAI.d.ts",
 		"../../src/vscode-dts/vscode.proposed.codeActionRanges.d.ts",
 		"../../src/vscode-dts/vscode.proposed.multiDocumentHighlightProvider.d.ts",
-		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts"
+		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",
+		"../../src/vscode-dts/vscode.proposed.editorHoverVerbosityLevel.d.ts",
 	]
 }

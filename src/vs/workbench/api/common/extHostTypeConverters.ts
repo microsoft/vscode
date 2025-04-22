@@ -34,7 +34,7 @@ import * as languageSelector from '../../../editor/common/languageSelector.js';
 import * as languages from '../../../editor/common/languages.js';
 import { EndOfLineSequence, TrackedRangeStickiness } from '../../../editor/common/model.js';
 import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
@@ -42,7 +42,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -55,7 +55,7 @@ import { TestId } from '../../contrib/testing/common/testId.js';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { CommandsConverter } from './extHostCommands.js';
@@ -63,6 +63,7 @@ import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 
 export namespace Command {
 
@@ -2327,10 +2328,9 @@ export namespace LanguageModelChatMessage {
 					}
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
-			} else if (c.type === 'image_url') {
-				// No image support for LanguageModelChatMessage
+			} else if (c.type === 'image_url' || c.type === 'extra_data') {
+				// Non-stable types
 				return undefined;
-
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2428,6 +2428,8 @@ export namespace LanguageModelChatMessage2 {
 				};
 
 				return new types.LanguageModelDataPart(value);
+			} else if (c.type === 'extra_data') {
+				return new types.LanguageModelExtraDataPart(c.kind, c.data);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2492,6 +2494,12 @@ export namespace LanguageModelChatMessage2 {
 					type: 'text',
 					value: c.value
 				};
+			} else if (c instanceof types.LanguageModelExtraDataPart) {
+				return {
+					type: 'extra_data',
+					kind: c.kind,
+					data: c.data
+				} satisfies chatProvider.IChatMessagePart;
 			} else {
 				if (typeof c !== 'string') {
 					throw new Error('Unexpected chat message content type');
@@ -2655,6 +2663,15 @@ export namespace ChatResponseWarningPart {
 	}
 }
 
+export namespace ChatResponseExtensionsPart {
+	export function from(part: vscode.ChatResponseExtensionsPart): Dto<IChatExtensionsContent> {
+		return {
+			kind: 'extensions',
+			extensions: part.extensions
+		};
+	}
+}
+
 export namespace ChatResponseMovePart {
 	export function from(part: vscode.ChatResponseMovePart): Dto<IChatMoveMessage> {
 		return {
@@ -2814,7 +2831,7 @@ export namespace ChatResponseCodeCitationPart {
 
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart | vscode.ChatResponseNotebookEditPart | vscode.ChatResponseExtensionsPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2843,6 +2860,8 @@ export namespace ChatResponsePart {
 			return ChatResponseCodeCitationPart.from(part);
 		} else if (part instanceof types.ChatResponseMovePart) {
 			return ChatResponseMovePart.from(part);
+		} else if (part instanceof types.ChatResponseExtensionsPart) {
+			return ChatResponseExtensionsPart.from(part);
 		}
 
 		return {
@@ -2878,10 +2897,11 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: vscode.LanguageModelToolInformation[] | undefined): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: vscode.LanguageModelToolInformation[] | undefined, extension: IRelaxedExtensionDescription): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
 		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
-		const requestWithoutId = {
+		const requestWithAllProps: vscode.ChatRequest = {
+			id: request.requestId,
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
@@ -2895,16 +2915,28 @@ export namespace ChatAgentRequest {
 			location2,
 			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
 			tools,
-			model
+			model,
+			editedFileEvents: request.editedFileEvents,
 		};
-		if (request.requestId) {
-			return {
-				...requestWithoutId,
-				id: request.requestId
-			};
+
+		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			delete (requestWithAllProps as any).id;
+			delete (requestWithAllProps as any).attempt;
+			delete (requestWithAllProps as any).enableCommandDetection;
+			delete (requestWithAllProps as any).isParticipantDetected;
+			delete (requestWithAllProps as any).location;
+			delete (requestWithAllProps as any).location2;
+			delete (requestWithAllProps as any).editedFileEvents;
 		}
-		// This cast is done to allow sending the stabl version of ChatRequest which does not have an id property
-		return requestWithoutId as unknown as vscode.ChatRequest;
+
+		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
+			delete requestWithAllProps.acceptedConfirmationData;
+			delete requestWithAllProps.rejectedConfirmationData;
+			delete (requestWithAllProps as any).tools;
+		}
+
+
+		return requestWithAllProps;
 	}
 }
 
@@ -3243,5 +3275,30 @@ export namespace LanguageModelToolResult {
 export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
+	}
+}
+
+export namespace McpServerDefinition {
+	function isHttpConfig(candidate: vscode.McpServerDefinition): candidate is vscode.McpHttpServerDefinition {
+		return !!(candidate as vscode.McpHttpServerDefinition).uri;
+	}
+
+	export function from(item: vscode.McpServerDefinition): McpServerLaunch.Serialized {
+		return McpServerLaunch.toSerialized(
+			isHttpConfig(item)
+				? {
+					type: McpServerTransportType.HTTP,
+					uri: item.uri,
+					headers: Object.entries(item.headers),
+				}
+				: {
+					type: McpServerTransportType.Stdio,
+					cwd: item.cwd,
+					args: item.args,
+					command: item.command,
+					env: item.env,
+					envFile: undefined,
+				}
+		);
 	}
 }

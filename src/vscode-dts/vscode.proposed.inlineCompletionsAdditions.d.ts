@@ -94,6 +94,8 @@ declare module 'vscode' {
 
 		readonly debounceDelayMs?: number;
 
+		onDidChange?: Event<void>;
+
 		// #region Deprecated methods
 
 		/** @deprecated */

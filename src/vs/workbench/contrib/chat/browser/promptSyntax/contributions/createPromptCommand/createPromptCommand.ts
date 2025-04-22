@@ -6,7 +6,7 @@
 import { localize } from '../../../../../../../nls.js';
 import { createPromptFile } from './utils/createPromptFile.js';
 import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
-import { askForPromptName } from './dialogs/askForPromptName.js';
+import { askForPromptFileName } from './dialogs/askForPromptName.js';
 import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
@@ -17,7 +17,7 @@ import { PromptsConfig } from '../../../../../../../platform/prompts/common/conf
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
+import { IPromptsService, TPromptsType } from '../../../../common/promptSyntax/service/types.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -27,36 +27,11 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../plat
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../../../platform/notification/common/notification.js';
 
 /**
- * Base command ID prefix.
- */
-const BASE_COMMAND_ID = 'workbench.command.prompts.create';
-
-/**
- * Command ID for creating a 'local' prompt.
- */
-const LOCAL_COMMAND_ID = `${BASE_COMMAND_ID}.local`;
-
-/**
- * Command ID for creating a 'user' prompt.
- */
-const USER_COMMAND_ID = `${BASE_COMMAND_ID}.user`;
-
-/**
- * Title of the 'create local prompt' command.
- */
-const LOCAL_COMMAND_TITLE = localize('commands.prompts.create.title.local', "Create Prompt");
-
-/**
- * Title of the 'create user prompt' command.
- */
-const USER_COMMAND_TITLE = localize('commands.prompts.create.title.user', "Create User Prompt");
-
-/**
  * The command implementation.
  */
 const command = async (
 	accessor: ServicesAccessor,
-	type: IPromptPath['type'],
+	type: TPromptsType,
 ): Promise<void> => {
 	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
@@ -69,13 +44,19 @@ const command = async (
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
 
-	const fileName = await askForPromptName(type, quickInputService);
-	if (!fileName) {
-		return;
-	}
+	const placeHolder = (type === 'instructions')
+		? localize(
+			'workbench.command.instructions.create.location.placeholder',
+			"Select a location to create the instructions file in...",
+		)
+		: localize(
+			'workbench.command.prompt.create.location.placeholder',
+			"Select a location to create the prompt file in...",
+		);
 
 	const selectedFolder = await askForPromptSourceFolder({
-		type: type,
+		type,
+		placeHolder,
 		labelService,
 		openerService,
 		promptsService,
@@ -87,13 +68,23 @@ const command = async (
 		return;
 	}
 
-	const content = localize(
-		'workbench.command.prompts.create.initial-content',
-		"Add prompt contents...",
-	);
+	const fileName = await askForPromptFileName(type, quickInputService);
+	if (!fileName) {
+		return;
+	}
+
+	const content = (type === 'instructions')
+		? localize(
+			'workbench.command.instructions.create.initial-content',
+			"Add instructions...",
+		)
+		: localize(
+			'workbench.command.prompt.create.initial-content',
+			"Add prompt contents...",
+		);
 	const promptUri = await createPromptFile({
 		fileName,
-		folder: selectedFolder,
+		folder: selectedFolder.uri,
 		content,
 		fileService,
 		openerService,
@@ -101,7 +92,7 @@ const command = async (
 
 	await openerService.open(promptUri);
 
-	if (type !== 'user') {
+	if (selectedFolder.storage !== 'user') {
 		return;
 	}
 
@@ -148,55 +139,43 @@ const command = async (
 	);
 };
 
-/**
- * Factory for creating the command handler with specific prompt `type`.
- */
-const commandFactory = (type: 'local' | 'user') => {
-	return async (accessor: ServicesAccessor): Promise<void> => {
-		return command(accessor, type);
-	};
-};
+function register(type: TPromptsType, id: string, title: string) {
+	/**
+	 * Register the command.
+	 */
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id,
+		weight: KeybindingWeight.WorkbenchContrib,
+		handler: async (accessor: ServicesAccessor): Promise<void> => {
+			return command(accessor, type);
+		},
+		when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+	});
 
-/**
- * Register the "Create Prompt" command.
- */
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: LOCAL_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	handler: commandFactory('local'),
-	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-});
+	/**
+	 * Register the command in the command palette.
+	 */
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id,
+			title,
+			category: CHAT_CATEGORY
+		},
+		when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+	});
+}
 
-/**
- * Register the "Create User Prompt" command.
- */
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: USER_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	handler: commandFactory('user'),
-	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-});
+export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
+export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
 
-/**
- * Register the "Create Prompt" command in the command palette.
- */
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: LOCAL_COMMAND_ID,
-		title: LOCAL_COMMAND_TITLE,
-		category: CHAT_CATEGORY
-	},
-	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
-});
+register(
+	'instructions',
+	NEW_INSTRUCTIONS_COMMAND_ID,
+	localize('commands.new.instructions.local.title', "New Instructions File...")
+);
+register(
+	'prompt',
+	NEW_PROMPT_COMMAND_ID,
+	localize('commands.new.prompt.local.title', "New Prompt File...")
+);
 
-/**
- * Register the "Create User Prompt" command in the command palette.
- */
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: USER_COMMAND_ID,
-		title: USER_COMMAND_TITLE,
-		category: CHAT_CATEGORY,
-	},
-	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
-});

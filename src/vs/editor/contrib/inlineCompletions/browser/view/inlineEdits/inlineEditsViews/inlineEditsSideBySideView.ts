@@ -581,7 +581,6 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
-			zIndex: '0',
 			display: this._display,
 		},
 	}, [

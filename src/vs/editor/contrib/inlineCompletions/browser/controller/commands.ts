@@ -349,7 +349,7 @@ export class DevExtractReproSample extends EditorAction {
 			id: 'editor.action.inlineSuggest.dev.extractRepro',
 			label: nls.localize('action.inlineSuggest.dev.extractRepro', "Developer: Extract Inline Suggest State"),
 			alias: 'Developer: Inline Suggest Extract Repro',
-			precondition: InlineCompletionContextKeys.inlineEditVisible,
+			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineEditVisible, InlineCompletionContextKeys.inlineSuggestionVisible),
 		});
 	}
 

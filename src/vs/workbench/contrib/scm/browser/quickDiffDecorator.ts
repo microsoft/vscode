@@ -13,17 +13,19 @@ import { ModelDecorationOptions } from '../../../../editor/common/model/textMode
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
-import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition } from '../../../../editor/common/model.js';
+import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition, IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ChangeType, getChangeType, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../common/quickDiff.js';
+import { ChangeType, getChangeType, IQuickDiffService, QuickDiffProvider, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../common/quickDiff.js';
 import { QuickDiffModel, IQuickDiffModelService } from './quickDiffModel.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyTrueExpr, ContextKeyFalseExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { autorun, autorunWithStore, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const quickDiffDecorationCount = new RawContextKey<number>('quickDiffDecorationCount', 0);
 
@@ -58,10 +60,15 @@ class QuickDiffDecorator extends Disposable {
 	}
 
 	private addedOptions: ModelDecorationOptions;
+	private addedSecondaryOptions: ModelDecorationOptions;
 	private addedPatternOptions: ModelDecorationOptions;
+	private addedSecondaryPatternOptions: ModelDecorationOptions;
 	private modifiedOptions: ModelDecorationOptions;
+	private modifiedSecondaryOptions: ModelDecorationOptions;
 	private modifiedPatternOptions: ModelDecorationOptions;
+	private modifiedSecondaryPatternOptions: ModelDecorationOptions;
 	private deletedOptions: ModelDecorationOptions;
+	private deletedSecondaryOptions: ModelDecorationOptions;
 	private decorationsCollection: IEditorDecorationsCollection | undefined;
 
 	constructor(
@@ -77,37 +84,38 @@ class QuickDiffDecorator extends Disposable {
 		const minimap = decorations === 'all' || decorations === 'minimap';
 
 		const diffAdded = nls.localize('diffAdded', 'Added lines');
-		this.addedOptions = QuickDiffDecorator.createDecoration('dirty-diff-added', diffAdded, {
+		const diffAddedOptions = {
 			gutter,
 			overview: { active: overview, color: overviewRulerAddedForeground },
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
-		});
-		this.addedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added-pattern', diffAdded, {
-			gutter,
-			overview: { active: overview, color: overviewRulerAddedForeground },
-			minimap: { active: minimap, color: minimapGutterAddedBackground },
-			isWholeLine: true
-		});
+		};
+		this.addedOptions = QuickDiffDecorator.createDecoration('dirty-diff-added primary', diffAdded, diffAddedOptions);
+		this.addedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added primary pattern', diffAdded, diffAddedOptions);
+		this.addedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary', diffAdded, diffAddedOptions);
+		this.addedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary pattern', diffAdded, diffAddedOptions);
+
 		const diffModified = nls.localize('diffModified', 'Changed lines');
-		this.modifiedOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified', diffModified, {
+		const diffModifiedOptions = {
 			gutter,
 			overview: { active: overview, color: overviewRulerModifiedForeground },
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
-		});
-		this.modifiedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified-pattern', diffModified, {
-			gutter,
-			overview: { active: overview, color: overviewRulerModifiedForeground },
-			minimap: { active: minimap, color: minimapGutterModifiedBackground },
-			isWholeLine: true
-		});
-		this.deletedOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted', nls.localize('diffDeleted', 'Removed lines'), {
+		};
+		this.modifiedOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified primary', diffModified, diffModifiedOptions);
+		this.modifiedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified primary pattern', diffModified, diffModifiedOptions);
+		this.modifiedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary', diffModified, diffModifiedOptions);
+		this.modifiedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary pattern', diffModified, diffModifiedOptions);
+
+		const diffDeleted = nls.localize('diffDeleted', 'Removed lines');
+		const diffDeletedOptions = {
 			gutter,
 			overview: { active: overview, color: overviewRulerDeletedForeground },
 			minimap: { active: minimap, color: minimapGutterDeletedBackground },
 			isWholeLine: false
-		});
+		};
+		this.deletedOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted primary', diffDeleted, diffDeletedOptions);
+		this.deletedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted secondary', diffDeleted, diffDeletedOptions);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.diffDecorationsGutterPattern')) {
@@ -123,44 +131,66 @@ class QuickDiffDecorator extends Disposable {
 			return;
 		}
 
-		const visibleQuickDiffs = this.quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
-		const decorations = this.quickDiffModelRef.object.changes
-			.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label))
-			.map((labeledChange) => {
-				const change = labeledChange.change;
-				const changeType = getChangeType(change);
-				const startLineNumber = change.modifiedStartLineNumber;
-				const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
+		const primaryQuickDiff = this.quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
+		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(labeledChange => labeledChange.label === primaryQuickDiff?.label);
 
-				switch (changeType) {
-					case ChangeType.Add:
-						return {
-							range: {
-								startLineNumber: startLineNumber, startColumn: 1,
-								endLineNumber: endLineNumber, endColumn: 1
-							},
-							options: pattern.added ? this.addedPatternOptions : this.addedOptions
-						};
-					case ChangeType.Delete:
-						return {
-							range: {
-								startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
-								endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
-							},
-							options: this.deletedOptions
-						};
-					case ChangeType.Modify:
-						return {
-							range: {
-								startLineNumber: startLineNumber, startColumn: 1,
-								endLineNumber: endLineNumber, endColumn: 1
-							},
-							options: pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
-						};
-				}
-			});
+		const decorations: IModelDeltaDecoration[] = [];
+		for (const change of this.quickDiffModelRef.object.changes) {
+			const quickDiff = this.quickDiffModelRef.object.quickDiffs
+				.find(quickDiff => quickDiff.label === change.label);
+
+			if (!quickDiff?.visible) {
+				// Not visible
+				continue;
+			}
+
+			if (quickDiff.kind !== 'primary' && primaryQuickDiffChanges.some(c => c.change2.modified.overlapOrTouch(change.change2.modified))) {
+				// Overlap with primary quick diff changes
+				continue;
+			}
+
+			const changeType = getChangeType(change.change);
+			const startLineNumber = change.change.modifiedStartLineNumber;
+			const endLineNumber = change.change.modifiedEndLineNumber || startLineNumber;
+
+			switch (changeType) {
+				case ChangeType.Add:
+					decorations.push({
+						range: {
+							startLineNumber: startLineNumber, startColumn: 1,
+							endLineNumber: endLineNumber, endColumn: 1
+						},
+						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
+							? pattern.added ? this.addedPatternOptions : this.addedOptions
+							: pattern.added ? this.addedSecondaryPatternOptions : this.addedSecondaryOptions
+					});
+					break;
+				case ChangeType.Delete:
+					decorations.push({
+						range: {
+							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
+							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
+						},
+						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
+							? this.deletedOptions
+							: this.deletedSecondaryOptions
+					});
+					break;
+				case ChangeType.Modify:
+					decorations.push({
+						range: {
+							startLineNumber: startLineNumber, startColumn: 1,
+							endLineNumber: endLineNumber, endColumn: 1
+						},
+						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
+							? pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
+							: pattern.modified ? this.modifiedSecondaryPatternOptions : this.modifiedSecondaryOptions
+					});
+					break;
+			}
+		}
 
 		if (!this.decorationsCollection) {
 			this.decorationsCollection = this.codeEditor.createDecorationsCollection(decorations);
@@ -190,6 +220,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	private readonly quickDiffDecorationCount: IContextKey<number>;
 
 	private readonly activeEditor: IObservable<EditorInput | undefined>;
+	private readonly quickDiffProviders: IObservable<readonly QuickDiffProvider[]>;
 
 	// Resource URI -> Code Editor Id -> Decoration (Disposable)
 	private readonly decorators = new ResourceMap<DisposableMap<string>>();
@@ -201,6 +232,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickDiffModelService private readonly quickDiffModelService: IQuickDiffModelService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -211,6 +243,9 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 		this.activeEditor = observableFromEvent(this,
 			this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
+
+		this.quickDiffProviders = observableFromEvent(this,
+			this.quickDiffService.onDidChangeQuickDiffProviders, () => this.quickDiffService.providers);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));
@@ -257,16 +292,14 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 			.monaco-editor .dirty-diff-modified {
 				border-left-width:${state.width}px;
 			}
-			.monaco-editor .dirty-diff-added-pattern,
-			.monaco-editor .dirty-diff-added-pattern:before,
-			.monaco-editor .dirty-diff-modified-pattern,
-			.monaco-editor .dirty-diff-modified-pattern:before {
+			.monaco-editor .dirty-diff-added.pattern,
+			.monaco-editor .dirty-diff-added.pattern:before,
+			.monaco-editor .dirty-diff-modified.pattern,
+			.monaco-editor .dirty-diff-modified.pattern:before {
 				background-size: ${state.width}px ${state.width}px;
 			}
 			.monaco-editor .dirty-diff-added,
-			.monaco-editor .dirty-diff-added-pattern,
 			.monaco-editor .dirty-diff-modified,
-			.monaco-editor .dirty-diff-modified-pattern,
 			.monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};
 			}
@@ -282,6 +315,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		this.onEditorsChanged();
 
 		this.onDidActiveEditorChange();
+		this.onDidChangeQuickDiffProviders();
 
 		this.enabled = true;
 	}
@@ -330,6 +364,37 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 				const count = visibleDecorationCount.read(reader);
 				this.quickDiffDecorationCount.set(count);
 			}));
+		}));
+	}
+
+	private onDidChangeQuickDiffProviders(): void {
+		this.transientDisposables.add(autorunWithStore((reader, store) => {
+			const providers = this.quickDiffProviders.read(reader);
+
+			for (let index = 0; index < providers.length; index++) {
+				const provider = providers[index];
+				const visible = this.quickDiffService.isQuickDiffProviderVisible(provider.id);
+				const group = provider.kind !== 'contributed' ? '0_scm' : '1_contributed';
+				const order = index + 1;
+
+				store.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: `workbench.scm.action.toggleQuickDiffVisibility.${provider.id}`,
+							title: provider.label,
+							toggled: visible ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
+							menu: {
+								id: MenuId.SCMQuickDiffDecorations, group, order
+							},
+							f1: false
+						});
+					}
+					override run(accessor: ServicesAccessor): void {
+						const quickDiffService = accessor.get(IQuickDiffService);
+						quickDiffService.toggleQuickDiffProviderVisibility(provider.id);
+					}
+				}));
+			}
 		}));
 	}
 

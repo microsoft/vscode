@@ -9,9 +9,15 @@ import { PromptPathAutocompletion } from './promptPathAutocompletion.js';
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
 import { PromptLinkDiagnosticsInstanceManager } from './promptLinkDiagnosticsProvider.js';
-import { PromptDecorationsProviderInstanceManager } from './decorationsProvider/promptDecorationsProvider.js';
+import { PromptHeaderDiagnosticsInstanceManager } from './promptHeaderDiagnosticsProvider.js';
 import { BrandedService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptDecorationsProviderInstanceManager } from './decorationsProvider/promptDecorationsProvider.js';
 import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } from '../../../../../../common/contributions.js';
+
+/**
+ * Whether to enable decorations in the prompt editor.
+ */
+export const DECORATIONS_ENABLED = true;
 
 /**
  * Register all language features related to reusable prompts files.
@@ -19,7 +25,11 @@ import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } f
 export const registerReusablePromptLanguageFeatures = () => {
 	registerContribution(PromptLinkProvider);
 	registerContribution(PromptLinkDiagnosticsInstanceManager);
-	registerContribution(PromptDecorationsProviderInstanceManager);
+	registerContribution(PromptHeaderDiagnosticsInstanceManager);
+
+	if (DECORATIONS_ENABLED) {
+		registerContribution(PromptDecorationsProviderInstanceManager);
+	}
 
 	/**
 	 * We restrict this provider to `Unix` machines for now because of
