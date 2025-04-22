@@ -92,6 +92,12 @@ export interface IPromptsService extends IDisposable {
 	 */
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
 
+	/**
+	 * TODO: @legomushroom
+	 */
+	findInstructionFilesFor(
+		files: readonly URI[],
+	): Promise<readonly URI[]>;
 }
 
 export interface IChatPromptSlashCommand {

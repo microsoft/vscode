@@ -1194,6 +1194,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.setupChatModeAndTools(attachedContext.filter(isPromptFileChatVariable));
 			}
 
+			const automaticInstructions = await this.promptsService.findInstructionFilesFor(
+				attachedContext.map((variable) => {
+					const { value } = variable;
+
+					if (URI.isUri(value)) {
+						return value;
+					}
+
+					if (isLocation(value)) {
+						return value.uri;
+					}
+
+					return undefined;
+				}).filter(isDefined),
+			);
+
+			attachedContext.push(...automaticInstructions.map((uri) => {
+				return toChatVariable({ uri, isPromptFile: true }, true);
+			}));
+
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 				const editingSessionAttachedContext: IChatRequestVariableEntry[] = attachedContext;
