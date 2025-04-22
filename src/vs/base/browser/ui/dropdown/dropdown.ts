@@ -27,7 +27,7 @@ interface IBaseDropdownOptions {
 	labelRenderer?: ILabelRenderer;
 }
 
-class BaseDropdown extends ActionRunner {
+export class BaseDropdown extends ActionRunner {
 	private _element: HTMLElement;
 	private boxContainer?: HTMLElement;
 	private _label?: HTMLElement;
