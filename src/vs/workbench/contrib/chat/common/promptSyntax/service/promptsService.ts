@@ -17,6 +17,8 @@ import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import { FilePromptParser } from '../parsers/filePromptParser.js';
+import { match } from '../../../../../../base/common/glob.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 
@@ -157,6 +159,56 @@ export class PromptsService extends Disposable implements IPromptsService {
 				promptPath
 			};
 		});
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public async findInstructionFilesFor(
+		files: readonly URI[],
+	): Promise<readonly URI[]> {
+		const instructionFiles = await this.listPromptFiles('instructions');
+
+		const result: URI[] = [];
+		if (instructionFiles.length === 0) {
+			return result;
+
+		}
+
+		const maybeIncludeRules = await Promise.all(
+			instructionFiles.map(async (instruction) => {
+				const parser = this.initService.createInstance(
+					FilePromptParser,
+					instruction.uri,
+					{},
+				).start();
+
+				await parser.settled();
+
+				return parser.metadata.include;
+			}),
+		);
+
+		const includeRules = maybeIncludeRules.filter((instruction) => {
+			return instruction !== undefined;
+		});
+
+		if (includeRules.length === 0) {
+			return result;
+		}
+
+		// TODO: @legomushroom - return all "global" patterns even if files list is empty
+		for (const includeRule of includeRules) {
+			for (const file of files) {
+				if (match(includeRule, file.fsPath)) {
+					result.push(file);
+
+					continue;
+				}
+			}
+		}
+
+		return result;
 	}
 }
 
