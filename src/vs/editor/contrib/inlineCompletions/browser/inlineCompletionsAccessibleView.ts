@@ -17,7 +17,6 @@ import { InlineCompletionsModel } from './model/inlineCompletionsModel.js';
 import { TextEdit } from '../../../common/core/textEdit.js';
 import { LineEdit } from '../../../common/core/lineEdit.js';
 import { TextModelText } from '../../../common/model/textModelText.js';
-import { localize } from '../../../../nls.js';
 
 export class InlineCompletionsAccessibleView implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.View;
