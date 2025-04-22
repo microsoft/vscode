@@ -25,16 +25,7 @@ function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffPr
 		const bIsParent = isEqualOrParent(uri, b.rootUri!);
 
 		if (aIsParent && bIsParent) {
-			if (a.kind === 'primary') {
-				return -1;
-			} else if (b.kind === 'primary') {
-				return 1;
-			} else if (a.kind === 'secondary') {
-				return -1;
-			} else if (b.kind === 'secondary') {
-				return 1;
-			}
-			return 0;
+			return providerComparer(a, b);
 		} else if (aIsParent) {
 			return -1;
 		} else if (bIsParent) {
@@ -45,10 +36,27 @@ function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffPr
 	};
 }
 
+function providerComparer(a: QuickDiffProvider, b: QuickDiffProvider): number {
+	if (a.kind === 'primary') {
+		return -1;
+	} else if (b.kind === 'primary') {
+		return 1;
+	} else if (a.kind === 'secondary') {
+		return -1;
+	} else if (b.kind === 'secondary') {
+		return 1;
+	}
+	return 0;
+}
+
 export class QuickDiffService extends Disposable implements IQuickDiffService {
 	declare readonly _serviceBrand: undefined;
 
 	private quickDiffProviders: Set<QuickDiffProvider> = new Set();
+	get providers(): readonly QuickDiffProvider[] {
+		return Array.from(this.quickDiffProviders).sort(providerComparer);
+	}
+
 	private readonly _onDidChangeQuickDiffProviders = this._register(new Emitter<void>());
 	readonly onDidChangeQuickDiffProviders = this._onDidChangeQuickDiffProviders.event;
 
@@ -89,6 +97,17 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 		}));
 
 		return quickDiffs.filter(this.isQuickDiff);
+	}
+
+	toggleQuickDiffVisibility(label: string): void {
+		const quickDiff = Array.from(this.quickDiffProviders)
+			.find(provider => provider.label === label);
+		if (!quickDiff) {
+			return;
+		}
+
+		quickDiff.visible = !quickDiff.visible;
+		this._onDidChangeQuickDiffProviders.fire();
 	}
 }
 
