@@ -31,6 +31,10 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { IFileContentsProviderOptions } from '../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 
 /**
  * Represents a file reference with an expected
@@ -236,6 +240,20 @@ suite('PromptFileReference (Unix)', function () {
 		instantiationService.stub(IFileService, nullFileService);
 		instantiationService.stub(ILogService, nullLogService);
 		instantiationService.stub(IConfigurationService, nullConfigService);
+		instantiationService.stub(IModelService, { getModel() { return null; } });
+		instantiationService.stub(ILanguageService, {
+			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
+				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
+					return PROMPT_LANGUAGE_ID;
+				}
+
+				if (uri.path.endsWith(INSTRUCTION_FILE_EXTENSION)) {
+					return INSTRUCTIONS_LANGUAGE_ID;
+				}
+
+				return null;
+			}
+		});
 	});
 
 	test('• resolves nested file references', async function () {
@@ -1050,8 +1068,9 @@ suite('PromptFileReference (Unix)', function () {
 
 			assert.strictEqual(
 				include,
-				'**/*',
-				'Must have correct \'include\' metadata.',
+				undefined,
+				'Must have no \'include\' metadata.',
+				// TODO: @legomushroom  - add a test for instructions file
 			);
 		});
 

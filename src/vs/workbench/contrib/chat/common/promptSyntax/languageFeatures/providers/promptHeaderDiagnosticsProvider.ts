@@ -46,8 +46,8 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		}
 
 		const markers: IMarkerData[] = [];
-		for (const link of header.diagnostics) {
-			markers.push(toMarker(link));
+		for (const diagnostic of header.diagnostics) {
+			markers.push(toMarker(diagnostic));
 		}
 
 		this.markerService.changeOne(

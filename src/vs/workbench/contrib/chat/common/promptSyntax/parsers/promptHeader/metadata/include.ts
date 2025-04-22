@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptStringMetadata } from './record.js';
-import { PromptMetadataDiagnostic } from '../diagnostics.js';
+import { PromptMetadataDiagnostic, PromptMetadataError } from '../diagnostics.js';
 import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
+import { localize } from '../../../../../../../../nls.js';
 
 /**
  * TODO: @legomushroom - list
@@ -33,17 +35,37 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 		return RECORD_NAME;
 	}
 
-	/**
-	 * Validate the metadata record and collect all issues
-	 * related to its content.
-	 */
 	protected override validate(): readonly PromptMetadataDiagnostic[] {
 		const result: PromptMetadataDiagnostic[] = [
 			...super.validate(),
 		];
 
 		// TODO: @legomushroom - validate that is a valid glob pattern
-		// TODO: @legomushroom - validate that used only in instruction files
+
+		return result;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - use this on language change?
+	public validateDocumentLanguage(
+		languageId: string,
+	): readonly PromptMetadataDiagnostic[] {
+		const result: PromptMetadataDiagnostic[] = [];
+
+		if (languageId !== INSTRUCTIONS_LANGUAGE_ID) {
+			result.push(
+				new PromptMetadataError(
+					this.range,
+					localize(
+						'prompt.header.metadata.string.diagnostics.invalid-value-type',
+						"The '{0}' metadata record is only valid in instruction files.",
+						this.recordName,
+					),
+				),
+			);
+		}
 
 		return result;
 	}

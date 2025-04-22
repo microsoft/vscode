@@ -20,6 +20,11 @@ export interface IPromptContentsProvider extends IDisposable {
 	readonly uri: URI;
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	readonly languageId: string;
+
+	/**
 	 * Start the contents provider to produce the underlying contents.
 	 */
 	start(): this;

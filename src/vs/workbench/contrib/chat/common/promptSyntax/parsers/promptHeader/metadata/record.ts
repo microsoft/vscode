@@ -20,11 +20,15 @@ export abstract class PromptMetadataRecord {
 	 */
 	private readonly issues: PromptMetadataDiagnostic[];
 
+	/**
+	 * Full range of the metadata's record text in the prompt header.
+	 */
+	public get range(): Range {
+		return this.recordToken.range;
+	}
+
 	constructor(
-		/**
-		 * Full range of the metadata's record text in the prompt header.
-		 */
-		public readonly range: Range,
+		protected readonly recordToken: FrontMatterRecord,
 	) {
 
 		this.issues = [];
@@ -88,7 +92,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 
 	constructor(
 		expectedRecordName: string,
-		private readonly recordToken: FrontMatterRecord,
+		recordToken: FrontMatterRecord,
 	) {
 		// sanity check on the name of the record
 		const recordName = recordToken.nameToken.text;
@@ -97,7 +101,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 			`Record token must be '${expectedRecordName}', got '${recordName}'.`,
 		);
 
-		super(recordToken.range);
+		super(recordToken);
 	}
 
 	/**
