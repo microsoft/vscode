@@ -15,6 +15,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { Location } from '../../../../../editor/common/languages.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -325,6 +326,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IModelService private readonly modelService: IModelService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -358,6 +360,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 		// prompt can have any number of nested references, hence
 		// collect all of valid ones and return the entire list
+		await this.prompt.allSettled();
 		return [
 			// add all valid child references in the prompt
 			...this.prompt.allValidReferences.map((link) => {
@@ -392,14 +395,14 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			: value.uri;
 
 		const model = this.modelService.getModel(uri);
-		if ((model === null) || model.isDisposed()) {
-			// TODO: @legomushroom - log a warning
-			return;
+		const modelExists = (model !== null);
+		if ((modelExists === false) || model.isDisposed()) {
+			return this.logService.warn(
+				`cannot create prompt parser instance for ${uri.path} (model exists: ${modelExists})`,
+			);
 		}
 
-		this.prompt = this.promptsService
-			.getSyntaxParserFor(model)
-			.start();
+		this.prompt = this.promptsService.getSyntaxParserFor(model);
 	}
 
 	/**
