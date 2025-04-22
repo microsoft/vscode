@@ -204,7 +204,7 @@ function alertFocusedEditor(editor: MergeEditorType) {
 			alert(localize('mergeEditor.input2', "Right Input"));
 			break;
 		case 'result':
-			alert(localize('mergeEditor.result', "Result"));
+			alert(localize('mergeEditor.result', "Merge Result"));
 			break;
 	}
 }
