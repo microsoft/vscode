@@ -250,7 +250,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					}
 				} else {
 					const diff2 = observableValue(`diff${cell.handle}`, diff);
-					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
+					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2, true);
 					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
 					this._register(integration);
 					this._register(editor.onDidDispose(() => {

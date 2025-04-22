@@ -70,6 +70,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
+		renderDiffImmediately: boolean,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
@@ -147,14 +148,16 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 
 			// done: render diff
-			const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
+			if (!_entry.isCurrentlyBeingModifiedBy.read(r) || renderDiffImmediately) {
+				const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
-			codeEditorObs.getOption(EditorOption.fontInfo).read(r);
-			codeEditorObs.getOption(EditorOption.lineHeight).read(r);
+				codeEditorObs.getOption(EditorOption.fontInfo).read(r);
+				codeEditorObs.getOption(EditorOption.lineHeight).read(r);
 
-			const reviewMode = _entry.reviewMode.read(r);
-			const diff = documentDiffInfo.read(r);
-			this._updateDiffRendering(diff, reviewMode, isDiffEditor);
+				const reviewMode = _entry.reviewMode.read(r);
+				const diff = documentDiffInfo.read(r);
+				this._updateDiffRendering(diff, reviewMode, isDiffEditor);
+			}
 		}));
 
 
