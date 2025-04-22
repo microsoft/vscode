@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -16,6 +16,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
@@ -233,10 +234,16 @@ class McpToolImplementation implements IToolImpl {
 
 		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
 		const title = tool.definition.annotations?.title || ('`' + tool.definition.name + '`');
+		const subtitle = localize('msg.subtitle', "{0} (MCP Server)", server.definition.label);
 
 		return {
 			confirmationMessages: needsConfirmation ? {
 				title: localize('msg.title', "Run {0}", title),
+				subtitle: new MarkdownString(markdownCommandLink({
+					id: McpCommandIds.ShowConfiguration,
+					title: subtitle,
+					arguments: [server.collection.id, server.definition.id],
+				}), { isTrusted: true }),
 				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
 				allowAutoConfirm: true,
 			} : undefined,

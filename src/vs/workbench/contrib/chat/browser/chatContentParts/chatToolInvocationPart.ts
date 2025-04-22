@@ -168,9 +168,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
-		const title = toolInvocation.confirmationMessages.title;
-		const message = toolInvocation.confirmationMessages.message;
-		const allowAutoConfirm = toolInvocation.confirmationMessages.allowAutoConfirm;
+		const { title, message, subtitle, allowAutoConfirm } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -208,6 +206,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
 				title,
+				subtitle,
 				message,
 				buttons
 			));
@@ -323,6 +322,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
 				title,
+				subtitle,
 				elements.root,
 				toolInvocation.toolSpecificData?.kind === 'input',
 				buttons
@@ -436,6 +436,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget,
 			title,
+			undefined,
 			element,
 			false,
 			buttons

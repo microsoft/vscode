@@ -9,7 +9,7 @@ import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../..
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
@@ -18,6 +18,7 @@ import { Action } from '../../../../../base/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 export interface IChatConfirmationButton {
 	label: string;
@@ -48,12 +49,14 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 	constructor(
 		title: string,
+		subtitle: string | IMarkdownString | undefined,
 		buttons: IChatConfirmationButton[],
 		expandableMessage: boolean,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
@@ -87,6 +90,21 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
 		elements.title.append(renderedTitle.element);
+		if (subtitle) {
+			let str: MarkdownString;
+			if (typeof subtitle === 'string') {
+				str = new MarkdownString().appendText(subtitle);
+			} else {
+				str = new MarkdownString(subtitle.value, { supportThemeIcons: true, isTrusted: subtitle.isTrusted });
+			}
+			const renderedTitle = this._register(this.markdownRenderer.render(str, {
+				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+				actionHandler: { callback: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted), disposables: this._store },
+			}));
+			const wrapper = document.createElement('small');
+			wrapper.appendChild(renderedTitle.element);
+			elements.title.append(wrapper);
+		}
 		this.messageElement = elements.message;
 		buttons.forEach(buttonData => {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip };
@@ -133,14 +151,16 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		title: string,
+		subtitle: string | IMarkdownString | undefined,
 		private readonly message: string | IMarkdownString,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super(title, buttons, false, instantiationService, contextMenuService, configurationService, hostService);
+		super(title, subtitle, buttons, false, instantiationService, contextMenuService, configurationService, hostService, openerService);
 
 		const renderedMessage = this._register(this.markdownRenderer.render(
 			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
@@ -153,6 +173,7 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		title: string,
+		subtitle: string | IMarkdownString | undefined,
 		messageElement: HTMLElement,
 		messageElementIsExpandable: boolean,
 		buttons: IChatConfirmationButton[],
@@ -160,8 +181,9 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super(title, buttons, messageElementIsExpandable, instantiationService, contextMenuService, configurationService, hostService);
+		super(title, subtitle, buttons, messageElementIsExpandable, instantiationService, contextMenuService, configurationService, hostService, openerService);
 		this.renderMessage(messageElement);
 	}
 }

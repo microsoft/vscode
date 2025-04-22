@@ -120,6 +120,7 @@ export interface IToolResultTextPart {
 
 export interface IToolConfirmationMessages {
 	title: string;
+	subtitle: string | undefined | IMarkdownString;
 	message: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 }

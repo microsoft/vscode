@@ -17,11 +17,25 @@
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title {
-	font-weight: 600;
+	/* font-weight: 600; */
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title p {
 	margin: 0 0 4px 0;
+}
+
+.chat-confirmation-widget-title .rendered-markdown,
+.chat-confirmation-widget-title p {
+	display: inline-block;
+}
+
+.chat-confirmation-widget-title small {
+	font-size: 1em;
+	opacity: 0.85;
+
+	&::before {
+		content: ' \2013  ';
+	}
 }
 
 .chat-confirmation-widget .chat-confirmation-buttons-container,
