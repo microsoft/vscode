@@ -70,6 +70,13 @@ declare module 'vscode' {
 			readonly toolCalling?: boolean;
 			readonly agentMode?: boolean;
 		};
+
+		/**
+		 * Optional category to group models by in the model picker.
+		 * Has no effect if `isUserSelectable` is `false`.
+		 * If not specified, the model will appear in the "Other Models" category.
+		 */
+		readonly category?: { label: string };
 	}
 
 	export interface ChatResponseProviderMetadata {
