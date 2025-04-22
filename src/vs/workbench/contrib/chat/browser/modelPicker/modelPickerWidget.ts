@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from '../../../../../base/common/actions.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -18,7 +16,7 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { BaseDropdown, ILabelRenderer } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 
 interface IModelPickerActionItem {
 	model: ILanguageModelChatMetadataAndIdentifier;
@@ -28,12 +26,14 @@ interface IModelPickerActionItem {
 /**
  * Widget for picking a language model for chat.
  */
-export class ModelPickerWidget extends Disposable {
+export class ModelPickerWidget extends BaseDropdown {
 	private readonly _onDidChangeModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 	readonly onDidChangeModel = this._onDidChangeModel.event;
 
 	constructor(
-		private currentModel: ILanguageModelChatMetadataAndIdentifier,
+		container: HTMLElement,
+		labelRenderer: ILabelRenderer,
+		private readonly getCurrentModel: () => ILanguageModelChatMetadataAndIdentifier,
 		private readonly getModels: () => ILanguageModelChatMetadataAndIdentifier[],
 		private readonly setModel: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
@@ -42,14 +42,7 @@ export class ModelPickerWidget extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super();
-	}
-
-	/**
-	 * Get the label to display in the button that shows the current model
-	 */
-	get buttonLabel(): string {
-		return this.currentModel.metadata.name;
+		super(container, { labelRenderer });
 	}
 
 	/**
@@ -58,7 +51,7 @@ export class ModelPickerWidget extends Disposable {
 	private getActionItems(): IModelPickerActionItem[] {
 		const items: IModelPickerActionItem[] = this.getModels().map(model => ({
 			model,
-			isCurrent: model.identifier === this.currentModel.identifier
+			isCurrent: model.identifier === this.getCurrentModel().identifier
 		}));
 
 		return items;
@@ -100,7 +93,7 @@ export class ModelPickerWidget extends Disposable {
 	/**
 	 * Shows the picker at the specified anchor
 	 */
-	showAt(anchor: HTMLElement | StandardMouseEvent | IAnchor, container?: HTMLElement): void {
+	override show(): void {
 		const actionItems = this.getActionItems();
 		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = [];
 
@@ -151,9 +144,8 @@ export class ModelPickerWidget extends Disposable {
 
 		const delegate = {
 			onSelect: (item: ILanguageModelChatMetadataAndIdentifier) => {
-				if (item.identifier !== this.currentModel.identifier) {
+				if (item.identifier !== this.getCurrentModel().identifier) {
 					this.setModel(item);
-					this.currentModel = item;
 					this._onDidChangeModel.fire(item);
 				}
 				this.actionWidgetService.hide(false);
@@ -177,8 +169,8 @@ export class ModelPickerWidget extends Disposable {
 			false,
 			items,
 			delegate,
-			anchor,
-			container,
+			this.element,
+			undefined,
 			buttonBar
 		);
 	}

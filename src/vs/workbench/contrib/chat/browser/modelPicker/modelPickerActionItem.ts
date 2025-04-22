@@ -11,10 +11,8 @@ import { ModelPickerWidget } from './modelPickerWidget.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { BaseDropdownMenuActionViewItem } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -25,12 +23,10 @@ export interface IModelPickerDelegate {
 /**
  * Action view item for selecting a language model in the chat interface.
  */
-export class ModelPickerActionItem extends ActionViewItem {
-	private widget: ModelPickerWidget | undefined;
-
+export class ModelPickerActionItem extends BaseDropdownMenuActionViewItem {
 	constructor(
 		action: IAction,
-		private readonly currentModel: ILanguageModelChatMetadataAndIdentifier,
+		private currentModel: ILanguageModelChatMetadataAndIdentifier,
 		private readonly delegate: IModelPickerDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -39,84 +35,45 @@ export class ModelPickerActionItem extends ActionViewItem {
 			...action,
 			label: currentModel.metadata.name,
 			tooltip: localize('chat.modelPicker.label', "Pick Model"),
-			run: () => { /* Will be overridden by our click handler */ }
+			run: () => { }
 		};
 
-		super(undefined, actionWithLabel, { label: true });
+		super(actionWithLabel, (container, labelRenderer) => {
+			const widget = this.instantiationService.createInstance(
+				ModelPickerWidget,
+				container,
+				labelRenderer,
+				() => this.currentModel,
+				() => this.delegate.getModels(),
+				(model) => this.delegate.setModel(model)
+			);
+			this._register(widget);
+			this._register(widget.onDidChangeModel(model => {
+				this.currentModel = model;
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}));
+			return widget;
+		});
 
 		// Listen for model changes from the delegate
 		this._register(delegate.onDidChangeModel(model => {
-			this.action.label = model.metadata.name;
-			this.updateLabel();
+			this.currentModel = model;
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
 		}));
 	}
 
-	/**
-	 * Override rendering of the label to include the dropdown indicator
-	 */
-	protected override updateLabel(): void {
-		if (this.label) {
-			// Reset the label element with the current model name and a dropdown indicator
-			dom.reset(this.label,
-				dom.$('span.chat-model-label', undefined, this.action.label),
-				...renderLabelWithIcons(`$(${Codicon.chevronDown.id})`)
-			);
-		}
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		this.setAriaLabelAttributes(element);
+		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
+		return null;
 	}
 
-	/**
-	 * Override rendering to add CSS classes and initialize the widget
-	 */
 	override render(container: HTMLElement): void {
 		super.render(container);
-
-		// Add classes for styling this element
 		container.classList.add('chat-modelPicker-item');
-
-		// Create the model picker widget that will be shown when clicked
-		this.widget = this.instantiationService.createInstance(
-			ModelPickerWidget,
-			this.currentModel,
-			() => this.delegate.getModels(),
-			(model) => this.delegate.setModel(model)
-		);
-
-		// Register event handlers
-		this._register(this.widget.onDidChangeModel(model => {
-			this.action.label = model.metadata.name;
-			this.updateLabel();
-		}));
-	}
-
-	/**
-	 * Override the onClick to show our picker widget
-	 */
-	override onClick(event: MouseEvent): void {
-		if (!this.widget || !this.element) {
-			return;
-		}
-
-		this.show(this.element);
-
-		event.stopPropagation();
-		event.preventDefault();
-	}
-
-	show(anchor?: HTMLElement | StandardMouseEvent | IAnchor): void {
-		if (!this.widget || !this.element) {
-			return;
-		}
-
-		// Show the model picker at the current position
-		this.widget.showAt(anchor ?? this.element);
-	}
-
-	/**
-	 * Set aria label attributes on the element
-	 */
-	protected setAriaLabelAttributes(element: HTMLElement): void {
-		element.setAttribute('aria-label', localize('chatModelPicker', "Chat Model: {0}", this.action.label));
-		element.setAttribute('aria-haspopup', 'true');
-		element.setAttribute('role', 'button');
 	}
 }
