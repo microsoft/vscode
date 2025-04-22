@@ -94,9 +94,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		let languageId: string | undefined | null = undefined;
 		if (extension) {
 			languageId = this._languageService.getLanguageIdByLanguageName(extension);
-			// this._languageService.getLanguageName('python');
-			// this._languageService.getRegisteredLanguageIds();
-			// this._languageService.getLanguageIdByLanguageName("python");
 
 			// Fallback to common extensions
 			if (!languageId) {

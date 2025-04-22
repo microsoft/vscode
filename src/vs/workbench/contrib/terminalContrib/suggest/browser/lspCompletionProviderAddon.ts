@@ -23,22 +23,16 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	readonly triggerCharacters?: string[] | undefined;
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
-	// private _commandDetection: ICommandDetectionCapability | undefined;
-	// private _capabilitiesStore: ITerminalCapabilityStore;
+
 	constructor(
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
-		// capabilityStore: ITerminalCapabilityStore,
 		// triggerCharacters: string[] | undefined,
-		// id: string,
 	) {
 		super();
 		// this._capabilitiesStore = capabilityStore;
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
-		// this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
-		// this._registerCommandExecutionListener();
-
 	}
 
 	activate(terminal: Terminal): void {
@@ -51,13 +45,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	// 3. Then have each of the relevant providers call its provideCompletions method
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
-		// Hardcoded Python file, good for testing.
-		// const uri = URI.file('/Users/anthonykim/Desktop/Skeleton/my_test.py');
-		// const testRealUri = this._textModelService.canHandleResource(uri);
-		// const textModel = await this._textModelService.createModelReference(uri);
-		// const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
-
-		// Update virtual document before requesting completions
 
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
@@ -87,8 +74,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
-			// const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, new Position(4, 7), { triggerKind: CompletionTriggerKind.Invoke }, token);
-			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, position, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
+			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, new Position(2, 1), { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
 			console.log('position is: ', position);
 			// TODO: Discard duplicates (i.e. language should take precendence over word based completions)
 			// TODO: Discard completion items that we cannot map to terminal items (complex edits?)
