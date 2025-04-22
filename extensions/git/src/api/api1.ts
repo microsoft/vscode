@@ -378,12 +378,12 @@ export class ApiImpl implements API {
 		return this.getRepository(root) || null;
 	}
 
-	async openRepository(root: Uri): Promise<Repository | null> {
+	async openRepository(root: Uri, openIfClosed = false): Promise<Repository | null> {
 		if (root.scheme !== 'file') {
 			return null;
 		}
 
-		await this.#model.openRepository(root.fsPath);
+		await this.#model.openRepository(root.fsPath, openIfClosed, true);
 		return this.getRepository(root) || null;
 	}
 
