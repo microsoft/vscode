@@ -18,7 +18,7 @@ export abstract class PromptMetadataRecord {
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
 	 */
-	protected readonly issues: PromptMetadataDiagnostic[];
+	private readonly issues: PromptMetadataDiagnostic[];
 
 	constructor(
 		/**
