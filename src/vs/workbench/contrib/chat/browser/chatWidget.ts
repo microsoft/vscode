@@ -1192,9 +1192,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					attachedContext.push(result.attachment);
 				}
 
-				await this.setupChatModeAndTools(
-					attachedContext.filter(isPromptFileChatVariable),
-				);
+				const promptFileVariables = attachedContext.filter(isPromptFileChatVariable);
+				await this.setupChatModeAndTools(promptFileVariables);
+
+				if (promptFileVariables.length > 0) {
+					input = `Follow the prompt instructions from ${promptFileVariables.map(v => v.name).join(', ')}\n${input}`;
+				}
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
