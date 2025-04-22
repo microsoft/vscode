@@ -185,7 +185,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 				await parser.settled();
 
-				return parser.metadata.include;
+				if (parser.metadata.include === undefined) {
+					return undefined;
+				}
+
+				return {
+					uri: instruction.uri,
+					rule: parser.metadata.include,
+				};
 			}),
 		);
 
@@ -198,10 +205,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		// TODO: @legomushroom - return all "global" patterns even if files list is empty
-		for (const includeRule of includeRules) {
+		for (const { uri: instructionUri, rule } of includeRules) {
 			for (const file of files) {
-				if (match(includeRule, file.fsPath)) {
-					result.push(file);
+				if (match(rule, file.fsPath)) {
+					result.push(instructionUri);
 
 					continue;
 				}
@@ -216,7 +223,6 @@ export function getPromptCommandName(path: string) {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
 	return name;
 }
-
 
 /**
  * Utility to add a provided prompt `type` to a prompt URI.

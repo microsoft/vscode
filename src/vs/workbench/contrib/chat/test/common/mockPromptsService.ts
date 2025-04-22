@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
@@ -34,6 +35,9 @@ export class MockPromptsService implements IPromptsService {
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		throw new Error('Method not implemented.');
 	}
-	dispose(): void {
+	dispose(): void { }
+
+	findInstructionFilesFor(files: readonly URI[]): Promise<readonly URI[]> {
+		throw new Error('Method not implemented.');
 	}
 }
