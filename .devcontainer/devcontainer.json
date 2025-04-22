@@ -1,83 +1,77 @@
 {
-	"name": "Code - OSS",
-	"build": {
-		"dockerfile": "Dockerfile"
-	},
-	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		"ghcr.io/devcontainers/features/desktop-lite:1.2.6": {},
-		"ghcr.io/devcontainers/features/rust:1.3.2": {},
-		"ghcr.io/devcontainers/features/java:1": {
-			"version": "17"
-		}
-	},
-	"runArgs": [
-		"--privileged",
-		"--cap-add=ALL",
-		"--security-opt=seccomp=unconfined",
-		"--security-opt=apparmor=unconfined",
-		"--security-opt=no-new-privileges"
-	],
-	"mounts": [
-		{
-			"source": "vscode-dev",
-			"target": "/vscode-dev",
-			"type": "volume"
-		},
-		{
-			"source": "/var/run/docker.sock",
-			"target": "/var/run/docker.sock",
-			"type": "bind"
-		}
-	],
-	"containerEnv": {
-		"DOCKER_TLS_CERTDIR": "",
-		"DOCKER_HOST": "unix:///var/run/docker.sock",
-		"DISPLAY": "",
-		"JAVA_HOME": "/usr/local/openjdk-17"
-	},
-	"overrideCommand": false,
-	"privileged": true,
-	"postCreateCommand": "./.devcontainer/scripts/post-create.sh",
-	"customizations": {
-		"vscode": {
-			"settings": {
-				"resmon.show.battery": false,
-				"resmon.show.cpufreq": false,
-				"java.jdt.ls.java.home": "/usr/local/openjdk-17"
-			},
-			"extensions": [
-				"ms-vscode.vscode-insiders",
-				"github.copilot",
-				"github.copilot-chat",
-				"github.copilot-agent",
-				"dbaeumer.vscode-eslint",
-				"EditorConfig.EditorConfig",
-				"GitHub.vscode-pull-request-github",
-				"ms-vscode.vscode-github-issue-notebooks",
-				"ms-vscode.vscode-selfhost-test-provider",
-				"mutantdino.resourcemonitor"
-			]
-		}
-	},
-	"forwardPorts": [
-		6080,
-		5901
-	],
-	"portsAttributes": {
-		"6080": {
-			"label": "VNC web client (noVNC)",
-			"onAutoForward": "silent"
-		},
-		"5901": {
-			"label": "VNC TCP port",
-			"onAutoForward": "silent"
-		}
-	},
-	"hostRequirements": {
-		"gpu": "optional",
-		"cpus": 10,
-		"storage": "50",
-		"memory": "12gb"
-	}
+  "name": "Code - OSS",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // ...Do NOT include a "features" block here...
+  "runArgs": [
+    "--privileged",
+    "--cap-add=ALL",
+    "--security-opt=seccomp=unconfined",
+    "--security-opt=apparmor=unconfined",
+    "--security-opt=no-new-privileges"
+  ],
+  "mounts": [
+    {
+      "source": "vscode-dev",
+      "target": "/vscode-dev",
+      "type": "volume"
+    },
+    {
+      "source": "/var/run/docker.sock",
+      "target": "/var/run/docker.sock",
+      "type": "bind"
+    }
+  ],
+  "containerEnv": {
+    "DOCKER_TLS_CERTDIR": "",
+    "DOCKER_HOST": "unix:///var/run/docker.sock",
+    "DISPLAY": "",
+    "JAVA_HOME": "/usr/local/openjdk-21"
+  },
+  "overrideCommand": false,
+  "privileged": true,
+  "postCreateCommand": "./.devcontainer/scripts/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "resmon.show.battery": false,
+        "resmon.show.cpufreq": false,
+        "java.jdt.ls.java.home": "/usr/local/openjdk-21"
+      },
+      "extensions": [
+        "ms-vscode.vscode-insiders",
+        "github.copilot",
+        "github.copilot-chat",
+        "github.copilot-agent",
+        "GitHub.codespaces",
+        "dbaeumer.vscode-eslint",
+        "EditorConfig.EditorConfig",
+        "GitHub.vscode-pull-request-github",
+        "ms-vscode.vscode-github-issue-notebooks",
+        "ms-vscode.vscode-selfhost-test-provider",
+        "mutantdino.resourcemonitor"
+      ]
+    }
+  },
+  "forwardPorts": [
+    6080,
+    5901
+  ],
+  "portsAttributes": {
+    "6080": {
+      "label": "VNC web client (noVNC)",
+      "onAutoForward": "silent"
+    },
+    "5901": {
+      "label": "VNC TCP port",
+      "onAutoForward": "silent"
+    }
+  },
+  "hostRequirements": {
+    "gpu": "optional",
+    "cpus": 10,
+    "storage": "50",
+    "memory": "12gb"
+  }
 }

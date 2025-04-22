@@ -1,0 +1,11 @@
+{
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:latest": {},
+    "ghcr.io/devcontainers/features/rust:latest": {},
+    "ghcr.io/devcontainers/features/github-cli:latest": {
+      "installLFS": true
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:latest": {},
+    "ghcr.io/devcontainers/features/java:latest": {}
+  }
+}
