@@ -39,7 +39,7 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	registerQuickDiffProvider(selector: vscode.DocumentSelector, quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 		const handle = ExtHostQuickDiff.handlePool++;
 		this.providers.set(handle, quickDiffProvider);
-		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), label, rootUri, quickDiffProvider.visible ?? true);
+		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), label, rootUri);
 		return {
 			dispose: () => {
 				this.proxy.$unregisterQuickDiffProvider(handle);
