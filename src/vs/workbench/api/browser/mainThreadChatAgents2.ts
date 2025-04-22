@@ -21,6 +21,7 @@ import { ILanguageFeaturesService } from '../../../editor/common/services/langua
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
@@ -102,6 +103,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -227,7 +229,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
-		const revivedProgress = progress.kind === 'notebookEdit' ? ChatNotebookEdit.fromChatEdit(revive(progress)) : revive(progress) as IChatProgress;
+
+		const revivedProgress = progress.kind === 'notebookEdit'
+			? ChatNotebookEdit.fromChatEdit(revive(progress))
+			: revive(progress) as IChatProgress;
+
+		if (revivedProgress.kind === 'notebookEdit'
+			|| revivedProgress.kind === 'textEdit'
+			|| revivedProgress.kind === 'codeblockUri'
+		) {
+			// make sure to use the canonical uri
+			revivedProgress.uri = this._uriIdentityService.asCanonicalUri(revivedProgress.uri);
+		}
+
 		if (revivedProgress.kind === 'progressTask') {
 			const handle = ++this._responsePartHandlePool;
 			const responsePartId = `${requestId}_${handle}`;
