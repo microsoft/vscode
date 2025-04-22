@@ -297,6 +297,7 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
+					/* 07 */"	include: 'frontend/**/*spec.ts'",
 					/* 08 */"---",
 					/* 09 */"The cactus on my desk has a thriving Instagram account.",
 					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
@@ -311,7 +312,7 @@ suite('TextModelPromptParser', () => {
 					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 					text: '[text](./foo-bar-baz/another-file.ts)',
 					path: './foo-bar-baz/another-file.ts',
-					startLine: 10,
+					startLine: 11,
 					startColumn: 43,
 					pathStartColumn: 50,
 					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
@@ -324,7 +325,7 @@ suite('TextModelPromptParser', () => {
 				'Prompt header must be defined.',
 			);
 
-			const { tools, mode, description } = metadata;
+			const { tools, mode, description, include } = metadata;
 			assert.deepStrictEqual(
 				tools,
 				['tool_name1', 'tool_name2'],
@@ -334,13 +335,19 @@ suite('TextModelPromptParser', () => {
 			assert.strictEqual(
 				mode,
 				'agent',
-				`Prompt header must have correct mode metadata.`,
+				`Prompt header must have correct 'mode' metadata.`,
 			);
 
 			assert.strictEqual(
 				description,
 				'My prompt.',
-				`Prompt header must have correct description metadata.`,
+				`Prompt header must have correct 'description' metadata.`,
+			);
+
+			assert.strictEqual(
+				include,
+				'frontend/**/*spec.ts',
+				`Prompt header must have correct 'include' metadata.`,
 			);
 		});
 
