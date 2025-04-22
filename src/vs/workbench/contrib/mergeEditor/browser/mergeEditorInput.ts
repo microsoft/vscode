@@ -198,10 +198,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 function alertFocusedEditor(editor: MergeEditorType) {
 	switch (editor) {
 		case 'input1':
-			alert(localize('mergeEditor.input1', "Left Input"));
+			alert(localize('mergeEditor.input1', "Incoming, Left Input"));
 			break;
 		case 'input2':
-			alert(localize('mergeEditor.input2', "Right Input"));
+			alert(localize('mergeEditor.input2', "Current, Right Input"));
 			break;
 		case 'result':
 			alert(localize('mergeEditor.result', "Merge Result"));
