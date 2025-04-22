@@ -601,9 +601,10 @@ export function registerChatCodeCompareBlockActions() {
 			const textEdits = AsyncIterableObject.fromArray(item.edits);
 
 			const editorToApply = await editorService.openCodeEditor({ resource: item.uri }, null);
-			if (editorToApply) {
+			const uri = editorToApply?.getModel()?.uri;
+			if (editorToApply && uri) {
 				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-				instaService.invokeFunction(reviewEdits, editorToApply, textEdits, CancellationToken.None);
+				instaService.invokeFunction(reviewEdits, uri, textEdits, CancellationToken.None);
 				response.setEditApplied(item, 1);
 				return true;
 			}
