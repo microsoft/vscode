@@ -15,6 +15,7 @@ import { localize } from '../../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
@@ -120,6 +121,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -401,7 +403,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					const cellViewModel = this.getCellViewModel(change);
 					if (cellViewModel) {
 						this.updateCurrentIndex(change, indexInCell);
-						this.revealChangeInView(cellViewModel, textChange?.modified, change);
+						this.revealChangeInView(cellViewModel, textChange?.modified, change)
+							.catch(err => { this.logService.warn(`Error revealing change in view: ${err}`); });
 						return true;
 					}
 					break;
@@ -429,11 +432,12 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	private async revealChangeInView(cell: ICellViewModel, lines: LineRange | undefined, change: ICellDiffInfo): Promise<void> {
 		const targetLines = lines ?? new LineRange(0, 0);
-		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
+		if (change.type === 'modified' && cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
 			cell.updateEditState(CellEditState.Editing, 'chatEditNavigation');
 		}
 
-		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: targetLines.startLineNumber });
+		const focusTarget = cell.cellKind === CellKind.Code || change.type === 'modified' ? 'editor' : 'container';
+		await this.notebookEditor.focusNotebookCell(cell, focusTarget, { focusEditorLine: targetLines.startLineNumber });
 		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(targetLines.startLineNumber, 0, targetLines.endLineNumberExclusive, 0));
 	}
 
