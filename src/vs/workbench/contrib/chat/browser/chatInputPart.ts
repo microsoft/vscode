@@ -163,7 +163,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public async getAttachedAndImplicitContext(sessionId: string): Promise<IChatRequestVariableEntry[]> {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
-			contextArr.push(this.implicitContext.toBaseEntry());
+
+			const implicitChatVariables = await this.implicitContext.toBaseEntries();
+			contextArr.push(...implicitChatVariables);
 		}
 
 		// factor in nested file links of a prompt into the implicit context
@@ -899,7 +901,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		if (this.options.enableImplicitContext) {
-			this._implicitContext = this._register(new ChatImplicitContext());
+			this._implicitContext = this._register(
+				this.instantiationService.createInstance(ChatImplicitContext, undefined),
+			);
+
 			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
 		}
 

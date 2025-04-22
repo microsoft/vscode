@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
+import { basename } from '../../../../../../base/common/path.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
-import { localize } from '../../../../../../nls.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 
 /**
  * Provides prompt services.
@@ -81,7 +81,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		model: ITextModel,
 	): TextModelPromptParser & { disposed: false } {
 		assert(
-			!model.isDisposed(),
+			model.isDisposed() === false,
 			'Cannot create a prompt syntax parser for a disposed model.',
 		);
 
