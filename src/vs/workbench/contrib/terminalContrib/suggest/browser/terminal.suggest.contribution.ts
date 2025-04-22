@@ -184,7 +184,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		// only take a provider with ms-python.python(.["') name
 		const provider = virtualProviders.find(p => p._debugDisplayName === `ms-python.python(.["')`);
 		if (provider) {
-			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel);
+			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
 			xterm.loadAddon(lspCompletionProviderAddon);
 			this.add(this._terminalCompletionService.registerTerminalCompletionProvider('lsp', lspCompletionProviderAddon.id, lspCompletionProviderAddon));
 		}

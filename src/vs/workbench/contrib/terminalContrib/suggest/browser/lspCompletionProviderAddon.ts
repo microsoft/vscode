@@ -11,6 +11,7 @@ import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompl
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 
 // IMPORTANT: Each LSPCompletionProviderAddon should be responsible for managing ONE specific language server completion provider.
 // Rather than handling all of them.
@@ -23,16 +24,19 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	readonly triggerCharacters?: string[] | undefined;
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
+	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
 
 	constructor(
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
 		// triggerCharacters: string[] | undefined,
+		lspTerminalModelContentProvider: LspTerminalModelContentProvider,
 	) {
 		super();
 		// this._capabilitiesStore = capabilityStore;
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
+		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
 	}
 
 	activate(terminal: Terminal): void {
@@ -46,11 +50,18 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 
+		// APPLY EDIT FOR CURRENT REPL LINE, this is not executed yet.
+		this._lspTerminalModelContentProvider.mockTypingContent(value);
+
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
-		const lineNumber = lines.length;
+		// const lineNumber = lines.length;
 		const column = lines[lines.length - 1].length + 1;
-		const position = new Position(lineNumber, column);
+
+		// get line from virtualDocument, not from terminal
+		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
+		// const position = new Position(lineNumber, column);
+		const positionVirtualDocument = new Position(lineNum, column);
 
 		// Calculate replacement index and length, similar to pwshCompletionProviderAddon
 		let replacementIndex = 0;
@@ -74,8 +85,8 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
-			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, new Position(2, 1), { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-			console.log('position is: ', position);
+			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.Invoke }, token);
+			console.log('position of virtual document is: ', positionVirtualDocument);
 			// TODO: Discard duplicates (i.e. language should take precendence over word based completions)
 			// TODO: Discard completion items that we cannot map to terminal items (complex edits?)
 			completions.push(...(result?.suggestions || []).map((e: any) => ({

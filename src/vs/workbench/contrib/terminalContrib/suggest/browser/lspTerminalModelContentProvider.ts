@@ -16,9 +16,9 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	static readonly scheme = Schemas.vscodeTerminal;
 	private _commandDetection: ICommandDetectionCapability | undefined;
 	private _capabilitiesStore: ITerminalCapabilityStore;
-	private readonly _terminalId: number;
+	// private readonly _terminalId: number;
 	private readonly _virtualTerminalDocumentUri: URI;
-
+	private _flush = false;
 	constructor(
 		capabilityStore: ITerminalCapabilityStore,
 		terminalId: number,
@@ -33,7 +33,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._capabilitiesStore = capabilityStore;
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		this._registerTerminalCommandFinishedListener();
-		this._terminalId = terminalId;
+		// this._terminalId = terminalId;
 		this._virtualTerminalDocumentUri = virtualTerminalDocument;
 	}
 
@@ -51,14 +51,39 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			if (model) {
 				// append to existing content
 				const existingContent = model.getValue();
-				const newContent = existingContent + content + '\n';
+				const newContent = existingContent + '\n' + content + '\n';
 				model.setValue(newContent);
-				console.log('existing content was: ' + existingContent + '\n');
-				console.log('appending conent: ' + content + '\n');
-				console.log('new content is: ', newContent + '\n');
 			}
 		}
+	}
 
+	mockTypingContent(content: string): void {
+		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
+		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
+			content !== `export PYTHONSTARTUP=/Users/anthonykim/Desktop/vscode-python/python_files/pythonrc.py` &&
+			content !== 'exit()') {
+			if (model) {
+				if (this._flush) {
+					const existingContent = model.getValue();
+					const delimiter = 'yo= {}\n';
+
+					// Find the custom delimiter
+					const delimiterIndex = existingContent.lastIndexOf(delimiter);
+
+					// Keep only content up to the delimiter (if found)
+					const baseContent = delimiterIndex !== -1 ?
+						existingContent.substring(0, delimiterIndex) :
+						existingContent;
+
+					// Combine base content with new content
+					const newContent = baseContent + delimiter + content;
+
+					// Apply new content to the model
+					model.setValue(newContent);
+					console.log('Inside mockTypingContent: ' + newContent + '\n');
+				}
+			}
+		}
 	}
 
 	private _registerTerminalCommandFinishedListener(): void {
@@ -72,6 +97,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 							// If command was successful, update virtual document
 							this.setContent(e.command);
 						}
+						this._flush = true;
 					}));
 				}
 
@@ -114,6 +140,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			this._languageService.createById(languageId) :
 			this._languageService.createById('plaintext');
 
-		return this._modelService.createModel('import ast\r\n', languageSelection, resource, false);
+		return this._modelService.createModel('import ast\n', languageSelection, resource, false);
 	}
+
 }
