@@ -62,14 +62,14 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 
 		this.issues = [];
 		this.validToolNames = new Set<string>();
-		this.collectDiagnostics();
+		this.validate();
 	}
 
 	/**
 	 * Validate the metadata record and collect all issues
 	 * related to its content.
 	 */
-	private collectDiagnostics(): void {
+	private validate(): void {
 		const { valueToken } = this.recordToken;
 
 		// validate that the record value is an array

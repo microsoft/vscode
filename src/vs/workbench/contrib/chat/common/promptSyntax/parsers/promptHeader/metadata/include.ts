@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptMetadataRecord } from './record.js';
-import { localize } from '../../../../../../../../nls.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
-import { PromptMetadataDiagnostic, PromptMetadataError } from '../diagnostics.js';
-import { FrontMatterRecord, FrontMatterString, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { PromptStringMetadata } from './record.js';
+import { PromptMetadataDiagnostic } from '../diagnostics.js';
+import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+
+/**
+ * TODO: @legomushroom - list
+ * - find all instruction files
+ * - when a file (non-prompt?) referenced by `user`, find all instructions that match
+ * - when a file (non-prompt?) referenced by `chatbot`, find all instructions that match
+ */
 
 /**
  * Name of the metadata record in the prompt header.
@@ -17,86 +22,30 @@ const RECORD_NAME = 'include';
 /**
  * Prompt `include` metadata record inside the prompt header.
  */
-// TODO: @legomushroom - refactor to common "string" value metadata?
-export class PromptIncludeMetadata extends PromptMetadataRecord {
+export class PromptIncludeMetadata extends PromptStringMetadata {
+	constructor(
+		recordToken: FrontMatterRecord,
+	) {
+		super(RECORD_NAME, recordToken);
+	}
+
 	public override get recordName(): string {
 		return RECORD_NAME;
-	}
-
-	/**
-	 * Private field for tracking all diagnostic issues
-	 * related to this metadata record.
-	 */
-	// TODO: @legomushroom - refactor to common "metadata" class?
-	private readonly issues: PromptMetadataDiagnostic[];
-
-	/**
-	 * List of all diagnostic issues related to this metadata record.
-	 */
-	public get diagnostics(): readonly PromptMetadataDiagnostic[] {
-		return this.issues;
-	}
-
-	/**
-	 * Value token reference of the record.
-	 */
-	private valueToken: FrontMatterString | undefined;
-
-	/**
-	 * Clean text value of the record.
-	 */
-	public get text(): string | null {
-		const { valueToken } = this;
-
-		if (valueToken === undefined) {
-			return null;
-		}
-
-		return valueToken.cleanText;
-	}
-
-	constructor(
-		private readonly recordToken: FrontMatterRecord,
-	) {
-		// sanity check on the name of the record
-		assert(
-			PromptIncludeMetadata.isIncludeRecord(recordToken),
-			`Record token must be 'include', got '${recordToken.nameToken.text}'.`,
-		);
-
-		super(recordToken.range);
-
-		this.issues = [];
-		this.collectDiagnostics();
 	}
 
 	/**
 	 * Validate the metadata record and collect all issues
 	 * related to its content.
 	 */
-	private collectDiagnostics(): void {
-		const { valueToken } = this.recordToken;
+	protected override validate(): readonly PromptMetadataDiagnostic[] {
+		const result: PromptMetadataDiagnostic[] = [
+			...super.validate(),
+		];
 
-		// validate that the record value is a string
 		// TODO: @legomushroom - validate that is a valid glob pattern
-		if ((valueToken instanceof FrontMatterString) === false) {
-			this.issues.push(
-				new PromptMetadataError(
-					valueToken.range,
-					localize(
-						'prompt.header.metadata.include.diagnostics.invalid-value-type',
-						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
-						RECORD_NAME,
-						'string',
-						valueToken.valueTypeName,
-					),
-				),
-			);
+		// TODO: @legomushroom - validate that used only in instruction files
 
-			return;
-		}
-
-		this.valueToken = valueToken;
+		return result;
 	}
 
 	/**
