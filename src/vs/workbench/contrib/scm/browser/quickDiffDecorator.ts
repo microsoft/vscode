@@ -373,24 +373,25 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 			for (let index = 0; index < providers.length; index++) {
 				const provider = providers[index];
+				const visible = this.quickDiffService.isQuickDiffProviderVisible(provider.id);
+				const group = provider.kind !== 'contributed' ? '0_scm' : '1_contributed';
+				const order = index + 1;
+
 				store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: `workbench.scm.action.toggleQuickDiffVisibility.${provider.label}`,
+							id: `workbench.scm.action.toggleQuickDiffVisibility.${provider.id}`,
 							title: provider.label,
-							toggled: provider.visible
-								? ContextKeyTrueExpr.INSTANCE
-								: ContextKeyFalseExpr.INSTANCE,
+							toggled: visible ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
 							menu: {
-								id: MenuId.SCMQuickDiffDecorations,
-								order: index + 1,
+								id: MenuId.SCMQuickDiffDecorations, group, order
 							},
 							f1: false
 						});
 					}
 					override run(accessor: ServicesAccessor): void {
 						const quickDiffService = accessor.get(IQuickDiffService);
-						quickDiffService.toggleQuickDiffVisibility(provider.label);
+						quickDiffService.toggleQuickDiffProviderVisibility(provider.id);
 					}
 				}));
 			}

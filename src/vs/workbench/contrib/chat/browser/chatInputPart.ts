@@ -1129,6 +1129,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return viewItem;
 				}
 				if (action.id === AttachToolsAction.id) {
+					// TODO@jrieken let's remove this once the tools picker has its final place.
 					return this.selectedToolsModel.toolsActionItemViewItemProvider(action, options);
 				}
 				return undefined;

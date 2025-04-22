@@ -112,6 +112,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				servers.push({
 					id: ExtensionIdentifier.toKey(extension.identifier),
 					label: item.label,
+					cacheNonce: item.version,
 					launch: Convert.McpServerDefinition.from(item)
 				});
 			}

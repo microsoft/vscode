@@ -11,21 +11,25 @@ import * as glob from '../../../../../base/common/glob.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, dispose, isDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { basename, dirname, joinPath, relativePath } from '../../../../../base/common/resources.js';
+import { basename, dirname, extUri, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FileType, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileKind, FileType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { IChatWidget } from '../chat.js';
@@ -235,20 +239,29 @@ function isDynamicVariable(obj: any): obj is IDynamicVariable {
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
 
 
-export async function createFolderQuickPick(accessor: ServicesAccessor): Promise<URI | undefined> {
+export async function createFilesAndFolderQuickPick(accessor: ServicesAccessor): Promise<URI | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const searchService = accessor.get(ISearchService);
 	const configurationService = accessor.get(IConfigurationService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
+	const modelService = accessor.get(IModelService);
+	const languageService = accessor.get(ILanguageService);
+	const historyService = accessor.get(IHistoryService);
+
+	type ResourcePick = IQuickPickItem & { resource: URI; kind: FileKind };
 
 	const workspaces = workspaceService.getWorkspace().folders.map(folder => folder.uri);
-	const topLevelFolderItems = (await getTopLevelFolders(workspaces, fileService)).map(createQuickPickItem);
 
-	const quickPick = quickInputService.createQuickPick();
+	const defaultItems: ResourcePick[] = [];
+	(await getTopLevelFolders(workspaces, fileService)).forEach(uri => defaultItems.push(createQuickPickItem(uri, FileKind.FOLDER)));
+	historyService.getHistory().filter(a => a.resource).slice(0, 30).forEach(uri => defaultItems.push(createQuickPickItem(uri.resource!, FileKind.FILE)));
+	defaultItems.sort((a, b) => extUri.compare(a.resource, b.resource));
+
+	const quickPick = quickInputService.createQuickPick<ResourcePick>();
 	quickPick.placeholder = 'Search folder by name';
-	quickPick.items = topLevelFolderItems;
+	quickPick.items = defaultItems;
 
 	return await new Promise<URI | undefined>(_resolve => {
 
@@ -261,24 +274,32 @@ export async function createFolderQuickPick(accessor: ServicesAccessor): Promise
 
 		disposables.add(quickPick.onDidChangeValue(async value => {
 			if (value === '') {
-				quickPick.items = topLevelFolderItems;
+				quickPick.items = defaultItems;
 				return;
 			}
 
-			const workspaceFolders = await Promise.all(
-				workspaces.map(workspace =>
-					searchFolders(
-						workspace,
-						value,
-						true,
-						undefined,
-						undefined,
-						configurationService,
-						searchService
-					)
-				));
+			const picks: ResourcePick[] = [];
 
-			quickPick.items = workspaceFolders.flat().map(createQuickPickItem);
+			await Promise.all(workspaces.map(async workspace => {
+				const result = await searchFilesAndFolders(
+					workspace,
+					value,
+					true,
+					undefined,
+					undefined,
+					configurationService,
+					searchService
+				);
+
+				for (const folder of result.folders) {
+					picks.push(createQuickPickItem(folder, FileKind.FOLDER));
+				}
+				for (const file of result.files) {
+					picks.push(createQuickPickItem(file, FileKind.FILE));
+				}
+			}));
+
+			quickPick.items = picks.sort((a, b) => extUri.compare(a.resource, b.resource));
 		}));
 
 		disposables.add(quickPick.onDidAccept((e) => {
@@ -293,15 +314,16 @@ export async function createFolderQuickPick(accessor: ServicesAccessor): Promise
 		quickPick.show();
 	});
 
-	function createQuickPickItem(folder: URI): IQuickPickItem & { resource: URI } {
+	function createQuickPickItem(resource: URI, kind: FileKind): ResourcePick {
 		return {
-			type: 'item',
-			id: folder.toString(),
-			resource: folder,
+			resource,
+			kind,
+			id: resource.toString(),
 			alwaysShow: true,
-			label: basename(folder),
-			description: labelService.getUriLabel(dirname(folder), { relative: true }),
-			iconClass: ThemeIcon.asClassName(Codicon.folder),
+			label: basename(resource),
+			description: labelService.getUriLabel(dirname(resource), { relative: true }),
+			iconClasses: kind === FileKind.FILE ? getIconClasses(modelService, languageService, resource, FileKind.FILE) : undefined,
+			iconClass: kind === FileKind.FOLDER ? ThemeIcon.asClassName(Codicon.folder) : undefined
 		};
 	}
 }
@@ -326,7 +348,7 @@ export async function getTopLevelFolders(workspaces: URI[], fileService: IFileSe
 	return folders;
 }
 
-export async function searchFolders(
+export async function searchFilesAndFolders(
 	workspace: URI,
 	pattern: string,
 	fuzzyMatch: boolean,
@@ -334,7 +356,7 @@ export async function searchFolders(
 	cacheKey: string | undefined,
 	configurationService: IConfigurationService,
 	searchService: ISearchService
-): Promise<URI[]> {
+): Promise<{ folders: URI[]; files: URI[] }> {
 	const segmentMatchPattern = caseInsensitiveGlobPattern(fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern));
 
 	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
@@ -349,21 +371,23 @@ export async function searchFolders(
 		excludePattern: searchExcludePattern,
 	};
 
-	let folderResults: ISearchComplete | undefined;
+	let searchResult: ISearchComplete | undefined;
 	try {
-		folderResults = await searchService.fileSearch({ ...searchOptions, filePattern: `**/${segmentMatchPattern}/**` }, token);
+		searchResult = await searchService.fileSearch({ ...searchOptions, filePattern: `{**/${segmentMatchPattern}/**,${pattern}}` }, token);
 	} catch (e) {
 		if (!isCancellationError(e)) {
 			throw e;
 		}
 	}
 
-	if (!folderResults || token?.isCancellationRequested) {
-		return [];
+	if (!searchResult || token?.isCancellationRequested) {
+		return { files: [], folders: [] };
 	}
 
-	const folderResources = getMatchingFoldersFromFiles(folderResults.results.map(result => result.resource), workspace, segmentMatchPattern);
-	return folderResources;
+	const fileResources = searchResult.results.map(result => result.resource);
+	const folderResources = getMatchingFoldersFromFiles(fileResources, workspace, segmentMatchPattern);
+
+	return { folders: folderResources, files: fileResources };
 }
 
 function fuzzyMatchingGlobPattern(pattern: string): string {
