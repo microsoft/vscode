@@ -1210,6 +1210,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}).filter(isDefined),
 			);
 
+			// TODO: @legomushroom - make these sticky
 			attachedContext.push(...automaticInstructions.map((uri) => {
 				return toChatVariable({ uri, isPromptFile: true }, true);
 			}));
