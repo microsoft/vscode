@@ -101,16 +101,53 @@ export class ModelPickerWidget extends Disposable {
 	 * Shows the picker at the specified anchor
 	 */
 	showAt(anchor: HTMLElement | StandardMouseEvent | IAnchor, container?: HTMLElement): void {
-		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = this.getActionItems().map(item => ({
-			item: item.model,
-			description: item.model.metadata.description,
-			kind: ActionListItemKind.Action,
-			canPreview: false,
-			group: { title: '', icon: ThemeIcon.fromId(item.isCurrent ? Codicon.check.id : Codicon.blank.id) },
-			disabled: false,
-			hideIcon: false,
-			label: item.model.metadata.name,
-		} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>));
+		const actionItems = this.getActionItems();
+		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = [];
+
+		// Group models by categories
+		const modelsByCategory = new Map<string, IModelPickerActionItem[]>();
+
+		// First, group models by their categories
+		for (const item of actionItems) {
+			const category = item.model.metadata.modelPickerCategory;
+			if (!modelsByCategory.has(category.label)) {
+				modelsByCategory.set(category.label, []);
+			}
+			modelsByCategory.get(category.label)!.push(item);
+		}
+
+		for (const [categoryLabel, modelsInCategory] of modelsByCategory.entries()) {
+			// Skip empty categories
+			if (modelsInCategory.length === 0) {
+				continue;
+			}
+
+			// Add category header
+			items.push({
+				label: categoryLabel,
+				kind: ActionListItemKind.Header,
+				canPreview: false,
+				disabled: false,
+				hideIcon: true,
+			} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>);
+
+			// Add models in this category
+			for (const item of modelsInCategory) {
+				items.push({
+					item: item.model,
+					description: item.model.metadata.description,
+					kind: ActionListItemKind.Action,
+					canPreview: false,
+					group: { title: '', icon: ThemeIcon.fromId(item.isCurrent ? Codicon.check.id : Codicon.blank.id) },
+					disabled: false,
+					hideIcon: false,
+					label: item.model.metadata.name,
+				} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>);
+			}
+
+			// Remove this category from the map so we don't process it again
+			modelsByCategory.delete(categoryLabel);
+		}
 
 		const delegate = {
 			onSelect: (item: ILanguageModelChatMetadataAndIdentifier) => {

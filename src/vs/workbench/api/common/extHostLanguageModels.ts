@@ -25,6 +25,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/modelPicker/modelPickerWidget.js';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -181,6 +182,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			targetExtensions: metadata.extensions,
 			isDefault: metadata.isDefault,
 			isUserSelectable: metadata.isUserSelectable,
+			modelPickerCategory: metadata.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
 			capabilities: metadata.capabilities,
 		});
 
