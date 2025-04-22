@@ -20,7 +20,7 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry, IPromptVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
@@ -238,7 +238,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
 	/**
-	 * TODO: @legomushroom
+	 * If the implicit context references a prompt file, this field
+	 * holds a reference to an associated prompt parser instance.
 	 */
 	private prompt: TextModelPromptParser | undefined;
 
@@ -342,44 +343,46 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	// TODO: @legomushroom - update the return type
-	async toBaseEntries(): Promise<readonly (IChatRequestFileEntry | IPromptVariableEntry)[]> {
-		if (this.prompt !== undefined) {
-			const result = [
-				...this.prompt.allValidReferences.map((link) => {
-					return toChatVariable(link, false);
-				}),
-				toChatVariable({
-					uri: this.prompt.uri,
-					// TODO: @legomushroom - check the comment correctness
-					// the attached file must have been a prompt file therefore
-					// we force that assumption here; this makes sure that prompts
-					// in untitled documents can be also attached to the chat input
-					isPromptFile: true,
-				}, true),
-			];
+	public async toBaseEntries(): Promise<readonly IChatRequestFileEntry[]> {
+		// chat variable for non-prompt file attachment
+		if (this.prompt === undefined) {
+			return [{
+				kind: 'file',
+				id: this.id,
+				name: this.name,
+				value: this.value,
+				modelDescription: this.modelDescription,
+			}];
 
-			return result;
 		}
 
-		return [{
-			kind: 'file',
-			id: this.id,
-			name: this.name,
-			value: this.value,
-			modelDescription: this.modelDescription,
-		}];
+		// prompt can have any number of nested references, hence
+		// collect all of valid ones and return the entire list
+		return [
+			// add all valid child references in the prompt
+			...this.prompt.allValidReferences.map((link) => {
+				return toChatVariable(link, false);
+			}),
+			// and then the root prompt reference itself
+			toChatVariable({
+				uri: this.prompt.uri,
+				// the attached file must have been a prompt file therefore
+				// we force that assumption here; this makes sure that prompts
+				// in untitled documents can be also attached to the chat input
+				isPromptFile: true,
+			}, true),
+		];
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Whether the implicit context references a prompt file.
 	 */
 	public get isPromptFile() {
 		return (this.prompt !== undefined);
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Add prompt parser instance for the provided value.
 	 */
 	private addPrompt(
 		value: URI | Location,
@@ -400,7 +403,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Remove and dispose prompt parser instance.
 	 */
 	private removePrompt(): void {
 		this.prompt?.dispose();
@@ -409,7 +412,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	public override dispose(): void {
 		this.removePrompt();
-
 		super.dispose();
 	}
 }
