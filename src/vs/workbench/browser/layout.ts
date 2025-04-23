@@ -1512,16 +1512,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
-		// Check if we need to go to full screen
-		let toggleMainWindowFullScreen = false;
 		const config = getCreatorModeConfiguration(this.configurationService);
 		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
 
 		if (!restoring) {
-			// Store current state to restore when exiting
-			toggleMainWindowFullScreen = !this.state.runtime.mainWindowFullscreen && config.fullScreen && !isIOS;
-
-			creatorModeExitInfo.transitionedToFullScreen = toggleMainWindowFullScreen;
+			// Store current state to restore when exiting but don't change fullscreen
+			creatorModeExitInfo.transitionedToFullScreen = false;
 			creatorModeExitInfo.transitionedToCenteredEditorLayout = !this.isMainEditorLayoutCentered() && config.centerLayout;
 			creatorModeExitInfo.handleNotificationsDoNotDisturbMode = this.notificationService.getFilter() === NotificationsFilter.OFF;
 			creatorModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
@@ -1697,11 +1693,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}));
 
-		// Layout and toggle fullscreen if needed
+		// Layout without changing fullscreen state
 		this.layout();
-		if (toggleMainWindowFullScreen) {
-			this.hostService.toggleFullScreen(mainWindow);
-		}
 
 		// Fire event for Creator Mode activation
 		this._onDidChangeCreatorMode.fire(true);
@@ -1733,7 +1726,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
-		let toggleMainWindowFullScreen = false;
 
 		// Restore panel visibility
 		if (creatorModeExitInfo.wasVisible.panel) {
@@ -1819,14 +1811,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		setLineNumbers();
 		this.focus();
 
-		// Handle fullscreen
-		toggleMainWindowFullScreen = creatorModeExitInfo.transitionedToFullScreen && this.state.runtime.mainWindowFullscreen;
-
-		// Perform final layout and fullscreen changes
+		// Perform final layout without changing fullscreen state
 		this.layout();
-		if (toggleMainWindowFullScreen) {
-			this.hostService.toggleFullScreen(mainWindow);
-		}
 
 		// Fire event for Creator Mode deactivation
 		this._onDidChangeCreatorMode.fire(false);
@@ -3052,6 +3038,9 @@ class LayoutStateModel extends Disposable {
 	load(): void {
 		let key: keyof typeof LayoutStateKeys;
 
+		// Check if we were in creator mode when VSCode was closed
+		const wasInCreatorMode = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}creatorMode.active`, StorageScope.WORKSPACE) === 'true';
+
 		// Load stored values for all keys
 		for (key in LayoutStateKeys) {
 			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
@@ -3060,6 +3049,18 @@ class LayoutStateModel extends Disposable {
 			if (value !== undefined) {
 				this.stateCache.set(stateKey.name, value);
 			}
+		}
+
+		// If we were in creator mode, exit it properly to restore the previous layout
+		if (wasInCreatorMode) {
+			// First set creator mode as active so exitCreatorMode works properly
+			this.stateCache.set(LayoutStateKeys.CREATOR_MODE_ACTIVE.name, true);
+
+			// Then trigger an exit to restore the previous layout
+			queueMicrotask(() => {
+				const layout = this as unknown as Layout;
+				layout.exitCreatorMode();
+			});
 		}
 
 		// Apply legacy settings
@@ -3106,9 +3107,43 @@ class LayoutStateModel extends Disposable {
 		let key: keyof typeof LayoutStateKeys;
 
 		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
+		const isCreatorMode = this.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_ACTIVE);
 
+		// If we're in creator mode, restore the previous layout state before saving
+		if (isCreatorMode) {
+			const exitInfo = this.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
+
+			// Restore visibility states
+			this.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, !exitInfo.wasVisible.panel);
+			this.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, !exitInfo.wasVisible.sideBar);
+			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, !exitInfo.wasVisible.auxiliaryBar);
+
+			// Restore sizes
+			if (exitInfo.panelSize) {
+				this.setInitializationValue(LayoutStateKeys.PANEL_SIZE, exitInfo.panelSize);
+			}
+			if (exitInfo.sideBarSize) {
+				this.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, exitInfo.sideBarSize);
+			}
+			if (exitInfo.auxiliaryBarSize) {
+				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, exitInfo.auxiliaryBarSize);
+			}
+
+			// Restore panel position
+			if (exitInfo.panelPosition) {
+				this.setRuntimeValue(LayoutStateKeys.PANEL_POSITION, exitInfo.panelPosition);
+			}
+		}
+
+		// Now save all state
 		for (key in LayoutStateKeys) {
 			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
+
+			// Never save creator mode active state
+			if (stateKey === LayoutStateKeys.CREATOR_MODE_ACTIVE) {
+				continue;
+			}
+
 			if ((workspace && stateKey.scope === StorageScope.WORKSPACE) ||
 				(global && stateKey.scope === StorageScope.PROFILE)) {
 				if (isZenMode && stateKey instanceof RuntimeStateKey && stateKey.zenModeIgnore) {

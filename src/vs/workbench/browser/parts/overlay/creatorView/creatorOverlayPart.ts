@@ -441,92 +441,105 @@ export class CreatorOverlayPart extends Part {
 	private openInProgress = false;
 
 	private async open() {
-		// Prevent multiple simultaneous open attempts
-		if (this.openInProgress) {
-			console.log("Open already in progress, skipping");
-			return;
-		}
+    // Prevent multiple simultaneous open attempts
+    if (this.openInProgress) {
+        console.log("Open already in progress, skipping");
+        return;
+    }
 
-		this.openInProgress = true;
+    this.openInProgress = true;
 
-		try {
-			// Removing any other iframes from the overlay container
-			// This is a workaround for the issue where multiple iframes are created - works for now
-			[...(this.overlayContainer?.children || [])].forEach((child) => {
-				child.remove();
-			});
-			// If webview needs reinitialization, do that first
-			if (this.needsReinit) {
-				console.log("Reinitializing webview before opening");
-				await this.initialize(true);
-			} else {
-				// Otherwise just make sure initialization is complete
-				await this.initialize();
-				await this.initializeWebview();
-			}
+    try {
+        // Removing any other iframes from the overlay container
+        [...(this.overlayContainer?.children || [])].forEach((child) => {
+            child.remove();
+        });
 
-			if (!this.webviewElement) {
-				throw new Error("webviewElement is not initialized");
-			}
+        // If webview needs reinitialization, do that first
+        if (this.needsReinit) {
+            console.log("Reinitializing webview before opening");
+            await this.initialize(true);
+        } else {
+            // Otherwise just make sure initialization is complete
+            await this.initialize();
+            await this.initializeWebview();
+        }
 
-			if (this.state === "open" || !this.overlayContainer) {
-				this.openInProgress = false;
-				return;
-			}
+        if (!this.webviewElement) {
+            throw new Error("webviewElement is not initialized");
+        }
 
-			this.webviewElement.mountTo(this.overlayContainer, getActiveWindow());
+        if (this.state === "open" || !this.overlayContainer) {
+            this.openInProgress = false;
+            return;
+        }
 
-			console.log("Opening overlay view");
-			await new Promise<void>((resolve) => {
-				let resolved = false;
-				setTimeout(() => {
-					if (!resolved) {
-						console.error("Timeout on webview, didn't load in time");
-						resolve();
-					}
-				}, 1500);
-				this.webviewElement!.onMessage(async (e) => {
-					if (
-						e.message.messageType === "loaded" ||
-						e.message.messageType === "pong"
-					) {
-						resolved = true;
-						resolve();
-					}
-				});
-				this.webviewElement!.postMessage({ messageType: "ping" });
-			});
-			this.sendThemeColorsToWebview();
-			this.sendStateToWebview("open");
+        // First, make the overlay container visible but without content
+        console.log("Making overlay container visible");
+        if (this.overlayContainer) {
+            this.overlayContainer.style.display = "block";
+            this.overlayContainer.style.zIndex = "998";
+        }
 
-			// Remove previous click handler if exists
-			if (this.closeHandler) {
-				this.overlayContainer.removeEventListener("click", this.closeHandler);
-			}
+        this.webviewElement.mountTo(this.overlayContainer, getActiveWindow());
 
-			// Create and store new click handler
-			this.closeHandler = (event) => {
-				// Only close if clicking directly on the overlay (not on the content)
-				if (!this.isLocked && event.target === this.overlayContainer) {
-					this.close();
-				}
-			};
+        // Set up for messages
+        let messageReceived = false;
 
-			this.overlayContainer.addEventListener("click", this.closeHandler);
+        this.webviewElement.onMessage((e) => {
+            console.log("Received message from webview:", e.message);
+            if (e.message.messageType === "loaded" || e.message.messageType === "pong") {
+                messageReceived = true;
+            }
+        });
 
-			// Notify that the view is now visible
-			if (this.webviewView) {
-				this.webviewView.show(false);
-			}
+        this.webviewElement.postMessage({ messageType: "ping" });
 
-			this.focus();
+        // Wait briefly for a response + send another ping if it was lost
+        for (let i = 0; i < 100; i++) {
+            if (messageReceived) break;
+						this.webviewElement.postMessage({ messageType: "ping" });
+            await new Promise(resolve => setTimeout(resolve, 5));
+        }
 
-			await this.handleStateTransition("open");
-		} finally {
-			this.openInProgress = false;
-		}
+        console.log("Webview readiness check completed, messageReceived:", messageReceived);
+
+        console.log("Sending theme colors to webview");
+        this.sendThemeColorsToWebview();
+        this.sendStateToWebview("open");
+
+        // Remove previous click handler if exists
+        if (this.closeHandler) {
+            this.overlayContainer.removeEventListener("click", this.closeHandler);
+        }
+
+        // Create and store new click handler
+        this.closeHandler = (event) => {
+            // Only close if clicking directly on the overlay (not on the content)
+            if (!this.isLocked && event.target === this.overlayContainer) {
+                this.close();
+            }
+        };
+
+        this.overlayContainer.addEventListener("click", this.closeHandler);
+
+        // Notify that the view is now visible
+        if (this.webviewView) {
+            this.webviewView.show(false);
+        }
+
+        this.focus();
+
+        // Add a delay before starting the transition animation
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Now start the state transition
+        console.log("Starting state transition to 'open'");
+        await this.handleStateTransition("open");
+    } finally {
+        this.openInProgress = false;
+    }
 	}
-
 	/**
 	 * This handles the vscode command to enter creator mode
 	 * This relies on the submodule sending the plan to roo code, then the submodule is to call this to hide the overlay
@@ -580,14 +593,6 @@ export class CreatorOverlayPart extends Part {
 			// Add a slide-up animation when closing
 			this.handleStateTransition("closed").then(() => {
 				const closedState = overlayStates.closed;
-
-				// Apply container styles
-				if (this.overlayContainer) {
-					Object.assign(
-						this.overlayContainer.style,
-						closedState.overlayContainer,
-					);
-				}
 
 				// Apply top body styles
 				const topOfBodyElement = this.getTopOfBodyElement();
@@ -826,7 +831,6 @@ export class CreatorOverlayPart extends Part {
 		void topOfBodyElement.offsetWidth;
 
 		// Apply the state styles
-		Object.assign(this.overlayContainer!.style, stateConfig.overlayContainer);
 		Object.assign(topOfBodyElement.style, stateConfig.topOfBody);
 		Object.assign(blurryElement.style, stateConfig.blurElement);
 
@@ -871,7 +875,9 @@ export class CreatorOverlayPart extends Part {
 
 		await new Promise<void>((resolve) => {
 			// Set a single timeout for animation completion
-			setTimeout(() => resolve(), 500); // Match the transition duration
+			setTimeout(() => {
+				resolve()
+			}, 500); // Match the transition duration
 		});
 
 		// Hiding the overlay container after we've done all the animations
