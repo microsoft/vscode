@@ -481,7 +481,6 @@ export class McpServer extends Disposable implements IMcpServer {
 	 * connection started if it is not already.
 	 */
 	public async callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
-
 		await this.start(); // idempotent
 
 		let ranOnce = false;
@@ -540,6 +539,10 @@ export class McpTool implements IMcpTool {
 	}
 
 	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
+		return this._callWithProgress(params, progress, token);
+	}
+
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = generateUuid();
@@ -557,9 +560,16 @@ export class McpTool implements IMcpTool {
 				}
 			});
 
-			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token).finally(() => {
-				listener.dispose();
-			});
+			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token)
+				.finally(() => listener.dispose())
+				.catch(err => {
+					const state = this._server.connectionState.get();
+					if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
+						return this._callWithProgress(params, progress, token, false);
+					} else {
+						throw err;
+					}
+				});
 		}, token);
 	}
 

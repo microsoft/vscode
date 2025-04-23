@@ -244,7 +244,16 @@ class McpHTTPHandle extends Disposable {
 		}
 
 		if (res.status >= 300) {
-			this._log(LogLevel.Warning, `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}`);
+			// "When a client receives HTTP 404 in response to a request containing an Mcp-Session-Id, it MUST start a new session by sending a new InitializeRequest without a session ID attached"
+			// Though this says only 404, some servers send 400s as well, including their example
+			// https://github.com/modelcontextprotocol/typescript-sdk/issues/389
+			const retryWithSessionId = this._mode.value === HttpMode.Http && !!this._mode.sessionId;
+
+			this._proxy.$onDidChangeState(this._id, {
+				state: McpConnectionState.Kind.Error,
+				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + retryWithSessionId ? `; will retry with new session ID` : '',
+				shouldRetry: retryWithSessionId,
+			});
 			return;
 		}
 
