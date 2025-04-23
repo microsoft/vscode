@@ -9,7 +9,6 @@ import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/co
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IChatPromptSlashCommand, IMetadata, IPromptPath, IPromptsService, TCombinedToolsMetadata, TPromptsType } from '../../common/promptSyntax/service/types.js';
 
-// TODO: @legomushroom - remove?
 export class MockPromptsService implements IPromptsService {
 	getCombinedToolsMetadata(files: readonly URI[]): Promise<TCombinedToolsMetadata> {
 		throw new Error('Method not implemented.');
@@ -42,9 +41,8 @@ export class MockPromptsService implements IPromptsService {
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		throw new Error('Method not implemented.');
 	}
-	dispose(): void { }
-
 	findInstructionFilesFor(files: readonly URI[]): Promise<readonly URI[]> {
 		throw new Error('Method not implemented.');
 	}
+	dispose(): void { }
 }

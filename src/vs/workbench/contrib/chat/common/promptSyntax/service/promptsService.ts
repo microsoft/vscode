@@ -165,21 +165,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
-	/**
-	 * TODO: @legomushroom
-	 */
+	// TODO: @legomushroom - add unit tests?
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
 		const result: URI[] = [];
 
-		// TODO: @legomushroom - record timing of the function
+		// TODO: @legomushroom - record timing of the function?
 		const instructionFiles = await this.listPromptFiles('instructions');
 
 		if (instructionFiles.length === 0) {
 			return result;
 		}
 
+		// TODO: @legomushroom - record timing of the function?
 		const instructions = await this.getAllMetadata(
 			instructionFiles.map(pick('uri')),
 		);
@@ -191,7 +190,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 				continue;
 			}
 
-			// TODO: @legomushroom - return all "global" patterns even if files list is empty?
+			// if glob pattern is one of the special wildcard values,
+			// add the instructions file event if no files are attached
+			if ((metadata.include === '**') || (metadata.include === '**/*')) {
+				result.push(uri);
+
+				continue;
+			}
+
+			// match each attached file with each glob pattern and
+			// add the instructions file its rule matches the file
 			for (const file of files) {
 				if (match(metadata.include, file.fsPath)) {
 					result.push(uri);
@@ -204,14 +212,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return result;
 	}
 
-	/**
-	 * TODO: @legomushroom
-	 */
 	public async getAllMetadata(
-		files: readonly URI[],
+		promptUris: readonly URI[],
 	): Promise<IMetadata[]> {
 		const metadata = await Promise.all(
-			files.map(async (uri) => {
+			promptUris.map(async (uri) => {
 				let parser: FilePromptParser | undefined;
 				try {
 					parser = this.initService.createInstance(
@@ -232,27 +237,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metadata;
 	}
 
-	/**
-	 * Collect metadata from all headers of all attached prompt files,
-	 * and computes resulting `chat mode` and `tools` metadata.
-	 *
-	 * The `tools` metadata is combined into a single list across all prompt files.
-	 * On the other hand, the `chat mode` is computed as the single safest mode
-	 * that will satisfy all prompt file attachments. For instance:
-	 *
-	 *   - `Ask`, `Ask`, `Ask` -> `Ask`
-	 *   - `Ask`, `Ask`, `Edit` -> `Edit`
-	 *   - `Agent`, `Ask`, `Edit` -> `Agent`
-	 */
-	// TODO: @legomushroom - update the description
 	public async getCombinedToolsMetadata(
-		files: readonly URI[],
+		promptUris: readonly URI[],
 	): Promise<TCombinedToolsMetadata | null> {
-		if (files.length === 0) {
+		if (promptUris.length === 0) {
 			return null;
 		}
 
-		const filesMetadata = await this.getAllMetadata(files);
+		const filesMetadata = await this.getAllMetadata(promptUris);
 
 		const allTools = filesMetadata
 			.map((fileMetadata) => {
@@ -262,8 +254,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				let isRootInAgentMode = false;
 				let hasTools = false;
 
-				// TODO: @legomushroom
-				let chatMode: ChatMode = leastPrivilegedChatMode();
+				let chatMode: ChatMode = ChatMode.Ask;
 
 				forEach((node) => {
 					const { metadata } = node;
@@ -292,7 +283,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					return false;
 				}, fileMetadata);
 
-				if (chatMode === ChatMode.Agent) {
+				if ((<ChatMode>chatMode) === ChatMode.Agent) {
 					return {
 						tools: (hasTools)
 							? [...new Set(result)]
@@ -307,7 +298,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			});
 
 		let hasAnyTools = false;
-		let resultingChatMode = leastPrivilegedChatMode();
+		let resultingChatMode: ChatMode = ChatMode.Ask;
 
 		const result: string[] = [];
 		for (const { tools, mode } of allTools) {
@@ -338,37 +329,40 @@ export class PromptsService extends Disposable implements IPromptsService {
 }
 
 /**
- * TODO: @legomushroom
- */
-const leastPrivilegedChatMode = (
-): ChatMode => {
-	return ChatMode.Ask;
-};
-
-/**
- * TODO: @legomushroom
+ * Pick a more privileged chat mode between two provided ones.
  */
 const morePrivilegedChatMode = (
 	chatMode1: ChatMode,
 	chatMode2: ChatMode,
 ): ChatMode => {
+	// when modes equal, return one of them
 	if (chatMode1 === chatMode2) {
 		return chatMode1;
 	}
 
+	// when modes are different but one of them is 'agent', use 'agent'
 	if ((chatMode1 === ChatMode.Agent) || (chatMode2 === ChatMode.Agent)) {
 		return ChatMode.Agent;
 	}
 
+	// when modes are different, none of them is 'agent', but one of them
+	// is 'edit', use 'edit'
 	if ((chatMode1 === ChatMode.Edit) || (chatMode2 === ChatMode.Edit)) {
 		return ChatMode.Edit;
 	}
 
-	return ChatMode.Ask;
+	throw new Error(
+		[
+			'Invalid logic encountered: ',
+			`at this point modes '${chatMode1}' and '${chatMode2}' are different, but`,
+			`both must have be equal to '${ChatMode.Ask}' at the same time.`,
+		].join(' '),
+	);
 };
 
 /**
- * TODO: @legomushroom
+ * Collect all metadata from prompt file references
+ * into a single hierarchical tree structure.
  */
 const collectMetadata = (
 	reference: Pick<IPromptFileReference, 'uri' | 'metadata' | 'references'>,

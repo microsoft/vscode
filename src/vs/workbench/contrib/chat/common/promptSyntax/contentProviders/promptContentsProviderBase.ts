@@ -36,7 +36,7 @@ export abstract class PromptContentsProviderBase<
 	public abstract override toString(): string;
 
 	/**
-	 * TODO: @legomushroom
+	 * Language ID of the prompt contents.
 	 */
 	public abstract get languageId(): string;
 
