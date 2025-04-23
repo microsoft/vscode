@@ -181,12 +181,11 @@ export class QuickDiffModel extends Disposable {
 				.filter(change => change.label === quickDiff.label);
 
 			return {
-				label: quickDiff.label,
 				original: quickDiff.originalResource,
 				modified: this._model.resource,
 				changes: changes.map(change => change.change),
 				changes2: changes.map(change => change.change2)
-			};
+			} satisfies QuickDiffResult;
 		});
 	}
 
