@@ -75,7 +75,7 @@ export class EditTool implements IToolImpl {
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
-			content: new MarkdownString(parameters.code + '\n````\n')
+			content: new MarkdownString('\n````\n')
 		});
 		// Signal start.
 		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
