@@ -245,7 +245,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 *   - `Agent`, `Ask`, `Edit` -> `Agent`
 	 */
 	// TODO: @legomushroom - update the description
-	// TODO: @legomushroom - add unit tests
 	public async getCombinedToolsMetadata(
 		files: readonly URI[],
 	): Promise<TCombinedToolsMetadata | null> {
@@ -266,7 +265,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				// TODO: @legomushroom
 				let chatMode: ChatMode = leastPrivilegedChatMode();
 
-				forEach(fileMetadata, (node) => {
+				forEach((node) => {
 					const { metadata } = node;
 					const { mode, tools } = metadata;
 
@@ -291,7 +290,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					}
 
 					return false;
-				});
+				}, fileMetadata);
 
 				if (chatMode === ChatMode.Agent) {
 					return {
@@ -338,7 +337,63 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 }
 
-export function getPromptCommandName(path: string) {
+/**
+ * TODO: @legomushroom
+ */
+const leastPrivilegedChatMode = (
+): ChatMode => {
+	return ChatMode.Ask;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const morePrivilegedChatMode = (
+	chatMode1: ChatMode,
+	chatMode2: ChatMode,
+): ChatMode => {
+	if (chatMode1 === chatMode2) {
+		return chatMode1;
+	}
+
+	if ((chatMode1 === ChatMode.Agent) || (chatMode2 === ChatMode.Agent)) {
+		return ChatMode.Agent;
+	}
+
+	if ((chatMode1 === ChatMode.Edit) || (chatMode2 === ChatMode.Edit)) {
+		return ChatMode.Edit;
+	}
+
+	return ChatMode.Ask;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const collectMetadata = (
+	reference: Pick<IPromptFileReference, 'uri' | 'metadata' | 'references'>,
+): IMetadata => {
+	const childMetadata = [];
+	for (const child of reference.references) {
+		if (child.errorCondition !== undefined) {
+			continue;
+		}
+
+		childMetadata.push(collectMetadata(child));
+	}
+
+	const children = (childMetadata.length > 0)
+		? childMetadata
+		: undefined;
+
+	return {
+		uri: reference.uri,
+		metadata: reference.metadata,
+		children,
+	};
+};
+
+function getCommandName(path: string) {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
 	return name;
 }

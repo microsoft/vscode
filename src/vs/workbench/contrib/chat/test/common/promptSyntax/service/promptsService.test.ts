@@ -613,7 +613,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -736,7 +741,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -865,7 +875,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -985,7 +1000,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -1102,7 +1122,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -1226,7 +1251,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -1338,7 +1368,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -1454,7 +1489,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -1574,7 +1614,12 @@ suite('PromptsService', () => {
 											},
 											{
 												name: 'file.txt',
-												contents: 'contents of a non-prompt-snippet file',
+												contents: [
+													'---',
+													'description: "Non-prompt file description".',
+													'tools: ["my-tool-24"]',
+													'---',
+												],
 											},
 											{
 												name: 'yetAnotherFolder🤭',
@@ -1621,6 +1666,166 @@ suite('PromptsService', () => {
 					'Combined metadata \'tools\' must have correct value.',
 				);
 			});
+		});
+	});
+
+	suite('• getAllMetadata', () => {
+		test('• explicit', async () => {
+			const rootFolderName = 'resolves-nested-file-references';
+			const rootFolder = `/${rootFolderName}`;
+
+			const rootFileName = 'file2.prompt.md';
+
+			const rootFolderUri = URI.file(rootFolder);
+			const rootFileUri = URI.joinPath(rootFolderUri, rootFileName);
+
+			await (instaService.createInstance(MockFilesystem,
+				// the file structure to be created on the disk for the test
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'file1.prompt.md',
+							contents: [
+								'## Some Header',
+								'some contents',
+								' ',
+							],
+						},
+						{
+							name: rootFileName,
+							contents: [
+								'---',
+								'description: \'Root prompt description.\'',
+								'tools: [\'my-tool1\', , true]',
+								'mode: "agent" ',
+								'---',
+								'## Files',
+								'\t- this file #file:folder1/file3.prompt.md ',
+								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+								' ',
+							],
+						},
+						{
+							name: 'folder1',
+							children: [
+								{
+									name: 'file3.prompt.md',
+									contents: [
+										'---',
+										'tools: [ false, \'my-tool1\' , ]',
+										'mode: \'edit\'',
+										'---',
+										'',
+										'[](./some-other-folder/non-existing-folder)',
+										`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md contents`,
+										' some more\t content',
+									],
+								},
+								{
+									name: 'some-other-folder',
+									children: [
+										{
+											name: 'file4.prompt.md',
+											contents: [
+												'---',
+												'tools: [\'my-tool1\', "my-tool2", true, , ]',
+												'something: true',
+												'mode: \'ask\'\t',
+												'description: "File 4 splendid description."',
+												'---',
+												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
+												'',
+												'',
+												'and some',
+												' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
+											],
+										},
+										{
+											name: 'file.txt',
+											contents: [
+												'---',
+												'description: "Non-prompt file description".',
+												'tools: ["my-tool-24"]',
+												'---',
+											],
+										},
+										{
+											name: 'yetAnotherFolder🤭',
+											children: [
+												{
+													name: 'another-file.instructions.md',
+													contents: [
+														'---',
+														'description: "Another file description."',
+														'tools: [\'my-tool3\', false, "my-tool2" ]',
+														'include: "**/*.tsx"',
+														'---',
+														`[](${rootFolder}/folder1/some-other-folder)`,
+														'another-file.instructions.md contents\t [#file:file.txt](../file.txt)',
+													],
+												},
+												{
+													name: 'one_more_file_just_in_case.prompt.md',
+													contents: 'one_more_file_just_in_case.prompt.md contents',
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			const metadata = await service
+				.getAllMetadata([rootFileUri]);
+
+			assert.deepStrictEqual(
+				metadata,
+				[{
+					uri: rootFileUri,
+					metadata: {
+						description: 'Root prompt description.',
+						tools: ['my-tool1'],
+						mode: 'agent',
+						include: undefined,
+					},
+					children: [
+						{
+							uri: URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md'),
+							metadata: {
+								description: undefined,
+								include: undefined,
+								tools: ['my-tool1'],
+								mode: 'agent',
+							},
+							children: [
+								{
+									uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md'),
+									metadata: {
+										description: 'Another file description.',
+										tools: ['my-tool3', 'my-tool2'],
+										mode: 'agent',
+										include: '**/*.tsx',
+									},
+									children: undefined,
+								},
+							],
+						},
+						{
+							uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/file4.prompt.md'),
+							metadata: {
+								tools: ['my-tool1', 'my-tool2'],
+								description: 'File 4 splendid description.',
+								include: undefined,
+								mode: 'agent',
+							},
+							children: undefined,
+						}
+					],
+				}],
+			);
 		});
 	});
 });

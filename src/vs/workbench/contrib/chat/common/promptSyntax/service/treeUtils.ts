@@ -29,8 +29,8 @@ export const flatten = <TTreeNode>(
  * TODO: @legomushroom
  */
 export const forEach = <TTreeNode>(
-	node: TTree<TTreeNode>,
 	callback: (node: TTreeNode) => boolean,
+	node: TTree<TTreeNode>,
 ): ReturnType<typeof callback> => {
 	const shouldStop = callback(node);
 
@@ -39,7 +39,7 @@ export const forEach = <TTreeNode>(
 	}
 
 	for (const child of node.children ?? []) {
-		const shouldStop = forEach(child, callback);
+		const shouldStop = forEach(callback, child);
 
 		if (shouldStop === true) {
 			return true;
@@ -47,4 +47,52 @@ export const forEach = <TTreeNode>(
 	}
 
 	return false;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+export const map = <TTreeNode, TNewTreeNode>(
+	callback: (node: TTreeNode) => TNewTreeNode,
+	node: TTree<TTreeNode>,
+): TTree<TNewTreeNode> => {
+	const newNode: TNewTreeNode = callback(node);
+
+	if (node.children === undefined) {
+		return {
+			...newNode,
+			children: undefined,
+		} satisfies TTree<TNewTreeNode>;
+	}
+
+	const children = node.children
+		.map(curry(map, callback));
+
+	return {
+		...newNode,
+		children,
+	} satisfies TTree<TNewTreeNode>;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+type TRestParameters<T extends (...args: any[]) => any> =
+	T extends (first: any, ...rest: infer R) => any ? R : never;
+
+/**
+ * TODO: @legomushroom
+ */
+type TCurriedFunction<T extends (...args: any[]) => any> = ((...args: TRestParameters<T>) => ReturnType<T>);
+
+/**
+ * TODO: @legomushroom
+ */
+export const curry = <T, K>(
+	callback: (arg1: T, ...args: any[]) => K,
+	arg1: T,
+): TCurriedFunction<typeof callback> => {
+	return (...args) => {
+		return callback(arg1, ...args);
+	};
 };
