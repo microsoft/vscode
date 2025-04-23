@@ -112,12 +112,12 @@ const command = async (
 		return;
 	}
 
-	// show suggestion to enable synchronization of the user prompts to the user
+	// show suggestion to enable synchronization of the user prompts and instructions to the user
 	notificationService.prompt(
 		Severity.Info,
 		localize(
 			'workbench.command.prompts.create.user.enable-sync-notification',
-			"User prompts are not currently synchronized. Do you want to enable synchronization of the user prompts?",
+			"User prompts and instructions are not currently synchronized. Do you want to enable synchronization of the user prompts and instructions?",
 		),
 		[
 			{
