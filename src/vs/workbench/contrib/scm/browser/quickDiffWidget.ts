@@ -28,7 +28,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { ISplice } from '../../../../base/common/sequence.js';
-import { ChangeType, getChangeHeight, getChangeType, getChangeTypeColor, getModifiedEndLineNumber, lineIntersectsChange, QuickDiffChange } from '../common/quickDiff.js';
+import { ChangeType, getChangeHeight, getChangeType, getChangeTypeColor, getModifiedEndLineNumber, IQuickDiffService, lineIntersectsChange, QuickDiffChange } from '../common/quickDiff.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -168,7 +168,8 @@ class QuickDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
@@ -314,8 +315,8 @@ class QuickDiffWidget extends PeekViewWidget {
 			.map(c => c.providerId);
 
 		const quickDiffs = this.model.quickDiffs
-			.filter(quickDiff => quickDiff.visible &&
-				quickDiffWithChange.includes(quickDiff.id));
+			.filter(quickDiff => quickDiffWithChange.includes(quickDiff.id) &&
+				this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id));
 
 		return quickDiffs.length > 1;
 	}
@@ -344,7 +345,8 @@ class QuickDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
-		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
+		const visibleQuickDiffs = this.model.quickDiffs
+			.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id));
 
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
 		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem,
