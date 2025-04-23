@@ -14,6 +14,7 @@ import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServer
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { findExecutable } from '../../../base/node/processes.js';
+import { untildify } from '../../../base/common/labels.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
@@ -80,8 +81,15 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		const abortCtrl = new AbortController();
 		let child: ChildProcessWithoutNullStreams;
 		try {
-			const cwd = launch.cwd ? URI.revive(launch.cwd).fsPath : homedir();
-			const { executable, args, shell } = await formatSubprocessArguments(launch.command, launch.args, cwd, env);
+			const home = homedir();
+			const cwd = launch.cwd ? URI.revive(launch.cwd).fsPath : home;
+			const { executable, args, shell } = await formatSubprocessArguments(
+				untildify(launch.command, home),
+				launch.args.map(a => untildify(a, home)),
+				cwd,
+				env
+			);
+
 			this._proxy.$onDidPublishLog(id, LogLevel.Debug, `Server command line: ${executable} ${args.join(' ')}`);
 			child = spawn(executable, args, {
 				stdio: 'pipe',
