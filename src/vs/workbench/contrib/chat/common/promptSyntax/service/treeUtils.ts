@@ -11,6 +11,7 @@ export type TTree<TTreenNode> = { children?: readonly TTree<TTreenNode>[] } & TT
 /**
  * TODO: @legomushroom
  */
+// TODO: @legomushroom - unit test?
 export const flatten = <TTreeNode>(
 	node: TTree<TTreeNode>,
 ): Omit<TTreeNode, 'children'>[] => {
@@ -28,6 +29,7 @@ export const flatten = <TTreeNode>(
 /**
  * TODO: @legomushroom
  */
+// TODO: @legomushroom - unit test?
 export const forEach = <TTreeNode>(
 	callback: (node: TTreeNode) => boolean,
 	node: TTree<TTreeNode>,
@@ -52,6 +54,7 @@ export const forEach = <TTreeNode>(
 /**
  * TODO: @legomushroom
  */
+// TODO: @legomushroom - unit test/remove?
 export const map = <TTreeNode, TNewTreeNode>(
 	callback: (node: TTreeNode) => TNewTreeNode,
 	node: TTree<TTreeNode>,
@@ -81,13 +84,15 @@ type TRestParameters<T extends (...args: any[]) => any> =
 	T extends (first: any, ...rest: infer R) => any ? R : never;
 
 /**
- * TODO: @legomushroom
+ * Type for a curried function.
+ * See {@link curry} for more info.
  */
 type TCurriedFunction<T extends (...args: any[]) => any> = ((...args: TRestParameters<T>) => ReturnType<T>);
 
 /**
- * TODO: @legomushroom
+ * Curry a provided function with the first argument.
  */
+// TODO: @legomushroom - unit test/remove?
 export const curry = <T, K>(
 	callback: (arg1: T, ...args: any[]) => K,
 	arg1: T,

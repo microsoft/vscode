@@ -56,29 +56,63 @@ export interface IPromptPath {
 export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
 
 /**
- * TODO: @legomushroom
+ * Metadata node object in a hierarchical tree of prompt references.
  */
 export interface IMetadata {
+	/**
+	 * URI of a prompt file.
+	 */
 	readonly uri: URI;
+
+	/**
+	 * Metadata of the prompt file.
+	 */
 	readonly metadata: IPromptMetadata;
+
+	/**
+	 * List of metadata for each valid child prompt reference.
+	 */
 	readonly children?: readonly TTree<IMetadata>[];
 }
 
 /**
- * TODO: @legomushroom
+ * Type of combined tools metadata for the case
+ * when the prompt is in the agent mode.
  */
 interface ICombinedAgentToolsMetadata {
+	/**
+	 * List of combined tools metadata for
+	 * the entire tree of prompt references.
+	 */
 	readonly tools: readonly string[] | undefined;
+
+	/**
+	 * Resulting chat mode of a prompt, based on modes
+	 * used in the entire tree of prompt references.
+	 */
 	readonly mode: ChatMode.Agent;
 }
 
+/**
+ * Type of combined tools metadata for the case
+ * when the prompt is in non-agent mode.
+ */
 interface ICombinedNonAgentToolsMetadata {
+	/**
+	 * List of combined tools metadata is empty
+	 * when the prompt is in non-agent mode.
+	 */
 	readonly tools: undefined;
+
+	/**
+	 * Resulting chat mode of a prompt, based on modes
+	 * used in the entire tree of prompt references.
+	 */
 	readonly mode: ChatMode.Ask | ChatMode.Edit;
 }
 
 /**
- * TODO: @legomushroom
+ * General type of the combined tools metadata.
  */
 export type TCombinedToolsMetadata = ICombinedAgentToolsMetadata | ICombinedNonAgentToolsMetadata;
 
@@ -123,24 +157,40 @@ export interface IPromptsService extends IDisposable {
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
 
 	/**
-	 * TODO: @legomushroom
+	 * Find all instruction files which have a glob pattern in their
+	 * 'include' metadata record that match the provided list of files.
 	 */
 	findInstructionFilesFor(
-		files: readonly URI[],
+		fileUris: readonly URI[],
 	): Promise<readonly URI[]>;
 
 	/**
-	 * TODO: @legomushroom
+	 * Get all metadata for entire prompt references tree
+	 * that spans out of each of the provided files.
+	 *
+	 * In other words, the metadata tree is built starting from
+	 * each of the provided files, therefore the result is a number
+	 * of metadata trees, one for each file.
 	 */
 	getAllMetadata(
-		files: readonly URI[],
+		promptUris: readonly URI[],
 	): Promise<readonly IMetadata[]>;
 
 	/**
-	 * TODO: @legomushroom
+	 * Computes "combined" tools and chat mode metadata based on
+	 * all provided files and their respective child references
+	 * at the same time.
+	 *
+	 * For instance, the resulting {@link TCombinedToolsMetadata.mode}
+	 * is computed as the least-privileged chat mode that can satisfy
+	 * all the prompt files and their child references.
+	 *
+	 * On the other hand the resulting {@link TCombinedToolsMetadata.tools}
+	 * metadata is computed as a union of all tools metadata that all
+	 * prompt files and their child references specify.
 	 */
 	getCombinedToolsMetadata(
-		files: readonly URI[],
+		promptUris: readonly URI[],
 	): Promise<TCombinedToolsMetadata | null>;
 }
 

@@ -41,7 +41,7 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 			return result;
 		}
 
-		// TODO: @legomushroom
+		// TODO: @legomushroom - add unit tests?
 		if (this.languageId !== INSTRUCTIONS_LANGUAGE_ID) {
 			result.push(
 				new PromptMetadataError(
@@ -80,7 +80,7 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Check if a provided string contains a valid glob pattern.
 	 */
 	private isValidGlob(
 		pattern: string,
