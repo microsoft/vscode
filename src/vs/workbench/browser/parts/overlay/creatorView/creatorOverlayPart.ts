@@ -565,14 +565,18 @@ export class CreatorOverlayPart extends Part {
 	private close() {
 		if (this.state === "overlay_closed_creator_active") {
 			CommandEmitter.emit("workbench.action.exitCreatorMode");
-			CommandEmitter.emit("pearai.closeCreator");
-			// TODO: exit the creator mode view
 		}
+
 		return new Promise<void>((resolve) => {
 			if (this.isLocked || this.state === "closed" || !this.overlayContainer) {
+				console.dir({
+					path: "early_return",
+					isLocked: this.isLocked,
+					state: this.state,
+					hasOverlayContainer: !!this.overlayContainer,
+				});
 				return;
 			}
-
 			// Add a slide-up animation when closing
 			this.handleStateTransition("closed").then(() => {
 				const closedState = overlayStates.closed;
@@ -720,7 +724,6 @@ export class CreatorOverlayPart extends Part {
 			.getColor("editor.background");
 		topOfBodyElement.style.backgroundColor =
 			backgroundColor?.toString() || "#1E1E1E";
-
 
 		return topOfBodyElement;
 	}

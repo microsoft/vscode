@@ -6,7 +6,6 @@ import {
 } from "../../../../../platform/actions/common/actions.js";
 import { ServicesAccessor } from "../../../../../platform/instantiation/common/instantiation.js";
 import { ICreatorOverlayService } from "./creatorOverlayService.js"; // Added .js extension
-import { KeyCode, KeyMod } from "../../../../../base/common/keyCodes.js";
 // import { PearAICreatorVisibleContext } from "../../../../common/contextkeys.js";
 
 export class CloseCreatorOverlayAction extends Action2 {
@@ -82,7 +81,6 @@ export class ToggleCreatorOverlayAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: 200,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyE,
 			},
 		});
 	}
