@@ -81,6 +81,10 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 			// If no match, set replacement length to cursor position on current line
 			replacementLength = lastLine.length;
 		}
+
+		// call to get replacement index
+		const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, undefined, undefined, undefined);
+
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 
 		const completions: ITerminalCompletion[] = [];
@@ -95,19 +99,32 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 				provider: `lsp:${this._provider._debugDisplayName}`,
 				detail: e.detail,
 				// TODO: Map kind to terminal kindc
-				kind: TerminalCompletionItemKind.Method,
+				kind: TerminalCompletionItemKind.Method, // fix this to get the sorting priority.
 				// Use calculated replacement index and length
-				replacementIndex,
-				replacementLength,
+				replacementIndex: completionItemTemp.replacementIndex,
+				replacementLength: completionItemTemp.replacementLength,
 			})));
 			console.log(result?.suggestions);
 		}
 		const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();
-		const lineInLspProviderAdd = this._textVirtualModel.object.textEditorModel.getLineCount();
-		console.log('this is line inside lsp provider of the text virtual model: ' + lineInLspProviderAdd + '\n');
-		console.log('what is in this file: \n');
-		console.log(whatIsIntheFile);
+		console.log('what is in this file: \n', whatIsIntheFile);
 
 		return completions;
 	}
 }
+// TODO: Handle both spaces and dots.
+
+// prefix: commandLine to cursorPosition
+export function createCompletionItemPython(cursorPosition: number, prefix: string, kind: any, label: any, detail?: string): any {
+	const endsWithDot = prefix.endsWith('.');
+	const lastWord = endsWithDot ? '' : prefix.split('.').at(-1) ?? '';
+	return {
+		label,
+		detail: detail ?? detail ?? '',
+
+		replacementIndex: cursorPosition - lastWord.length,
+		replacementLength: lastWord.length,
+		kind: kind ?? kind ?? TerminalCompletionItemKind.Method
+	};
+}
+
