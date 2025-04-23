@@ -111,7 +111,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const result: IPromptPath[] = [];
 
-		for (const uri of this.fileLocator.getConfigBasedSourceFolders()) {
+		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
 			result.push({ uri, storage: 'local', type });
 		}
 		const userHome = this.userDataService.currentProfile.promptsHome;
