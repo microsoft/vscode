@@ -35,6 +35,8 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 			...super.validate(),
 		];
 
+		// if we don't have a value token, validation must
+		// has failed already so nothing to do more
 		if (this.valueToken === undefined) {
 			return result;
 		}

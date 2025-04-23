@@ -212,15 +212,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 	): Promise<IMetadata[]> {
 		const metadata = await Promise.all(
 			files.map(async (uri) => {
-				const parser = this.initService.createInstance(
-					FilePromptParser,
-					uri,
-					{ allowNonPromptFiles: true },
-				).start();
+				let parser: FilePromptParser | undefined;
+				try {
+					parser = this.initService.createInstance(
+						FilePromptParser,
+						uri,
+						{ allowNonPromptFiles: true },
+					).start();
 
-				await parser.allSettled();
+					await parser.allSettled();
 
-				return collectMetadata(parser);
+					return collectMetadata(parser);
+				} finally {
+					parser?.dispose();
+				}
 			}),
 		);
 
@@ -243,12 +248,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	// TODO: @legomushroom - add unit tests
 	public async getCombinedToolsMetadata(
 		files: readonly URI[],
-	): Promise<TCombinedToolsMetadata> {
+	): Promise<TCombinedToolsMetadata | null> {
 		if (files.length === 0) {
-			return {
-				tools: undefined,
-				mode: ChatMode.Ask,
-			};
+			return null;
 		}
 
 		const filesMetadata = await this.getAllMetadata(files);
@@ -283,12 +285,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						mode,
 					);
 
-					// if not in the agent mode, stop the search
-					if (isRootInAgentMode === false) {
-						return true;
-					}
-
-					if (tools !== undefined) {
+					if (isRootInAgentMode && tools !== undefined) {
 						result.push(...tools);
 						hasTools = true;
 					}

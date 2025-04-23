@@ -1483,31 +1483,35 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async setupChatModeAndTools(
 		attachedContext: readonly IChatRequestVariableEntry[],
 	): Promise<void> {
-		const promptFileVariables = attachedContext.filter(isPromptFileChatVariable);
+		// process starting from the 'root' prompt files
+		const promptFileVariables = attachedContext
+			.filter(isPromptFileChatVariable)
+			.filter(pick('isRoot'));
 
 		if (promptFileVariables.length === 0) {
 			return;
 		}
 
-		// process starting from the 'root' prompt files
-		const rootVariables = promptFileVariables
-			.filter(pick('isRoot'))
-			.map(toUri);
+		const metadata = await this.promptsService
+			.getCombinedToolsMetadata(
+				promptFileVariables.map(toUri),
+			);
 
-		const metadata = await this.promptsService.getCombinedToolsMetadata(rootVariables);
-		const { tools, mode } = metadata;
+		if (metadata === null) {
+			return;
+		}
+
+		const { mode, tools } = metadata;
 
 		// switch to appropriate chat mode if needed
 		if (mode !== this.inputPart.currentMode) {
-			const toggleModeOptions: IToggleChatModeArgs = {
-				mode,
-			};
-
 			await this.commandService.executeCommand(
-				ToggleAgentModeActionId, toggleModeOptions,
+				ToggleAgentModeActionId,
+				{ mode } satisfies IToggleChatModeArgs,
 			);
 		}
 
+		// if not tools to enable are present, we are done
 		if (tools === undefined) {
 			return;
 		}
@@ -1520,7 +1524,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			`Chat mode must be 'agent' when there are 'tools' defined, got ${this.inputPart.currentMode}.`,
 		);
 
-		// if there are some tools defined in the prompt files,select only the specified tools
+		// if there are some tools defined in the prompt files, select only the specified tools
 		this.inputPart
 			.selectedToolsModel
 			.selectOnly(tools);
@@ -1533,27 +1537,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async autoAttachInstructions(
 		attachedContext: IChatRequestVariableEntry[],
 	): Promise<void> {
-		const variableUris = attachedContext.map((variable) => {
-			const { value } = variable;
-
-			if (URI.isUri(value)) {
-				return value;
-			}
-
-			if (isLocation(value)) {
-				return value.uri;
-			}
-
-			return undefined;
-		}).filter(isDefined);
+		const variableUris = attachedContext
+			.filter(hasAddressableValue)
+			.map(toUri);
 
 		const automaticInstructions = await this.promptsService
 			.findInstructionFilesFor(variableUris);
 
 		// add instructions to the final context list
-		attachedContext.push(...automaticInstructions.map((uri) => {
-			return toChatVariable({ uri, isPromptFile: true }, true);
-		}));
+		attachedContext.push(
+			...automaticInstructions.map((uri) => {
+				return toChatVariable({ uri, isPromptFile: true }, true);
+			}),
+		);
 
 		// add to attached list to make the instructions sticky
 		this.inputPart
@@ -1562,6 +1558,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 }
 
+/**
+ * TODO: @legomushroom
+ */
+export type TAddressable<T extends object> = T & { value: URI | Location };
+
+/**
+ * TODO: @legomushroom
+ */
+const hasAddressableValue = <T extends object>(
+	thing: T,
+): thing is TAddressable<T> => {
+	if (('value' in thing) === false) {
+		return false;
+	}
+
+	if (URI.isUri(thing.value)) {
+		return true;
+	}
+
+	if (isLocation(thing.value)) {
+		return true;
+	}
+
+	return false;
+};
 
 /**
  * TODO: @legomushroom
