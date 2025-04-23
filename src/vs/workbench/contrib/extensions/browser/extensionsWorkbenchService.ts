@@ -1971,7 +1971,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion())));
 		if (this.outdated.length) {
-			this.logService.info(`Auto updating outdated extensions.`, this.outdated.map(e => e.identifier.id).join(', '));
+			this.logService.info(`Auto updating outdated extensions.`, this.outdated.filter(e => this.extensionEnablementService.isEnabledEnablementState(e.enablementState)).map(e => e.identifier.id).join(', '));
 			this.eventuallyAutoUpdateExtensions();
 		}
 	}
@@ -2027,7 +2027,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const toUpdate: IExtension[] = [];
 		for (const extension of this.outdated) {
 			if (!this.shouldAutoUpdateExtension(extension)) {
-				this.logService.info('Auto update disabled for extension', extension.identifier.id);
+				if (this.extensionEnablementService.isEnabledEnablementState(extension.enablementState)) {
+					this.logService.info('Auto update disabled for extension', extension.identifier.id);
+				}
 				continue;
 			}
 			if (await this.shouldRequireConsentToUpdate(extension)) {
