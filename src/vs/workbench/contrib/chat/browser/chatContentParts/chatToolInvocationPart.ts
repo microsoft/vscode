@@ -289,7 +289,8 @@ class ChatToolInvocationSubPart extends Disposable {
 					element: this.context.element,
 					languageId: langId ?? 'json',
 					renderOptions: codeBlockRenderOptions,
-					textModel: Promise.resolve(model)
+					textModel: Promise.resolve(model),
+					chatSessionId: this.context.element.sessionId
 				}, this.currentWidthDelegate());
 				this._codeblocks.push({
 					codeBlockIndex: this.codeBlockStartIndex,
@@ -299,7 +300,8 @@ class ChatToolInvocationSubPart extends Disposable {
 					isStreaming: false,
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: model.uri,
-					uriPromise: Promise.resolve(model.uri)
+					uriPromise: Promise.resolve(model.uri),
+					chatSessionId: this.context.element.sessionId
 				});
 				this._register(editor.object.onDidChangeContentHeight(() => {
 					editor.object.layout(this.currentWidthDelegate());
@@ -410,7 +412,8 @@ class ChatToolInvocationSubPart extends Disposable {
 			element: this.context.element,
 			languageId: langId,
 			renderOptions: codeBlockRenderOptions,
-			textModel: Promise.resolve(model)
+			textModel: Promise.resolve(model),
+			chatSessionId: this.context.element.sessionId
 		}, this.currentWidthDelegate());
 		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
 		this._codeblocks.push({
@@ -421,7 +424,8 @@ class ChatToolInvocationSubPart extends Disposable {
 			isStreaming: false,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			uri: model.uri,
-			uriPromise: Promise.resolve(model.uri)
+			uriPromise: Promise.resolve(model.uri),
+			chatSessionId: this.context.element.sessionId
 		});
 		this._register(editor.object.onDidChangeContentHeight(() => {
 			editor.object.layout(this.currentWidthDelegate());
@@ -533,7 +537,8 @@ class ChatToolInvocationSubPart extends Disposable {
 				isStreaming: false,
 				ownerMarkdownPartId: this.codeblocksPartId,
 				uri: model.uri,
-				uriPromise: Promise.resolve(model.uri)
+				uriPromise: Promise.resolve(model.uri),
+				chatSessionId: this.context.element.sessionId
 			}
 		));
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
