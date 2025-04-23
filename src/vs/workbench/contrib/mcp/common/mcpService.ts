@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
@@ -249,7 +249,7 @@ class McpToolImplementation implements IToolImpl {
 		};
 	}
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, token: CancellationToken) {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken) {
 
 		const result: IToolResult = {
 			content: []
@@ -257,7 +257,7 @@ class McpToolImplementation implements IToolImpl {
 
 		const outputParts: string[] = [];
 
-		const callResult = await this._tool.call(invocation.parameters as Record<string, any>, token);
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, token);
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
 				result.content.push({

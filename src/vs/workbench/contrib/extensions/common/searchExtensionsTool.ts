@@ -9,8 +9,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { SortBy } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
-import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
-import { ExtensionState, IExtensionsWorkbenchService, IExtension } from '../common/extensions.js';
+import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../common/extensions.js';
 
 export const SearchExtensionsToolId = 'vscode_searchExtensions_internal';
 
@@ -72,7 +72,7 @@ export class SearchExtensionsTool implements IToolImpl {
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 	) { }
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as InputParams;
 		if (!params.keywords?.length && !params.category && !params.ids?.length) {
 			return {

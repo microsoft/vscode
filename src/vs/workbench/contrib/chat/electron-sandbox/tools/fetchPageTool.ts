@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../nls.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart } from '../../common/languageModelToolsService.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
@@ -41,7 +41,7 @@ export class FetchWebPageTool implements IToolImpl {
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) { }
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const parsedUriResults = this._parseUris((invocation.parameters as { urls?: string[] }).urls);
 		const validUris = Array.from(parsedUriResults.values()).filter((uri): uri is URI => !!uri);
 		if (!validUris.length) {

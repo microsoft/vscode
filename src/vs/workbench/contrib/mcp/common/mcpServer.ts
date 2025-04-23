@@ -4,29 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError, Sequencer } from '../../../../base/common/async.js';
-import * as json from '../../../../base/common/json.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
+import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
@@ -497,7 +499,31 @@ export class McpTool implements IMcpTool {
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		return this._server.callOn(h => h.callTool({ name, arguments: params }), token);
+		return this._server.callOn(h => h.callTool({ name, arguments: params }, token), token);
+	}
+
+	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
+		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
+		const name = this._definition.serverToolName ?? this._definition.name;
+		const progressToken = generateUuid();
+
+		return this._server.callOn(h => {
+			let lastProgressN = 0;
+			const listener = h.onDidReceiveProgressNotification((e) => {
+				if (e.params.progressToken === progressToken) {
+					progress.report({
+						message: e.params.message,
+						increment: e.params.progress - lastProgressN,
+						total: e.params.total,
+					});
+					lastProgressN = e.params.progress;
+				}
+			});
+
+			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token).finally(() => {
+				listener.dispose();
+			});
+		}, token);
 	}
 
 	compare(other: IMcpTool): number {
