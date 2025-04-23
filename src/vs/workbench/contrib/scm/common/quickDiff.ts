@@ -84,6 +84,7 @@ export interface QuickDiff {
 }
 
 export interface QuickDiffChange {
+	readonly providerId: string;
 	readonly label: string;
 	readonly original: URI;
 	readonly modified: URI;
@@ -92,7 +93,6 @@ export interface QuickDiffChange {
 }
 
 export interface QuickDiffResult {
-	readonly label: string;
 	readonly original: URI;
 	readonly modified: URI;
 	readonly changes: IChange[];
