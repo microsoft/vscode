@@ -224,6 +224,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		await this._updateStorageWithExpressionInputs(storage, expr);
 	}
 
+	public async setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void> {
+		const storage = this._getInputStorageInConfigTarget(target);
+		const expr = ConfigurationResolverExpression.parse(inputId);
+		for (const unresolved of expr.unresolved()) {
+			expr.resolve(unresolved, value);
+			break;
+		}
+		await this._updateStorageWithExpressionInputs(storage, expr);
+	}
+
 	public getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }> {
 		return this._getInputStorage(scope).getMap();
 	}
