@@ -350,7 +350,7 @@ export class SettingMatches {
 	}
 }
 
-class AiSearchKeysProvider {
+class AiSettingsSearchKeysProvider {
 	private settingsRecord: IStringDictionary<ISetting> = {};
 	private currentPreferencesModel: ISettingsEditorModel | undefined;
 
@@ -392,11 +392,11 @@ class AiSearchKeysProvider {
 class AiSettingsSearchProvider implements IRemoteSearchProvider {
 	private static readonly AI_SETTINGS_SEARCH_MAX_PICKS = 5;
 
-	private readonly _keysProvider: AiSearchKeysProvider;
+	private readonly _keysProvider: AiSettingsSearchKeysProvider;
 	private _filter: string = '';
 
 	constructor(private readonly aiSettingsSearchService: IAiSettingsSearchService) {
-		this._keysProvider = new AiSearchKeysProvider();
+		this._keysProvider = new AiSettingsSearchKeysProvider();
 	}
 
 	setFilter(filter: string) {
