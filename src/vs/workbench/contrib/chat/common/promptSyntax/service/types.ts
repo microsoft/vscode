@@ -141,7 +141,7 @@ export interface IPromptsService extends IDisposable {
 	 */
 	getCombinedToolsMetadata(
 		files: readonly URI[],
-	): Promise<TCombinedToolsMetadata>;
+	): Promise<TCombinedToolsMetadata | null>;
 }
 
 export interface IChatPromptSlashCommand {
