@@ -47,6 +47,7 @@ function shouldSkip(
 
 	return !!(selected && (
 		(context && 'skipIfAlreadySelected' in context && context.skipIfAlreadySelected) ||
+		// target kernel is already selected
 		(controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId))
 	));
 }
