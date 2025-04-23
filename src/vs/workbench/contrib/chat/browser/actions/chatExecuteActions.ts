@@ -15,6 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
@@ -22,7 +23,7 @@ import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { ACTION_ID_NEW_CHAT, waitForChatSessionCleared } from './chatClearActions.js';
@@ -289,9 +290,12 @@ class OpenModelPickerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
-		const widget = widgetService.lastFocusedWidget;
+		let widget = widgetService.lastFocusedWidget;
+		if (widget?.location !== ChatAgentLocation.Notebook && widget?.location !== ChatAgentLocation.Terminal) {
+			widget = await showChatView(accessor.get(IViewsService));
+		}
 		if (widget) {
 			widget.input.openModelPicker();
 		}
