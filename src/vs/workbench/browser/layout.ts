@@ -1512,16 +1512,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
-		// Check if we need to go to full screen
-		let toggleMainWindowFullScreen = false;
 		const config = getCreatorModeConfiguration(this.configurationService);
 		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
 
 		if (!restoring) {
-			// Store current state to restore when exiting
-			toggleMainWindowFullScreen = !this.state.runtime.mainWindowFullscreen && config.fullScreen && !isIOS;
-
-			creatorModeExitInfo.transitionedToFullScreen = toggleMainWindowFullScreen;
+			// Store current state to restore when exiting but don't change fullscreen
+			creatorModeExitInfo.transitionedToFullScreen = false;
 			creatorModeExitInfo.transitionedToCenteredEditorLayout = !this.isMainEditorLayoutCentered() && config.centerLayout;
 			creatorModeExitInfo.handleNotificationsDoNotDisturbMode = this.notificationService.getFilter() === NotificationsFilter.OFF;
 			creatorModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
@@ -1697,11 +1693,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}));
 
-		// Layout and toggle fullscreen if needed
+		// Layout without changing fullscreen state
 		this.layout();
-		if (toggleMainWindowFullScreen) {
-			this.hostService.toggleFullScreen(mainWindow);
-		}
 
 		// Fire event for Creator Mode activation
 		this._onDidChangeCreatorMode.fire(true);
@@ -1819,14 +1812,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		setLineNumbers();
 		this.focus();
 
-		// Handle fullscreen
-		toggleMainWindowFullScreen = creatorModeExitInfo.transitionedToFullScreen && this.state.runtime.mainWindowFullscreen;
-
-		// Perform final layout and fullscreen changes
+		// Perform final layout without changing fullscreen state
 		this.layout();
-		if (toggleMainWindowFullScreen) {
-			this.hostService.toggleFullScreen(mainWindow);
-		}
 
 		// Fire event for Creator Mode deactivation
 		this._onDidChangeCreatorMode.fire(false);
