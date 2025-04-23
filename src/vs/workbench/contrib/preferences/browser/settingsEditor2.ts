@@ -1719,7 +1719,11 @@ export class SettingsEditor2 extends EditorPane {
 				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
 					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
 					if (!searchInProgress.token.isCancellationRequested) {
-						this.logService.trace('Got ranked results', rankedResults);
+						if (rankedResults === null) {
+							this.logService.trace('No ranked results found');
+						} else {
+							this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
+						}
 					}
 				}
 			}
