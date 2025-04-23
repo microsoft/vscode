@@ -5157,7 +5157,7 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 		public label: string,
 		public command: string,
 		public args: string[],
-		public env: Record<string, string | number | null>,
+		public env: Record<string, string | number | null> = {},
 		public version?: string,
 	) { }
 }
