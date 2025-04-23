@@ -18,14 +18,13 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
-import { IMcpService, IMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
