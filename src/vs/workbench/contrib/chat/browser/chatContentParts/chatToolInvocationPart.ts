@@ -27,17 +27,17 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
+import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
-import { ChatCollapsibleEditorContentPart } from './chatCollapsibleContentPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatMarkdownContentPart.js';
 import { ChatCustomProgressPart, ChatProgressContentPart } from './chatProgressContentPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from './chatReferencesContentPart.js';
+import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart } from './chatToolInputOutputContentPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -155,7 +155,9 @@ class ChatToolInvocationSubPart extends Disposable {
 		} else if (Array.isArray(toolInvocation.resultDetails) && toolInvocation.resultDetails?.length) {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
 		} else if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
-			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
+			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output);
+		} else if (toolInvocation.toolSpecificData?.kind === 'input') {
+			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2));
 		} else {
 			this.domNode = this.createProgressPart();
 		}
@@ -169,7 +171,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
-		const { title, message, subtitle, allowAutoConfirm } = toolInvocation.confirmationMessages;
+		const { title, message, allowAutoConfirm } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -207,7 +209,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
 				title,
-				subtitle,
+				toolInvocation.originMessage,
 				message,
 				buttons
 			));
@@ -340,7 +342,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
 				title,
-				subtitle,
+				toolInvocation.originMessage,
 				elements.root,
 				buttons
 			));
@@ -519,40 +521,49 @@ class ChatToolInvocationSubPart extends Disposable {
 		return progressPart.domNode;
 	}
 
-	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, inputOutputData: IToolResultInputOutputDetails): HTMLElement {
+	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output?: string): HTMLElement {
+		let codeBlockIndex = this.codeBlockStartIndex;
+		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
+			const model = this._register(this.modelService.createModel(
+				data,
+				this.languageService.createById('json')
+			));
 
-		const model = this._register(this.modelService.createModel(
-			`${inputOutputData.input}\n\n${inputOutputData.output}`,
-			this.languageService.createById('json')
-		));
+			return {
+				textModel: model,
+				languageId: model.getLanguageId(),
+				options: {
+					hideToolbar: true,
+					reserveWidth: 19,
+					maxHeightInLines: 13,
+					verticalPadding: 5,
+					editorOptions: {
+						wordWrap: 'on'
+					}
+				},
+				codeBlockInfo: {
+					codeBlockIndex: codeBlockIndex++,
+					codemapperUri: undefined,
+					elementId: this.context.element.id,
+					focus: () => { },
+					isStreaming: false,
+					ownerMarkdownPartId: this.codeblocksPartId,
+					uri: model.uri,
+					uriPromise: Promise.resolve(model.uri)
+				}
+			};
+		};
 
 		const collapsibleListPart = this._register(this.instantiationService.createInstance(
-			ChatCollapsibleEditorContentPart,
+			ChatCollapsibleInputOutputContentPart,
 			message,
+			subtitle,
 			this.context,
 			this.editorPool,
-			Promise.resolve(model),
-			model.getLanguageId(),
-			{
-				hideToolbar: true,
-				reserveWidth: 19,
-				maxHeightInLines: 13,
-				verticalPadding: 5,
-				editorOptions: {
-					wordWrap: 'on'
-				}
-			},
-			{
-				codeBlockIndex: this.codeBlockStartIndex,
-				codemapperUri: undefined,
-				elementId: this.context.element.id,
-				focus: () => { },
-				isStreaming: false,
-				ownerMarkdownPartId: this.codeblocksPartId,
-				uri: model.uri,
-				uriPromise: Promise.resolve(model.uri)
-			}
+			toCodePart(input),
+			output ? { parts: [toCodePart(output)] } : undefined,
 		));
+		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		return collapsibleListPart.domNode;
 	}

@@ -26,6 +26,46 @@ export interface IChatConfirmationButton {
 	moreActions?: IChatConfirmationButton[];
 }
 
+export class ChatQueryTitlePart extends Disposable {
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	constructor(
+		element: HTMLElement,
+		title: IMarkdownString | string,
+		subtitle: string | IMarkdownString | undefined,
+		renderer: MarkdownRenderer,
+		@IOpenerService private readonly _openerService: IOpenerService,
+	) {
+		super();
+
+		element.classList.add('chat-query-title-part');
+
+		const renderedTitle = this._register(renderer.render(this.toMdString(title), {
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		}));
+		element.append(renderedTitle.element);
+		if (subtitle) {
+			const str = this.toMdString(subtitle);
+			const renderedTitle = this._register(renderer.render(str, {
+				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+				actionHandler: { callback: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted), disposables: this._store },
+			}));
+			const wrapper = document.createElement('small');
+			wrapper.appendChild(renderedTitle.element);
+			element.append(wrapper);
+		}
+	}
+
+	private toMdString(value: string | IMarkdownString) {
+		if (typeof value === 'string') {
+			return new MarkdownString('', { supportThemeIcons: true }).appendText(value);
+		} else {
+			return new MarkdownString(value.value, { supportThemeIcons: true, isTrusted: value.isTrusted });
+		}
+	}
+}
+
 abstract class BaseChatConfirmationWidget extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
 	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
@@ -53,12 +93,10 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
-		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
 		const elements = dom.h('.chat-confirmation-widget@root', [
-			dom.h('.chat-confirmation-widget-expando@expando'),
 			dom.h('.chat-confirmation-widget-title@title'),
 			dom.h('.chat-confirmation-widget-message@message'),
 			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
@@ -66,25 +104,16 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
-		const renderedTitle = this._register(this.markdownRenderer.render(new MarkdownString(title, { supportThemeIcons: true }), {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		}));
-		elements.title.append(renderedTitle.element);
-		if (subtitle) {
-			let str: MarkdownString;
-			if (typeof subtitle === 'string') {
-				str = new MarkdownString().appendText(subtitle);
-			} else {
-				str = new MarkdownString(subtitle.value, { supportThemeIcons: true, isTrusted: subtitle.isTrusted });
-			}
-			const renderedTitle = this._register(this.markdownRenderer.render(str, {
-				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-				actionHandler: { callback: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted), disposables: this._store },
-			}));
-			const wrapper = document.createElement('small');
-			wrapper.appendChild(renderedTitle.element);
-			elements.title.append(wrapper);
-		}
+		const titlePart = this._register(instantiationService.createInstance(
+			ChatQueryTitlePart,
+			elements.title,
+			title,
+			subtitle,
+			this.markdownRenderer,
+		));
+
+		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
 		this.messageElement = elements.message;
 		buttons.forEach(buttonData => {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip };
@@ -138,9 +167,8 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
-		@IOpenerService openerService: IOpenerService,
 	) {
-		super(title, subtitle, buttons, instantiationService, contextMenuService, configurationService, hostService, openerService);
+		super(title, subtitle, buttons, instantiationService, contextMenuService, configurationService, hostService);
 
 		const renderedMessage = this._register(this.markdownRenderer.render(
 			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
@@ -160,9 +188,8 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
-		@IOpenerService openerService: IOpenerService,
 	) {
-		super(title, subtitle, buttons, instantiationService, contextMenuService, configurationService, hostService, openerService);
+		super(title, subtitle, buttons, instantiationService, contextMenuService, configurationService, hostService);
 		this.renderMessage(messageElement);
 	}
 }

@@ -120,7 +120,6 @@ export interface IToolResultTextPart {
 
 export interface IToolConfirmationMessages {
 	title: string;
-	subtitle: string | undefined | IMarkdownString;
 	message: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 }
@@ -128,6 +127,7 @@ export interface IToolConfirmationMessages {
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
+	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
 	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.
