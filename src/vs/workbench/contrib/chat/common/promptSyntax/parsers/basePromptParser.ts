@@ -509,7 +509,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			};
 		}
 
-
 		const { tools, mode, description, include } = metadata;
 
 		// compute resulting mode based on presence

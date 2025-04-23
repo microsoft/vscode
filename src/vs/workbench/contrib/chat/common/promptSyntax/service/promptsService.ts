@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatMode } from '../../constants.js';
+import { flatten, forEach } from './treeUtils.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IPromptFileReference } from '../parsers/types.js';
 import { match } from '../../../../../../base/common/glob.js';
+import { pick } from '../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { FilePromptParser } from '../parsers/filePromptParser.js';
@@ -18,7 +22,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import { IChatPromptSlashCommand, TCombinedToolsMetadata, IMetadata, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 
@@ -167,48 +171,30 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
+		const result: URI[] = [];
+
+		// TODO: @legomushroom - record timing of the function
 		const instructionFiles = await this.listPromptFiles('instructions');
 
-		const result: URI[] = [];
 		if (instructionFiles.length === 0) {
 			return result;
-
 		}
 
-		const maybeIncludeRules = await Promise.all(
-			instructionFiles.map(async (instruction) => {
-				const parser = this.initService.createInstance(
-					FilePromptParser,
-					instruction.uri,
-					{},
-				).start();
-
-				await parser.settled();
-
-				if (parser.metadata.include === undefined) {
-					return undefined;
-				}
-
-				return {
-					uri: instruction.uri,
-					rule: parser.metadata.include,
-				};
-			}),
+		const instructions = await this.getAllMetadata(
+			instructionFiles.map(pick('uri')),
 		);
 
-		const includeRules = maybeIncludeRules.filter((instruction) => {
-			return instruction !== undefined;
-		});
+		for (const instruction of instructions.flatMap(flatten)) {
+			const { metadata, uri } = instruction;
 
-		if (includeRules.length === 0) {
-			return result;
-		}
+			if (metadata.include === undefined) {
+				continue;
+			}
 
-		// TODO: @legomushroom - return all "global" patterns even if files list is empty?
-		for (const { uri: instructionUri, rule } of includeRules) {
+			// TODO: @legomushroom - return all "global" patterns even if files list is empty?
 			for (const file of files) {
-				if (match(rule, file.fsPath)) {
-					result.push(instructionUri);
+				if (match(metadata.include, file.fsPath)) {
+					result.push(uri);
 
 					continue;
 				}
@@ -216,6 +202,142 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		return result;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public async getAllMetadata(
+		files: readonly URI[],
+	): Promise<IMetadata[]> {
+		const metadata = await Promise.all(
+			files.map(async (uri) => {
+				const parser = this.initService.createInstance(
+					FilePromptParser,
+					uri,
+					{ allowNonPromptFiles: true },
+				).start();
+
+				await parser.allSettled();
+
+				return collectMetadata(parser);
+			}),
+		);
+
+		return metadata;
+	}
+
+	/**
+	 * Collect metadata from all headers of all attached prompt files,
+	 * and computes resulting `chat mode` and `tools` metadata.
+	 *
+	 * The `tools` metadata is combined into a single list across all prompt files.
+	 * On the other hand, the `chat mode` is computed as the single safest mode
+	 * that will satisfy all prompt file attachments. For instance:
+	 *
+	 *   - `Ask`, `Ask`, `Ask` -> `Ask`
+	 *   - `Ask`, `Ask`, `Edit` -> `Edit`
+	 *   - `Agent`, `Ask`, `Edit` -> `Agent`
+	 */
+	// TODO: @legomushroom - update the description
+	// TODO: @legomushroom - add unit tests
+	public async getCombinedToolsMetadata(
+		files: readonly URI[],
+	): Promise<TCombinedToolsMetadata> {
+		if (files.length === 0) {
+			return {
+				tools: undefined,
+				mode: ChatMode.Ask,
+			};
+		}
+
+		const filesMetadata = await this.getAllMetadata(files);
+
+		const allTools = filesMetadata
+			.map((fileMetadata) => {
+				const result: string[] = [];
+
+				let isFirst = true;
+				let isRootInAgentMode = false;
+				let hasTools = false;
+
+				// TODO: @legomushroom
+				let chatMode: ChatMode = leastPrivilegedChatMode();
+
+				forEach(fileMetadata, (node) => {
+					const { metadata } = node;
+					const { mode, tools } = metadata;
+
+					if (isFirst === true) {
+						isFirst = false;
+
+						if ((mode === ChatMode.Agent) || (tools !== undefined)) {
+							isRootInAgentMode = true;
+
+							chatMode = ChatMode.Agent;
+						}
+					}
+
+					chatMode = morePrivilegedChatMode(
+						chatMode,
+						mode,
+					);
+
+					// if not in the agent mode, stop the search
+					if (isRootInAgentMode === false) {
+						return true;
+					}
+
+					if (tools !== undefined) {
+						result.push(...tools);
+						hasTools = true;
+					}
+
+					return false;
+				});
+
+				if (chatMode === ChatMode.Agent) {
+					return {
+						tools: (hasTools)
+							? [...new Set(result)]
+							: undefined,
+						mode: ChatMode.Agent,
+					};
+				}
+
+				return {
+					mode: chatMode,
+				};
+			});
+
+		let hasAnyTools = false;
+		let resultingChatMode = leastPrivilegedChatMode();
+
+		const result: string[] = [];
+		for (const { tools, mode } of allTools) {
+			resultingChatMode = morePrivilegedChatMode(
+				resultingChatMode,
+				mode,
+			);
+			if (tools !== undefined) {
+				result.push(...tools);
+				hasAnyTools = true;
+			}
+		}
+
+		if (resultingChatMode === ChatMode.Agent) {
+			return {
+				tools: (hasAnyTools)
+					? [...new Set(result)]
+					: undefined,
+				mode: resultingChatMode,
+			};
+		}
+
+		return {
+			tools: undefined,
+			mode: resultingChatMode,
+		};
 	}
 }
 
@@ -225,7 +347,8 @@ export function getPromptCommandName(path: string) {
 }
 
 /**
- * Utility to add a provided prompt `type` to a prompt URI.
+ * Utility to add a provided prompt `storage` and
+ * `type` attributes to a prompt URI.
  */
 const addType = (
 	storage: TPromptsStorage,

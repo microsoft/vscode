@@ -29,6 +29,7 @@ export abstract class PromptMetadataRecord {
 
 	constructor(
 		protected readonly recordToken: FrontMatterRecord,
+		protected readonly languageId: string,
 	) {
 
 		this.issues = [];
@@ -93,6 +94,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 	constructor(
 		expectedRecordName: string,
 		recordToken: FrontMatterRecord,
+		languageId: string,
 	) {
 		// sanity check on the name of the record
 		const recordName = recordToken.nameToken.text;
@@ -101,7 +103,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 			`Record token must be '${expectedRecordName}', got '${recordName}'.`,
 		);
 
-		super(recordToken);
+		super(recordToken, languageId);
 	}
 
 	/**

@@ -40,7 +40,6 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
 		const { header } = this.parser;
-
 		if (header === undefined) {
 			return this;
 		}

@@ -21,8 +21,9 @@ export class PromptDescriptionMetadata extends PromptStringMetadata {
 
 	constructor(
 		recordToken: FrontMatterRecord,
+		languageId: string,
 	) {
-		super(RECORD_NAME, recordToken);
+		super(RECORD_NAME, recordToken, languageId);
 	}
 
 	/**
