@@ -112,10 +112,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocation<Object> = {
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
 			input: dto.parameters,
 			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
-			progress: undefined!,
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
 			options.chatRequestId = dto.chatRequestId;
@@ -139,8 +138,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
+		let progress: vscode.Progress<{ message?: string; increment?: number }> | undefined;
 		if (isProposedApiEnabled(item.extension, 'toolProgress')) {
-			options.progress = {
+			progress = {
 				report: value => {
 					this._proxy.$acceptToolProgress(dto.callId, {
 						message: value.message,
@@ -151,7 +151,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token)), token);
+		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token, progress!)), token);
 		if (!extensionResult) {
 			throw new CancellationError();
 		}
