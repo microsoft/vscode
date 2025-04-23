@@ -290,6 +290,7 @@ export class QuickDiffModel extends Disposable {
 						}
 
 						allDiffs.push({
+							providerId: quickDiff.id,
 							label: quickDiff.label,
 							original: quickDiff.originalResource,
 							modified: this._model.resource,
