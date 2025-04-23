@@ -178,7 +178,7 @@ export class QuickDiffModel extends Disposable {
 	public getQuickDiffResults(): QuickDiffResult[] {
 		return this._quickDiffs.map(quickDiff => {
 			const changes = this.changes
-				.filter(change => change.label === quickDiff.label);
+				.filter(change => change.providerId === quickDiff.id);
 
 			return {
 				original: quickDiff.originalResource,
@@ -339,7 +339,7 @@ export class QuickDiffModel extends Disposable {
 				return [];
 			}
 
-			if (equals(this._quickDiffs, quickDiffs, (a, b) => a.originalResource.toString() === b.originalResource.toString() && a.label === b.label && a.visible === b.visible)) {
+			if (equals(this._quickDiffs, quickDiffs, (a, b) => a.originalResource.toString() === b.originalResource.toString() && a.id === b.id && a.visible === b.visible)) {
 				return quickDiffs;
 			}
 
@@ -411,11 +411,11 @@ export class QuickDiffModel extends Disposable {
 			return nextChange !== -1 ? nextChange : 0;
 		}
 
-		const primaryQuickDiffLabel = this.quickDiffs
-			.find(quickDiff => quickDiff.kind === 'primary')?.label;
+		const primaryQuickDiffId = this.quickDiffs
+			.find(quickDiff => quickDiff.kind === 'primary')?.id;
 
 		const primaryInclusiveChangeIndex = this.changes
-			.findIndex(change => change.label === primaryQuickDiffLabel &&
+			.findIndex(change => change.providerId === primaryQuickDiffId &&
 				change.change.modifiedStartLineNumber <= lineNumber &&
 				getModifiedEndLineNumber(change.change) >= lineNumber);
 
@@ -438,7 +438,7 @@ export class QuickDiffModel extends Disposable {
 			}
 
 			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
+			if (!this.quickDiffs.find(quickDiff => quickDiff.id === this.changes[i].providerId)?.visible) {
 				continue;
 			}
 

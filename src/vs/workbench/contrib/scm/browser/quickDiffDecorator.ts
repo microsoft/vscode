@@ -134,12 +134,12 @@ class QuickDiffDecorator extends Disposable {
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
 		const primaryQuickDiff = this.quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
-		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(labeledChange => labeledChange.label === primaryQuickDiff?.label);
+		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(change => change.providerId === primaryQuickDiff?.id);
 
 		const decorations: IModelDeltaDecoration[] = [];
 		for (const change of this.quickDiffModelRef.object.changes) {
 			const quickDiff = this.quickDiffModelRef.object.quickDiffs
-				.find(quickDiff => quickDiff.label === change.label);
+				.find(quickDiff => quickDiff.id === change.providerId);
 
 			if (!quickDiff?.visible) {
 				// Not visible
@@ -357,7 +357,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 			const visibleDecorationCount = observableFromEvent(this,
 				quickDiffModelRef.object.onDidChange, () => {
 					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
-					return quickDiffModelRef.object.changes.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label)).length;
+					return quickDiffModelRef.object.changes.filter(change => visibleQuickDiffs.some(quickDiff => quickDiff.id === change.providerId)).length;
 				});
 
 			store.add(autorun(reader => {

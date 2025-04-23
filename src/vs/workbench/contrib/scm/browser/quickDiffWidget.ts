@@ -311,10 +311,11 @@ class QuickDiffWidget extends PeekViewWidget {
 		const change = this.model.changes[this._index];
 		const quickDiffWithChange = this.model.changes
 			.filter(c => change.change2.modified.overlapOrTouch(c.change2.modified))
-			.map(c => c.label);
+			.map(c => c.providerId);
 
 		const quickDiffs = this.model.quickDiffs
-			.filter(quickDiff => quickDiff.visible && quickDiffWithChange.includes(quickDiff.label));
+			.filter(quickDiff => quickDiff.visible &&
+				quickDiffWithChange.includes(quickDiff.id));
 
 		return quickDiffs.length > 1;
 	}
