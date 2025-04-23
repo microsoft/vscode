@@ -138,12 +138,12 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		let progress: vscode.Progress<{ message?: string; increment?: number }> | undefined;
+		let progress: vscode.Progress<{ message?: string | vscode.MarkdownString; increment?: number }> | undefined;
 		if (isProposedApiEnabled(item.extension, 'toolProgress')) {
 			progress = {
 				report: value => {
 					this._proxy.$acceptToolProgress(dto.callId, {
-						message: value.message,
+						message: typeConvert.MarkdownString.fromStrict(value.message),
 						increment: value.increment,
 						total: 100,
 					});
@@ -151,7 +151,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token, progress!)), token);
+		// todo: 'any' cast because TS can't handle the overloads
+		const extensionResult = await raceCancellation(Promise.resolve((item.tool.invoke as any)(options, token, progress!)), token);
 		if (!extensionResult) {
 			throw new CancellationError();
 		}

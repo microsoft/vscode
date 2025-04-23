@@ -15,7 +15,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
@@ -40,6 +40,14 @@ export interface IToolData {
 	alwaysDisplayInputOutput?: boolean;
 	supportsToolPicker?: boolean;
 }
+
+export interface IToolProgressStep {
+	readonly message: string | IMarkdownString | undefined;
+	readonly increment: number | undefined;
+	readonly total: number | undefined;
+}
+
+export type ToolProgress = IProgress<IToolProgressStep>;
 
 export type ToolDataSource =
 	| {
@@ -135,7 +143,7 @@ export interface IPreparedToolInvocation {
 }
 
 export interface IToolImpl {
-	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<IToolResult>;
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 

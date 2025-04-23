@@ -235,7 +235,7 @@ export interface IChatToolInvocation {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
-	progress: IObservable<{ message?: string; progress: number }>;
+	progress: IObservable<{ message?: string | IMarkdownString; progress: number }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
 

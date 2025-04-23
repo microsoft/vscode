@@ -9,7 +9,6 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
@@ -17,7 +16,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../common/languageModelToolsService.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';
 export const InternalEditToolId = 'vscode_editFile_internal';
@@ -43,7 +42,7 @@ export class EditTool implements IToolImpl {
 		@INotebookService private readonly notebookService: INotebookService,
 	) { }
 
-	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		if (!invocation.context) {
 			throw new Error('toolInvocationToken is required for this tool');
 		}

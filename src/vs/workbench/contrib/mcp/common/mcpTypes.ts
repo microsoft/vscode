@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
@@ -17,9 +17,9 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
-import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -264,7 +264,7 @@ export interface IMcpTool {
 	/**
 	 * Identical to {@link call}, but reports progress.
 	 */
-	callWithProgress(params: Record<string, unknown>, progress: IProgress<IProgressStep>, token?: CancellationToken): Promise<MCP.CallToolResult>;
+	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult>;
 }
 
 export const enum McpServerTransportType {

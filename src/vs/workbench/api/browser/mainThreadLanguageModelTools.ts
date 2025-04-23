@@ -6,8 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolProgressStep, IToolResult, ToolProgress } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
@@ -19,7 +18,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 	private readonly _tools = this._register(new DisposableMap<string>());
 	private readonly _runningToolCalls = new Map</* call ID */string, {
 		countTokens: CountTokensCallback;
-		progress: IProgress<IProgressStep>;
+		progress: ToolProgress;
 	}>();
 
 	constructor(
@@ -49,7 +48,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		};
 	}
 
-	$acceptToolProgress(callId: string, progress: IProgressStep): void {
+	$acceptToolProgress(callId: string, progress: IToolProgressStep): void {
 		this._runningToolCalls.get(callId)?.progress.report(progress);
 	}
 

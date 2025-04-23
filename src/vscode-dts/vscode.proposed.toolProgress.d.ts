@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * A progress message that represents a chunk of work
 		 */
-		message?: string;
+		message?: string | MarkdownString;
 		/**
 		 * An increment for discrete progress. Increments will be summed up until 100 (100%) is reached
 		 */
