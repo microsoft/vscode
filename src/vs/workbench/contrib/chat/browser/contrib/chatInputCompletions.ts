@@ -519,35 +519,27 @@ class BuiltinDynamicCompletions extends Disposable {
 	) {
 		super();
 
+		const fileWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');
 		// File completions
-		this.registerVariableCompletions('file', async ({ widget, range, position, model }, token) => {
+		this.registerVariableCompletions('file', async ({ widget, range }, token) => {
 			if (!widget.supportsFileReferences) {
 				return;
 			}
-
 			const result: CompletionList = { suggestions: [] };
-			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
-			if (range2) {
-				await this.addFileEntries(widget, result, range2, token);
-			}
-
+			await this.addFileEntries(widget, result, range, token);
 			return result;
-		});
+
+		}, fileWordPattern);
 
 		// Folder completions
-		this.registerVariableCompletions('folder', async ({ widget, range, position, model }, token) => {
+		this.registerVariableCompletions('folder', async ({ widget, range }, token) => {
 			if (!widget.supportsFileReferences) {
 				return;
 			}
-
 			const result: CompletionList = { suggestions: [] };
-			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
-			if (range2) {
-				await this.addFolderEntries(widget, result, range2, token);
-			}
-
+			await this.addFolderEntries(widget, result, range, token);
 			return result;
-		});
+		}, fileWordPattern);
 
 		// Selection completion
 		this.registerVariableCompletions('selection', ({ widget, range }, token) => {
@@ -615,7 +607,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
 			triggerCharacters: [chatVariableLeader],
@@ -625,7 +617,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return;
 				}
 
-				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
+				const range = computeCompletionRanges(model, position, wordPattern, true);
 				if (range) {
 					return provider({ model, position, widget, range, context }, token);
 				}
@@ -742,7 +734,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private async addFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const folderLeader = `${chatVariableLeader}folder:`;
+		const folderLeader = chatVariableLeader;
 
 		const makeFolderCompletionItem = (resource: URI, description?: string): CompletionItem => {
 
