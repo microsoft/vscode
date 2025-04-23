@@ -214,7 +214,7 @@ class McpHTTPHandle extends Disposable {
 			headers['Mcp-Session-Id'] = sessionId;
 		}
 
-		const res = await fetch(this._launch.uri.toString(), {
+		const res = await fetch(this._launch.uri.toString(true), {
 			method: 'POST',
 			signal: this._abortCtrl.signal,
 			headers,
@@ -313,7 +313,7 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(), {
+				res = await fetch(this._launch.uri.toString(true), {
 					method: 'GET',
 					signal: this._abortCtrl.signal,
 					headers,
@@ -356,7 +356,7 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(), {
+			res = await fetch(this._launch.uri.toString(true), {
 				method: 'GET',
 				signal: this._abortCtrl.signal,
 				headers: {
@@ -377,7 +377,7 @@ class McpHTTPHandle extends Disposable {
 			if (event.type === 'message') {
 				this._proxy.$onDidReceiveMessage(this._id, event.data);
 			} else if (event.type === 'endpoint') {
-				postEndpoint.complete(new URL(event.data, this._launch.uri.toString()).toString());
+				postEndpoint.complete(new URL(event.data, this._launch.uri.toString(true)).toString());
 			}
 		});
 
