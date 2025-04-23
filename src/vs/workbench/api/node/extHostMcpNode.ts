@@ -58,6 +58,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	private async startNodeMpc(id: number, launch: McpServerTransportStdio) {
 		const onError = (err: Error | string) => this._proxy.$onDidChangeState(id, {
 			state: McpConnectionState.Kind.Error,
+			code: err.hasOwnProperty('code') ? String((err as any).code) : undefined,
 			message: typeof err === 'string' ? err : err.message,
 		});
 

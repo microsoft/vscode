@@ -339,6 +339,12 @@ export interface IMcpServerConnection extends IDisposable {
 	readonly handler: IObservable<McpServerRequestHandler | undefined>;
 
 	/**
+	 * Resolved launch definition. Might not match the `definition.launch` due to
+	 * resolution logic in extension-provided MCPs.
+	 */
+	readonly launchDefinition: McpServerLaunch;
+
+	/**
 	 * Starts the server if it's stopped. Returns a promise that resolves once
 	 * server exits a 'starting' state.
 	 */
@@ -412,6 +418,7 @@ export namespace McpConnectionState {
 
 	export interface Error {
 		readonly state: Kind.Error;
+		readonly code?: string;
 		readonly message: string;
 	}
 }

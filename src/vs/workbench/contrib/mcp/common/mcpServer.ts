@@ -16,7 +16,8 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -27,7 +28,7 @@ import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 type ServerBootData = {
@@ -219,6 +220,8 @@ export class McpServer extends Disposable implements IMcpServer {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
@@ -322,8 +325,42 @@ export class McpServer extends Disposable implements IMcpServer {
 				time: Date.now() - start,
 			});
 
+			if (state.state === McpConnectionState.Kind.Error && isFromInteraction) {
+				this.showInteractiveError(connection, state);
+			}
+
 			return state;
 		});
+	}
+
+	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error) {
+		if (error.code === 'ENOENT' && cnx.launchDefinition.type === McpServerTransportType.Stdio) {
+			let docsLink: string | undefined;
+			switch (cnx.launchDefinition.command) {
+				case 'uvx':
+					docsLink = `https://aka.ms/vscode-mcp-install/uvx`;
+					break;
+				case 'npx':
+					docsLink = `https://aka.ms/vscode-mcp-install/npx`;
+					break;
+			}
+
+			const options: IPromptChoice[] = [{
+				label: localize('mcp.command.showOutput', "Show Output"),
+				run: () => this.showOutput(),
+			}];
+
+			if (docsLink) {
+				options.push({
+					label: localize('mcpServerInstall', 'Install {0}', cnx.launchDefinition.command),
+					run: () => this._openerService.open(URI.parse(docsLink)),
+				});
+			}
+
+			this._notificationService.prompt(Severity.Error, localize('mcpServerNotFound', 'The command "{0}" needed to run {1} was not found.', cnx.launchDefinition.command, cnx.definition.label), options);
+		} else {
+			this._notificationService.warn(localize('mcpServerError', 'The MCP server {0} could not be started: {1}', cnx.definition.label, error.message));
+		}
 	}
 
 	public stop(): Promise<void> {

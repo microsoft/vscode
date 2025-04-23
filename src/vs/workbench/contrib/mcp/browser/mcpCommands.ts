@@ -497,7 +497,7 @@ export class RestartServer extends Action2 {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		s?.showOutput();
 		await s?.stop();
-		await s?.start();
+		await s?.start(true);
 	}
 }
 
@@ -515,7 +515,7 @@ export class StartServer extends Action2 {
 
 	async run(accessor: ServicesAccessor, serverId: string) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start();
+		await s?.start(true);
 	}
 }
 
