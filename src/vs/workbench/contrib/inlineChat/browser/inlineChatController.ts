@@ -55,7 +55,7 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -1558,6 +1558,77 @@ export async function reviewEdits(accessor: ServicesAccessor, uri: URI, stream: 
 	return true;
 }
 
+export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, stream: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, token: CancellationToken): Promise<boolean> {
+
+	const chatService = accessor.get(IChatService);
+	const chatEditingService = accessor.get(IChatEditingService);
+	const notebookService = accessor.get(INotebookService);
+	const isNotebook = notebookService.hasSupportedNotebooks(uri);
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
+
+	const editSession = await chatEditingService.createEditingSession(chatModel);
+
+	const store = new DisposableStore();
+	store.add(chatModel);
+	store.add(editSession);
+
+	// STREAM
+	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+	assertType(chatRequest.response);
+	if (isNotebook) {
+		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: false });
+	} else {
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
+	}
+	for await (const chunk of stream) {
+
+		if (token.isCancellationRequested) {
+			chatRequest.response.cancel();
+			break;
+		}
+		if (chunk.every(isCellEditOperation)) {
+			chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: chunk, done: false });
+		} else {
+			chatRequest.response.updateContent({ kind: 'textEdit', uri: chunk[0], edits: chunk[1], done: false });
+		}
+	}
+	if (isNotebook) {
+		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: true });
+	} else {
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
+	}
+
+	if (!token.isCancellationRequested) {
+		chatRequest.response.complete();
+	}
+
+	const isSettled = derived(r => {
+		const entry = editSession.readEntry(uri, r);
+		if (!entry) {
+			return false;
+		}
+		const state = entry.state.read(r);
+		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
+	});
+
+	const whenDecided = waitForState(isSettled, Boolean);
+
+	await raceCancellation(whenDecided, token);
+
+	store.dispose();
+
+	return true;
+}
+
+function isCellEditOperation(edit: URI | TextEdit[] | ICellEditOperation): edit is ICellEditOperation {
+	if (URI.isUri(edit)) {
+		return false;
+	}
+	if (Array.isArray(edit)) {
+		return false;
+	}
+	return true;
+}
 
 async function moveToPanelChat(accessor: ServicesAccessor, model: ChatModel | undefined) {
 

@@ -24,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
+import { reviewEdits, reviewNotebookEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
@@ -229,7 +229,7 @@ export class ApplyCodeBlockOperation {
 		let editsProposed = false;
 		const cancellationTokenSource = new CancellationTokenSource();
 		try {
-			const iterable = await this.progressService.withProgress<AsyncIterable<TextEdit[] | ICellEditOperation[]>>(
+			const iterable = await this.progressService.withProgress<AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>>(
 				{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 				async progress => {
 					progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
@@ -238,7 +238,7 @@ export class ApplyCodeBlockOperation {
 				},
 				() => cancellationTokenSource.cancel()
 			);
-			editsProposed = await this.applyWithInlinePreview(iterable, uri, cancellationTokenSource);
+			editsProposed = await this.applyNotebookEditsWithInlinePreview(iterable, uri, cancellationTokenSource);
 		} catch (e) {
 			if (!isCancellationError(e)) {
 				this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
@@ -315,15 +315,15 @@ export class ApplyCodeBlockOperation {
 		});
 	}
 
-	private getNotebookEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<TextEdit[] | ICellEditOperation[]> {
-		return new AsyncIterableObject<TextEdit[] | ICellEditOperation[]>(async executor => {
+	private getNotebookEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]> {
+		return new AsyncIterableObject<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
 				chatSessionId
 			};
 			const response: ICodeMapperResponse = {
-				textEdit: (target: URI, edit: TextEdit[]) => {
-					executor.emitOne(edit);
+				textEdit: (target: URI, edits: TextEdit[]) => {
+					executor.emitOne([target, edits]);
 				},
 				notebookEdit(_resource, edit) {
 					executor.emitOne(edit);
@@ -360,6 +360,10 @@ export class ApplyCodeBlockOperation {
 
 	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[] | ICellEditOperation[]>, uri: URI, tokenSource: CancellationTokenSource): Promise<boolean> {
 		return this.instantiationService.invokeFunction(reviewEdits, uri, edits, tokenSource.token);
+	}
+
+	private async applyNotebookEditsWithInlinePreview(edits: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, uri: URI, tokenSource: CancellationTokenSource): Promise<boolean> {
+		return this.instantiationService.invokeFunction(reviewNotebookEdits, uri, edits, tokenSource.token);
 	}
 
 	private tryToRevealCodeBlock(codeEditor: IActiveCodeEditor, codeBlock: string): void {
