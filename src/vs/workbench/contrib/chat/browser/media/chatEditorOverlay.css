@@ -97,14 +97,6 @@
 	font-size: 12px;
 }
 
-.chat-editor-overlay-widget .action-item:first-child > .action-label {
-	padding-left: 7px;
-}
-
-.chat-editor-overlay-widget .action-item:last-child > .action-label {
-	padding-right: 7px;
-}
-
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,
 .chat-editor-overlay-widget .action-item > .action-label.codicon {
 	color: var(--vscode-button-foreground);

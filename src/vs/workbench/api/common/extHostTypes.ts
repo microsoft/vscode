@@ -5108,6 +5108,12 @@ export enum RelatedInformationType {
 	SettingInformation = 4
 }
 
+export enum SettingsSearchResultKind {
+	EMBEDDED = 1,
+	LLM_RANKED = 2,
+	CANCELED = 3,
+}
+
 //#endregion
 
 //#region Speech
@@ -5157,7 +5163,7 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 		public label: string,
 		public command: string,
 		public args: string[],
-		public env: Record<string, string | number | null>,
+		public env: Record<string, string | number | null> = {},
 		public version?: string,
 	) { }
 }

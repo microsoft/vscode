@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from '../../../../../base/common/actions.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -18,7 +16,7 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { BaseDropdown, ILabelRenderer } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 
 interface IModelPickerActionItem {
 	model: ILanguageModelChatMetadataAndIdentifier;
@@ -28,12 +26,14 @@ interface IModelPickerActionItem {
 /**
  * Widget for picking a language model for chat.
  */
-export class ModelPickerWidget extends Disposable {
+export class ModelPickerWidget extends BaseDropdown {
 	private readonly _onDidChangeModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 	readonly onDidChangeModel = this._onDidChangeModel.event;
 
 	constructor(
-		private currentModel: ILanguageModelChatMetadataAndIdentifier,
+		container: HTMLElement,
+		labelRenderer: ILabelRenderer,
+		private readonly getCurrentModel: () => ILanguageModelChatMetadataAndIdentifier,
 		private readonly getModels: () => ILanguageModelChatMetadataAndIdentifier[],
 		private readonly setModel: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
@@ -42,14 +42,7 @@ export class ModelPickerWidget extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super();
-	}
-
-	/**
-	 * Get the label to display in the button that shows the current model
-	 */
-	get buttonLabel(): string {
-		return this.currentModel.metadata.name;
+		super(container, { labelRenderer });
 	}
 
 	/**
@@ -58,7 +51,7 @@ export class ModelPickerWidget extends Disposable {
 	private getActionItems(): IModelPickerActionItem[] {
 		const items: IModelPickerActionItem[] = this.getModels().map(model => ({
 			model,
-			isCurrent: model.identifier === this.currentModel.identifier
+			isCurrent: model.identifier === this.getCurrentModel().identifier
 		}));
 
 		return items;
@@ -100,22 +93,59 @@ export class ModelPickerWidget extends Disposable {
 	/**
 	 * Shows the picker at the specified anchor
 	 */
-	showAt(anchor: HTMLElement | StandardMouseEvent | IAnchor, container?: HTMLElement): void {
-		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = this.getActionItems().map(item => ({
-			item: item.model,
-			kind: ActionListItemKind.Action,
-			canPreview: false,
-			group: { title: '', icon: ThemeIcon.fromId(item.isCurrent ? Codicon.check.id : Codicon.blank.id) },
-			disabled: false,
-			hideIcon: false,
-			label: item.model.metadata.name,
-		} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>));
+	override show(): void {
+		const actionItems = this.getActionItems();
+		const items: IActionListItem<ILanguageModelChatMetadataAndIdentifier>[] = [];
+
+		// Group models by categories
+		const modelsByCategory = new Map<string, IModelPickerActionItem[]>();
+
+		// First, group models by their categories
+		for (const item of actionItems) {
+			const category = item.model.metadata.modelPickerCategory;
+			if (!modelsByCategory.has(category.label)) {
+				modelsByCategory.set(category.label, []);
+			}
+			modelsByCategory.get(category.label)!.push(item);
+		}
+
+		for (const [categoryLabel, modelsInCategory] of modelsByCategory.entries()) {
+			// Skip empty categories
+			if (modelsInCategory.length === 0) {
+				continue;
+			}
+
+			// Add category header
+			items.push({
+				label: categoryLabel,
+				kind: ActionListItemKind.Header,
+				canPreview: false,
+				disabled: false,
+				hideIcon: true,
+			} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>);
+
+			// Add models in this category
+			for (const item of modelsInCategory) {
+				items.push({
+					item: item.model,
+					description: item.model.metadata.description,
+					kind: ActionListItemKind.Action,
+					canPreview: false,
+					group: { title: '', icon: ThemeIcon.fromId(item.isCurrent ? Codicon.check.id : Codicon.blank.id) },
+					disabled: false,
+					hideIcon: false,
+					label: item.model.metadata.name,
+				} satisfies IActionListItem<ILanguageModelChatMetadataAndIdentifier>);
+			}
+
+			// Remove this category from the map so we don't process it again
+			modelsByCategory.delete(categoryLabel);
+		}
 
 		const delegate = {
 			onSelect: (item: ILanguageModelChatMetadataAndIdentifier) => {
-				if (item.identifier !== this.currentModel.identifier) {
+				if (item.identifier !== this.getCurrentModel().identifier) {
 					this.setModel(item);
-					this.currentModel = item;
 					this._onDidChangeModel.fire(item);
 				}
 				this.actionWidgetService.hide(false);
@@ -139,8 +169,8 @@ export class ModelPickerWidget extends Disposable {
 			false,
 			items,
 			delegate,
-			anchor,
-			container,
+			this.element,
+			undefined,
 			buttonBar
 		);
 	}

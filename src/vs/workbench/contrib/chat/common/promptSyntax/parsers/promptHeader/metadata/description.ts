@@ -10,7 +10,7 @@ import { PromptMetadataDiagnostic, PromptMetadataError } from '../diagnostics.js
 import { FrontMatterRecord, FrontMatterString, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
- * Name of the `description` metadata record in the prompt header.
+ * Name of the metadata record in the prompt header.
  */
 const RECORD_NAME = 'description';
 
@@ -18,6 +18,10 @@ const RECORD_NAME = 'description';
  * Prompt `description` metadata record inside the prompt header.
  */
 export class PromptDescriptionMetadata extends PromptMetadataRecord {
+	public override get recordName(): string {
+		return RECORD_NAME;
+	}
+
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
@@ -78,7 +82,7 @@ export class PromptDescriptionMetadata extends PromptMetadataRecord {
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.description.diagnostics.invalid-value-type',
-						"Value of the '{0}' metadata must be '{1}', got '{2}.",
+						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
 						RECORD_NAME,
 						'string',
 						valueToken.valueTypeName,

@@ -79,7 +79,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
@@ -163,7 +163,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public async getAttachedAndImplicitContext(sessionId: string): Promise<IChatRequestVariableEntry[]> {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
-			contextArr.push(this.implicitContext.toBaseEntry());
+
+			const implicitChatVariables = await this.implicitContext.toBaseEntries();
+			contextArr.push(...implicitChatVariables);
 		}
 
 		// factor in nested file links of a prompt into the implicit context
@@ -182,8 +184,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			);
 		}
 
+		// prompt files may have nested child references to other prompt
+		// files that are resolved asynchronously, hence we need to wait
+		// for the entire prompt instruction tree to be processed
+		const instructionsStarted = performance.now();
+
 		// wait for all prompt files resolve precesses to settle
 		await this.promptInstructionsAttachmentsPart.allSettled();
+
+		// allow-any-unicode-next-line
+		this.logService.trace(`[⏱] instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
 
 		contextArr
 			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
@@ -475,6 +485,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.checkModelSupported();
 			}
 		}));
+	}
+
+	public switchModel(modelMetadata: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>) {
+		const models = this.getModels();
+		const model = models.find(m => m.metadata.vendor === modelMetadata.vendor && m.metadata.id === modelMetadata.id && m.metadata.family === modelMetadata.family);
+		if (model) {
+			this.setCurrentLanguageModel(model);
+		}
 	}
 
 	public switchToNextModel(): void {
@@ -891,7 +909,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		if (this.options.enableImplicitContext) {
-			this._implicitContext = this._register(new ChatImplicitContext());
+			this._implicitContext = this._register(
+				this.instantiationService.createInstance(ChatImplicitContext),
+			);
+
 			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
 		}
 
@@ -1121,6 +1142,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return viewItem;
 				}
 				if (action.id === AttachToolsAction.id) {
+					// TODO@jrieken let's remove this once the tools picker has its final place.
 					return this.selectedToolsModel.toolsActionItemViewItemProvider(action, options);
 				}
 				return undefined;

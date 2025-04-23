@@ -20,7 +20,7 @@ import * as Convert from './extHostTypeConverters.js';
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
 export interface IExtHostMpcService extends ExtHostMcpShape {
-	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable;
+	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable;
 }
 
 export class ExtHostMcpService extends Disposable implements IExtHostMpcService {
@@ -28,7 +28,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	private readonly _initialProviderPromises = new Set<Promise<void>>();
 	private readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
 	private readonly _unresolvedMcpServers = new Map</* collectionId */ string, {
-		provider: vscode.McpConfigurationProvider;
+		provider: vscode.McpServerDefinitionProvider;
 		servers: vscode.McpServerDefinition[];
 	}>();
 
@@ -85,8 +85,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		return resolved ? Convert.McpServerDefinition.from(resolved) : undefined;
 	}
 
-	/** {@link vscode.lm.registerMcpConfigurationProvider} */
-	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable {
+	/** {@link vscode.lm.registerMcpServerDefinitionProvider} */
+	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable {
 		const store = new DisposableStore();
 
 		const metadata = extension.contributes?.modelContextServerCollections?.find(m => m.id === id);
@@ -112,6 +112,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				servers.push({
 					id: ExtensionIdentifier.toKey(extension.identifier),
 					label: item.label,
+					cacheNonce: item.version,
 					launch: Convert.McpServerDefinition.from(item)
 				});
 			}
@@ -124,8 +125,12 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			this._proxy.$deleteMcpCollection(mcp.id);
 		}));
 
-		if (provider.onDidChange) {
-			store.add(provider.onDidChange(update));
+		if (provider.onDidChangeServerDefinitions) {
+			store.add(provider.onDidChangeServerDefinitions(update));
+		}
+		// todo@connor4312: proposed API back-compat
+		if ((provider as any).onDidChange) {
+			store.add((provider as any).onDidChange(update));
 		}
 
 		const promise = new Promise<void>(resolve => {
@@ -213,7 +218,7 @@ class McpHTTPHandle extends Disposable {
 			headers['Mcp-Session-Id'] = sessionId;
 		}
 
-		const res = await fetch(this._launch.uri.toString(), {
+		const res = await fetch(this._launch.uri.toString(true), {
 			method: 'POST',
 			signal: this._abortCtrl.signal,
 			headers,
@@ -312,7 +317,7 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(), {
+				res = await fetch(this._launch.uri.toString(true), {
 					method: 'GET',
 					signal: this._abortCtrl.signal,
 					headers,
@@ -355,7 +360,7 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(), {
+			res = await fetch(this._launch.uri.toString(true), {
 				method: 'GET',
 				signal: this._abortCtrl.signal,
 				headers: {
@@ -376,7 +381,7 @@ class McpHTTPHandle extends Disposable {
 			if (event.type === 'message') {
 				this._proxy.$onDidReceiveMessage(this._id, event.data);
 			} else if (event.type === 'endpoint') {
-				postEndpoint.complete(new URL(event.data, this._launch.uri.toString()).toString());
+				postEndpoint.complete(new URL(event.data, this._launch.uri.toString(true)).toString());
 			}
 		});
 

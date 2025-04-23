@@ -89,6 +89,8 @@ export interface ICodeBlockData {
 
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
+
+	readonly chatSessionId: string;
 }
 
 /**
@@ -135,6 +137,8 @@ export interface ICodeBlockActionContext {
 	languageId?: string;
 	codeBlockIndex: number;
 	element: unknown;
+
+	chatSessionId: string | undefined;
 }
 
 export interface ICodeBlockRenderOptions {
@@ -451,6 +455,7 @@ export class CodeBlockPart extends Disposable {
 			element: data.element,
 			languageId: textModel.getLanguageId(),
 			codemapperUri: data.codemapperUri,
+			chatSessionId: data.chatSessionId
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}
@@ -704,7 +709,7 @@ export class CodeCompareBlockPart extends Disposable {
 		const toolbarElt = this.toolbar.getElement();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
-			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
+			toolbarElt.ariaLabel = localize('chat.codeBlock.toolbar', 'Code block toolbar');
 		} else {
 			toolbarElt.style.display = '';
 		}

@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { assertType } from '../../../../../base/common/types.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -14,13 +15,15 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../../common/constants.js';
+import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { ACTION_ID_NEW_CHAT, waitForChatSessionCleared } from './chatClearActions.js';
@@ -287,11 +290,40 @@ class OpenModelPickerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
-		const widget = widgetService.lastFocusedWidget;
+		let widget = widgetService.lastFocusedWidget;
+		if (widget?.location !== ChatAgentLocation.Notebook && widget?.location !== ChatAgentLocation.Terminal) {
+			widget = await showChatView(accessor.get(IViewsService));
+		}
 		if (widget) {
 			widget.input.openModelPicker();
+		}
+	}
+}
+
+export const ChangeChatModelActionId = 'workbench.action.chat.changeModel';
+class ChangeChatModelAction extends Action2 {
+	static readonly ID = ChangeChatModelActionId;
+
+	constructor() {
+		super({
+			id: ChangeChatModelAction.ID,
+			title: localize2('interactive.changeModel.label', "Change Model"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const modelInfo: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'> = args[0];
+		// Type check the arg
+		assertType(typeof modelInfo.vendor === 'string' && typeof modelInfo.id === 'string' && typeof modelInfo.family === 'string');
+		const widgetService = accessor.get(IChatWidgetService);
+		const widgets = widgetService.getAllWidgets();
+		for (const widget of widgets) {
+			widget.input.switchModel(modelInfo);
 		}
 	}
 }
@@ -534,4 +566,5 @@ export function registerChatExecuteActions() {
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
+	registerAction2(ChangeChatModelAction);
 }
