@@ -844,7 +844,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		visibleCreatorModeButton.style.position = "fixed";
 		visibleCreatorModeButton.style.top = "0";
 		visibleCreatorModeButton.style.right = "0";
-		visibleCreatorModeButton.style.zIndex = "110";
+		visibleCreatorModeButton.style.zIndex = "999";
 		visibleCreatorModeButton.style.cursor = "pointer";
 
 		// Add CSS transition properties for animation
