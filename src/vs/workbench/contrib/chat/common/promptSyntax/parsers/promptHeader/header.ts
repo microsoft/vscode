@@ -151,7 +151,7 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "description" metadata
 		// add it to the list of parsed metadata records
 		if (PromptDescriptionMetadata.isDescriptionRecord(token)) {
-			const descriptionMetadata = new PromptDescriptionMetadata(token);
+			const descriptionMetadata = new PromptDescriptionMetadata(token, this.languageId);
 			const { diagnostics } = descriptionMetadata;
 
 			this.issues.push(...diagnostics);
@@ -163,7 +163,7 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
-			const toolsMetadata = new PromptToolsMetadata(token);
+			const toolsMetadata = new PromptToolsMetadata(token, this.languageId);
 			const { diagnostics } = toolsMetadata;
 
 			this.issues.push(...diagnostics);
@@ -176,7 +176,7 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "mode" metadata
 		// add it to the list of parsed metadata records
 		if (PromptModeMetadata.isModeRecord(token)) {
-			const modeMetadata = new PromptModeMetadata(token);
+			const modeMetadata = new PromptModeMetadata(token, this.languageId);
 			const { diagnostics } = modeMetadata;
 
 			this.issues.push(...diagnostics);
@@ -189,20 +189,12 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "include" metadata
 		// add it to the list of parsed metadata records
 		if (PromptIncludeMetadata.isIncludeRecord(token)) {
-			const includeMetadata = new PromptIncludeMetadata(token);
+			const includeMetadata = new PromptIncludeMetadata(token, this.languageId);
 			const { diagnostics } = includeMetadata;
 
-			// TODO: @legomushroom - do this on language change?
-			const languageIssues = includeMetadata
-				.validateDocumentLanguage(this.languageId);
-
-			this.issues.push(...diagnostics, ...languageIssues);
-
-			// TODO: @legomushroom
-			if (languageIssues.length === 0) {
-				this.meta.include = includeMetadata;
-				this.recordNames.add(recordName);
-			}
+			this.issues.push(...diagnostics);
+			this.meta.include = includeMetadata;
+			this.recordNames.add(recordName);
 
 			return;
 		}

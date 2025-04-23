@@ -21,8 +21,9 @@ const RECORD_NAME = 'include';
 export class PromptIncludeMetadata extends PromptStringMetadata {
 	constructor(
 		recordToken: FrontMatterRecord,
+		languageId: string,
 	) {
-		super(RECORD_NAME, recordToken);
+		super(RECORD_NAME, recordToken, languageId);
 	}
 
 	public override get recordName(): string {
@@ -35,6 +36,23 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 		];
 
 		if (this.valueToken === undefined) {
+			return result;
+		}
+
+		// TODO: @legomushroom
+		if (this.languageId !== INSTRUCTIONS_LANGUAGE_ID) {
+			result.push(
+				new PromptMetadataError(
+					this.range,
+					localize(
+						'prompt.header.metadata.string.diagnostics.invalid-language',
+						"The '{0}' metadata record is only valid in instruction files.",
+						this.recordName,
+					),
+				),
+			);
+
+			delete this.valueToken;
 			return result;
 		}
 
@@ -51,6 +69,9 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 					),
 				),
 			);
+
+			delete this.valueToken;
+			return result;
 		}
 
 		return result;
@@ -72,30 +93,6 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 		} catch (_error) {
 			return false;
 		}
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public validateDocumentLanguage(
-		languageId: string,
-	): readonly PromptMetadataDiagnostic[] {
-		const result: PromptMetadataDiagnostic[] = [];
-
-		if (languageId !== INSTRUCTIONS_LANGUAGE_ID) {
-			result.push(
-				new PromptMetadataError(
-					this.range,
-					localize(
-						'prompt.header.metadata.string.diagnostics.invalid-value-type',
-						"The '{0}' metadata record is only valid in instruction files.",
-						this.recordName,
-					),
-				),
-			);
-		}
-
-		return result;
 	}
 
 	/**

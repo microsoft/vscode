@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TTree } from './treeUtils.js';
+import { ChatMode } from '../../constants.js';
+import { IPromptMetadata } from '../parsers/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -53,6 +56,33 @@ export interface IPromptPath {
 export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
 
 /**
+ * TODO: @legomushroom
+ */
+export interface IMetadata {
+	readonly uri: URI;
+	readonly metadata: IPromptMetadata;
+	readonly children?: readonly TTree<IMetadata>[];
+}
+
+/**
+ * TODO: @legomushroom
+ */
+interface ICombinedAgentToolsMetadata {
+	readonly tools: readonly string[] | undefined;
+	readonly mode: ChatMode.Agent;
+}
+
+interface ICombinedNonAgentToolsMetadata {
+	readonly tools: undefined;
+	readonly mode: ChatMode.Ask | ChatMode.Edit;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+export type TCombinedToolsMetadata = ICombinedAgentToolsMetadata | ICombinedNonAgentToolsMetadata;
+
+/**
  * Provides prompt services.
  */
 export interface IPromptsService extends IDisposable {
@@ -98,6 +128,20 @@ export interface IPromptsService extends IDisposable {
 	findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]>;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	getAllMetadata(
+		files: readonly URI[],
+	): Promise<readonly IMetadata[]>;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	getCombinedToolsMetadata(
+		files: readonly URI[],
+	): Promise<TCombinedToolsMetadata>;
 }
 
 export interface IChatPromptSlashCommand {

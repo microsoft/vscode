@@ -29,8 +29,9 @@ const VALID_MODES = Object.freeze([
 export class PromptModeMetadata extends PromptStringMetadata {
 	constructor(
 		recordToken: FrontMatterRecord,
+		languageId: string,
 	) {
-		super(RECORD_NAME, recordToken);
+		super(RECORD_NAME, recordToken, languageId);
 	}
 
 	public override get recordName(): string {
