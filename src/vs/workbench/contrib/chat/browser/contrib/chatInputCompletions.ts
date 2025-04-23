@@ -9,7 +9,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -24,8 +23,8 @@ import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -33,7 +32,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -45,7 +43,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, getTopLevelFolders, searchFilesAndFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, searchFilesAndFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -501,7 +499,6 @@ class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
 	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:-]*`, 'g'); // MUST be using `g`-flag
 
-	private readonly queryBuilder: QueryBuilder;
 
 	constructor(
 		@IHistoryService private readonly historyService: IHistoryService,
@@ -511,43 +508,23 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutlineModelService private readonly outlineService: IOutlineModelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
-		// File completions
-		this.registerVariableCompletions('file', async ({ widget, range, position, model }, token) => {
+		// File/Folder completions in one go and m
+		const fileWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');
+		this.registerVariableCompletions('fileAndFolder', async ({ widget, range }, token) => {
 			if (!widget.supportsFileReferences) {
 				return;
 			}
-
 			const result: CompletionList = { suggestions: [] };
-			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
-			if (range2) {
-				await this.addFileEntries(widget, result, range2, token);
-			}
-
+			await this.addFileAndFolderEntries(widget, result, range, token);
 			return result;
-		});
 
-		// Folder completions
-		this.registerVariableCompletions('folder', async ({ widget, range, position, model }, token) => {
-			if (!widget.supportsFileReferences) {
-				return;
-			}
-
-			const result: CompletionList = { suggestions: [] };
-			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
-			if (range2) {
-				await this.addFolderEntries(widget, result, range2, token);
-			}
-
-			return result;
-		});
+		}, fileWordPattern);
 
 		// Selection completion
 		this.registerVariableCompletions('selection', ({ widget, range }, token) => {
@@ -611,11 +588,9 @@ class BuiltinDynamicCompletions extends Disposable {
 		});
 
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
-
-		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
 			triggerCharacters: [chatVariableLeader],
@@ -625,7 +600,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return;
 				}
 
-				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
+				const range = computeCompletionRanges(model, position, wordPattern, true);
 				if (range) {
 					return provider({ model, position, widget, range, context }, token);
 				}
@@ -637,9 +612,9 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private cacheKey?: { key: string; time: number };
 
-	private async addFileEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+	private async addFileAndFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const makeFileCompletionItem = (resource: URI, description?: string): CompletionItem => {
+		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string): CompletionItem => {
 
 			const basename = this.labelService.getUriBasenameLabel(resource);
 			const text = `${chatVariableLeader}file:${basename}`;
@@ -654,12 +629,13 @@ class BuiltinDynamicCompletions extends Disposable {
 				filterText: `${chatVariableLeader}${basename}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
-				kind: CompletionItemKind.File,
+				kind: kind === FileKind.FILE ? CompletionItemKind.File : CompletionItemKind.Folder,
 				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: resource.toString(),
-						isFile: true,
+						isFile: kind === FileKind.FILE,
+						isDirectory: kind === FileKind.FOLDER,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
 					})]
@@ -684,7 +660,7 @@ class BuiltinDynamicCompletions extends Disposable {
 						continue;
 					}
 					seen.add(relatedFile.uri);
-					result.suggestions.push(makeFileCompletionItem(relatedFile.uri, relatedFile.description));
+					result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
 				}
 			}
 		}
@@ -706,7 +682,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			seen.add(item.resource);
-			const newLen = result.suggestions.push(makeFileCompletionItem(item.resource));
+			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE));
 			if (newLen - len >= 5) {
 				break;
 			}
@@ -717,95 +693,16 @@ class BuiltinDynamicCompletions extends Disposable {
 		if (pattern) {
 
 			const cacheKey = this.updateCacheKey();
+			const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
-			const query = this.queryBuilder.file(this.workspaceContextService.getWorkspace().folders, {
-				filePattern: pattern,
-				sortByScore: true,
-				maxResults: 250,
-				cacheKey: cacheKey.key
-			});
-
-			const data = await this.searchService.fileSearch(query, token);
-			for (const match of data.results) {
-				if (seen.has(match.resource)) {
-					// already included via history
-					continue;
+			for (const workspace of workspaces) {
+				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
+				for (const file of files) {
+					result.suggestions.push(makeCompletionItem(file, FileKind.FILE));
 				}
-				result.suggestions.push(makeFileCompletionItem(match.resource));
-			}
-		}
-
-		// mark results as incomplete because further typing might yield
-		// in more search results
-		result.incomplete = true;
-	}
-
-	private async addFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
-
-		const folderLeader = `${chatVariableLeader}folder:`;
-
-		const makeFolderCompletionItem = (resource: URI, description?: string): CompletionItem => {
-
-			const basename = this.labelService.getUriBasenameLabel(resource);
-			const text = `${folderLeader}${basename}`;
-			const uriLabel = this.labelService.getUriLabel(dirname(resource), { relative: true });
-			const labelDescription = description
-				? localize('folderEntryDescription', '{0} ({1})', uriLabel, description)
-				: uriLabel;
-			const sortText = description ? 'z' : '{'; // after `z`
-
-			return {
-				label: { label: basename, description: labelDescription },
-				filterText: `${folderLeader}${basename}`,
-				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
-				range: info,
-				kind: CompletionItemKind.Folder,
-				sortText,
-				command: {
-					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.folder',
-						isFile: false,
-						isDirectory: true,
-						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
-						data: resource
-					})]
+				for (const folder of folders) {
+					result.suggestions.push(makeCompletionItem(folder, FileKind.FOLDER));
 				}
-			};
-		};
-
-		const seen = new ResourceSet();
-		const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
-
-		let pattern: string | undefined;
-		if (info.varWord?.word && info.varWord.word.startsWith(folderLeader)) {
-			pattern = info.varWord.word.toLowerCase().slice(folderLeader.length);
-
-			for (const folder of await getTopLevelFolders(workspaces, this.fileService)) {
-				result.suggestions.push(makeFolderCompletionItem(folder));
-				seen.add(folder);
-			}
-		}
-
-		// SEARCH
-		// use folder search when having a pattern
-		if (pattern) {
-
-			const cacheKey = this.updateCacheKey();
-
-			const folders: URI[][] = [];
-
-			await Promise.all(workspaces.map(async workspace => {
-				const result = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
-				folders.push(result.folders);
-			}));
-
-			for (const resource of folders.flat()) {
-				if (seen.has(resource)) {
-					// already included via history
-					continue;
-				}
-				seen.add(resource);
-				result.suggestions.push(makeFolderCompletionItem(resource));
 			}
 		}
 

@@ -369,6 +369,7 @@ export async function searchFilesAndFolders(
 		shouldGlobMatchFilePattern: true,
 		cacheKey,
 		excludePattern: searchExcludePattern,
+		sortByScore: true,
 	};
 
 	let searchResult: ISearchComplete | undefined;
