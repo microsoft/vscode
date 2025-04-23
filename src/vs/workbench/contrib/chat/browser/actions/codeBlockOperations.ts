@@ -318,7 +318,8 @@ export class ApplyCodeBlockOperation {
 	private getNotebookEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<TextEdit[] | ICellEditOperation[]> {
 		return new AsyncIterableObject<TextEdit[] | ICellEditOperation[]>(async executor => {
 			const request: ICodeMapperRequest = {
-				codeBlocks: [codeBlock]
+				codeBlocks: [codeBlock],
+				chatSessionId
 			};
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edit: TextEdit[]) => {
