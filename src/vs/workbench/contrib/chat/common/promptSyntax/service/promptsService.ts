@@ -121,7 +121,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		if (command.match(/^prompt:[\w_\-\.]+/)) {
+		if (command.match(/^[\w_\-\.]+/)) {
 			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
 		}
 		return undefined;
@@ -133,13 +133,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		const files = await this.listPromptFiles('prompt');
 		const command = data.command;
-		return files.find(file => getCommandName(file.uri.path) === command);
+		return files.find(file => getPromptCommandName(file.uri.path) === command);
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles('prompt');
 		return promptFiles.map(promptPath => {
-			const command = getCommandName(promptPath.uri.path);
+			const command = getPromptCommandName(promptPath.uri.path);
 			return {
 				command,
 				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
@@ -149,9 +149,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 }
 
-function getCommandName(path: string) {
+export function getPromptCommandName(path: string) {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
-	return `prompt:${name}`;
+	return name;
 }
 
 
