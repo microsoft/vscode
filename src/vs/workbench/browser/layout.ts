@@ -1726,7 +1726,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
-		let toggleMainWindowFullScreen = false;
 
 		// Restore panel visibility
 		if (creatorModeExitInfo.wasVisible.panel) {
