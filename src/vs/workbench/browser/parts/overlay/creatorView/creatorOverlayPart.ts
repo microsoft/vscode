@@ -594,14 +594,6 @@ export class CreatorOverlayPart extends Part {
 			this.handleStateTransition("closed").then(() => {
 				const closedState = overlayStates.closed;
 
-				// Apply container styles
-				if (this.overlayContainer) {
-					Object.assign(
-						this.overlayContainer.style,
-						closedState.overlayContainer,
-					);
-				}
-
 				// Apply top body styles
 				const topOfBodyElement = this.getTopOfBodyElement();
 				Object.assign(topOfBodyElement.style, closedState.topOfBody);
@@ -839,7 +831,6 @@ export class CreatorOverlayPart extends Part {
 		void topOfBodyElement.offsetWidth;
 
 		// Apply the state styles
-		Object.assign(this.overlayContainer!.style, stateConfig.overlayContainer);
 		Object.assign(topOfBodyElement.style, stateConfig.topOfBody);
 		Object.assign(blurryElement.style, stateConfig.blurElement);
 
@@ -884,7 +875,9 @@ export class CreatorOverlayPart extends Part {
 
 		await new Promise<void>((resolve) => {
 			// Set a single timeout for animation completion
-			setTimeout(() => resolve(), 500); // Match the transition duration
+			setTimeout(() => {
+				resolve()
+			}, 500); // Match the transition duration
 		});
 
 		// Hiding the overlay container after we've done all the animations
