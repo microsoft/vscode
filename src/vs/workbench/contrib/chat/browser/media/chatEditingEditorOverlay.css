@@ -35,11 +35,10 @@
 .chat-editor-overlay-widget .chat-editor-overlay-progress {
 	align-items: center;
 	display: none;
-	padding: 0px 5px;
+	padding: 5px 0 5px 5px;
 	font-size: 12px;
-	font-variant-numeric: tabular-nums;
 	overflow: hidden;
-	white-space: nowrap;
+	gap: 6px;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
@@ -47,43 +46,11 @@
 }
 
 
-@keyframes ellipsis {
-	0% {
-		content: "";
-	}
-	25% {
-		content: ".";
-	}
-	50% {
-		content: "..";
-	}
-	75% {
-		content: "...";
-	}
-	100% {
-		content: "";
-	}
-}
-
-.chat-editor-overlay-widget.busy.paused .chat-editor-overlay-progress {
-	.codicon-loading {
-		display: none;
-	}
-}
-
 .chat-editor-overlay-widget .action-item > .action-label {
 	padding: 5px;
 	font-size: 12px;
 }
 
-.chat-editor-overlay-widget.busy .action-item > .action-label.busy::after {
-	content: "";
-	display: inline-flex;
-	white-space: nowrap;
-	overflow: hidden;
-	width: 3ch;
-	animation: ellipsis steps(4, end) 1s infinite;
-}
 
 .chat-editor-overlay-widget .action-item:first-child > .action-label {
 	padding-left: 7px;
