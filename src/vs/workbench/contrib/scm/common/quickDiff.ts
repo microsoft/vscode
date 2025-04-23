@@ -79,7 +79,6 @@ export interface QuickDiff {
 	readonly id: string;
 	readonly label: string;
 	readonly originalResource: URI;
-	readonly visible: boolean;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 }
 

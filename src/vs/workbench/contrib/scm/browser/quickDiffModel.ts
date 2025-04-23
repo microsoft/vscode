@@ -339,7 +339,11 @@ export class QuickDiffModel extends Disposable {
 				return [];
 			}
 
-			if (equals(this._quickDiffs, quickDiffs, (a, b) => a.originalResource.toString() === b.originalResource.toString() && a.id === b.id && a.visible === b.visible)) {
+			if (equals(this._quickDiffs, quickDiffs, (a, b) =>
+				a.id === b.id &&
+				a.originalResource.toString() === b.originalResource.toString() &&
+				this.quickDiffService.isQuickDiffProviderVisible(a.id) === this.quickDiffService.isQuickDiffProviderVisible(b.id))
+			) {
 				return quickDiffs;
 			}
 
@@ -399,7 +403,8 @@ export class QuickDiffModel extends Disposable {
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
 		const visibleQuickDiffLabels = this.quickDiffs
-			.filter(quickDiff => (!provider || quickDiff.label === provider) && quickDiff.visible)
+			.filter(quickDiff => (!provider || quickDiff.label === provider) &&
+				this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
 			.map(quickDiff => quickDiff.label);
 
 		if (!inclusive) {
@@ -438,7 +443,8 @@ export class QuickDiffModel extends Disposable {
 			}
 
 			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.id === this.changes[i].providerId)?.visible) {
+			const quickDiff = this.quickDiffs.find(quickDiff => quickDiff.id === this.changes[i].providerId);
+			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
 				continue;
 			}
 

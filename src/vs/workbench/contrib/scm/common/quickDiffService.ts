@@ -110,7 +110,6 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 				id: provider.id,
 				label: provider.label,
 				kind: provider.kind,
-				visible: this.isQuickDiffProviderVisible(provider.id),
 				originalResource,
 			} satisfies QuickDiff);
 		}
