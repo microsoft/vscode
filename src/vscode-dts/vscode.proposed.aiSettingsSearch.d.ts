@@ -4,21 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	export enum SettingsSearchResultBundleKind {
+	export enum SettingsSearchResultKind {
 		EMBEDDED = 1,
 		LLM_RANKED = 2,
 		CANCELED = 3
 	}
 
 	export interface SettingsSearchResult {
-		setting: string;
-		weight: number;
-	}
-
-	export interface SettingsSearchResultBundle {
 		query: string;
-		kind: SettingsSearchResultBundleKind;
-		settings: SettingsSearchResult[];
+		kind: SettingsSearchResultKind;
+		settings: string[];
 	}
 
 	export interface SettingsSearchProviderOptions {
@@ -26,7 +21,7 @@ declare module 'vscode' {
 	}
 
 	export interface SettingsSearchProvider {
-		provideSettingsSearchResults(query: string, option: SettingsSearchProviderOptions, progress: Progress<SettingsSearchResultBundle>, token: CancellationToken): Thenable<void>;
+		provideSettingsSearchResults(query: string, option: SettingsSearchProviderOptions, progress: Progress<SettingsSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace ai {

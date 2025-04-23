@@ -423,22 +423,21 @@ class AiSettingsSearchProvider implements IRemoteSearchProvider {
 	private async getAiSettingsSearchItems(token: CancellationToken): Promise<ISettingMatch[]> {
 		const settingsRecord = this._keysProvider.getSettingsRecord();
 		const filterMatches: ISettingMatch[] = [];
-		const embeddings = await this.aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
-		if (!embeddings) {
+		const settings = await this.aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
+		if (!settings) {
 			return [];
 		}
 
-		for (const embedding of embeddings) {
+		for (const settingKey of settings) {
 			if (filterMatches.length === AiSettingsSearchProvider.AI_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
 			}
-			const pick = embedding.setting;
 			filterMatches.push({
-				setting: settingsRecord[pick],
-				matches: [settingsRecord[pick].range],
+				setting: settingsRecord[settingKey],
+				matches: [settingsRecord[settingKey].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: embedding.weight
+				score: 0 // the results are sorted upstream.
 			});
 		}
 

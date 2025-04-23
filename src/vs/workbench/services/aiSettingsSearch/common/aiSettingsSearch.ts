@@ -9,21 +9,16 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export const IAiSettingsSearchService = createDecorator<IAiSettingsSearchService>('IAiSettingsSearchService');
 
-export enum AiSettingsSearchResultBundleKind {
+export enum AiSettingsSearchResultKind {
 	EMBEDDED = 1,
 	LLM_RANKED = 2,
 	CANCELED = 3,
 }
 
 export interface AiSettingsSearchResult {
-	setting: string;
-	weight: number;
-}
-
-export interface AiSettingsSearchResultBundle {
 	query: string;
-	kind: AiSettingsSearchResultBundleKind;
-	settings: AiSettingsSearchResult[];
+	kind: AiSettingsSearchResultKind;
+	settings: string[];
 }
 
 export interface AiSettingsSearchProviderOptions {
@@ -33,12 +28,15 @@ export interface AiSettingsSearchProviderOptions {
 export interface IAiSettingsSearchService {
 	readonly _serviceBrand: undefined;
 
+	// Called from the Settings editor
 	isEnabled(): boolean;
-	registerSettingsSearchProvider(provider: IAiSettingsSearchProvider): IDisposable;
-	onSettingsSearchResultBundle(bundle: AiSettingsSearchResultBundle): void;
 	startSearch(query: string, token: CancellationToken): void;
-	getEmbeddingsResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null>;
-	getLLMRankedResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null>;
+	getEmbeddingsResults(query: string, token: CancellationToken): Promise<string[] | null>;
+	getLLMRankedResults(query: string, token: CancellationToken): Promise<string[] | null>;
+
+	// Called from the main thread
+	registerSettingsSearchProvider(provider: IAiSettingsSearchProvider): IDisposable;
+	handleSearchResult(results: AiSettingsSearchResult): void;
 }
 
 export interface IAiSettingsSearchProvider {

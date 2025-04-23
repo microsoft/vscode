@@ -1719,12 +1719,8 @@ export class SettingsEditor2 extends EditorPane {
 				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
 					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
 					if (!searchInProgress.token.isCancellationRequested) {
-						console.log('Got ranked results', rankedResults);
+						this.logService.trace('Got ranked results', rankedResults);
 					}
-					// const querySuggestions = await this.getQuerySuggestions(query, searchInProgress.token);
-					// if (querySuggestions && !searchInProgress.token.isCancellationRequested) {
-					//	this.searchWidget.setQuerySuggestions(querySuggestions);
-					// }
 				}
 			}
 		});

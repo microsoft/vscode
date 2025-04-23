@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SettingsSearchProvider, SettingsSearchResultBundle } from 'vscode';
+import type { SettingsSearchProvider, SettingsSearchResult } from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { AiSettingsSearchProviderOptions } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
@@ -32,8 +32,8 @@ export class ExtHostAiSettingsSearch implements ExtHostAiSettingsSearchShape {
 			throw new Error('Settings search provider not found');
 		}
 
-		const progressReporter = new Progress<SettingsSearchResultBundle>((data) => {
-			this._proxy.$onSearchResultBundle(handle, AiSettingsSearch.fromSettingsSearchResultBundle(data));
+		const progressReporter = new Progress<SettingsSearchResult>((data) => {
+			this._proxy.$handleSearchResult(handle, AiSettingsSearch.fromSettingsSearchResult(data));
 		});
 
 		return provider.provideSettingsSearchResults(query, option, progressReporter, token);

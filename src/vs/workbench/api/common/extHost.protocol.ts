@@ -86,7 +86,7 @@ import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../services/search/common/queryBuilder.js';
 import * as search from '../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
-import { AiSettingsSearchProviderOptions, AiSettingsSearchResultBundle } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { AiSettingsSearchProviderOptions, AiSettingsSearchResult } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
@@ -1993,7 +1993,7 @@ export interface ExtHostAiSettingsSearchShape {
 export interface MainThreadAiSettingsSearchShape {
 	$registerAiSettingsSearchProvider(handle: number): void;
 	$unregisterAiSettingsSearchProvider(handle: number): void;
-	$onSearchResultBundle(handle: number, bundle: AiSettingsSearchResultBundle): void;
+	$handleSearchResult(handle: number, result: AiSettingsSearchResult): void;
 }
 
 export interface ExtHostAiEmbeddingVectorShape {

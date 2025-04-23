@@ -63,7 +63,7 @@ import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { AiSettingsSearchResultBundle, AiSettingsSearchResultBundleKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { AiSettingsSearchResult, AiSettingsSearchResultKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 
 export namespace Command {
@@ -3280,24 +3280,24 @@ export namespace IconPath {
 }
 
 export namespace AiSettingsSearch {
-	export function fromSettingsSearchResultBundle(bundle: vscode.SettingsSearchResultBundle): AiSettingsSearchResultBundle {
+	export function fromSettingsSearchResult(result: vscode.SettingsSearchResult): AiSettingsSearchResult {
 		return {
-			query: bundle.query,
-			kind: fromSettingsSearchResultBundleKind(bundle.kind),
-			settings: bundle.settings
+			query: result.query,
+			kind: fromSettingsSearchResultKind(result.kind),
+			settings: result.settings
 		};
 	}
 
-	function fromSettingsSearchResultBundleKind(kind: number): AiSettingsSearchResultBundleKind {
+	function fromSettingsSearchResultKind(kind: number): AiSettingsSearchResultKind {
 		switch (kind) {
-			case AiSettingsSearchResultBundleKind.EMBEDDED:
-				return AiSettingsSearchResultBundleKind.EMBEDDED;
-			case AiSettingsSearchResultBundleKind.LLM_RANKED:
-				return AiSettingsSearchResultBundleKind.LLM_RANKED;
-			case AiSettingsSearchResultBundleKind.CANCELED:
-				return AiSettingsSearchResultBundleKind.CANCELED;
+			case AiSettingsSearchResultKind.EMBEDDED:
+				return AiSettingsSearchResultKind.EMBEDDED;
+			case AiSettingsSearchResultKind.LLM_RANKED:
+				return AiSettingsSearchResultKind.LLM_RANKED;
+			case AiSettingsSearchResultKind.CANCELED:
+				return AiSettingsSearchResultKind.CANCELED;
 			default:
-				throw new Error('Unknown AiSettingsSearchResultBundleKind');
+				throw new Error('Unknown AiSettingsSearchResultKind');
 		}
 	}
 }

@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AiSettingsSearchResultBundle, IAiSettingsSearchProvider, IAiSettingsSearchService } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { AiSettingsSearchResult, IAiSettingsSearchProvider, IAiSettingsSearchService } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { ExtHostContext, ExtHostAiSettingsSearchShape, MainContext, MainThreadAiSettingsSearchShape, } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadAiSettingsSearch)
@@ -34,15 +34,11 @@ export class MainThreadAiSettingsSearch extends Disposable implements MainThread
 		this._registrations.deleteAndDispose(handle);
 	}
 
-	$onSearchResultBundle(handle: number, bundle: AiSettingsSearchResultBundle): void {
-		if (this._registrations.size === 0) {
-			throw new Error('No AI settings search providers registered');
-		}
-
+	$handleSearchResult(handle: number, result: AiSettingsSearchResult): void {
 		if (!this._registrations.has(handle)) {
 			throw new Error(`No AI settings search provider found`);
 		}
 
-		this._settingsSearchService.onSettingsSearchResultBundle(bundle);
+		this._settingsSearchService.handleSearchResult(result);
 	}
 }

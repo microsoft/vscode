@@ -7,15 +7,15 @@ import { DeferredPromise, raceCancellation } from '../../../../base/common/async
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { AiSettingsSearchResult, AiSettingsSearchResultBundle, AiSettingsSearchResultBundleKind, IAiSettingsSearchProvider, IAiSettingsSearchService } from './aiSettingsSearch.js';
+import { AiSettingsSearchResult, AiSettingsSearchResultKind, IAiSettingsSearchProvider, IAiSettingsSearchService } from './aiSettingsSearch.js';
 
 export class AiSettingsSearchService implements IAiSettingsSearchService {
 	readonly _serviceBrand: undefined;
 	private static readonly MAX_PICKS = 5;
 
 	private _providers: IAiSettingsSearchProvider[] = [];
-	private _llmRankedResultsPromises: Map<string, DeferredPromise<AiSettingsSearchResult[]>> = new Map();
-	private _embeddingsResultsPromises: Map<string, DeferredPromise<AiSettingsSearchResult[]>> = new Map();
+	private _llmRankedResultsPromises: Map<string, DeferredPromise<string[]>> = new Map();
+	private _embeddingsResultsPromises: Map<string, DeferredPromise<string[]>> = new Map();
 
 	isEnabled(): boolean {
 		return this._providers.length > 0;
@@ -41,44 +41,44 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS }, token));
 	}
 
-	async getEmbeddingsResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null> {
+	async getEmbeddingsResults(query: string, token: CancellationToken): Promise<string[] | null> {
 		if (!this.isEnabled()) {
 			throw new Error('No settings search providers registered');
 		}
 
-		const promise = new DeferredPromise<AiSettingsSearchResult[]>();
+		const promise = new DeferredPromise<string[]>();
 		this._embeddingsResultsPromises.set(query, promise);
 		const result = await raceCancellation(promise.p, token);
 		return result ?? null;
 	}
 
-	async getLLMRankedResults(query: string, token: CancellationToken): Promise<AiSettingsSearchResult[] | null> {
+	async getLLMRankedResults(query: string, token: CancellationToken): Promise<string[] | null> {
 		if (!this.isEnabled()) {
 			throw new Error('No settings search providers registered');
 		}
 
-		const promise = new DeferredPromise<AiSettingsSearchResult[]>();
+		const promise = new DeferredPromise<string[]>();
 		this._llmRankedResultsPromises.set(query, promise);
 		const result = await raceCancellation(promise.p, token);
 		return result ?? null;
 	}
 
-	onSettingsSearchResultBundle(bundle: AiSettingsSearchResultBundle): void {
+	handleSearchResult(result: AiSettingsSearchResult): void {
 		if (!this.isEnabled()) {
 			return;
 		}
 
-		if (bundle.kind === AiSettingsSearchResultBundleKind.EMBEDDED) {
-			const promise = this._embeddingsResultsPromises.get(bundle.query);
+		if (result.kind === AiSettingsSearchResultKind.EMBEDDED) {
+			const promise = this._embeddingsResultsPromises.get(result.query);
 			if (promise) {
-				promise.complete(bundle.settings);
-				this._embeddingsResultsPromises.delete(bundle.query);
+				promise.complete(result.settings);
+				this._embeddingsResultsPromises.delete(result.query);
 			}
-		} else if (bundle.kind === AiSettingsSearchResultBundleKind.LLM_RANKED) {
-			const promise = this._llmRankedResultsPromises.get(bundle.query);
+		} else if (result.kind === AiSettingsSearchResultKind.LLM_RANKED) {
+			const promise = this._llmRankedResultsPromises.get(result.query);
 			if (promise) {
-				promise.complete(bundle.settings);
-				this._llmRankedResultsPromises.delete(bundle.query);
+				promise.complete(result.settings);
+				this._llmRankedResultsPromises.delete(result.query);
 			}
 		}
 	}

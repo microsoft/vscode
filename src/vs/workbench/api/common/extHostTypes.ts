@@ -5108,7 +5108,7 @@ export enum RelatedInformationType {
 	SettingInformation = 4
 }
 
-export enum SettingsSearchResultBundleKind {
+export enum SettingsSearchResultKind {
 	EMBEDDED = 1,
 	LLM_RANKED = 2,
 	CANCELED = 3,
