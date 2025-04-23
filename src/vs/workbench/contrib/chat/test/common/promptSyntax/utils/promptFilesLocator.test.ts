@@ -33,7 +33,7 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 			);
 
 			assert(
-				[PromptsConfig.KEY, PromptsConfig.LOCATIONS_KEY].includes(key),
+				[PromptsConfig.KEY, PromptsConfig.PROMPT_LOCATIONS_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -2390,7 +2390,7 @@ suite('PromptFilesLocator', () => {
 			);
 
 			assert.deepStrictEqual(
-				locator.getConfigBasedSourceFolders()
+				locator.getConfigBasedSourceFolders('prompt')
 					.map((file) => file.fsPath),
 				[
 					createURI('/Users/legomushroom/repos/vscode/.github/prompts').fsPath,
