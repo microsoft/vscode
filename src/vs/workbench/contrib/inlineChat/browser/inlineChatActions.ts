@@ -626,7 +626,9 @@ export class RevealWidget extends AbstractInline2ChatAction {
 			f1: true,
 			icon: Codicon.copilot,
 			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ContextKeyExpr.greaterEquals(ctxRequestCount.key, 1)),
-			toggled: CTX_INLINE_CHAT_VISIBLE,
+			toggled: {
+				condition: CTX_INLINE_CHAT_VISIBLE,
+			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
@@ -660,12 +662,9 @@ export class CancelRequestAction extends AbstractInline2ChatAction {
 			toggled: CTX_INLINE_CHAT_VISIBLE,
 			menu: {
 				id: MenuId.ChatEditingEditorContent,
-				when: ContextKeyExpr.and(
-					ctxHasRequestInProgress,
-					ctxIsGlobalEditingSession.negate(),
-				),
-				group: 'navigate',
-				order: 14,
+				when: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ctxHasRequestInProgress),
+				group: 'a_request',
+				order: 1,
 			}
 		});
 	}
