@@ -370,7 +370,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, definition.launch);
+			launch = await this._replaceVariablesInLaunch(definition, launch);
 		} catch (e) {
 			this._notificationService.notify({
 				severity: Severity.Error,
