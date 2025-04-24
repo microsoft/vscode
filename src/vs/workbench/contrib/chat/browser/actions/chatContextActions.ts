@@ -30,7 +30,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -208,12 +207,6 @@ interface IScreenShotQuickPickItem extends IQuickPickItem {
 
 interface IDiagnosticsQuickPickItem extends IQuickPickItem {
 	kind: 'diagnostic';
-	id: string;
-	icon?: ThemeIcon;
-}
-
-interface IElementQuickPickItem extends IQuickPickItem {
-	kind: 'element';
 	id: string;
 	icon?: ThemeIcon;
 }
@@ -714,14 +707,6 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		// Add Element selector quick pick item
-		quickPickItems.push({
-			kind: 'element',
-			label: localize('chatContext.element', 'UI Element...'),
-			id: 'element-selector',
-			iconClass: ThemeIcon.asClassName(Codicon.layout),
-		});
-
 		if (widget.viewModel?.sessionId) {
 			const agentPart = widget.parsedInput.parts.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 			if (agentPart) {
@@ -875,6 +860,7 @@ export class AttachContextAction extends Action2 {
 						instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, item.prefix, placeholder);
 						return;
 					} else if (item.kind === 'instructions') {
+						runAttachInstructionsAction(commandService, { widget });
 						return;
 					}
 

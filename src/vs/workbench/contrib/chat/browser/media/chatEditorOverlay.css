@@ -136,10 +136,3 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 	transition: left 0.5s linear;
 }
-
-.chat-element-highlight {
-	outline: 2px solid #ff0000 !important;
-	outline-offset: -2px;
-	border-radius: 4px;
-	z-index: 2147483647;
-}
