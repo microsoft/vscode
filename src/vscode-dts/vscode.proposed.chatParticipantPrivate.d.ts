@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 8
+// version: 9
 
 declare module 'vscode' {
 
@@ -240,4 +240,26 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	export interface ChatRequestToolSelection {
+		/**
+		 * A list of tools that the user selected for this request.
+		 * Tools can be called with {@link lm.invokeTool} with input that match their
+		 * declared `inputSchema`.
+		 */
+		readonly tools: readonly LanguageModelToolInformation[];
+
+		/**
+		 * When true, only this set of tools (and toolReferences) should be used. When false, the base set of agent tools can also be included.
+		 */
+		readonly isExclusive?: boolean;
+	}
+
+	export interface ChatRequest {
+		/**
+		 * A list of tools that the user selected for this request, when `undefined` any tool
+		 * from {@link lm.tools} should be used.
+		 */
+		readonly toolSelection: ChatRequestToolSelection | undefined;
+	}
 }

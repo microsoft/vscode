@@ -16490,7 +16490,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for source control mangement.
+	 * Namespace for source control management.
 	 */
 	export namespace scm {
 
@@ -16804,7 +16804,7 @@ declare module 'vscode' {
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
+	 * A debug adapter factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
 	 */
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -16858,7 +16858,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterTracker debug adapter trackers}.
+	 * A debug adapter factory that creates {@link DebugAdapterTracker debug adapter trackers}.
 	 */
 	export interface DebugAdapterTrackerFactory {
 		/**
@@ -19257,7 +19257,7 @@ declare module 'vscode' {
 		readonly value: T;
 
 		/**
-		 * Creates a new telementry trusted value.
+		 * Creates a new telemetry trusted value.
 		 *
 		 * @param value A value to trust
 		 */
@@ -19265,7 +19265,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A telemetry logger which can be used by extensions to log usage and error telementry.
+	 * A telemetry logger which can be used by extensions to log usage and error telemetry.
 	 *
 	 * A logger wraps around an {@link TelemetrySender sender} but it guarantees that
 	 * - user settings to disable or tweak telemetry are respected, and that
@@ -20444,7 +20444,7 @@ declare module 'vscode' {
 	 */
 	export class LanguageModelToolResult {
 		/**
-		 * A list of tool result content parts. Includes `unknown` becauses this list may be extended with new content types in
+		 * A list of tool result content parts. Includes `unknown` because this list may be extended with new content types in
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */

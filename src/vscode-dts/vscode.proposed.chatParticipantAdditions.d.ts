@@ -227,19 +227,6 @@ declare module 'vscode' {
 	}
 
 
-	export interface ChatRequest {
-
-		/**
-		 * A list of tools that the user selected for this request, when `undefined` any tool
-		 * from {@link lm.tools} should be used.
-		 *
-		 * Tools can be called with {@link lm.invokeTool} with input that match their
-		 * declared `inputSchema`.
-		 */
-		readonly tools: readonly LanguageModelToolInformation[] | undefined;
-	}
-
-
 	/**
 	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
 	 * Does it show up in history?
@@ -269,7 +256,7 @@ declare module 'vscode' {
 
 		/**
 		 * Event that fires when a request is paused or unpaused.
-		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
 		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}

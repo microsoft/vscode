@@ -85,6 +85,11 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		this._register(event.Event.once(clearButton.onDidClick)((e) => {
 			this._onDidDelete.fire(e);
 		}));
+		this._register(dom.addStandardDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
+			if (e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Delete) {
+				this._onDidDelete.fire(e.browserEvent);
+			}
+		}));
 		if (this.shouldFocusClearButton) {
 			clearButton.focus();
 		}

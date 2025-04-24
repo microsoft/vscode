@@ -210,7 +210,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}
 
 		const uri = newValue instanceof URI ? newValue : newValue?.uri;
-		if (uri && await this.ignoredFilesService.fileIsIgnored(uri, cancelTokenSource.token)) {
+		if (uri && (
+			await this.ignoredFilesService.fileIsIgnored(uri, cancelTokenSource.token) ||
+			uri.path.endsWith('.copilotmd'))
+		) {
 			newValue = undefined;
 		}
 

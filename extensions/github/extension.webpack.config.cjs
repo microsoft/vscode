@@ -18,6 +18,9 @@ module.exports = withDefaults({
 		libraryTarget: 'module',
 		chunkFormat: 'module',
 	},
+	externals: {
+		'vscode': 'module vscode',
+	},
 	experiments: {
 		outputModule: true
 	}

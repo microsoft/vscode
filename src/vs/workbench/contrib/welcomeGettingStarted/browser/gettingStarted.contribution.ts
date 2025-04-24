@@ -80,7 +80,7 @@ registerAction2(class extends Action2 {
 			if (!selectedCategory && !selectedStep) {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false, inactive }
+					options: { preserveFocus: toSide ?? false, inactive, forceReload: true }
 				}, toSide ? SIDE_GROUP : undefined);
 				return;
 			}
@@ -283,9 +283,9 @@ registerAction2(class extends Action2 {
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 		await extensionService.whenInstalledExtensionsRegistered();
-		gettingStartedService.onDidAddWalkthrough(async () => {
+		disposables.add(gettingStartedService.onDidAddWalkthrough(async () => {
 			quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
-		});
+		}));
 		quickPick.show();
 		quickPick.busy = false;
 	}
@@ -303,7 +303,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		const options: GettingStartedEditorOptions = { selectedCategory: 'Setup', showNewExperience: true };
+		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', showNewExperience: true, forceReload: true };
 
 		editorService.openEditor({
 			resource: GettingStartedInput.RESOURCE,

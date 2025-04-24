@@ -99,7 +99,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Tagging onto this proposal, because otherwise managing two different extensions of LangaugeModelChatMessage could be confusing.
+	 * Tagging onto this proposal, because otherwise managing two different extensions of LanguageModelChatMessage could be confusing.
 	 * A language model response part containing arbitrary model-specific data, returned from a {@link LanguageModelChatResponse}.
 	 * TODO@API naming, looking at LanguageModelChatRequestOptions.modelOptions, but LanguageModelModelData is not very good.
 	 * LanguageModelOpaqueData from prompt-tsx?
