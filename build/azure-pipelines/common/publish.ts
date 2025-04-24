@@ -1060,7 +1060,7 @@ async function main() {
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
 			shouldFail = true;
-			console.error(`Stage ${stage} did not succeed, instead has result ${record.result}`);
+			console.error(`Stage ${stage} did not succeed: ${record.result}`);
 		}
 	}
 

@@ -703,7 +703,7 @@ async function main() {
         const record = timeline.records.find(r => r.name === stage && r.type === 'Stage');
         if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
             shouldFail = true;
-            console.error(`Stage ${stage} did not succeed, instead has result ${record.result}`);
+            console.error(`Stage ${stage} did not succeed: ${record.result}`);
         }
     }
     if (shouldFail) {
