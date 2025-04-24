@@ -58,7 +58,7 @@ export class MockFilesystem {
 		// wait for the filesystem event to settle before proceeding
 		// this is temporary workaround and should be fixed once we
 		// improve behavior of the `settled()` / `allSettled()` methods
-		await wait(50);
+		await wait(25);
 
 		return result;
 	}
