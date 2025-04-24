@@ -1478,7 +1478,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const { mode, tools } = metadata;
 
 		// switch to appropriate chat mode if needed
-		if (mode !== this.inputPart.currentMode) {
+		if (mode && mode !== this.inputPart.currentMode) {
 			await this.commandService.executeCommand(
 				ToggleAgentModeActionId,
 				{ mode } satisfies IToggleChatModeArgs,
