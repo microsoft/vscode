@@ -144,7 +144,6 @@ export class PromptFilePickers {
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
 		quickPick.items = fileOptions;
-		quickPick.canSelectMany = true;
 
 		return new Promise<URI[] | undefined>(resolve => {
 			const disposables = new DisposableStore();
