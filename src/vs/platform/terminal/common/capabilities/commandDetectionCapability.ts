@@ -541,7 +541,7 @@ class UnixPtyHeuristics extends Disposable {
 		}
 
 		// Calculate the command
-		currentCommand.command = this._hooks.isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(currentCommand.commandStartMarker.line)?.translateToString(true, currentCommand.commandStartX, currentCommand.commandRightPromptStartX).trim();
+		currentCommand.command = this._hooks.isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(currentCommand.commandStartMarker.line)?.translateToString(false, currentCommand.commandStartX, currentCommand.commandRightPromptStartX);
 		let y = currentCommand.commandStartMarker.line + 1;
 		const commandExecutedLine = currentCommand.commandExecutedMarker.line;
 		for (; y < commandExecutedLine; y++) {
@@ -557,6 +557,9 @@ class UnixPtyHeuristics extends Disposable {
 		}
 		if (y === commandExecutedLine) {
 			currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, currentCommand.commandExecutedX) || '';
+		}
+		if (currentCommand.command) {
+			currentCommand.command = currentCommand.command.trim();
 		}
 		this._hooks.onCommandExecutedEmitter.fire(currentCommand as ITerminalCommand);
 	}
