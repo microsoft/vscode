@@ -18,11 +18,12 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDi
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, autorunWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { extUri, isEqual } from '../../../../base/common/resources.js';
+import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -1147,21 +1148,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _handlePromptSlashCommand(): Promise<{ input?: string; attachment?: IChatRequestVariableEntry }> {
+	private async _handlePromptSlashCommand(input: string, attachedContext: IChatRequestVariableEntry[]): Promise<string> {
 
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (!agentSlashPromptPart) {
-			return {};
+			return input;
 		}
+		// remove the slash command the input
+		input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
 
 		const promptPath = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
 		if (!promptPath) {
-			return {};
+			return input;
 		}
 
-		const attachment = toChatVariable({ uri: promptPath.uri, isPromptFile: true }, true);
-		const input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
-		return { attachment, input };
+		const getUri = (variable: IPromptVariableEntry) => isLocation(variable.value) ? variable.value.uri : variable.value;
+		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(getUri(variable), promptPath.uri))) {
+			// not yet attached, so attach it
+			const variable = toChatVariable({ uri: promptPath.uri, isPromptFile: true }, true);
+			attachedContext.push(variable);
+		}
+		return `Follow the prompt instructions from ${basename(promptPath.uri)}\n${input}`;
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
@@ -1183,21 +1190,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const { promptInstructions } = this.inputPart.attachmentModel;
 			const instructionsEnabled = promptInstructions.featureEnabled;
 			if (instructionsEnabled) {
-				const result = await this._handlePromptSlashCommand();
-				if (result.input !== undefined) {
-					input = result.input;
-				}
-
-				if (result.attachment) {
-					attachedContext.push(result.attachment);
-				}
-
-				const promptFileVariables = attachedContext.filter(isPromptFileChatVariable);
-				await this.setupChatModeAndTools(promptFileVariables);
-
-				if (promptFileVariables.length > 0) {
-					input = `Follow the prompt instructions from ${promptFileVariables.map(v => v.name).join(', ')}\n${input}`;
-				}
+				input = await this._handlePromptSlashCommand(input, attachedContext);
+				this.setupChatModeAndTools(attachedContext.filter(isPromptFileChatVariable));
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
