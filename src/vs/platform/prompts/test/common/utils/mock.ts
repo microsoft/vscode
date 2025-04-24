@@ -53,7 +53,7 @@ type TAnyService = {
  * Same as more generic {@link mockObject} utility, but with
  * the service constraint on the `TService` type.
  *
- * @throws Reading non-overidden property or function
+ * @throws Reading non-overridden property or function
  * 		   on `TService` throws an error.
  */
 export function mockService<TService extends TAnyService>(
