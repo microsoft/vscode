@@ -6,5 +6,7 @@
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
 import { NativeMcpDiscovery } from './nativeMpcDiscovery.js';
+import { WmcpMcpDiscovery } from './wmcpMcpDiscovery.js';
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(NativeMcpDiscovery));
+mcpDiscoveryRegistry.register(new SyncDescriptor(WmcpMcpDiscovery));

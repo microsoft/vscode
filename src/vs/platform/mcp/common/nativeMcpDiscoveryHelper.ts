@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Platform } from '../../../base/common/platform.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const INativeMcpDiscoveryHelperService = createDecorator<INativeMcpDiscoveryHelperService>('INativeMcpDiscoveryHelperService');
@@ -23,4 +23,6 @@ export interface INativeMcpDiscoveryHelperService {
 	readonly _serviceBrand: undefined;
 
 	load(): Promise<INativeMcpDiscoveryData>;
+
+	getWmcp(args: string[]): Promise<{ id: string; label: string; uri: UriComponents }[]>;
 }

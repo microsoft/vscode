@@ -26,6 +26,10 @@ export class NativeMcpDiscoveryHelperChannel implements IServerChannel {
 				const result = await this.nativeMcpDiscoveryHelperService.load();
 				return uriTransformer ? transformOutgoingURIs(result, uriTransformer) : result;
 			}
+			case 'getWmcp': {
+				const result = await this.nativeMcpDiscoveryHelperService.getWmcp(args);
+				return uriTransformer ? transformOutgoingURIs(result, uriTransformer) : result;
+			}
 		}
 		throw new Error('Invalid call');
 	}
