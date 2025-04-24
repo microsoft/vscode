@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatMode } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -46,6 +47,26 @@ export interface ITopError extends IResolveError {
 	 * Localized error message.
 	 */
 	readonly localizedMessage: string;
+}
+
+/**
+ * Metadata defined in the prompt header.
+ */
+export interface IPromptMetadata {
+	/**
+	 * Description metadata in the prompt header.
+	 */
+	description?: string;
+
+	/**
+	 * Tools metadata in the prompt header.
+	 */
+	tools?: readonly string[];
+
+	/**
+	 * Chat mode metadata in the prompt header.
+	 */
+	mode: ChatMode;
 }
 
 /**
@@ -132,13 +153,13 @@ interface IPromptReferenceBase extends IDisposable {
 	/**
 	 * Direct references of the current reference.
 	 */
-	references: readonly IPromptReference[];
+	readonly references: readonly IPromptReference[];
 
 	/**
 	 * All references that the current reference may have,
 	 * including all possible nested child references.
 	 */
-	allReferences: readonly IPromptReference[];
+	readonly allReferences: readonly IPromptReference[];
 
 	/**
 	 * All *valid* references that the current reference may have,
@@ -148,7 +169,18 @@ interface IPromptReferenceBase extends IDisposable {
 	 * without creating a circular reference loop or having any other
 	 * issues that would make the reference resolve logic to fail.
 	 */
-	allValidReferences: readonly IPromptReference[];
+	readonly allValidReferences: readonly IPromptReference[];
+
+	/**
+	 * Entire associated `tools` metadata for this reference and
+	 * all possible nested child references.
+	 */
+	readonly allToolsMetadata: readonly string[] | null;
+
+	/**
+	 * Metadata defined in the prompt header.
+	 */
+	readonly metadata: IPromptMetadata;
 
 	/**
 	 * Returns a promise that resolves when the reference contents

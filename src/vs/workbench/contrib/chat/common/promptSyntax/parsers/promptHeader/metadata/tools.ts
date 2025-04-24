@@ -10,14 +10,18 @@ import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } 
 import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
- * Name of the `tools` metadata record in the prompt header.
+ * Name of the metadata record in the prompt header.
  */
-const TOOLS_NAME = 'tools';
+const RECORD_NAME = 'tools';
 
 /**
  * Prompt `tools` metadata record inside the prompt header.
  */
 export class PromptToolsMetadata extends PromptMetadataRecord {
+	public override get recordName(): string {
+		return RECORD_NAME;
+	}
+
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
@@ -75,8 +79,8 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-value-type',
-						"Value of the '{0}' metadata must be '{1}', got '{2}.",
-						TOOLS_NAME,
+						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
+						RECORD_NAME,
 						'array',
 						valueToken.valueTypeName,
 					),
@@ -165,7 +169,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			return false;
 		}
 
-		if (token.nameToken.text === TOOLS_NAME) {
+		if (token.nameToken.text === RECORD_NAME) {
 			return true;
 		}
 

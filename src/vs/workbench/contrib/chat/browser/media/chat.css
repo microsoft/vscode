@@ -235,10 +235,14 @@
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) a,
+.interactive-item-container .value .rendered-markdown a,
 .interactive-item-container .value .interactive-session-followups,
 .interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown .chat-extensions-content-part a {
+	color: inherit;
 }
 
 .interactive-item-container .value .rendered-markdown a {

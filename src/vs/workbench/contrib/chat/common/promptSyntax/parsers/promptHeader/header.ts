@@ -3,20 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
-import { PromptToolsMetadata } from './metadata/tools.js';
+import { assert } from '../../../../../../../base/common/assert.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
 import { TokenStream } from '../../../../../../../editor/common/codecs/utils/tokenStream.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
 /**
- * Type of all known metadata records inside the prompt header.
+ * Metadata defined in the prompt header.
  */
-type TMetadataRecord = PromptToolsMetadata;
+export interface IHeaderMetadata {
+	/**
+	 * Tools metadata in the prompt header.
+	 */
+	tools?: PromptToolsMetadata;
+
+	/**
+	 * Description metadata in the prompt header.
+	 */
+	description?: PromptDescriptionMetadata;
+
+	/**
+	 * Chat mode metadata in the prompt header.
+	 */
+	mode?: PromptModeMetadata;
+}
 
 /**
  * Prompt header holds all metadata records for a prompt.
@@ -28,17 +46,16 @@ export class PromptHeader extends Disposable {
 	private readonly stream: FrontMatterDecoder;
 
 	/**
-	 * List of all unique well-known metadata records
-	 * inside the prompt header.
+	 * Metadata records.
 	 */
-	private readonly records: TMetadataRecord[];
-
+	private readonly meta: IHeaderMetadata;
 	/**
-	 * List of all unique well-known metadata records
-	 * inside the prompt header.
+	 * Metadata records.
 	 */
-	public get metadata(): readonly TMetadataRecord[] {
-		return this.records;
+	public get metadata(): Readonly<IHeaderMetadata> {
+		return Object.freeze({
+			...this.meta,
+		});
 	}
 
 	/**
@@ -65,7 +82,7 @@ export class PromptHeader extends Disposable {
 		super();
 
 		this.issues = [];
-		this.records = [];
+		this.meta = {};
 		this.recordNames = new Set<string>();
 
 		this.stream = this._register(
@@ -124,6 +141,18 @@ export class PromptHeader extends Disposable {
 			return;
 		}
 
+		// if the record might be a "description" metadata
+		// add it to the list of parsed metadata records
+		if (PromptDescriptionMetadata.isDescriptionRecord(token)) {
+			const descriptionMetadata = new PromptDescriptionMetadata(token);
+			const { diagnostics } = descriptionMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.description = descriptionMetadata;
+			this.recordNames.add(recordName);
+			return;
+		}
+
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
@@ -131,10 +160,23 @@ export class PromptHeader extends Disposable {
 			const { diagnostics } = toolsMetadata;
 
 			this.issues.push(...diagnostics);
-			this.records.push(toolsMetadata);
+			this.meta.tools = toolsMetadata;
 			this.recordNames.add(recordName);
 
-			return;
+			return this.validateToolsAndModeCompatibility();
+		}
+
+		// if the record might be a "mode" metadata
+		// add it to the list of parsed metadata records
+		if (PromptModeMetadata.isModeRecord(token)) {
+			const modeMetadata = new PromptModeMetadata(token);
+			const { diagnostics } = modeMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.mode = modeMetadata;
+			this.recordNames.add(recordName);
+
+			return this.validateToolsAndModeCompatibility();
 		}
 
 		// all other records are currently not supported
@@ -145,6 +187,69 @@ export class PromptHeader extends Disposable {
 					'prompt.header.metadata.diagnostics.unknown-record',
 					"Unknown metadata record '{0}' will be ignored.",
 					recordName,
+				),
+			),
+		);
+	}
+
+	/**
+	 * Check if value of `tools` and `mode` metadata
+	 * are compatible with each other.
+	 */
+	private get toolsAndModeCompatible(): boolean {
+		const { tools, mode } = this.meta;
+
+		// if `mode` is not set or equal to `agent` mode,
+		// then the tools metadata can have any value so noop
+		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
+			return true;
+		}
+
+		// if `tools` is not set, then the mode metadata
+		// can have any value so skip the validation
+		if (tools === undefined) {
+			return true;
+		}
+
+		// in the other cases when `tools` are defined and `mode` is not
+		// equal to `agent`, then the `tools` and `mode` are incompatible
+		return false;
+	}
+
+	/**
+	 * Validate that the `tools` and `mode` metadata are compatible
+	 * with each other. If not, add a warning diagnostic.
+	 */
+	private validateToolsAndModeCompatibility(): void {
+		if (this.toolsAndModeCompatible === true) {
+			return;
+		}
+
+		const { tools, mode } = this.meta;
+
+		// sanity checks on the behavior of the `toolsAndModeCompatible` getter
+		assertDefined(
+			tools,
+			'Tools metadata must have been present.',
+		);
+		assertDefined(
+			mode,
+			'Mode metadata must have been present.',
+		);
+		assert(
+			mode.chatMode !== ChatMode.Agent,
+			'Mode metadata must not be agent mode.',
+		);
+
+		this.issues.push(
+			new PromptMetadataWarning(
+				mode.range,
+				localize(
+					'prompt.header.metadata.mode.diagnostics.incompatible-with-tools',
+					"Record '{0}' is implied to have the '{1}' value if '{2}' record is present so the specified value will be ignored.",
+					mode.recordName,
+					ChatMode.Agent,
+					tools.recordName,
 				),
 			),
 		);

@@ -33,7 +33,7 @@ export namespace ChatContextKeys {
 	export const hasPromptFile = new RawContextKey<boolean>('chatPromptFileAttached', false, { type: 'boolean', description: localize('chatPromptFileAttachedContextDescription', "True when the chat has a prompt file attached.") });
 	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
-	export const supported = ContextKeyExpr.or(IsWebContext.toNegated(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
+	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
 
 	export const extensionParticipantRegistered = new RawContextKey<boolean>('chatPanelExtensionParticipantRegistered', false, { type: 'boolean', description: localize('chatPanelExtensionParticipantRegistered', "True when a default chat participant is registered for the panel from an extension.") });
@@ -62,8 +62,8 @@ export namespace ChatContextKeys {
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
 
-	export const freeChatQuotaExceeded = new RawContextKey<boolean>('freeChatQuotaExceeded', false, true);
-	export const freeCompletionsQuotaExceeded = new RawContextKey<boolean>('freeCompletionsQuotaExceeded', false, true);
+	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
+	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 
 	export const Editing = {
 		agentModeDisallowed: new RawContextKey<boolean>('chatAgentModeDisallowed', undefined, { type: 'boolean', description: localize('chatAgentModeDisallowed', "True when agent mode is not allowed.") }), // experiment-driven disablement

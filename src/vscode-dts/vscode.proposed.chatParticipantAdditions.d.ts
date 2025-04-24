@@ -227,19 +227,6 @@ declare module 'vscode' {
 	}
 
 
-	export interface ChatRequest {
-
-		/**
-		 * A list of tools that the user selected for this request, when `undefined` any tool
-		 * from {@link lm.tools} should be used.
-		 *
-		 * Tools can be called with {@link lm.invokeTool} with input that match their
-		 * declared `inputSchema`.
-		 */
-		readonly tools: readonly LanguageModelToolInformation[] | undefined;
-	}
-
-
 	/**
 	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
 	 * Does it show up in history?
@@ -412,7 +399,7 @@ declare module 'vscode' {
 	}
 
 	export namespace lm {
-		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
+		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
 
 	export interface ChatVariableValue {

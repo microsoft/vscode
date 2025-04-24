@@ -288,6 +288,12 @@ export class ChatService extends Disposable implements IChatService {
 	notifyUserAction(action: IChatUserActionEvent): void {
 		this._chatServiceTelemetry.notifyUserAction(action);
 		this._onDidPerformUserAction.fire(action);
+		if (action.action.kind === 'chatEditingSessionAction') {
+			const model = this._sessionModels.get(action.sessionId);
+			if (model) {
+				model.notifyEditingAction(action.action);
+			}
+		}
 	}
 
 	async setChatSessionTitle(sessionId: string, title: string): Promise<void> {
@@ -578,7 +584,6 @@ export class ChatService extends Disposable implements IChatService {
 			...options,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
-			hasPromptFileAttachments: options?.hasPromptFileAttachments ?? false,
 		};
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
@@ -586,13 +591,8 @@ export class ChatService extends Disposable implements IChatService {
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
-		// if text is not provided, but chat input has `prompt instructions`
-		// attached, use the default prompt text to avoid empty messages
-		if (!request.trim() && options?.hasPromptFileAttachments) {
-			request = 'Follow these instructions.';
-		}
 
-		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.hasPromptFileAttachments) {
+		if (!request.trim() && !options?.slashCommand && !options?.agentId) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return;
 		}
@@ -734,7 +734,7 @@ export class ChatService extends Disposable implements IChatService {
 				let chatTitlePromise: Promise<string | undefined> | undefined;
 
 				if (agentPart || (defaultAgent && !commandPart)) {
-					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): Promise<IChatAgentRequest> => {
+					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
 						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId);
 
@@ -767,7 +767,9 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
-							userSelectedTools: options?.userSelectedTools
+							userSelectedTools: options?.userSelectedTools,
+							toolSelectionIsExclusive: options?.toolSelectionIsExclusive,
+							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;
 					};
 
@@ -776,7 +778,7 @@ export class ChatService extends Disposable implements IChatService {
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
 						// Prepare the request object that we will send to the participant detection provider
-						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
+						const chatAgentRequest = prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
 
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
 						if (result && this.chatAgentService.getAgent(result.agent.id)?.locations?.includes(location)) {
@@ -794,7 +796,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, model.sessionId, location, agent.id);
-					const requestProps = await prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
+					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
 					const pendingRequest = this._pendingRequests.get(sessionId);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
@@ -1004,7 +1006,8 @@ export class ChatService extends Disposable implements IChatService {
 				message: promptTextResult.message,
 				command: request.response.slashCommand?.name,
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-				location: ChatAgentLocation.Panel
+				location: ChatAgentLocation.Panel,
+				editedFileEvents: request.editedFileEvents,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}

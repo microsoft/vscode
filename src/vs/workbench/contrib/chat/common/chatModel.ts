@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -27,7 +28,7 @@ import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommo
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 
@@ -127,6 +128,16 @@ export interface IDiagnosticVariableEntryFilterData {
 	readonly filterRange?: IRange;
 }
 
+/**
+ * Chat variable that represents an attached prompt file.
+ */
+export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'file';
+	readonly value: URI | Location;
+	readonly isRoot: boolean;
+	readonly modelDescription: string;
+}
+
 export namespace IDiagnosticVariableEntryFilterData {
 	export const icon = Codicon.error;
 
@@ -209,6 +220,10 @@ export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj 
 	return obj.kind === 'diagnostic';
 }
 
+export function isChatRequestFileEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry {
+	return obj.kind === 'file';
+}
+
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
 	const entry = obj as IChatRequestVariableEntry;
 	return typeof entry === 'object' &&
@@ -235,6 +250,7 @@ export interface IChatRequestModel {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly isCompleteAddedRequest: boolean;
 	readonly response?: IChatResponseModel;
+	readonly editedFileEvents?: IChatAgentEditedFileEvent[];
 	shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 }
 
@@ -376,6 +392,7 @@ export interface IChatRequestModelParameters {
 	isCompleteAddedRequest?: boolean;
 	modelId?: string;
 	restoredId?: string;
+	editedFileEvents?: IChatAgentEditedFileEvent[];
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -393,6 +410,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	private readonly _confirmation?: string;
 	private readonly _locationData?: IChatLocationData;
 	private readonly _attachedContext?: IChatRequestVariableEntry[];
+	private readonly _editedFileEvents?: IChatAgentEditedFileEvent[];
 
 	public get session(): ChatModel {
 		return this._session;
@@ -430,6 +448,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._attachedContext;
 	}
 
+	public get editedFileEvents(): IChatAgentEditedFileEvent[] | undefined {
+		return this._editedFileEvents;
+	}
+
 	constructor(params: IChatRequestModelParameters) {
 		this._session = params.session;
 		this.message = params.message;
@@ -442,6 +464,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this.modelId = params.modelId;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
+		this._editedFileEvents = params.editedFileEvents;
 	}
 
 	adoptTo(session: ChatModel) {
@@ -1069,6 +1092,7 @@ export interface ISerializableChatRequestData {
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 	timestamp?: number;
 	confirmation?: string;
+	editedFileEvents?: IChatAgentEditedFileEvent[];
 }
 
 export interface IExportableChatData {
@@ -1424,7 +1448,21 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.chatEditingService.startOrContinueGlobalEditingSession(this) :
 			this.chatEditingService.createEditingSession(this);
 		this._editingSession = new ObservablePromise(editingSessionPromise);
-		this._editingSession.promise.then(editingSession => this._store.isDisposed ? editingSession.dispose() : this._register(editingSession));
+		this._editingSession.promise.then(editingSession => {
+			this._store.isDisposed ? editingSession.dispose() : this._register(editingSession);
+		});
+	}
+
+	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();
+	notifyEditingAction(action: IChatEditingSessionAction): void {
+		const state = action.outcome === 'accepted' ? ChatRequestEditedFileEventKind.Keep :
+			action.outcome === 'rejected' ? ChatRequestEditedFileEventKind.Undo :
+				action.outcome === 'userModified' ? ChatRequestEditedFileEventKind.UserModification : null;
+		if (state === null) {
+			return;
+		}
+
+		this.currentEditedFileEvents.set(action.uri, { eventKind: state, uri: action.uri });
 	}
 
 	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
@@ -1450,6 +1488,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					timestamp: raw.timestamp ?? -1,
 					restoredId: raw.requestId,
 					confirmation: raw.confirmation,
+					editedFileEvents: raw.editedFileEvents,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
@@ -1597,6 +1636,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): ChatRequestModel {
+		const editedFileEvents = [...this.currentEditedFileEvents.values()];
+		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
 			session: this,
 			message,
@@ -1607,7 +1648,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			locationData,
 			attachedContext: attachments,
 			isCompleteAddedRequest,
-			modelId
+			modelId,
+			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 		});
 		request.response = new ChatResponseModel({
 			responseContent: [],
@@ -1791,6 +1833,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					codeCitations: r.response?.codeCitations,
 					timestamp: r.timestamp,
 					confirmation: r.confirmation,
+					editedFileEvents: r.editedFileEvents,
 				};
 			}),
 		};
@@ -1868,4 +1911,15 @@ export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitati
 		localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
 		localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
 	return label;
+}
+
+export enum ChatRequestEditedFileEventKind {
+	Keep = 1,
+	Undo = 2,
+	UserModification = 3,
+}
+
+export interface IChatAgentEditedFileEvent {
+	readonly uri: URI;
+	readonly eventKind: ChatRequestEditedFileEventKind;
 }

@@ -3,44 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../base/browser/dom.js';
 import * as cssJs from '../../../base/browser/cssValue.js';
-import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../base/common/event.js';
-import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
-import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
-import { localize } from '../../../nls.js';
-import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { WorkbenchObjectTree } from '../../list/browser/listService.js';
-import { IThemeService } from '../../theme/common/themeService.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem, QuickPickFocus } from '../common/quickInput.js';
-import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { IMatch } from '../../../base/common/filters.js';
-import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
-import { AriaRole } from '../../../base/browser/ui/aria/aria.js';
+import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
-import { OS } from '../../../base/common/platform.js';
-import { memoize } from '../../../base/common/decorators.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { AriaRole } from '../../../base/browser/ui/aria/aria.js';
+import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IIconLabelValueOptions, IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { isDark } from '../../theme/common/theme.js';
-import { URI } from '../../../base/common/uri.js';
-import { quickInputButtonToAction } from './quickInputUtils.js';
-import { Lazy } from '../../../base/common/lazy.js';
-import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
-import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { compareAnything } from '../../../base/common/comparers.js';
-import { escape, ltrim } from '../../../base/common/strings.js';
+import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
+import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
-import { ThrottledDelayer } from '../../../base/common/async.js';
-import { isCancellationError } from '../../../base/common/errors.js';
-import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
-import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
-import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
 import { equals } from '../../../base/common/arrays.js';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { compareAnything } from '../../../base/common/comparers.js';
+import { memoize } from '../../../base/common/decorators.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../base/common/event.js';
+import { IMatch } from '../../../base/common/filters.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
+import { OS } from '../../../base/common/platform.js';
+import { escape, ltrim } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { WorkbenchObjectTree } from '../../list/browser/listService.js';
+import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
+import { isDark } from '../../theme/common/theme.js';
+import { IThemeService } from '../../theme/common/themeService.js';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
+import { quickInputButtonToAction } from './quickInputUtils.js';
 
 const $ = dom.$;
 
@@ -67,8 +69,9 @@ interface IQuickPickElement extends IQuickInputItemLazyParts {
 
 interface IQuickInputItemTemplateData {
 	entry: HTMLDivElement;
-	checkbox: HTMLInputElement;
+	checkbox: MutableDisposable<Checkbox>;
 	icon: HTMLDivElement;
+	outerLabel: HTMLElement;
 	label: IconLabel;
 	keybinding: KeybindingLabel;
 	detail: IconLabel;
@@ -320,7 +323,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 	abstract templateId: string;
 
 	constructor(
-		private readonly hoverDelegate: IHoverDelegate | undefined
+		private readonly hoverDelegate: IHoverDelegate | undefined,
 	) { }
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -332,13 +335,16 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 		// Checkbox
 		const label = dom.append(data.entry, $('label.quick-input-list-label'));
+		data.outerLabel = label;
+		data.checkbox = data.toDisposeTemplate.add(new MutableDisposable());
 		data.toDisposeTemplate.add(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
-			if (!data.checkbox.offsetParent) { // If checkbox not visible:
-				e.preventDefault(); // Prevent toggle of checkbox when it is immediately shown afterwards. #91740
+			// `label` elements with role=checkboxes don't automatically toggle them like normal <checkbox> elements
+			if (data.checkbox.value && !e.defaultPrevented && data.checkbox.value.enabled) {
+				const checked = !data.checkbox.value.checked;
+				data.checkbox.value.checked = checked;
+				(data.element as QuickPickItemElement).checked = checked;
 			}
 		}));
-		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
-		data.checkbox.type = 'checkbox';
 
 		// Rows
 		const rows = dom.append(label, $('.quick-input-list-rows'));
@@ -402,14 +408,31 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		return QuickPickItemElementRenderer.ID;
 	}
 
-	override renderTemplate(container: HTMLElement): IQuickInputItemTemplateData {
-		const data = super.renderTemplate(container);
+	private ensureCheckbox(element: QuickPickItemElement, data: IQuickInputItemTemplateData) {
+		if (!element.hasCheckbox) {
+			data.checkbox.value?.domNode.remove();
+			data.checkbox.clear();
+			return;
+		}
 
-		data.toDisposeTemplate.add(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
-			(data.element as QuickPickItemElement).checked = data.checkbox.checked;
-		}));
+		let checkbox = data.checkbox.value;
+		if (!checkbox) {
+			checkbox = new Checkbox(element.saneLabel, element.checked, { ...defaultCheckboxStyles, size: 15 });
+			data.checkbox.value = checkbox;
+			data.outerLabel.prepend(checkbox.domNode);
+		} else {
+			checkbox.setTitle(element.saneLabel);
+		}
 
-		return data;
+		if (element.checkboxDisabled) {
+			checkbox.disable();
+		} else {
+			checkbox.enable();
+		}
+
+		checkbox.checked = element.checked;
+		data.toDisposeElement.add(element.onChecked(checked => checkbox.checked = checked));
+		data.toDisposeElement.add(checkbox.onChange(() => element.checked = checkbox.checked));
 	}
 
 	renderElement(node: ITreeNode<QuickPickItemElement, void>, index: number, data: IQuickInputItemTemplateData): void {
@@ -421,9 +444,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		element.element.classList.toggle('indented', Boolean(mainItem.indented));
 		element.element.classList.toggle('not-pickable', element.item.pickable === false);
 
-		data.checkbox.checked = element.checked;
-		data.toDisposeElement.add(element.onChecked(checked => data.checkbox.checked = checked));
-		data.checkbox.disabled = element.checkboxDisabled;
+		this.ensureCheckbox(element, data);
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
@@ -555,12 +576,6 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 
 	isSeparatorVisible(separator: QuickPickSeparatorElement): boolean {
 		return this._visibleSeparatorsFrequency.has(separator);
-	}
-
-	override renderTemplate(container: HTMLElement): IQuickInputItemTemplateData {
-		const data = super.renderTemplate(container);
-		data.checkbox.style.display = 'none';
-		return data;
 	}
 
 	override renderElement(node: ITreeNode<QuickPickSeparatorElement, void>, index: number, data: IQuickInputItemTemplateData): void {
@@ -1089,7 +1104,7 @@ export class QuickInputTree extends Disposable {
 				}
 				const qpi = new QuickPickItemElement(
 					index,
-					this._hasCheckboxes,
+					this._hasCheckboxes && item.pickable !== false,
 					e => this._onButtonTriggered.fire(e),
 					this._elementChecked,
 					item,

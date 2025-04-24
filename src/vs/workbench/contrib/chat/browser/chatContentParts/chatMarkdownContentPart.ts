@@ -141,7 +141,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				if (hideToolbar !== undefined) {
 					renderOptions.hideToolbar = hideToolbar;
 				}
-				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions };
+				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions, chatSessionId: element.sessionId };
 
 				if (element.isCompleteAddedRequest || !codeblockEntry?.codemapperUri || !codeblockEntry.isEdit) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
@@ -157,6 +157,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly codeBlockIndex = globalIndex;
 						readonly elementId = element.id;
 						readonly isStreaming = false;
+						readonly chatSessionId = element.sessionId;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
 							// here we must do a getter because the ref.object is rendered
@@ -190,6 +191,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly elementId = element.id;
 						readonly isStreaming = !isCodeBlockComplete;
 						readonly codemapperUri = codeblockEntry?.codemapperUri;
+						readonly chatSessionId = element.sessionId;
 						public get uri() {
 							return undefined;
 						}

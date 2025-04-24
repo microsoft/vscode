@@ -45,6 +45,12 @@ export interface IPromptPath {
 	readonly type: TPromptsType;
 }
 
+/**
+ * Type for a shared prompt parser instance returned by the {@link IPromptsService}.
+ * Because the parser is shared, we omit the `dispose` method from
+ * the original type so the caller cannot dispose it prematurely
+ */
+export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
 
 /**
  * Provides prompt services.
@@ -58,7 +64,7 @@ export interface IPromptsService extends IDisposable {
 	 */
 	getSyntaxParserFor(
 		model: ITextModel,
-	): TextModelPromptParser & { disposed: false };
+	): TSharedPrompt & { disposed: false };
 
 	/**
 	 * List all available prompt files.
@@ -66,14 +72,30 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * Get a list of prompt source folders based on the provided prompt type and storage.
+	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: TPromptsType, storage: TPromptsStorage): readonly IPromptPath[];
+	getSourceFolders(type: TPromptsType): readonly IPromptPath[];
+
+	/**
+	 * Returns a prompt command if the command name.
+	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 */
+	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
+
+	/**
+	 * Gets the prompt file for a slash command.
+	 */
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined>;
+
+	/**
+	 * Returns a prompt command if the command name is valid.
+	 */
+	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+
 }
 
-/**
- * Decoration CSS class modifiers.
- */
-export enum CssClassModifiers {
-	Inactive = '.prompt-decoration-inactive',
+export interface IChatPromptSlashCommand {
+	readonly command: string;
+	readonly detail: string;
+	readonly promptPath?: IPromptPath;
 }

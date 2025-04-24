@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CssClassModifiers } from '../types.js';
 import { localize } from '../../../../../../../../../nls.js';
-import { CssClassModifiers } from '../../../../service/types.js';
 import { FrontMatterMarkerDecoration } from './frontMatterMarkerDecoration.js';
 import { Position } from '../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
@@ -19,8 +19,8 @@ import { FrontMatterHeader } from '../../../../../../../../../editor/common/code
 export enum CssClassNames {
 	main = '.prompt-front-matter-decoration',
 	inline = '.prompt-front-matter-decoration-inline',
-	mainInactive = `${CssClassNames.main}${CssClassModifiers.Inactive}`,
-	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.Inactive}`,
+	mainInactive = `${CssClassNames.main}${CssClassModifiers.inactive}`,
+	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.inactive}`,
 }
 
 /**

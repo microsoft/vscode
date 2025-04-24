@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -234,6 +235,7 @@ export interface IChatToolInvocation {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
+	progress: IObservable<{ message?: string | IMarkdownString; progress: number }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
 
@@ -255,6 +257,7 @@ export interface IChatToolInvocationSerialized {
 	isConfirmed: boolean | undefined;
 	isComplete: boolean;
 	toolCallId: string;
+	toolId: string;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -380,7 +383,7 @@ export interface IChatEditingSessionAction {
 	kind: 'chatEditingSessionAction';
 	uri: URI;
 	hasRemainingEdits: boolean;
-	outcome: 'accepted' | 'rejected' | 'saved';
+	outcome: 'accepted' | 'rejected' | 'userModified';
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
@@ -463,6 +466,7 @@ export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
 	userSelectedTools?: string[];
+	toolSelectionIsExclusive?: boolean;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
@@ -480,11 +484,6 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
-
-	/**
-	 * Flag to indicate whether a prompt file attachment is present.
-	 */
-	hasPromptFileAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

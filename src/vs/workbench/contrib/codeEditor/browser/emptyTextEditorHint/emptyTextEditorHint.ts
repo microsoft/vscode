@@ -28,8 +28,6 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from '../../../../services/output/common/output.js';
 import { SEARCH_RESULT_LANGUAGE_ID } from '../../../../services/search/common/search.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -148,7 +146,6 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -275,34 +272,33 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 			}
 		};
 
-		const hintMsg = hasInlineChatProvider ? localize({
+		const keybindingsLookup = hasInlineChatProvider ? [askSomethingCommandId, ChangeLanguageAction.ID, ApplyFileSnippetAction.Id] : [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
+		const keybindingLabels = keybindingsLookup.map(id => this.keybindingService.lookupKeybinding(id)?.getLabel());
+
+		const hintMsg = (hasInlineChatProvider ? localize({
 			key: 'emptyTextEditorHintWithInlineChat',
 			comment: [
 				'Preserve double-square brackets and their order',
 				'language refers to a programming language'
 			]
-		}, '[[Ask something]], or [[select a language]], or [[fill with template]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.') : localize({
+		}, '[[Open chat]] ({0}), or [[select a language]] ({1}), or [[fill with template]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '') : localize({
 			key: 'emptyTextEditorHintWithoutInlineChat',
 			comment: [
 				'Preserve double-square brackets and their order',
 				'language refers to a programming language'
 			]
-		}, '[[Select a language]], or [[fill with template]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+		}, '[[Select a language]] ({0}), or [[fill with template]] ({1}), or [[open a different editor]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '')).replaceAll('()', '');
 		const hintElement = renderFormattedText(hintMsg, {
 			actionHandler: hintHandler,
 			renderCodeSegments: false,
 		});
 		hintElement.style.fontStyle = 'italic';
 
-		// ugly way to associate keybindings...
-		const keybindingsLookup = hasInlineChatProvider ? [askSomethingCommandId, ChangeLanguageAction.ID, ApplyFileSnippetAction.Id] : [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
-		const keybindingLabels = keybindingsLookup.map((id) => this.keybindingService.lookupKeybinding(id)?.getLabel() ?? id);
-		const ariaLabel = hasInlineChatProvider ? localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language, or execute {2} to fill with template and get started. Start typing to dismiss.', ...keybindingLabels) : localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language, execute {1} to fill with template, or execute {2} to open a different editor and get started. Start typing to dismiss.', ...keybindingLabels);
+		const ariaLabel = hasInlineChatProvider ?
+			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language, or execute {2} to fill with template and get started. Start typing to dismiss.', ...keybindingLabels) :
+			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language, execute {1} to fill with template, or execute {2} to open a different editor and get started. Start typing to dismiss.', ...keybindingLabels);
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
-			const id = keybindingsLookup.shift();
-			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-			hintHandler.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
 		}
 
 		return { hintElement, ariaLabel };

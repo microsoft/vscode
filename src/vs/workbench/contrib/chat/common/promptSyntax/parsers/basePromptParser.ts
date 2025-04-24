@@ -13,7 +13,6 @@ import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
-import { IPromptReference, IResolveError, ITopError } from './types.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
@@ -21,15 +20,17 @@ import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IPromptMetadata, IPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
-import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
+import { ChatMode } from '../../constants.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -136,6 +137,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		await this.firstParseResult.promise;
 
 		if (this.errorCondition) {
+			return this;
+		}
+
+		// by the time when the `firstParseResult` promise is resolved,
+		// this object may have been already disposed, hence noop
+		if (this.disposed) {
 			return this;
 		}
 
@@ -486,6 +493,92 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
+	 * Valid metadata records defined in the prompt header.
+	 */
+	public get metadata(): IPromptMetadata {
+		if (this.header === undefined) {
+			return {
+				mode: ChatMode.Ask,
+			};
+		}
+
+		const { metadata } = this.header;
+		if (metadata === undefined) {
+			return {
+				mode: ChatMode.Ask,
+			};
+		}
+
+
+		const { tools, mode, description } = metadata;
+
+		// compute resulting mode based on presence
+		// of `tools` metadata in the prompt header
+		const resultingMode = (tools !== undefined)
+			? ChatMode.Agent
+			: mode?.chatMode;
+
+		// fallback to `ask` mode if no mode is defined
+		const result: IPromptMetadata = {
+			mode: resultingMode ?? ChatMode.Ask,
+		};
+
+		if (description !== undefined) {
+			result.description = description.text ?? undefined;
+		}
+
+		if (tools !== undefined) {
+			result.tools = tools.toolNames;
+		}
+
+		return result;
+	}
+
+	/**
+	 * Entire associated `tools` metadata for this reference and
+	 * all possible nested child references.
+	 */
+	public get allToolsMetadata(): readonly string[] | null {
+		let hasTools = false;
+		const result: string[] = [];
+
+		const { tools, mode } = this.metadata;
+
+		if (tools !== undefined) {
+			result.push(...tools);
+			hasTools = true;
+		}
+
+		const isRootInAgentMode = ((hasTools === true) || (mode === ChatMode.Agent));
+
+		// the top-level mode defines the overall mode for all
+		// nested prompt references, therefore if mode of
+		// the top-level prompt is not equal to `agent`, then
+		// ignore all `tools` metadata of the nested references
+		if (isRootInAgentMode === false) {
+			return null;
+		}
+
+		for (const reference of this.references) {
+			const { allToolsMetadata } = reference;
+
+			if (allToolsMetadata === null) {
+				continue;
+			}
+
+			result.push(...allToolsMetadata);
+			hasTools = true;
+		}
+
+		if (hasTools === false) {
+			return null;
+		}
+
+		// return unique list of tools
+		return [...new Set(result)];
+	}
+
+	/**
 	 * Get list of errors for the direct links of the current reference.
 	 */
 	public get errors(): readonly ResolveError[] {
@@ -763,6 +856,14 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 
 	public get allReferences(): readonly IPromptReference[] {
 		return this.parser.allReferences;
+	}
+
+	public get metadata(): IPromptMetadata {
+		return this.parser.metadata;
+	}
+
+	public get allToolsMetadata(): readonly string[] | null {
+		return this.parser.allToolsMetadata;
 	}
 
 	public get allValidReferences(): readonly IPromptReference[] {

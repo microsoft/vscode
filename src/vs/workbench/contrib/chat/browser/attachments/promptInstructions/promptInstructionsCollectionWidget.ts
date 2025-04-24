@@ -17,7 +17,7 @@ import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatP
 
 /**
  * Widget for a collection of prompt instructions attachments.
- * See {@linkcode InstructionsAttachmentWidget}.
+ * See {@link InstructionsAttachmentWidget}.
  */
 export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
@@ -28,15 +28,15 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * Event that fires when number of attachments change
 	 *
-	 * See {@linkcode onAttachmentsCountChange}.
+	 * See {@link onAttachmentsChange}.
 	 */
-	private _onAttachmentsCountChange = this._register(new Emitter<void>());
+	private _onAttachmentsChange = this._register(new Emitter<void>());
 	/**
-	 * Subscribe to the `onAttachmentsCountChange` event.
+	 * Subscribe to the `onAttachmentsChange` event.
 	 * @param callback Function to invoke when number of attachments change.
 	 */
-	public onAttachmentsCountChange(callback: () => unknown): this {
-		this._register(this._onAttachmentsCountChange.event(callback));
+	public onAttachmentsChange(callback: () => unknown): this {
+		this._register(this._onAttachmentsChange.event(callback));
 
 		return this;
 	}
@@ -60,6 +60,14 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	 */
 	public get chatAttachments() {
 		return this.model.chatAttachments;
+	}
+
+	/**
+	 * Get a promise that resolves when parsing/resolving processes
+	 * are fully completed, including all possible nested child references.
+	 */
+	public allSettled() {
+		return this.model.allSettled();
 	}
 
 	/**
@@ -113,7 +121,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 			}
 
 			// fire the event to notify about the change in the number of attachments
-			this._onAttachmentsCountChange.fire();
+			this._onAttachmentsChange.fire();
 		}));
 	}
 
@@ -164,7 +172,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 		this.parentNode?.removeChild(widget.domNode);
 
 		// fire the event to notify about the change in the number of attachments
-		this._onAttachmentsCountChange.fire();
+		this._onAttachmentsChange.fire();
 
 		return this;
 	}

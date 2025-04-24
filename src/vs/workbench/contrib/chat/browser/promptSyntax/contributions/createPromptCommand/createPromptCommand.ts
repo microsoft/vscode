@@ -17,7 +17,7 @@ import { PromptsConfig } from '../../../../../../../platform/prompts/common/conf
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IPromptsService, TPromptsStorage, TPromptsType } from '../../../../common/promptSyntax/service/types.js';
+import { IPromptsService, TPromptsType } from '../../../../common/promptSyntax/service/types.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -32,7 +32,6 @@ import { INotificationService, NeverShowAgainScope, Severity } from '../../../..
 const command = async (
 	accessor: ServicesAccessor,
 	type: TPromptsType,
-	storage: TPromptsStorage
 ): Promise<void> => {
 	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
@@ -45,14 +44,19 @@ const command = async (
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
 
-	const fileName = await askForPromptFileName(type, quickInputService);
-	if (!fileName) {
-		return;
-	}
+	const placeHolder = (type === 'instructions')
+		? localize(
+			'workbench.command.instructions.create.location.placeholder',
+			"Select a location to create the instructions file in...",
+		)
+		: localize(
+			'workbench.command.prompt.create.location.placeholder',
+			"Select a location to create the prompt file in...",
+		);
 
 	const selectedFolder = await askForPromptSourceFolder({
 		type,
-		storage,
+		placeHolder,
 		labelService,
 		openerService,
 		promptsService,
@@ -61,6 +65,11 @@ const command = async (
 	});
 
 	if (!selectedFolder) {
+		return;
+	}
+
+	const fileName = await askForPromptFileName(type, quickInputService);
+	if (!fileName) {
 		return;
 	}
 
@@ -75,7 +84,7 @@ const command = async (
 		);
 	const promptUri = await createPromptFile({
 		fileName,
-		folder: selectedFolder,
+		folder: selectedFolder.uri,
 		content,
 		fileService,
 		openerService,
@@ -83,7 +92,7 @@ const command = async (
 
 	await openerService.open(promptUri);
 
-	if (storage !== 'user') {
+	if (selectedFolder.storage !== 'user') {
 		return;
 	}
 
@@ -103,12 +112,12 @@ const command = async (
 		return;
 	}
 
-	// show suggestion to enable synchronization of the user prompts to the user
+	// show suggestion to enable synchronization of the user prompts and instructions to the user
 	notificationService.prompt(
 		Severity.Info,
 		localize(
 			'workbench.command.prompts.create.user.enable-sync-notification',
-			"User prompts are not currently synchronized. Do you want to enable synchronization of the user prompts?",
+			"User prompts and instructions are not currently synchronized. Do you want to enable synchronization of the user prompts and instructions?",
 		),
 		[
 			{
@@ -130,7 +139,7 @@ const command = async (
 	);
 };
 
-function register(type: TPromptsType, storage: TPromptsStorage, id: string, title: string) {
+function register(type: TPromptsType, id: string, title: string) {
 	/**
 	 * Register the command.
 	 */
@@ -138,7 +147,7 @@ function register(type: TPromptsType, storage: TPromptsStorage, id: string, titl
 		id,
 		weight: KeybindingWeight.WorkbenchContrib,
 		handler: async (accessor: ServicesAccessor): Promise<void> => {
-			return command(accessor, type, storage);
+			return command(accessor, type);
 		},
 		when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 	});
@@ -156,27 +165,17 @@ function register(type: TPromptsType, storage: TPromptsStorage, id: string, titl
 	});
 }
 
+export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
+export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
+
 register(
 	'instructions',
-	'local',
-	'workbench.command.new.instructions.local',
+	NEW_INSTRUCTIONS_COMMAND_ID,
 	localize('commands.new.instructions.local.title', "New Instructions File...")
 );
 register(
-	'instructions',
-	'user',
-	'workbench.command.new.instructions.user',
-	localize('commands.new.instructions.user.title', "New User Instructions File...")
-);
-register(
 	'prompt',
-	'local',
-	'workbench.command.new.prompt.local',
+	NEW_PROMPT_COMMAND_ID,
 	localize('commands.new.prompt.local.title', "New Prompt File...")
 );
-register(
-	'prompt',
-	'user',
-	'workbench.command.new.prompt.user',
-	localize('commands.new.prompt.user.title', "New User Prompt File...")
-);
+
