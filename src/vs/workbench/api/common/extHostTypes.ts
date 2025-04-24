@@ -4983,7 +4983,6 @@ export enum ChatImageMimeType {
 	BMP = 'image/bmp',
 }
 
-
 export class LanguageModelExtraDataPart implements vscode.LanguageModelExtraDataPart {
 	kind: string;
 	data: any;
