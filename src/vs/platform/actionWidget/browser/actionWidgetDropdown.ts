@@ -60,16 +60,26 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			actionsByCategory.get(category.label)!.push(action);
 		}
 
-		for (const [categoryLabel, categoryActions] of actionsByCategory) {
-			// Push headers for each category
-			actionWidgetItems.push({
-				label: categoryLabel,
-				kind: ActionListItemKind.Header,
-				canPreview: false,
-				disabled: false,
-				hideIcon: false,
+		// Sort categories by order
+		const sortedCategories = Array.from(actionsByCategory.entries())
+			.sort((a, b) => {
+				const aOrder = a[1][0]?.category?.order ?? Number.MAX_SAFE_INTEGER;
+				const bOrder = b[1][0]?.category?.order ?? Number.MAX_SAFE_INTEGER;
+				return aOrder - bOrder;
 			});
 
+		for (const [categoryLabel, categoryActions] of sortedCategories) {
+
+			if (categoryLabel) {
+				// Push headers for each category
+				actionWidgetItems.push({
+					label: categoryLabel,
+					kind: ActionListItemKind.Header,
+					canPreview: false,
+					disabled: false,
+					hideIcon: false,
+				});
+			}
 			// Push actions for each category
 			for (const action of categoryActions) {
 				actionWidgetItems.push({
