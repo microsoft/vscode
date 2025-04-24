@@ -1153,7 +1153,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!agentSlashPromptPart) {
 			return input;
 		}
-		// remove the slash command the input
+		// remove the slash command from the input
 		input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
 
 		const promptPath = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
@@ -1161,9 +1161,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return input;
 		}
 
-		// TODO: @legomushroom
-		const getUri = (variable: IPromptVariableEntry) => isLocation(variable.value) ? variable.value.uri : variable.value;
-		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(getUri(variable), promptPath.uri))) {
+		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(toUri(variable), promptPath.uri))) {
 			// not yet attached, so attach it
 			const variable = toChatVariable({ uri: promptPath.uri, isPromptFile: true }, true);
 			attachedContext.push(variable);
@@ -1531,9 +1529,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Resolves instructions that have `include` metadata that can
+	 * match file references in the attached context and then attaches
+	 * such instructions to the context.
 	 */
-	// TODO: @legomushroom - note about mutable attachedContext
 	private async autoAttachInstructions(
 		attachedContext: IChatRequestVariableEntry[],
 	): Promise<void> {
@@ -1559,25 +1558,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 }
 
 /**
- * TODO: @legomushroom
+ * Type for any "addressable" object - i.e., an object that has
+ * the `value` property that is either a {@link URI} or a {@link Location}.
  */
 export type TAddressable<T extends object> = T & { value: URI | Location };
 
 /**
- * TODO: @legomushroom
+ * Check if provided object is "addressable" - i.e., has the `value`
+ * property that is either a {@link URI} or a {@link Location}.
  */
 const hasAddressableValue = <T extends object>(
 	thing: T,
 ): thing is TAddressable<T> => {
-	if (('value' in thing) === false) {
+	if ((!thing) || (('value' in thing) === false)) {
 		return false;
 	}
 
-	if (URI.isUri(thing.value)) {
-		return true;
-	}
-
-	if (isLocation(thing.value)) {
+	if (URI.isUri(thing.value) || isLocation(thing.value)) {
 		return true;
 	}
 
@@ -1585,10 +1582,10 @@ const hasAddressableValue = <T extends object>(
 };
 
 /**
- * TODO: @legomushroom
+ * Returns URI of a provided "addressable" object.
  */
-const toUri = (
-	thing: { value: URI | Location },
+const toUri = <T extends object>(
+	thing: TAddressable<T>,
 ): URI => {
 	const { value } = thing;
 

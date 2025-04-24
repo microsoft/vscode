@@ -43,10 +43,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly fileLocator: PromptFilesLocator;
 
 	constructor(
-		@IInstantiationService private readonly initService: IInstantiationService,
-		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IModelService private readonly modelService: IModelService,
+		@IInstantiationService private readonly initService: IInstantiationService,
+		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
 
@@ -165,34 +165,31 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
-	// TODO: @legomushroom - add unit tests?
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
 		const result: URI[] = [];
 
-		// TODO: @legomushroom - record timing of the function?
 		const instructionFiles = await this.listPromptFiles('instructions');
-
 		if (instructionFiles.length === 0) {
 			return result;
 		}
 
-		// TODO: @legomushroom - record timing of the function?
 		const instructions = await this.getAllMetadata(
 			instructionFiles.map(pick('uri')),
 		);
 
 		for (const instruction of instructions.flatMap(flatten)) {
 			const { metadata, uri } = instruction;
+			const { include } = metadata;
 
-			if (metadata.include === undefined) {
+			if (include === undefined) {
 				continue;
 			}
 
 			// if glob pattern is one of the special wildcard values,
 			// add the instructions file event if no files are attached
-			if ((metadata.include === '**') || (metadata.include === '**/*')) {
+			if ((include === '**') || (include === '**/*')) {
 				result.push(uri);
 
 				continue;
@@ -201,7 +198,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// match each attached file with each glob pattern and
 			// add the instructions file its rule matches the file
 			for (const file of files) {
-				if (match(metadata.include, file.fsPath)) {
+				if (match(include, file.fsPath)) {
 					result.push(uri);
 
 					continue;
@@ -387,7 +384,8 @@ const collectMetadata = (
 	};
 };
 
-function getCommandName(path: string) {
+
+export function getPromptCommandName(path: string) {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
 	return name;
 }

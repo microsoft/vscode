@@ -306,7 +306,10 @@ const NULL = function (): string | null {
 };
 
 /**
- * TODO: @legomushroom
+ * Check if a provided parsed pattern or expression
+ * is empty - hence it won't ever match anything.
+ *
+ * See {@link FALSE} and {@link NULL}.
  */
 export const isEmptyPattern = (
 	pattern: ParsedPattern | ParsedExpression,

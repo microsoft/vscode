@@ -50,7 +50,6 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 		languageId: string,
 	) {
 		// sanity check on the name of the tools record
-		// TODO: @legomushroom - move to the base class?
 		assert(
 			PromptToolsMetadata.isToolsRecord(recordToken),
 			`Record token must be a tools token, got '${recordToken.nameToken.text}'.`,

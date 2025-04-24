@@ -43,7 +43,7 @@ export interface IPromptPath {
 	readonly storage: TPromptsStorage;
 
 	/**
-	 * Type
+	 * Type of the prompt (e.g. 'prompt' or 'instructions').
 	 */
 	readonly type: TPromptsType;
 }
