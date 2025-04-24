@@ -386,6 +386,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				strs.push(part.value);
 			} else if (part.kind === 'promptTsx') {
 				strs.push(stringifyPromptTsxPart(part));
+			} else if (part.kind === 'data') {
+				strs.push(`\n\n${localize('toolResultData', "Tool result data of type {0} ({1} bytes)", part.value.mimeType, part.value.data.byteLength)}\n\n`);
 			}
 		}
 		return strs.join('');
