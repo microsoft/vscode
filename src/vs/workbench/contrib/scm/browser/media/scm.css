@@ -615,6 +615,20 @@
 	flex-grow: 1;
 }
 
+.scm-view .monaco-list-row .history-item-change {
+	display: flex;
+	align-items: center;
+	margin-left: -8px;
+}
+
+.scm-view .monaco-list-row .history-item-change .graph-placeholder {
+	height: 22px;
+}
+
+.scm-view .monaco-list-row .history-item-change .label-container {
+	flex-grow: 1;
+}
+
 .scm-history-view .history-item-load-more {
 	display: flex;
 	height: 22px;
