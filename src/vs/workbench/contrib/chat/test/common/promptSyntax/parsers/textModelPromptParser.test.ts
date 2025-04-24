@@ -512,6 +512,130 @@ suite('TextModelPromptParser', () => {
 				]);
 			});
 
+			suite('• include metadata', () => {
+				suite('• language', () => {
+					test('• prompt', async () => {
+						const test = createTest(
+							createURI('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"include: '**/*'",
+					/* 03 */"mode: \"ask\"",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						const { include, mode } = metadata;
+						assert.strictEqual(
+							mode,
+							ChatMode.Ask,
+							'Mode metadata must have correct value.',
+						);
+
+						assert(
+							include === undefined,
+							'Include metadata must not be defined.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 1, 2, 1 + 15),
+								'The \'include\' metadata record is only valid in instruction files.',
+							),
+						]);
+					});
+
+					test('• instructions', async () => {
+						const test = createTest(
+							createURI('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"include: '**/*'",
+					/* 03 */"mode: \"edit\"",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						const { include, mode } = metadata;
+						assert.strictEqual(
+							mode,
+							ChatMode.Edit,
+							'Mode metadata must have correct value.',
+						);
+
+						assert.strictEqual(
+							include,
+							'**/*',
+							'Include metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([]);
+					});
+				});
+			});
+
+			test('• invalid glob pattern', async () => {
+				const test = createTest(
+					createURI('/absolute/folder/and/a/my.prompt.md'),
+					[
+					/* 01 */"---",
+					/* 02 */"mode: \"agent\"",
+					/* 03 */"include: ''",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+					],
+					INSTRUCTIONS_LANGUAGE_ID,
+				);
+
+				await test.allSettled();
+
+				const { header, metadata } = test.parser;
+				assertDefined(
+					header,
+					'Prompt header must be defined.',
+				);
+
+				const { include, mode } = metadata;
+				assert.strictEqual(
+					mode,
+					ChatMode.Agent,
+					'Mode metadata must have correct value.',
+				);
+
+				assert.strictEqual(
+					include,
+					undefined,
+					'Include metadata must not be defined.',
+				);
+
+				await test.validateHeaderDiagnostics([
+					new ExpectedDiagnosticWarning(
+						new Range(3, 10, 3, 10 + 2),
+						'Invalid glob pattern \'\'.',
+					),
+				]);
+			});
+
 			suite('• tools and mode compatibility', () => {
 				suite('• tools is set', () => {
 					test('• ask mode', async () => {

@@ -41,7 +41,7 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 			return result;
 		}
 
-		// TODO: @legomushroom - add unit tests?
+		// the include metadata makes sense only for 'instruction' prompts
 		if (this.languageId !== INSTRUCTIONS_LANGUAGE_ID) {
 			result.push(
 				new PromptMetadataError(
@@ -59,7 +59,8 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 		}
 
 		const { cleanText } = this.valueToken;
-		// TODO: @legomushroom - add unit tests?
+
+		// warn user if specified glob pattern is not valid
 		if (this.isValidGlob(cleanText) === false) {
 			result.push(
 				new PromptMetadataWarning(
