@@ -2418,7 +2418,7 @@ export namespace LanguageModelChatMessage2 {
 					if (part.type === 'text') {
 						return new types.LanguageModelTextPart(part.value);
 					} else if (part.type === 'data') {
-						return new types.LanguageModelDataPart({ data: part.value.data.buffer, mimeType: part.value.mimeType });
+						return new types.LanguageModelDataPart(part.value.data.buffer, part.value.mimeType);
 					} else {
 						return new types.LanguageModelPromptTsxPart(part.value);
 					}
@@ -2467,8 +2467,8 @@ export namespace LanguageModelChatMessage2 {
 							return {
 								type: 'data',
 								value: {
-									mimeType: part.value.mimeType,
-									data: VSBuffer.wrap(part.value.data)
+									mimeType: part.mimeType as chatProvider.ChatImageMimeType,
+									data: VSBuffer.wrap(part.data)
 								}
 							} satisfies IChatResponseDataPart;
 						} else {
@@ -3288,7 +3288,7 @@ export namespace LanguageModelToolResult2 {
 				if (!mimeType) {
 					throw new Error('Invalid MIME type');
 				}
-				return new types.LanguageModelDataPart({ mimeType, data: item.value.data.buffer });
+				return new types.LanguageModelDataPart(item.value.data.buffer, mimeType);
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
@@ -3318,8 +3318,8 @@ export namespace LanguageModelToolResult2 {
 					return {
 						kind: 'data',
 						value: {
-							mimeType: item.value.mimeType,
-							data: VSBuffer.wrap(item.value.data)
+							mimeType: item.mimeType,
+							data: VSBuffer.wrap(item.data)
 						}
 					};
 				} else {

@@ -16,7 +16,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
+import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
@@ -217,7 +217,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
-				part = { type: 'data', value: { mimeType: fragment.part.value.mimeType, data: VSBuffer.wrap(fragment.part.value.data) } };
+				part = { type: 'data', value: { mimeType: fragment.part.mimeType as ChatImageMimeType, data: VSBuffer.wrap(fragment.part.data) } };
 			}
 
 			if (!part) {
