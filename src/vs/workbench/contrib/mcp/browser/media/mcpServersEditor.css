@@ -1,0 +1,223 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mcp-servers-editor {
+	height: 100%;
+	overflow: hidden;
+	max-width: 1200px;
+
+	.contents-view,
+	.sidebar-view {
+		height: 100%;
+	}
+
+	.sidebar-view {
+		.sidebar-container {
+			.mcp-servers-toc {
+				max-width: 1200px;
+				margin: auto;
+				padding-left: 24px;
+
+				.monaco-list-row {
+					.toc-entry-label {
+						overflow: hidden;
+						text-overflow: ellipsis;
+						line-height: 22px;
+						flex-shrink: 1;
+					}
+				}
+
+				.monaco-list-row.selected {
+					.toc-entry-label {
+						font-weight: bold;
+					}
+				}
+
+			}
+		}
+	}
+
+	.contents-view {
+		.contents-container {
+			height: 100%;
+		}
+
+		.mcp-servers-view {
+			height: 100%;
+			margin: 0 20px;
+		}
+	}
+}
+
+.mcp-server-item {
+	box-sizing: border-box;
+	height: 100%;
+	padding: 0 0 0 16px;
+	overflow: hidden;
+	border: 1px solid var(--vscode-extension-border);
+	display: flex;
+
+	.icon-container {
+		position: relative;
+		display: flex;
+		align-items: center;
+
+		.icon {
+			width: 42px;
+			height: 42px;
+			padding-right: 14px;
+			flex-shrink: 0;
+			object-fit: contain;
+		}
+	}
+
+	.details-container {
+		flex: 1;
+		display: flex;
+		overflow: hidden;
+		flex-direction: column;
+		justify-content: center;
+
+		.name-container {
+			height: 24px;
+			display: flex;
+			overflow: hidden;
+			padding-right: 11px;
+			align-items: center;
+			flex-wrap: nowrap;
+
+			.name {
+				font-weight: bold;
+				flex: 1;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				overflow: hidden;
+			}
+		}
+
+		.publisher-container {
+			line-height: 24px;
+
+			.publisher {
+				display: flex;
+				align-items: center;
+
+				.publisher-name {
+					font-size: 90%;
+					color: var(--vscode-descriptionForeground);
+					font-weight: 600;
+				}
+
+				.publisher-name:not(:first-child) {
+					padding-left: 1px;
+				}
+			}
+		}
+
+		.footer-container {
+			display: flex;
+			padding-right: 7px;
+			height: 24px;
+			overflow: hidden;
+			align-items: center;
+
+			.stats-container {
+				flex: 1;
+
+				.codicon {
+					font-size: 120%;
+					margin-right: 3px;
+					-webkit-mask: inherit;
+				}
+
+				.install-count,
+				.ratings {
+					display: flex;
+					align-items: center;
+				}
+
+				.ratings {
+					text-align: right;
+				}
+
+				.install-count:not(:empty) {
+					font-size: 80%;
+				}
+			}
+
+			.actions-container {
+				.monaco-action-bar > .actions-container .action-label:not(.icon) {
+					border-radius: 2px;
+				}
+
+				.monaco-action-bar > .actions-container {
+
+					.action-item.disabled {
+						.action-label {
+							display: none;
+						}
+					}
+
+					.action-label {
+						max-width: 150px;
+						line-height: 16px;
+						line-height: initial;
+						overflow: hidden;
+						white-space: nowrap;
+						text-overflow: ellipsis;
+					}
+
+					.label,
+					.text {
+						width: auto;
+						height: auto;
+						line-height: 14px;
+					}
+
+					.label {
+						padding: 0 5px;
+						outline-offset: 1px;
+						color: var(--vscode-extensionButton-foreground) !important;
+						background-color: var(--vscode-extensionButton-background) !important;
+
+						.prominent {
+							background-color: var(--vscode-extensionButton-prominentBackground);
+							color: var(--vscode-extensionButton-prominentForeground) !important;
+						}
+
+						.prominent:hover {
+							background-color: var(--vscode-extensionButton-prominentHoverBackground);
+						}
+					}
+
+					.label:hover {
+						background-color: var(--vscode-extensionButton-hoverBackground) !important;
+					}
+				}
+			}
+		}
+	}
+
+	.ellipsis {
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+}
+
+.monaco-list-row.selected {
+	.mcp-server-item {
+		.details {
+			.description {
+				color: unset;
+			}
+		}
+	}
+}
+
+.hc-black .mcp-server-item > .details > .description,
+.hc-light .mcp-server-item > .details > .description {
+	color: unset;
+}

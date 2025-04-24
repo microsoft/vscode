@@ -6,7 +6,7 @@
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -20,6 +20,7 @@ import { IWorkspaceFolderData } from '../../../../platform/workspace/common/work
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
+import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -436,3 +437,53 @@ export class MpcResponseError extends Error {
 }
 
 export class McpConnectionFailedError extends Error { }
+
+export interface IMcpServerContainer extends IDisposable {
+	mcpServer: IWorkbenchMcpServer | null;
+	update(): void;
+}
+
+export class McpServerContainers extends Disposable {
+
+	constructor(
+		private readonly containers: IMcpServerContainer[],
+	) {
+		super();
+	}
+
+	set mcpServer(extension: IWorkbenchMcpServer | null) {
+		this.containers.forEach(c => c.mcpServer = extension);
+	}
+
+	update(extension: IWorkbenchMcpServer | undefined): void {
+		for (const container of this.containers) {
+			if (extension && container.mcpServer) {
+				container.mcpServer = extension;
+			} else {
+				container.update();
+			}
+		}
+	}
+}
+
+export interface IWorkbenchMcpServer {
+	readonly gallery: IGalleryMcpServer | undefined;
+	readonly local: ILocalMcpServer | undefined;
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly iconUrl: string;
+	readonly publisherDisplayName?: string;
+	readonly installCount?: number;
+	readonly ratingCount?: number;
+	readonly rating?: number;
+	readonly url?: string;
+}
+
+export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
+export interface IMcpWorkbenchService {
+	readonly _serviceBrand: undefined;
+	queryLocal(): Promise<IWorkbenchMcpServer[]>;
+	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
+	install(mcpServer: IWorkbenchMcpServer): Promise<void>;
+}

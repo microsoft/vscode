@@ -10,6 +10,7 @@ import * as jsonContributionRegistry from '../../../../platform/jsonschemas/comm
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
+import { IPreferencesEditorPaneRegistry, Extensions } from '../../preferences/browser/preferencesEditorRegistry.js';
 import { ConfigMcpDiscovery } from '../common/discovery/configMcpDiscovery.js';
 import { ExtensionMcpDiscovery } from '../common/discovery/extensionMcpDiscovery.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
@@ -21,14 +22,17 @@ import { McpContextKeysController } from '../common/mcpContextKeys.js';
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpService } from '../common/mcpService.js';
-import { IMcpService } from '../common/mcpTypes.js';
+import { IMcpService, IMcpWorkbenchService } from '../common/mcpTypes.js';
 import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
+import { McpServersEditorPane } from './mcpServersEditor.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
+import { McpWorkbenchService } from './mcpWorkbenchService.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
+registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IMcpConfigPathsService, McpConfigPathsService, InstantiationType.Delayed);
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
@@ -58,3 +62,10 @@ registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, W
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);
+
+Registry.as<IPreferencesEditorPaneRegistry>(Extensions.PreferencesEditorPane).registerPreferencesEditorPane({
+	id: McpServersEditorPane.ID,
+	title: McpServersEditorPane.TITLE,
+	ctorDescriptor: new SyncDescriptor(McpServersEditorPane),
+	order: 4,
+});

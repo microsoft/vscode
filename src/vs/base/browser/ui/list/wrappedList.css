@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-wrapped-list {
+	.monaco-scrollable-element {
+		height: 100%;
+
+		.monaco-list-rows {
+			display: flex;
+			flex-wrap: wrap;
+
+			.monaco-list-row {
+				cursor: pointer;
+				margin: 0 10px 20px 0;
+				position: initial;
+			}
+		}
+	}
+}
