@@ -181,7 +181,7 @@ export class AttachToolsAction extends Action2 {
 				continue;
 			}
 
-			let bucket: BucketPick;
+			let bucket: BucketPick | undefined;
 
 			if (tool.source.type === 'mcp') {
 				const mcpServer = mcpServerByTool.get(tool.id);
@@ -189,28 +189,24 @@ export class AttachToolsAction extends Action2 {
 					continue;
 				}
 				const key = tool.source.type + mcpServer.definition.id;
-				const existingBucket = toolBuckets.get(key);
-				if (existingBucket) {
-					bucket = existingBucket;
-				} else {
+				bucket = toolBuckets.get(key);
 
+				if (!bucket) {
 					const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
 					const buttons: ActionableButton[] = [];
 					if (collection?.presentation?.origin) {
 						buttons.push({
 							iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 							tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-							alwaysVisible: true,
 							action: () => editorService.openEditor({
 								resource: collection!.presentation!.origin,
-							}),
+							})
 						});
 					}
 					if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
 						buttons.push({
 							iconClass: ThemeIcon.asClassName(Codicon.warning),
 							tooltip: localize('mcpShowOutput', "Show Output"),
-							alwaysVisible: true,
 							action: () => mcpServer.showOutput(),
 						});
 					}
