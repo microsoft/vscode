@@ -99,8 +99,6 @@ export const map = <
 	) => TTree<TNewTreeNode>,
 	treeRoot: TTree<TTreeNode>,
 ): TTree<TNewTreeNode> => {
-
-
 	// if the node does not have children, just call the callback
 	if (treeRoot.children === undefined) {
 		return callback(treeRoot, undefined);

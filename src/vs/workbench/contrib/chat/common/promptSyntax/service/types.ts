@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TTree } from './treeUtils.js';
+import { TTree } from '../utils/treeUtils.js';
 import { ChatMode } from '../../constants.js';
 import { IPromptMetadata } from '../parsers/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
