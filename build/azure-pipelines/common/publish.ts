@@ -1056,7 +1056,7 @@ async function main() {
 	let shouldFail = false;
 
 	for (const stage of stages) {
-		const record = timeline.records.find(r => r.name === stage && r.type === 'stage')!;
+		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
 			shouldFail = true;
