@@ -7,7 +7,7 @@ import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { ITerminalCompletionProvider, type TerminalCompletionList } from './terminalCompletionService.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompletionItem.js';
+import { ITerminalCompletion, mapLspKindToTerminalKind, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
@@ -89,21 +89,29 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
-			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.Invoke }, token);
+
+			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
 			console.log('position of virtual document is: ', positionVirtualDocument);
+
+
 			// TODO: Discard duplicates (i.e. language should take precendence over word based completions)
 			// TODO: Discard completion items that we cannot map to terminal items (complex edits?)
-			completions.push(...(result?.suggestions || []).map((e: any) => ({
-				// TODO: Investigate insertTextRules, edits, etc
-				label: e.insertText,
-				provider: `lsp:${this._provider._debugDisplayName}`,
-				detail: e.detail,
-				// TODO: Map kind to terminal kindc
-				kind: TerminalCompletionItemKind.Method, // fix this to get the sorting priority.
-				// Use calculated replacement index and length
-				replacementIndex: completionItemTemp.replacementIndex,
-				replacementLength: completionItemTemp.replacementLength,
-			})));
+			completions.push(...(result?.suggestions || []).map((e: any) => {
+				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
+
+				return {
+					// TODO: Investigate insertTextRules, edits, etc
+					label: e.insertText,
+					provider: `lsp:${this._provider._debugDisplayName}`,
+					detail: e.detail,
+					// TODO: Map kind to terminal kindc
+					kind: convertedKind, // fix this to get the sorting priority.
+					// Use calculated replacement index and length
+					replacementIndex: completionItemTemp.replacementIndex,
+					replacementLength: completionItemTemp.replacementLength,
+				};
+			}));
+
 			console.log(result?.suggestions);
 		}
 		const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();

@@ -48,7 +48,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * Transfer the content to virtual document, and relocate delimiter to get terminal prompt ready for next prompt.
 	 */
 	setContent(content: string): void {
-		// If model exists, update its content
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// Remove hardcoded banned content, check with shell type
 		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
@@ -81,6 +80,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	*/
 	trackPromptInputToVirtualFile(content: string): void {
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
+		// TODO: Remove hardcoded banned content, check with shell type
 		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
 			content !== `export PYTHONSTARTUP=/Users/anthonykim/Desktop/vscode-python/python_files/pythonrc.py` &&
 			content !== 'exit()') {
@@ -129,8 +129,8 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		console.log('how many times am I here??');
 		const existing = this._modelService.getModel(resource);
+
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
