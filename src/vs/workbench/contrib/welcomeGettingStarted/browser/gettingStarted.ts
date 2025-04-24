@@ -1564,11 +1564,9 @@ export class GettingStartedPage extends EditorPane {
 			'aria-label': localize('nextStep', "Next"),
 			'tabindex': '0'
 		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
-		// Add event listeners to navigation buttons
 
 		navigationContainer.appendChild(nextButton);
 
-		// Add event listeners to navigation buttons
 		this.detailsPageDisposables.add(addDisposableListener(prevButton, 'click', () => {
 			this.navigateStep(-1, steps);
 		}));
