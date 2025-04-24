@@ -4945,19 +4945,44 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 }
 
 export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
-	value: vscode.ChatImagePart;
+	mimeType: string;
+	data: Uint8Array<ArrayBufferLike>;
 
-	constructor(value: vscode.ChatImagePart) {
-		this.value = value;
+	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string) {
+		this.mimeType = mimeType;
+		this.data = data;
+	}
+
+	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
+		return new LanguageModelDataPart(data, mimeType as string);
+	}
+
+	static json(value: object): vscode.LanguageModelDataPart {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return new LanguageModelDataPart(VSBuffer.fromString(rawStr).buffer, 'json');
+	}
+
+	static text(value: string): vscode.LanguageModelDataPart {
+		return new LanguageModelDataPart(VSBuffer.fromString(value).buffer, 'text/plain');
 	}
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
-			value: this.value,
+			mimeType: this.mimeType,
+			data: this.data,
 		};
 	}
 }
+
+export enum ChatImageMimeType {
+	PNG = 'image/png',
+	JPEG = 'image/jpeg',
+	GIF = 'image/gif',
+	WEBP = 'image/webp',
+	BMP = 'image/bmp',
+}
+
 
 export class LanguageModelExtraDataPart implements vscode.LanguageModelExtraDataPart {
 	kind: string;
@@ -4977,21 +5002,6 @@ export class LanguageModelExtraDataPart implements vscode.LanguageModelExtraData
 	}
 }
 
-/**
- * Enum for supported image MIME types.
- */
-export enum ChatImageMimeType {
-	PNG = 'image/png',
-	JPEG = 'image/jpeg',
-	GIF = 'image/gif',
-	WEBP = 'image/webp',
-	BMP = 'image/bmp',
-}
-
-export interface ChatImagePart {
-	mimeType: ChatImageMimeType;
-	data: VSBuffer;
-}
 
 export class LanguageModelPromptTsxPart {
 	value: unknown;

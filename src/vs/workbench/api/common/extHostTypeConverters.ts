@@ -2422,12 +2422,7 @@ export namespace LanguageModelChatMessage2 {
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
-				const value: vscode.ChatImagePart = {
-					mimeType: c.value.mimeType,
-					data: c.value.data.buffer,
-				};
-
-				return new types.LanguageModelDataPart(value);
+				return new types.LanguageModelDataPart(c.value.data.buffer, c.value.mimeType);
 			} else if (c.type === 'extra_data') {
 				return new types.LanguageModelExtraDataPart(c.kind, c.data);
 			} else {
@@ -2474,8 +2469,8 @@ export namespace LanguageModelChatMessage2 {
 				};
 			} else if (c instanceof types.LanguageModelDataPart) {
 				const value: chatProvider.IChatImageURLPart = {
-					mimeType: c.value.mimeType,
-					data: VSBuffer.wrap(c.value.data),
+					mimeType: c.mimeType as chatProvider.ChatImageMimeType,
+					data: VSBuffer.wrap(c.data),
 				};
 
 				return {

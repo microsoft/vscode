@@ -102,18 +102,6 @@ declare module 'vscode' {
 		BMP = 'image/bmp',
 	}
 
-	export interface ChatImagePart {
-		/**
-		 * The image's MIME type.
-		 */
-		mimeType: ChatImageMimeType;
-
-		/**
-		 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
-		 */
-		data: Uint8Array;
-	}
-
 	/**
 	 * Tagging onto this proposal, because otherwise managing two different extensions of LangaugeModelChatMessage could be confusing.
 	 * A language model response part containing arbitrary model-specific data, returned from a {@link LanguageModelChatResponse}.
