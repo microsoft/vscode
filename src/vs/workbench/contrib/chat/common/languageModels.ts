@@ -120,6 +120,7 @@ export interface ILanguageModelChatMetadata {
 	readonly vendor: string;
 	readonly version: string;
 	readonly description?: string;
+	readonly cost?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -127,7 +128,7 @@ export interface ILanguageModelChatMetadata {
 
 	readonly isDefault?: boolean;
 	readonly isUserSelectable?: boolean;
-	readonly modelPickerCategory: { label: string };
+	readonly modelPickerCategory: { label: string; order: number };
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
