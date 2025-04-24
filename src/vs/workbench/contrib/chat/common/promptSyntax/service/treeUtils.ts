@@ -3,25 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// TODO: @legomushroom - move file to a more appropriate location
-
 /**
- * TODO: @legomushroom
+ * Type for a generic tree node.
  */
 export type TTree<TTreenNode> = { children?: readonly TTree<TTreenNode>[] } & TTreenNode;
 
 /**
- * TODO: @legomushroom
+ * Flatter a tree structure into a single flat array.
  */
-// TODO: @legomushroom - unit test?
 export const flatten = <TTreeNode>(
-	node: TTree<TTreeNode>,
+	treeRoot: TTree<TTreeNode>,
 ): Omit<TTreeNode, 'children'>[] => {
 	const result: Omit<TTreeNode, 'children'>[] = [];
 
-	result.push(node);
+	result.push(treeRoot);
 
-	for (const child of node.children ?? []) {
+	for (const child of treeRoot.children ?? []) {
 		result.push(...flatten(child));
 	}
 
@@ -29,20 +26,19 @@ export const flatten = <TTreeNode>(
 };
 
 /**
- * TODO: @legomushroom
+ * Traverse a tree structure and execute a callback for each node.
  */
-// TODO: @legomushroom - unit test?
 export const forEach = <TTreeNode>(
 	callback: (node: TTreeNode) => boolean,
-	node: TTree<TTreeNode>,
+	treeRoot: TTree<TTreeNode>,
 ): ReturnType<typeof callback> => {
-	const shouldStop = callback(node);
+	const shouldStop = callback(treeRoot);
 
 	if (shouldStop === true) {
 		return true;
 	}
 
-	for (const child of node.children ?? []) {
+	for (const child of treeRoot.children ?? []) {
 		const shouldStop = forEach(callback, child);
 
 		if (shouldStop === true) {
@@ -54,33 +50,90 @@ export const forEach = <TTreeNode>(
 };
 
 /**
- * TODO: @legomushroom
+ * Map nodes of a tree to a new type preserving the original tree structure.
+ *
+ * @param callback Function to map each of the nodes in the tree. The callback receives
+ *                 the original tree node without the `children` property and must return
+ *                 a new tree node without the `children` property. The only allowed
+ *                 value for `children` is `undefined`, which is treated as an explicit
+ *                 signal to avoid traversing the children of the node at all. These
+ *                 restrictions are designed to force the uniform callback logic that
+ *                 should map every tree node (including children) to a new type
+ *                 without being traverse modify the children tree directly.
+ * @param treeRoot The root node of the tree to be mapped.
+ *
+ * ### Examples
+ *
+ * ```typescript
+ * const tree = {
+ *   id: '1',
+ *   children: [
+ *     { id: '1.1' },
+ *     { id: '1.2' },
+ * };
+ *
+ * const newTree = map((node) => {
+ *   return {
+ *     name: `name-of-${node.id}`,
+ *   };
+ * }, tree);
+ *
+ * assert.deepStrictEqual(newTree, {
+ *   name: 'name-of-1',
+ *   children: [
+ *     { name: 'name-of-1.1' },
+ *     { name: 'name-of-1.2' },
+ * });
+ * ```
  */
-// TODO: @legomushroom - unit test/remove?
-export const map = <TTreeNode, TNewTreeNode>(
-	callback: (node: TTreeNode) => TNewTreeNode,
-	node: TTree<TTreeNode>,
+export const map = <
+	TTreeNode extends object,
+	TNewTreeNode extends object,
+>(
+	callback: (node: TWithoutChildren<TTreeNode>) => TWithUndefinedChildren<TNewTreeNode>,
+	treeRoot: TTree<TTreeNode>,
 ): TTree<TNewTreeNode> => {
-	const newNode: TNewTreeNode = callback(node);
+	const newNode = callback(treeRoot);
 
-	if (node.children === undefined) {
-		return {
-			...newNode,
-			children: undefined,
-		} satisfies TTree<TNewTreeNode>;
+	// when callback explicitly sets `undefined` for `children`
+	// we treat it as the signal to not traverse its children
+	const isExplicitUndefined = (newNode.children === undefined) && ('children' in newNode);
+
+	// if the original node has no children, or user explicitly
+	// signalled to not traverse them, we are done here
+	if ((treeRoot.children === undefined) || isExplicitUndefined) {
+		if (isExplicitUndefined) {
+			// delete the explicit undefined value to make it
+			// consistent with the other nodes in the tree
+			delete newNode.children;
+		}
+
+		return newNode;
 	}
 
-	const children = node.children
+	// process all the children recursively next updating
+	// the new node object itself therefore preserving
+	// the original object reference
+	(<TTree<TNewTreeNode>>newNode).children = treeRoot.children
 		.map(curry(map, callback));
 
-	return {
-		...newNode,
-		children,
-	} satisfies TTree<TNewTreeNode>;
+	return newNode;
 };
 
 /**
- * TODO: @legomushroom
+ * Type for an object without the `children` property.
+ */
+type TWithoutChildren<T extends object> = Omit<T, 'children'>;
+
+/**
+ * Type for an object without the `children` property either
+ * not defined at all or explicitly set to `undefined`.
+ */
+type TWithUndefinedChildren<T extends object> = T & { children?: undefined };
+
+/**
+ * Type for a rest parameters of function, excluding
+ * the first argument.
  */
 type TRestParameters<T extends (...args: any[]) => any> =
 	T extends (first: any, ...rest: infer R) => any ? R : never;
@@ -94,7 +147,6 @@ type TCurriedFunction<T extends (...args: any[]) => any> = ((...args: TRestParam
 /**
  * Curry a provided function with the first argument.
  */
-// TODO: @legomushroom - unit test/remove?
 export const curry = <T, K>(
 	callback: (arg1: T, ...args: any[]) => K,
 	arg1: T,
