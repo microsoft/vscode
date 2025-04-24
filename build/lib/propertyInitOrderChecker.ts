@@ -57,7 +57,6 @@ const ignored = new Set([
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsView.ts',
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineCompletionsView.ts',
 	'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.ts',
-	'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsAccessibleView.ts',
 	'vs/editor/contrib/placeholderText/browser/placeholderTextContribution.ts',
 	'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter.ts',
 	'vs/workbench/contrib/files/browser/views/openEditorsView.ts',
