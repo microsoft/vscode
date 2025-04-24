@@ -48,19 +48,26 @@ class SimpleBrowserOverlayWidget {
 		this._domNode.appendChild(message);
 
 		const startSelection = document.createElement('button');
-		startSelection.classList.add('element-selection-start');
+		startSelection.classList.add('element-selection-start', 'monaco-button');
 		startSelection.textContent = localize('elementSelectionStart', 'Start Selection');
 
 		let cts: CancellationTokenSource;
 		startSelection.onclick = async () => {
 			cts = new CancellationTokenSource();
 			this._editor.focus();
+
+			// start selection
 			message.textContent = localize('elementSelectionInProgress', 'Selection in progress...');
 			this._domNode.removeChild(startSelection);
 			this._domNode.appendChild(cancel);
+
 			await this.addElementToChat(cts);
+
+			// stop selection
 			this._domNode.removeChild(cancel);
 			message.textContent = localize('elementSelectionComplete', 'Element added to chat.');
+
+			// wait 3 seconds before showing the start selection button again
 			setTimeout(() => {
 				message.textContent = startSelectionMessage;
 				this._domNode.appendChild(startSelection);
@@ -70,11 +77,12 @@ class SimpleBrowserOverlayWidget {
 
 		// Cancel button
 		const cancel = document.createElement('button');
-		cancel.classList.add('element-selection-cancel');
+		cancel.classList.add('element-selection-cancel', 'monaco-button');
 		cancel.textContent = localize('elementSelectionCancel', 'Cancel');
 		cancel.onclick = () => {
 			cts.cancel();
 			cancel.remove();
+
 			message.textContent = localize('elementCancelMessage', 'Selection canceled');
 			setTimeout(() => {
 				message.textContent = startSelectionMessage;
@@ -119,6 +127,7 @@ class SimpleBrowserOverlayWidget {
 			value: screenshot.buffer
 		});
 	}
+
 
 	getDisplayNameFromOuterHTML(outerHTML: string): string {
 		const firstElementMatch = outerHTML.match(/^<(\w+)([^>]*?)>/);

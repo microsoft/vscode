@@ -560,7 +560,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.style.cursor = 'pointer';
 		const attachmentLabel = attachment.name;
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
-		this.label.setLabel(withIcon, undefined, { title: `Click to view the contents of: ${attachmentLabel}` });
+		this.label.setLabel(withIcon, undefined, { title: localize('chat.clickToViewContents', "Click to view the contents of: {0}", attachmentLabel) });
 
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
 			const content = attachment.value?.toString() || '';
