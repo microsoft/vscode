@@ -64,10 +64,22 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	height: 32px;
 	display: flex;
+	flex-wrap: wrap;
 	border-bottom: solid 1px;
 	margin-top: 10px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-suggestions {
+	flex: 0 0 100%;
+	width: 100%;
+	min-height: 20px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-suggestions a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: underline;
+	cursor: pointer;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-target-container {
