@@ -765,47 +765,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
-	// separate from getElementData although similar components. this is to grab browser id from the simple browser so we can target them in DOM later on.
-	async getBrowserId(windowId: number | undefined): Promise<string | undefined> {
-		const window = this.windowById(windowId, windowId);
-		if (!window?.win) {
-			return undefined;
-		}
-
-		// Find the simple browser webview
-		const allWebContents = webContents.getAllWebContents();
-		const simpleBrowserWebview = allWebContents.find(webContent => webContent.getTitle().includes('Simple Browser'));
-
-		if (!simpleBrowserWebview) {
-			return undefined;
-		}
-
-		const debuggers = simpleBrowserWebview.debugger;
-		debuggers.attach();
-
-		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
-
-		let resultId: string | undefined = undefined;
-		try {
-			// find parent id and extract id
-			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
-				const url = new URL(targetInfo.url);
-				return url.searchParams.get('parentId') === window?.id.toString();
-			});
-
-			if (matchingTarget) {
-				const url = new URL(matchingTarget.url);
-				resultId = url.searchParams.get('id')!;
-			}
-		} catch (e) {
-			debuggers.detach();
-			throw new Error('No result id found.', e);
-		}
-
-		debuggers.detach();
-		return resultId;
-	}
-
 	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token?: CancellationToken): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId, windowId);
 		if (!window?.win) {
