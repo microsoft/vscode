@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatMode } from '../../constants.js';
-import { flatten, forEach } from './treeUtils.js';
 import { localize } from '../../../../../../nls.js';
+import { PROMPT_LANGUAGE_ID } from '../constants.js';
+import { flatten, forEach } from '../utils/treeUtils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPromptFileReference } from '../parsers/types.js';
 import { match } from '../../../../../../base/common/glob.js';
@@ -19,12 +20,11 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IChatPromptSlashCommand, TCombinedToolsMetadata, IMetadata, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { PROMPT_LANGUAGE_ID } from '../constants.js';
 
 /**
  * Provides prompt services.

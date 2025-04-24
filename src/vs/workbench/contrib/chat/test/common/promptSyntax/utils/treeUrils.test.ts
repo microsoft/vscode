@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
-import { curry, flatten, forEach, map } from '../../../../common/promptSyntax/service/treeUtils.js';
+import { curry, flatten, forEach, map } from '../../../../common/promptSyntax/utils/treeUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 
 suite('tree utilities', () => {
