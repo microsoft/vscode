@@ -1036,6 +1036,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 					if (this._currentLanguageModel) {
 						const itemDelegate: IModelPickerDelegate = {
+							getCurrentModel: () => this._currentLanguageModel,
 							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
 							setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 								// The user changed the language model, so we don't wait for the persisted option to be registered
