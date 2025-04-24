@@ -1603,9 +1603,6 @@ export class GettingStartedPage extends EditorPane {
 		// Register listeners for step selection
 		this.registerDispatchListeners();
 
-		// Add handler for the step selection event
-		this.detailsPageDisposables.add(this.stepDisposables);
-
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
 	}
@@ -1633,6 +1630,8 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private buildCategorySlide(categoryID: string, selectedStep?: string) {
+		this.container.classList.remove('newSlide');
+
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
