@@ -27,6 +27,7 @@ import { IEditorWorkerService } from '../../../../../editor/common/services/edit
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { TextModelChangeRecorder } from '../../../../../editor/contrib/inlineCompletions/browser/model/changeRecorder.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -235,7 +236,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const e_sum = this._edit;
 			const e_ai = edit;
 			this._edit = e_sum.compose(e_ai);
-
 		} else {
 
 			//           e_ai
@@ -268,6 +268,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			}
 
 			this._allEditsAreFromUs = false;
+			this._userEditScheduler.schedule();
 			this._updateDiffInfoSeq();
 
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
@@ -347,6 +348,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
+			this._notifyAction('accepted');
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		return true;
@@ -365,6 +367,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
+			this._notifyAction('rejected');
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		return true;
@@ -375,9 +378,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._isEditFromUs = true;
 		try {
 			let result: ISingleEditOperation[] = [];
-			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
-				result = undoEdits;
-				return null;
+			TextModelChangeRecorder.editWithMetadata({ source: 'Chat.applyEdits' }, () => {
+				this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
+					result = undoEdits;
+					return null;
+				});
 			});
 			return result;
 		} finally {
@@ -502,6 +507,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			} satisfies IDocumentDiff2;
 		});
 
-		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo);
+		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}
 }

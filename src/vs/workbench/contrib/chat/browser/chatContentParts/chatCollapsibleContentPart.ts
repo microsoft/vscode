@@ -156,7 +156,8 @@ export class ChatCollapsibleEditorContentPart extends ChatCollapsibleContentPart
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
-			renderOptions: this.options
+			renderOptions: this.options,
+			chatSessionId: this.codeBlockInfo.chatSessionId
 		};
 
 		this._editorReference.object.render(data, this._currentWidth || 300);

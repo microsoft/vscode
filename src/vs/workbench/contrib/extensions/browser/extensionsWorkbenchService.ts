@@ -23,10 +23,12 @@ import {
 	AllowedExtensionsConfigKey,
 	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
 	ExtensionManagementError,
-	ExtensionManagementErrorCode
+	ExtensionManagementErrorCode,
+	MaliciousExtensionInfo,
+	shouldRequireRepositorySignatureFor
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -294,9 +296,13 @@ export class Extension implements IExtension {
 		return this.stateProvider(this);
 	}
 
-	private malicious: boolean = false;
-	public get isMalicious(): boolean {
-		return this.malicious || this.enablementState === EnablementState.DisabledByMalicious;
+	private malicious: MaliciousExtensionInfo | undefined;
+	public get isMalicious(): boolean | undefined {
+		return !!this.malicious || this.enablementState === EnablementState.DisabledByMalicious;
+	}
+
+	public get maliciousInfoLink(): string | undefined {
+		return this.malicious?.learnMoreLink;
 	}
 
 	public deprecationInfo: IDeprecationInfo | undefined;
@@ -555,7 +561,7 @@ ${this.description}
 	}
 
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
-		this.malicious = isMalicious(this.identifier, extensionsControlManifest.malicious);
+		this.malicious = findMatchingMaliciousEntry(this.identifier, extensionsControlManifest.malicious);
 		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
 	}
 
@@ -657,7 +663,7 @@ class Extensions extends Disposable {
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
-			if (extension.local && extension.local.identifier.uuid !== gallery.identifier.uuid) {
+			if (extension.local && !extension.local.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
 			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
@@ -2109,11 +2115,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return;
 		}
 
-		if (extension.local?.manifest.main || extension.local?.manifest.browser) {
+		if (!extension.gallery || !extension.local) {
 			return;
 		}
 
-		if (!extension.gallery) {
+		if (extension.local.identifier.uuid && extension.local.identifier.uuid !== extension.gallery.identifier.uuid) {
+			return nls.localize('consentRequiredToUpdateRepublishedExtension', "The marketplace metadata of this extension changed, likely due to a re-publish.");
+		}
+
+		if (!extension.local.manifest.engines.vscode || extension.local.manifest.main || extension.local.manifest.browser) {
 			return;
 		}
 
@@ -2294,7 +2304,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.gallery) {
-			if (!extension.gallery.isSigned && (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned) {
+			if (!extension.gallery.isSigned && shouldRequireRepositorySignatureFor(extension.private, await this.extensionGalleryManifestService.getExtensionGalleryManifest())) {
 				return new MarkdownString().appendText(nls.localize('not signed', "This extension is not signed."));
 			}
 
@@ -2400,7 +2410,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					if (!gallery) {
 						const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
 						const manifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
-						const reportIssueUri = manifest ? getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ReportIssueUri) : undefined;
+						const reportIssueUri = manifest ? getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ContactSupportUri) : undefined;
 						const reportIssueMessage = reportIssueUri ? nls.localize('report issue', "If this issue persists, please report it at {0}", reportIssueUri.toString()) : '';
 						if (installOptions.version) {
 							const message = nls.localize('not found version', "The extension '{0}' cannot be installed because the requested version '{1}' was not found.", id, installOptions.version);
@@ -2610,7 +2620,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		return this.withProgress({
 			location: ProgressLocation.Extensions,
-			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
+			title: nls.localize('uninstallingExtension', 'Uninstalling extension...'),
 			source: `${extension.identifier.id}`
 		}, () => this.extensionManagementService.uninstallExtensions(extensionsToUninstall).then(() => undefined));
 	}
@@ -2725,7 +2735,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private doInstall(extension: IExtension | undefined, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation | string): Promise<IExtension> {
-		const title = extension ? nls.localize('installing named extension', "Installing '{0}' extension....", extension.displayName) : nls.localize('installing extension', 'Installing extension....');
+		const title = extension ? nls.localize('installing named extension', "Installing '{0}' extension...", extension.displayName) : nls.localize('installing extension', 'Installing extension...');
 		return this.withProgress({
 			location: progressLocation ?? ProgressLocation.Extensions,
 			title

@@ -3,61 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise, usePwsh } from 'zx';
-
-const arch = process.env['VSCODE_ARCH'];
-const esrpCliDLLPath = process.env['EsrpCliDllPath'];
-const codeSigningFolderPath = process.env['CodeSigningFolderPath'];
-
-type CodeSignTask = {
-	readonly banner: string;
-	readonly processPromise: ProcessPromise;
-};
-
-function printBanner(title: string) {
-	console.log('#'.repeat(65));
-	console.log(`# ${title.padEnd(61)} #`);
-	console.log('#'.repeat(65));
-}
-
-function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): ProcessPromise {
-	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
-}
+import { $, usePwsh } from 'zx';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
+import { e } from '../common/publish';
 
 async function main() {
 	usePwsh();
 
-	const codesignTasks: CodeSignTask[] = [
-		{
-			banner: 'Codesign executables and shared libraries',
-			processPromise: sign('sign-windows', '*.dll,*.exe,*.node')
-		},
-		{
-			banner: 'Codesign Powershell scripts',
-			processPromise: sign('sign-windows-appx', '*.ps1')
-		}
-	];
+	const arch = e('VSCODE_ARCH');
+	const esrpCliDLLPath = e('EsrpCliDllPath');
+	const codeSigningFolderPath = e('CodeSigningFolderPath');
 
-	if (process.env['VSCODE_QUALITY'] === 'insider') {
-		codesignTasks.push({
-			banner: 'Codesign context menu appx package',
-			processPromise: sign('sign-windows-appx', '*.appx')
-		});
+	// Start the code sign processes in parallel
+	// 1. Codesign executables and shared libraries
+	// 2. Codesign Powershell scripts
+	// 3. Codesign context menu appx package (insiders only)
+	const codesignTask1 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows', codeSigningFolderPath, '*.dll,*.exe,*.node');
+	const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.ps1');
+	const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
+		? spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.appx')
+		: undefined;
+
+	// Codesign executables and shared libraries
+	printBanner('Codesign executables and shared libraries');
+	await streamProcessOutputAndCheckResult('Codesign executables and shared libraries', codesignTask1);
+
+	// Codesign Powershell scripts
+	printBanner('Codesign Powershell scripts');
+	await streamProcessOutputAndCheckResult('Codesign Powershell scripts', codesignTask2);
+
+	if (codesignTask3) {
+		// Codesign context menu appx package
+		printBanner('Codesign context menu appx package');
+		await streamProcessOutputAndCheckResult('Codesign context menu appx package', codesignTask3);
 	}
 
-	// Wait for processes to finish and stream their output
-	for (const { banner, processPromise } of codesignTasks) {
-		printBanner(banner);
-		await processPromise.pipe(process.stdout);
-	}
-
+	// Create build artifact directory
 	await $`New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
 
 	// Package client
 	if (process.env['BUILT_CLIENT']) {
 		// Product version
-		const packageJson = await $`Get-Content -Raw -Path ../VSCode-win32-${arch}/resources/app/package.json | ConvertFrom-Json`;
-		const version = (packageJson as any).version;
+		const version = await $`node -p "require('../VSCode-win32-${arch}/resources/app/package.json').version"`;
 
 		printBanner('Package client');
 		const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}-${version}.zip`;
@@ -84,8 +71,14 @@ async function main() {
 	// Sign setup
 	if (process.env['BUILT_CLIENT']) {
 		printBanner('Sign setup packages (system, user)');
-		await $`npm exec -- npm-run-all -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`.pipe(process.stdout);
+		const task = $`npm exec -- npm-run-all -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`;
+		await streamProcessOutputAndCheckResult('Sign setup packages (system, user)', task);
 	}
 }
 
-main();
+main().then(() => {
+	process.exit(0);
+}, err => {
+	console.error(`ERROR: ${err}`);
+	process.exit(1);
+});

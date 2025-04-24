@@ -634,6 +634,7 @@ export interface IThemeDecorationRenderOptions {
 	fontStyle?: string;
 	fontWeight?: string;
 	fontSize?: string;
+	lineHeight?: number;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;

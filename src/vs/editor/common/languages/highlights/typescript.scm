@@ -130,6 +130,9 @@
 (arrow_function
   parameter: (identifier) @variable.parameter.ts)
 
+(type_predicate
+  name: (identifier) @variable.parameter.ts)
+
 ; Function and method calls
 
 (call_expression
@@ -238,6 +241,7 @@
 
 (unary_expression ([
   "-"
+  "+"
 ]) @keyword.operator.arithmetic.ts)
 
 [

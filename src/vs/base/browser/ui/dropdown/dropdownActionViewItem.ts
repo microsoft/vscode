@@ -20,7 +20,7 @@ import { AnchorAlignment } from '../contextview/contextview.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import './dropdown.css';
-import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from './dropdown.js';
+import { BaseDropdown, DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from './dropdown.js';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
@@ -38,6 +38,93 @@ export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemO
 	readonly anchorAlignmentProvider?: IAnchorAlignmentProvider;
 	readonly menuAsChild?: boolean;
 	readonly skipTelemetry?: boolean;
+}
+
+export class BaseDropdownMenuActionViewItem extends BaseActionViewItem {
+	private dropdownMenu: BaseDropdown | undefined;
+	private actionItem: HTMLElement | null = null;
+
+	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
+	protected override readonly options: IDropdownMenuActionViewItemOptions = Object.create(null);
+
+	constructor(
+		action: IAction,
+		private readonly _dropdownFactory: (container: HTMLElement, labelRender: ILabelRenderer) => BaseDropdown,
+	) {
+		super(null, action);
+	}
+
+	override render(container: HTMLElement): void {
+		this.actionItem = container;
+
+		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
+			this.element = append(el, $('a.action-label'));
+			return this.renderLabel(this.element);
+		};
+
+		this.dropdownMenu = this._register(this._dropdownFactory(container, labelRenderer));
+		this._register(this.dropdownMenu.onDidChangeVisibility(visible => {
+			this.element?.setAttribute('aria-expanded', `${visible}`);
+			this._onDidChangeVisibility.fire(visible);
+		}));
+
+		this.updateTooltip();
+		this.updateEnabled();
+	}
+
+	protected renderLabel(element: HTMLElement): IDisposable | null {
+		let classNames: string[] = [];
+
+		if (typeof this.options.classNames === 'string') {
+			classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
+		} else if (this.options.classNames) {
+			classNames = this.options.classNames;
+		}
+
+		// todo@aeschli: remove codicon, should come through `this.options.classNames`
+		if (!classNames.find(c => c === 'icon')) {
+			classNames.push('codicon');
+		}
+
+		element.classList.add(...classNames);
+
+		if (this._action.label) {
+			this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), element, this._action.label));
+		}
+
+		return null;
+	}
+
+	protected setAriaLabelAttributes(element: HTMLElement): void {
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-haspopup', 'true');
+		element.setAttribute('aria-expanded', 'false');
+		element.ariaLabel = this._action.label || '';
+	}
+
+	protected override getTooltip(): string | undefined {
+		let title: string | null = null;
+
+		if (this.action.tooltip) {
+			title = this.action.tooltip;
+		} else if (this.action.label) {
+			title = this.action.label;
+		}
+
+		return title ?? undefined;
+	}
+
+	show(): void {
+		this.dropdownMenu?.show();
+	}
+
+	protected override updateEnabled(): void {
+		const disabled = !this.action.enabled;
+		this.actionItem?.classList.toggle('disabled', disabled);
+		this.element?.classList.toggle('disabled', disabled);
+	}
 }
 
 export class DropdownMenuActionViewItem extends BaseActionViewItem {

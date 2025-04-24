@@ -8,14 +8,15 @@ import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Location } from '../../../../editor/common/languages.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { Location } from '../../../../editor/common/languages.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
 export interface IToolData {
@@ -40,9 +41,18 @@ export interface IToolData {
 	supportsToolPicker?: boolean;
 }
 
+export interface IToolProgressStep {
+	readonly message: string | IMarkdownString | undefined;
+	readonly increment: number | undefined;
+	readonly total: number | undefined;
+}
+
+export type ToolProgress = IProgress<IToolProgressStep>;
+
 export type ToolDataSource =
 	| {
 		type: 'extension';
+		label: string;
 		extensionId: ExtensionIdentifier;
 		/**
 		 * True for tools contributed through extension API from third-party extensions, so they can be disabled by policy.
@@ -50,7 +60,12 @@ export type ToolDataSource =
 		 */
 		isExternalTool: boolean;
 	}
-	| { type: 'mcp'; collectionId: string; definitionId: string }
+	| {
+		type: 'mcp';
+		label: string;
+		collectionId: string;
+		definitionId: string;
+	}
 	| { type: 'internal' };
 
 export namespace ToolDataSource {
@@ -123,11 +138,12 @@ export interface IPreparedToolInvocation {
 	pastTenseMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
+	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 }
 
 export interface IToolImpl {
-	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 

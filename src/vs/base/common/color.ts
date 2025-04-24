@@ -494,6 +494,25 @@ export class Color {
 		return new Color(new RGBA(r, g, b, a));
 	}
 
+	/**
+	 * Mixes the current color with the provided color based on the given factor.
+	 * @param color The color to mix with
+	 * @param factor The factor of mixing (0 means this color, 1 means the input color, 0.5 means equal mix)
+	 * @returns A new color representing the mix
+	 */
+	mix(color: Color, factor: number = 0.5): Color {
+		const normalize = Math.min(Math.max(factor, 0), 1);
+		const thisRGBA = this.rgba;
+		const otherRGBA = color.rgba;
+
+		const r = thisRGBA.r + (otherRGBA.r - thisRGBA.r) * normalize;
+		const g = thisRGBA.g + (otherRGBA.g - thisRGBA.g) * normalize;
+		const b = thisRGBA.b + (otherRGBA.b - thisRGBA.b) * normalize;
+		const a = thisRGBA.a + (otherRGBA.a - thisRGBA.a) * normalize;
+
+		return new Color(new RGBA(r, g, b, a));
+	}
+
 	makeOpaque(opaqueBackground: Color): Color {
 		if (this.isOpaque() || opaqueBackground.rgba.a !== 1) {
 			// only allow to blend onto a non-opaque color onto a opaque color

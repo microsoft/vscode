@@ -70,6 +70,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
+		renderDiffImmediately: boolean,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
@@ -147,8 +148,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 
 			// done: render diff
-			if (!_entry.isCurrentlyBeingModifiedBy.read(r)) {
-
+			if (!_entry.isCurrentlyBeingModifiedBy.read(r) || renderDiffImmediately) {
 				const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
 				codeEditorObs.getOption(EditorOption.fontInfo).read(r);
@@ -366,11 +366,12 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					});
 				}
 
-				if (reviewMode || diffMode) {
+				let extraLines = 0;
+				if (reviewMode && !diffMode) {
 					const domNode = document.createElement('div');
 					domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 					const result = renderLines(source, renderOptions, decorations, domNode);
-
+					extraLines = result.heightInLines;
 					if (!isCreatedContent) {
 
 						const viewZoneData: IViewZone = {
@@ -382,12 +383,14 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 						this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
 					}
+				}
 
+				if (reviewMode || diffMode) {
 
 					// Add content widget for each diff change
 					const widget = this._editor.invokeWithinContext(accessor => {
 						const instaService = accessor.get(IInstantiationService);
-						return instaService.createInstance(DiffHunkWidget, diff, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+						return instaService.createInstance(DiffHunkWidget, diff, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : extraLines);
 					});
 
 					widget.layout(diffEntry.modified.startLineNumber);
@@ -579,7 +582,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		return closestWidget;
 	}
 
-	async rejectNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async rejectNearestChange(closestWidget?: IModifiedFileEntryChangeHunk): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.reject();
@@ -587,7 +590,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}
 	}
 
-	async acceptNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async acceptNearestChange(closestWidget?: IModifiedFileEntryChangeHunk): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.accept();
@@ -625,8 +628,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			// DIFF editor
 			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
-				original: { resource: this._entry.originalURI, options: { selection: undefined } },
-				modified: { resource: this._entry.modifiedURI, options: { selection } },
+				original: { resource: this._entry.originalURI },
+				modified: { resource: this._entry.modifiedURI },
+				options: { selection },
 				label: defaultAgentName
 					? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
 					: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))

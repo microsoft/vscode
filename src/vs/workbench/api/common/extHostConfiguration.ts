@@ -160,9 +160,7 @@ export class ExtHostConfigProvider {
 
 	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionDescription?: IExtensionDescription): vscode.WorkspaceConfiguration {
 		const overrides = scopeToOverrides(scope) || {};
-		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
+		const config = this._toReadonlyValue(this._configuration.getValue(section, overrides, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, overrides, extensionDescription?.identifier);

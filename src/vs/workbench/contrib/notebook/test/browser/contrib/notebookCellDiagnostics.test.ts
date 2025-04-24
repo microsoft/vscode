@@ -158,12 +158,12 @@ suite('notebookCellDiagnostics', () => {
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell2.handle);
 
 			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
-			cell.model.internalMetadata.error = undefined;
 
+			const clearMarkers = new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 			// on NotebookCellExecution value will make it look like its currently running
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle, {} as INotebookCellExecution);
 
-			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
+			await clearMarkers;
 
 			assert.strictEqual(cell?.executionErrorDiagnostic.get(), undefined);
 			assert.strictEqual(cell2?.executionErrorDiagnostic.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');

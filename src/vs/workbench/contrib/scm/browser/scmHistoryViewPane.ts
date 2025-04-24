@@ -497,7 +497,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			markdown.appendMarkdown('\n\n');
 		}
 
-		markdown.appendMarkdown(`${historyItem.message}\n\n`);
+		markdown.appendMarkdown(`${historyItem.message.replace(/\r\n|\r|\n/g, '\n\n')}\n\n`);
 
 		if (historyItem.statistics) {
 			markdown.appendMarkdown(`---\n\n`);
