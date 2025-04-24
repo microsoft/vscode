@@ -17395,7 +17395,7 @@ declare module 'vscode' {
 		 * Whether the thread supports reply.
 		 * Defaults to true.
 		 */
-		canReply: boolean;
+		canReply: boolean | CommentAuthorInformation;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.
