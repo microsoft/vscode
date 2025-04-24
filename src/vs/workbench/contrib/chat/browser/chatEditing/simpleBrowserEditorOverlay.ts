@@ -64,7 +64,7 @@ class SimpleBrowserOverlayWidget {
 			setTimeout(() => {
 				message.textContent = startSelectionMessage;
 				this._domNode.appendChild(startSelection);
-			}, 2000);
+			}, 3000);
 		};
 		this._domNode.appendChild(startSelection);
 
@@ -79,7 +79,7 @@ class SimpleBrowserOverlayWidget {
 			setTimeout(() => {
 				message.textContent = startSelectionMessage;
 				this._domNode.appendChild(startSelection);
-			}, 2000);
+			}, 3000);
 		};
 	}
 
