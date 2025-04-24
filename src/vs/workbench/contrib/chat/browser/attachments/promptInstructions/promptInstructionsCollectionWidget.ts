@@ -80,11 +80,10 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * Check if any of the attachments is a prompt file.
 	 */
-	public get hasPromptFile(): boolean {
+	public get hasInstructions(): boolean {
 		return this.references.some((uri) => {
 			const model = this.modelService.getModel(uri);
 			const languageId = model ? model.getLanguageId() : this.languageService.guessLanguageIdByFilepathOrFirstLine(uri);
-			// TODO: @legomushroom
 			return languageId === INSTRUCTIONS_LANGUAGE_ID;
 		});
 	}

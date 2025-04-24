@@ -204,7 +204,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	public get hasPromptFileAttachments(): boolean {
 		// if prompt attached explicitly as a "prompt" attachment
-		if (this.promptInstructionsAttachmentsPart.hasPromptFile) {
+		if (this.promptInstructionsAttachmentsPart.hasInstructions) {
 			return true;
 		}
 
