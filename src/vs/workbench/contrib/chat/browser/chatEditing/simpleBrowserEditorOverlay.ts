@@ -152,10 +152,6 @@ class SimpleBrowserOverlayWidget {
 		return this._domNode;
 	}
 
-	show() {
-		this._showStore.clear();
-	}
-
 	hide() {
 		this._showStore.clear();
 	}
@@ -223,7 +219,7 @@ class SimpleBrowserOverlayController {
 				return;
 			}
 
-			widget.show();
+			// widget.show();
 			show();
 
 

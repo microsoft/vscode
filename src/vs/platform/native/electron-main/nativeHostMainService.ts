@@ -54,14 +54,6 @@ export interface INativeHostMainService extends AddFirstParameterToFunctions<ICo
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
-interface ComputedStyleProperty {
-	name: string;
-	value: string;
-}
-
-interface ComputedStyleResponse {
-	computedStyle: ComputedStyleProperty[];
-}
 interface NodeDataResponse {
 	outerHTML: string;
 	computedStyle: string;
@@ -924,7 +916,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow): Promise<NodeDataResponse> {
-		return new Promise((resolve) => {
+		return new Promise((resolve, reject) => {
 			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
 
@@ -936,7 +928,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					}, sessionId);
 
 
-					debuggers.off('message', onMessage);
+					this._register(debuggers.off('message', onMessage));
 					const backendNodeId = params?.backendNodeId;
 					if (!backendNodeId) {
 						throw new Error('Missing backendNodeId in inspectNodeRequested event');
@@ -966,13 +958,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							throw new Error('Failed to get matched css.');
 						}
 
-						const response: ComputedStyleResponse = await debuggers.sendCommand('CSS.getComputedStyleForNode', { nodeId }, sessionId);
-						if (!response || !response.computedStyle) {
-							throw new Error('Failed to get computed style.');
-						}
-
-						const formatted = this.formatMatchedStyles(matched, response);
-
+						const formatted = this.formatMatchedStyles(matched);
 						const { outerHTML } = await debuggers.sendCommand('DOM.getOuterHTML', { nodeId }, sessionId);
 						if (!outerHTML) {
 							throw new Error('Failed to get outerHTML.');
@@ -985,25 +971,26 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						});
 					} catch (err) {
 						debuggers.detach();
-						throw new Error(`Failed to get node data: ${err}`);
+						reject(err);
+
 					}
 				}
 			};
 
 			window.webContents.on('ipc-message', async (event, channel) => {
 				if (channel === 'vscode:cancelElementSelection') {
-					debuggers.off('message', onMessage);
+					this._register(debuggers.off('message', onMessage));
 					if (debuggers.isAttached()) {
 						debuggers.detach();
 					}
 				}
 			});
 
-			debuggers.on('message', onMessage);
+			this._register(debuggers.on('message', onMessage));
 		});
 	}
 
-	formatMatchedStyles(matched: any, computed: any): string {
+	formatMatchedStyles(matched: any): string {
 		const lines: string[] = [];
 
 		// inline
@@ -1052,14 +1039,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					lines.push('}\n');
 				}
 				level++;
-			}
-		}
-
-		// computed css
-		if (computed?.computedStyle?.length) {
-			lines.push('/* Computed style */');
-			for (const prop of computed.computedStyle) {
-				lines.push(`${prop.name}: ${prop.value};`);
 			}
 		}
 

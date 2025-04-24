@@ -199,14 +199,17 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.getScreenshot(rect);
 	}
 
-	getElementData(offsetX: number, offsetY: number, token?: CancellationToken): Promise<IElementData | undefined> {
+	async getElementData(offsetX: number, offsetY: number, token?: CancellationToken): Promise<IElementData | undefined> {
 		if (token) {
-			this._register(token.onCancellationRequested(() => {
+			const disposable = token.onCancellationRequested(() => {
 				ipcRenderer.send('vscode:cancelElementSelection');
-			}));
+			});
+			const elementData = this.nativeHostService.getElementData(offsetX, offsetY, token);
+			elementData.finally(() => disposable.dispose());
+			return elementData;
 		}
 
-		return this.nativeHostService.getElementData(offsetX, offsetY, token);
+		return undefined;
 	}
 
 	//#endregion
