@@ -16,9 +16,8 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession } from '../../common/chatEditingService.js';
+import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatMode } from '../../common/constants.js';
 import { ChatViewId, IChatWidget } from '../chat.js';
@@ -141,43 +140,6 @@ export function registerNewChatActions() {
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION);
 
-	registerAction2(class GlobalEditsDoneAction extends EditingSessionAction {
-		constructor() {
-			super({
-				id: ChatDoneActionId,
-				title: localize2('chat.done.label', "Done"),
-				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
-				f1: false,
-				menu: [{
-					id: MenuId.ChatEditingWidgetToolbar,
-					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, ChatContextKeys.editingParticipantRegistered),
-					group: 'navigation',
-					order: 0
-				}]
-			});
-		}
-
-		override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
-			const context = args[0];
-			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
-			if (isChatViewTitleActionContext(context)) {
-				// Is running in the Chat view title
-				announceChatCleared(accessibilitySignalService);
-				if (widget) {
-					widget.clear();
-					widget.attachmentModel.clear();
-					widget.focusInput();
-				}
-			} else {
-				// Is running from f1 or keybinding
-				announceChatCleared(accessibilitySignalService);
-				widget.clear();
-				widget.attachmentModel.clear();
-				widget.focusInput();
-			}
-		}
-	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
