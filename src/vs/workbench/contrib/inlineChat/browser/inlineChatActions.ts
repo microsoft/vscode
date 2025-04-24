@@ -178,6 +178,22 @@ export abstract class AbstractInline1ChatAction extends EditorAction2 {
 	static readonly category = localize2('cat', "Inline Chat");
 
 	constructor(desc: IAction2Options) {
+
+		const massageMenu = (menu: IAction2Options['menu'] | undefined) => {
+			if (Array.isArray(menu)) {
+				for (const entry of menu) {
+					entry.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, entry.when);
+				}
+			} else if (menu) {
+				menu.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, menu.when);
+			}
+		};
+		if (Array.isArray(desc.menu)) {
+			massageMenu(desc.menu);
+		} else {
+			massageMenu(desc.menu);
+		}
+
 		super({
 			...desc,
 			category: AbstractInline1ChatAction.category,
@@ -385,9 +401,7 @@ export class CloseAction extends AbstractInline1ChatAction {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 1,
-				when: ContextKeyExpr.and(
-					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
-				),
+				when: CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 			}, {
 				id: MENU_INLINE_CHAT_SIDE,
 				group: 'navigation',
@@ -537,6 +551,21 @@ abstract class AbstractInline2ChatAction extends EditorAction2 {
 	static readonly category = localize2('cat', "Inline Chat");
 
 	constructor(desc: IAction2Options) {
+		const massageMenu = (menu: IAction2Options['menu'] | undefined) => {
+			if (Array.isArray(menu)) {
+				for (const entry of menu) {
+					entry.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, entry.when);
+				}
+			} else if (menu) {
+				menu.when = ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, menu.when);
+			}
+		};
+		if (Array.isArray(desc.menu)) {
+			massageMenu(desc.menu);
+		} else {
+			massageMenu(desc.menu);
+		}
+
 		super({
 			...desc,
 			category: AbstractInline2ChatAction.category,
@@ -583,15 +612,71 @@ abstract class AbstractInline2ChatAction extends EditorAction2 {
 	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController2, editor: ICodeEditor, ...args: any[]): void;
 }
 
-export class StopSessionAction2 extends AbstractInline2ChatAction {
+class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
+
+	constructor(id: string, private readonly _keep: boolean) {
+		super({
+			id,
+			title: _keep
+				? localize2('Keep', "Keep")
+				: localize2('Undo', "Undo"),
+			f1: true,
+			icon: _keep ? Codicon.check : Codicon.discard,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ctxHasRequestInProgress.negate()),
+			keybinding: [{
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: _keep
+					? KeyMod.CtrlCmd | KeyCode.Enter
+					: KeyMod.CtrlCmd | KeyCode.Backspace
+			}],
+			menu: [{
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				group: '0_main',
+				order: 1,
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ContextKeyExpr.greater(ctxRequestCount.key, 0)),
+			}]
+		});
+	}
+
+	override runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: any[]): void {
+		const inlineChatSessions = accessor.get(IInlineChatSessionService);
+		if (!editor.hasModel()) {
+			return;
+		}
+		const textModel = editor.getModel();
+		const session = inlineChatSessions.getSession2(textModel.uri);
+		if (!session) {
+			return;
+		}
+		if (this._keep) {
+			session.editingSession.accept();
+		} else {
+			session.editingSession.reject();
+		}
+	}
+}
+
+export class KeepSessionAction2 extends KeepOrUndoSessionAction {
+	constructor() {
+		super('inlineChat2.keep', true);
+	}
+}
+
+export class UndoSessionAction2 extends KeepOrUndoSessionAction {
+	constructor() {
+		super('inlineChat2.undo', false);
+	}
+}
+
+export class CloseSessionAction2 extends AbstractInline2ChatAction {
 
 	constructor() {
 		super({
-			id: 'inlineChat2.stop',
-			title: localize2('stop', "Undo & Close"),
+			id: 'inlineChat2.close',
+			title: localize2('close2', "Close"),
 			f1: true,
 			icon: Codicon.close,
-			precondition: CTX_INLINE_CHAT_VISIBLE,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ctxHasRequestInProgress.negate(), ContextKeyExpr.equals(ctxRequestCount.key, 0)),
 			keybinding: [{
 				when: ctxRequestCount.isEqualTo(0),
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -600,21 +685,20 @@ export class StopSessionAction2 extends AbstractInline2ChatAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Escape,
 			}],
-			menu: {
+			menu: [{
 				id: MENU_INLINE_CHAT_SIDE,
 				group: 'navigation',
-				when: CTX_INLINE_CHAT_HAS_AGENT2
-			}
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ContextKeyExpr.equals(ctxRequestCount.key, 0)),
+			}]
 		});
 	}
 
 	runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ...args: any[]): void {
 		const inlineChatSessions = accessor.get(IInlineChatSessionService);
-		if (!editor.hasModel()) {
-			return;
+		if (editor.hasModel()) {
+			const textModel = editor.getModel();
+			inlineChatSessions.getSession2(textModel.uri)?.dispose();
 		}
-		const textModel = editor.getModel();
-		inlineChatSessions.getSession2(textModel.uri)?.dispose();
 	}
 }
 

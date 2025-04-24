@@ -377,6 +377,12 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
+			if (!session.isGlobalEditingSession && !inlineChatService.hideOnRequest.read(r)) {
+				// inline chat - no chat overlay unless hideOnRequest is on
+				hide();
+				return;
+			}
+
 			if (
 				entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
 				|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request

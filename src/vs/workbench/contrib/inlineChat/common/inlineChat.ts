@@ -19,7 +19,8 @@ export const enum InlineChatConfigKeys {
 	AccessibleDiffView = 'inlineChat.accessibleDiffView',
 	LineEmptyHint = 'inlineChat.lineEmptyHint',
 	LineNLHint = 'inlineChat.lineNaturalLanguageHint',
-	EnableV2 = 'inlineChat.enableV2'
+	EnableV2 = 'inlineChat.enableV2',
+	HideOnRequest = 'inlineChat.hideOnRequest'
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -60,6 +61,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[InlineChatConfigKeys.EnableV2]: {
 			description: localize('enableV2', "Whether to use the next version of inline chat."),
+			default: false,
+			type: 'boolean',
+			tags: ['preview', 'onExp'],
+		},
+		[InlineChatConfigKeys.HideOnRequest]: {
+			description: localize('hideOnRequest', "Whether to hide the inline chat widget after making a request. When enabled, the widget hides after a request has been made and instead the chat overlay shows. When hidden, the widget can always be shown again with the inline chat keybinding or from the chat overlay widget."),
 			default: false,
 			type: 'boolean',
 			tags: ['preview', 'onExp'],
