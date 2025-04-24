@@ -93,16 +93,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	protected doCheckForUpdates(context: any): void {
 		this.setState(State.CheckingForUpdates(context));
-
-		let assetID: string;
-		if (!this.productService.darwinUniversalAssetId) {
-			assetID = process.arch === 'x64' ? 'darwin' : 'darwin-arm64';
-		} else {
-			assetID = this.productService.darwinUniversalAssetId;
-		}
-
-		const url = `${createUpdateURL(assetID, this.productService.quality!, this.productService)}?random=${Math.random()}`;
-		electron.autoUpdater.setFeedURL({ url });
 		electron.autoUpdater.checkForUpdates();
 	}
 
