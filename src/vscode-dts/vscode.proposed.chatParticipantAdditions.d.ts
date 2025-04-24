@@ -269,7 +269,7 @@ declare module 'vscode' {
 
 		/**
 		 * Event that fires when a request is paused or unpaused.
-		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
 		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
