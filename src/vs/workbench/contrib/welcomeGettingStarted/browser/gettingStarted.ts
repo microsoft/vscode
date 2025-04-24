@@ -1491,8 +1491,18 @@ export class GettingStartedPage extends EditorPane {
 		// Create the slide container that will hold all step slides
 		const slidesContainer = $('.step-slides-container');
 
-		// Create the dots navigation
-		const dotsContainer = $('.step-dots-container');
+
+		const navigationContainer = $('.step-dots-container');
+
+		// Add back button
+		const prevButton = $('button.button-link.navigation.back', {
+			'aria-label': localize('previousStep', "Previous Step"),
+			'tabindex': '0'
+		}, $('span.codicon.codicon-arrow-left'), localize('back', "Back"));
+
+		const dotsContainer = $('.dots-centered');
+		navigationContainer.appendChild(prevButton);
+		navigationContainer.appendChild(dotsContainer);
 
 		// For each step, create a slide
 		steps.forEach((step, index) => {
@@ -1549,6 +1559,22 @@ export class GettingStartedPage extends EditorPane {
 			dotsContainer.appendChild(dot);
 		});
 
+		// Add next button
+		const nextButton = $('button.button-link.navigation.next', {
+			'aria-label': localize('nextStep', "Next"),
+			'tabindex': '0'
+		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
+
+		navigationContainer.appendChild(nextButton);
+
+		this.detailsPageDisposables.add(addDisposableListener(prevButton, 'click', () => {
+			this.navigateStep(-1, steps);
+		}));
+
+		this.detailsPageDisposables.add(addDisposableListener(nextButton, 'click', () => {
+			this.navigateStep(1, steps);
+		}));
+
 		// Handle initial selected step
 		let initialStepIndex = 0;
 		if (selectedStep) {
@@ -1580,7 +1606,7 @@ export class GettingStartedPage extends EditorPane {
 		const stepsContainer = $('.getting-started-steps-container', {},
 			categoryHeader,
 			slidesContainer,
-			dotsContainer
+			navigationContainer
 		);
 
 		// Set up the scroll container

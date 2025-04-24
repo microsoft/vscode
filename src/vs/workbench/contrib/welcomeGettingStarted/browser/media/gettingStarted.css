@@ -1140,19 +1140,70 @@
 	height: 100%;
 }
 
-/* Navigation dots */
+/* Navigation buttons in dots container for newSlide scenario */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container {
 	display: flex;
-	justify-content: center;
+	justify-content: space-between;
+	align-items: center;
 	grid-area: dots;
-	align-self: center;
 	gap: 6px;
-	margin: 12px 0;
+	margin: 8px 0;
+	width: 60%;
+	height: 25%;
+	max-width: 600px;
+	margin: 8px auto;
+}
+
+/* Center dots between navigation buttons */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .dots-centered {
+	display: flex;
+	gap: 6px;
+	justify-content: center;
+	align-items: center;
+	width: max-content;
+	flex: 1;
+	margin: 0 8px;
+}
+
+/* Navigation buttons styling */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	padding: 2px 8px;
+	border-radius: 4px;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation:hover {
+	color: var(--vscode-textLink-activeForeground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Remove auto margins that spread things out */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.back {
+	margin-right: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.next {
+	margin-left: 0;
+}
+
+/* Left alignment for back button */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.back {
+	margin-right: auto;
+}
+
+/* Right alignment for next button */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.next {
+	margin-left: auto;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot {
-	width: 8px;
-	height: 8px;
+	width: 13px;
+	height: 13px;
 	background-color: var(--vscode-button-secondaryBackground);
 	border: none;
 	border-radius: 50%;
@@ -1168,8 +1219,8 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot.active {
 	background-color: var(--vscode-button-background);
-	width: 9px;
-	height: 9px;
+	width: 14px;
+	height: 14px;
 }
 
 /* Footer area */
