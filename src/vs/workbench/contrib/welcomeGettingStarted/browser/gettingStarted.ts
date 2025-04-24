@@ -60,7 +60,7 @@ import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.
 import './gettingStartedColors.js';
 import { GettingStartedDetailsRenderer } from './gettingStartedDetailsRenderer.js';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from './gettingStartedIcons.js';
-import { GettingStartedInput } from './gettingStartedInput.js';
+import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
 import { startEntries } from '../common/gettingStartedContent.js';
@@ -343,6 +343,7 @@ export class GettingStartedPage extends EditorPane {
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
+		this.editorInput.showNewExperience = (options as GettingStartedEditorOptions)?.showNewExperience ?? false;
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
@@ -923,7 +924,7 @@ export class GettingStartedPage extends EditorPane {
 
 			if (!this.currentWalkthrough) {
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
+				this.currentWalkthrough = this.editorInput.showNewExperience ? this.gettingStartedService.getWalkthrough(this.editorInput.selectedCategory) : this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 				if (this.currentWalkthrough) {
 					if (this.editorInput.showNewExperience === true) {
 						this.buildNewCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
@@ -1479,7 +1480,7 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageDisposables.clear();
 		this.mediaDisposables.clear();
 
-		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+		const category = this.gettingStartedService.getWalkthrough(categoryID);
 		if (!category) {
 			throw Error('could not find category with ID ' + categoryID);
 		}
