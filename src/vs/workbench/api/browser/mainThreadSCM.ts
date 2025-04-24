@@ -16,7 +16,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { IQuickDiffService, QuickDiffProvider } from '../../contrib/scm/common/quickDiff.js';
+import { IQuickDiffService } from '../../contrib/scm/common/quickDiff.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemRef, ISCMHistoryItemRefsChangeEvent, ISCMHistoryOptions, ISCMHistoryProvider } from '../../contrib/scm/common/history.js';
 import { ResourceTree } from '../../../base/common/resourceTree.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -235,7 +235,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}
 }
 
-class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
+class MainThreadSCMProvider implements ISCMProvider {
 
 	private static ID_HANDLE = 0;
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
@@ -287,8 +287,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get actionButton(): IObservable<ISCMActionButtonDescriptor | undefined> { return this._actionButton; }
 
 	private _quickDiff: IDisposable | undefined;
-	public readonly isSCM: boolean = true;
-	public readonly visible: boolean = true;
+	private _stagedQuickDiff: IDisposable | undefined;
 
 	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
 	get historyProvider() { return this._historyProvider; }
@@ -335,15 +334,42 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
 			this._quickDiff = this._quickDiffService.addQuickDiffProvider({
+				id: `${this._providerId}.quickDiffProvider`,
 				label: features.quickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
-				isSCM: this.isSCM,
-				visible: this.visible,
-				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
+				kind: 'primary',
+				getOriginalResource: async (uri: URI) => {
+					if (!this.features.hasQuickDiffProvider) {
+						return null;
+					}
+
+					const result = await this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None);
+					return result && URI.revive(result);
+				}
 			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {
 			this._quickDiff.dispose();
 			this._quickDiff = undefined;
+		}
+
+		if (features.hasSecondaryQuickDiffProvider && !this._stagedQuickDiff) {
+			this._stagedQuickDiff = this._quickDiffService.addQuickDiffProvider({
+				id: `${this._providerId}.secondaryQuickDiffProvider`,
+				label: features.secondaryQuickDiffLabel ?? this.label,
+				rootUri: this.rootUri,
+				kind: 'secondary',
+				getOriginalResource: async (uri: URI) => {
+					if (!this.features.hasSecondaryQuickDiffProvider) {
+						return null;
+					}
+
+					const result = await this.proxy.$provideSecondaryOriginalResource(this.handle, uri, CancellationToken.None);
+					return result && URI.revive(result);
+				}
+			});
+		} else if (features.hasSecondaryQuickDiffProvider === false && this._stagedQuickDiff) {
+			this._stagedQuickDiff.dispose();
+			this._stagedQuickDiff = undefined;
 		}
 
 		if (features.hasHistoryProvider && !this.historyProvider.get()) {

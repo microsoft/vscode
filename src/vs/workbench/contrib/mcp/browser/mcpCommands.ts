@@ -247,6 +247,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				let thisState = DisplayedState.None;
 				switch (server.toolsState.read(reader)) {
 					case McpServerToolsState.Unknown:
+					case McpServerToolsState.Outdated:
 						if (server.trusted.read(reader) === false) {
 							thisState = DisplayedState.None;
 						} else {
@@ -324,7 +325,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 					const { state, servers } = displayedState.get();
 					if (state === DisplayedState.NewTools) {
-						servers.forEach(server => server.start());
+						servers.forEach(server => server.stop().then(() => server.start()));
 						mcpService.activateCollections();
 					} else if (state === DisplayedState.Refreshing) {
 						servers.at(-1)?.showOutput();
@@ -496,7 +497,7 @@ export class RestartServer extends Action2 {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		s?.showOutput();
 		await s?.stop();
-		await s?.start();
+		await s?.start(true);
 	}
 }
 
@@ -514,7 +515,7 @@ export class StartServer extends Action2 {
 
 	async run(accessor: ServicesAccessor, serverId: string) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start();
+		await s?.start(true);
 	}
 }
 

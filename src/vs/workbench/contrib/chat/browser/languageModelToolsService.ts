@@ -12,7 +12,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -40,6 +40,11 @@ interface IToolEntry {
 	impl?: IToolImpl;
 }
 
+interface ITrackedCall {
+	invocation?: ChatToolInvocation;
+	store: IDisposable;
+}
+
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 
@@ -53,7 +58,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
 
-	private _callsByRequestId = new Map<string, IDisposable[]>();
+	private _callsByRequestId = new Map<string, ITrackedCall[]>();
 
 	private _workspaceToolConfirmStore: Lazy<ToolConfirmStore>;
 	private _profileToolConfirmStore: Lazy<ToolConfirmStore>;
@@ -235,7 +240,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				if (!this._callsByRequestId.has(requestId)) {
 					this._callsByRequestId.set(requestId, []);
 				}
-				this._callsByRequestId.get(requestId)!.push(store);
+				const trackedCall: ITrackedCall = { store };
+				this._callsByRequestId.get(requestId)!.push(trackedCall);
 
 				const source = new CancellationTokenSource();
 				store.add(toDisposable(() => {
@@ -252,6 +258,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
+				trackedCall.invocation = toolInvocation;
 				if (this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
 					toolInvocation.confirmed.complete(true);
 				}
@@ -285,7 +292,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			toolResult = await tool.impl.invoke(dto, countTokens, token);
+			toolResult = await tool.impl.invoke(dto, countTokens, {
+				report: step => {
+					toolInvocation?.acceptProgress(step);
+				}
+			}, token);
 			this.ensureToolDetails(dto, toolResult, tool.data);
 
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
@@ -403,7 +414,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
 		const disposables = this._callsByRequestId.get(requestId);
 		if (disposables) {
-			const index = disposables.indexOf(store);
+			const index = disposables.findIndex(d => d.store === store);
 			if (index > -1) {
 				disposables.splice(index, 1);
 			}
@@ -417,7 +428,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	cancelToolCallsForRequest(requestId: string): void {
 		const calls = this._callsByRequestId.get(requestId);
 		if (calls) {
-			calls.forEach(call => call.dispose());
+			calls.forEach(call => call.store.dispose());
 			this._callsByRequestId.delete(requestId);
 		}
 	}
@@ -425,7 +436,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	public override dispose(): void {
 		super.dispose();
 
-		this._callsByRequestId.forEach(calls => dispose(calls));
+		this._callsByRequestId.forEach(calls => calls.forEach(call => call.store.dispose()));
 		this._ctxToolsCount.reset();
 	}
 }

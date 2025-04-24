@@ -22,6 +22,18 @@
           "copilot-instructions.md"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "instructions",
+        "aliases": [
+          "Instructions",
+          "instructions"
+        ],
+        "extensions": [
+          ".instructions.md",
+          "copilot-instructions.md"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -33,10 +45,24 @@
           "markup.underline.link.markdown",
           "punctuation.definition.list.begin.markdown"
         ]
+      },
+      {
+        "language": "instructions",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
       }
     ],
     "configurationDefaults": {
       "[prompt]": {
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false
+      },
+      "[instructions]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false

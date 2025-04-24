@@ -17,7 +17,6 @@ import { InlineCompletionsModel } from './model/inlineCompletionsModel.js';
 import { TextEdit } from '../../../common/core/textEdit.js';
 import { LineEdit } from '../../../common/core/lineEdit.js';
 import { TextModelText } from '../../../common/model/textModelText.js';
-import { localize } from '../../../../nls.js';
 
 export class InlineCompletionsAccessibleView implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.View;
@@ -70,7 +69,7 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 		} else {
 			const text = new TextModelText(this._model.textModel);
 			const lineEdit = LineEdit.fromTextEdit(new TextEdit(state.edits), text);
-			return localize('inlineEditAvailable', 'There is an inline edit available:') + '\n' + lineEdit.humanReadablePatch(text.getLines());
+			return lineEdit.humanReadablePatch(text.getLines());
 		}
 	}
 	public provideNextContent(): string | undefined {

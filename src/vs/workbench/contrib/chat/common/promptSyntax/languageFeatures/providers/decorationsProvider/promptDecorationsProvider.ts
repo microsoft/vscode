@@ -12,7 +12,6 @@ import { ProviderInstanceManagerBase } from '../providerInstanceManagerBase.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
 import { registerThemingParticipant } from '../../../../../../../../platform/theme/common/themeService.js';
-import { ITreeSitterParserService } from '../../../../../../../../editor/common/services/treeSitterParserService.js';
 import { FrontMatterHeader } from '../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { DecorationBase, ReactiveDecorationBase, type TDecorationClass, type TChangedDecorator } from './decorations/utils/index.js';
 
@@ -40,7 +39,6 @@ export class PromptDecorator extends ProviderInstanceBase {
 	constructor(
 		model: ITextModel,
 		@IPromptsService promptsService: IPromptsService,
-		@ITreeSitterParserService private readonly parserService: ITreeSitterParserService,
 	) {
 		super(model, promptsService);
 
@@ -51,10 +49,7 @@ export class PromptDecorator extends ProviderInstanceBase {
 		await this.parser.allSettled();
 
 		this.removeAllDecorations();
-		this.addDecorations(this.parser.tokens);
-
-		const result = this.parserService.getOrInitLanguage('test');
-		console.log('result', result);
+		this.addDecorations();
 
 		return this;
 	}
@@ -122,14 +117,14 @@ export class PromptDecorator extends ProviderInstanceBase {
 	/**
 	 * Add a decorations for all prompt tokens.
 	 */
-	private addDecorations(
-		tokens: readonly BaseToken[],
-	): this {
-		if (tokens.length === 0) {
-			return this;
-		}
-
+	private addDecorations(): this {
 		this.model.changeDecorations((accessor) => {
+			const { tokens } = this.parser;
+
+			if (tokens.length === 0) {
+				return;
+			}
+
 			for (const token of tokens) {
 				for (const Decoration of SUPPORTED_DECORATIONS) {
 					if (Decoration.handles(token) === false) {

@@ -11,6 +11,16 @@ import { BaseToken } from '../../baseToken.js';
 export abstract class FrontMatterToken extends BaseToken { }
 
 /**
+ * List of all currently supported value types.
+ */
+export type TValueTypeName = 'string' | 'boolean' | 'array';
+
+/**
  * Base class for all tokens that represent a `value` inside a Front Matter header.
  */
-export abstract class FrontMatterValueToken extends FrontMatterToken { }
+export abstract class FrontMatterValueToken<TTypeName extends TValueTypeName = TValueTypeName> extends FrontMatterToken {
+	/**
+	 * Type name of the `value` represented by this token.
+	 */
+	public abstract readonly valueTypeName: TTypeName;
+}

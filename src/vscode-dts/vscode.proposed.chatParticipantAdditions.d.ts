@@ -79,7 +79,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -159,6 +159,13 @@ declare module 'vscode' {
 		resolve?(token: CancellationToken): Thenable<void>;
 	}
 
+	export class ChatResponseExtensionsPart {
+
+		readonly extensions: string[];
+
+		constructor(extensions: string[]);
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -217,19 +224,6 @@ declare module 'vscode' {
 		Complete = 1,
 		Partial = 2,
 		Omitted = 3
-	}
-
-
-	export interface ChatRequest {
-
-		/**
-		 * A list of tools that the user selected for this request, when `undefined` any tool
-		 * from {@link lm.tools} should be used.
-		 *
-		 * Tools can be called with {@link lm.invokeTool} with input that match their
-		 * declared `inputSchema`.
-		 */
-		readonly tools: readonly LanguageModelToolInformation[] | undefined;
 	}
 
 
@@ -405,7 +399,7 @@ declare module 'vscode' {
 	}
 
 	export namespace lm {
-		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
+		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
 
 	export interface ChatVariableValue {

@@ -258,24 +258,33 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// const didResetToOriginalContent = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService) === this.initialContent;
 		let didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
 		const currentState = this._stateObs.get();
-		if (currentState === ModifiedFileEntryState.Rejected) {
-			return;
-		}
 		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
 			this.initializeModelsFromDiff();
+			this._notifyAction('rejected');
 			return;
 		}
 
 		if (!e.rawEvents.length) {
 			return;
 		}
+
+		// If user executes a cell, then mark this notebook as modified by the user.
+		if (e.rawEvents.some(e => e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata && typeof e.internalMetadata.lastRunSuccess === 'boolean')) {
+			this._userEditScheduler.schedule();
+		}
+
+		if (currentState === ModifiedFileEntryState.Rejected) {
+			return;
+		}
+
 		if (isTransientIPyNbExtensionEvent(this.modifiedModel.notebookType, e)) {
 			return;
 		}
 
 		this._allEditsAreFromUs = false;
+		this._userEditScheduler.schedule();
 
 		// Changes to cell text is sync'ed and handled separately.
 		// See ChatEditingNotebookCellEntry._mirrorEdits
@@ -504,6 +513,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 				this.updateCellDiffInfo([], undefined);
 				this.initializeModelsFromDiff();
+				this._notifyAction('userModified');
 			},
 			redo: async () => {
 				initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
@@ -517,6 +527,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._stateObs.set(redoState, undefined);
 				this.updateCellDiffInfo([], undefined);
 				this.initializeModelsFromDiff();
+				this._notifyAction('userModified');
 			}
 		};
 	}
@@ -679,6 +690,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (new SnapshotComparer(currentSnapshot).isEqual(this.originalModel)) {
 			const state = accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
 			this._stateObs.set(state, undefined);
+			this._notifyAction(accepted ? 'accepted' : 'rejected');
 		}
 	}
 

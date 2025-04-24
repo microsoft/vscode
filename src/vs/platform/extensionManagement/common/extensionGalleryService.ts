@@ -70,7 +70,7 @@ interface IRawGalleryExtensionPublisher {
 	readonly publisherName: string;
 	readonly domain?: string | null;
 	readonly isDomainVerified?: boolean;
-	readonly linkType?: ExtensionGalleryResourceType;
+	readonly linkType?: string;
 }
 
 interface IRawGalleryExtension {
@@ -87,8 +87,8 @@ interface IRawGalleryExtension {
 	readonly lastUpdated: string;
 	readonly categories: string[] | undefined;
 	readonly flags: string;
-	readonly linkType?: ExtensionGalleryResourceType;
-	readonly ratingLinkType?: ExtensionGalleryResourceType;
+	readonly linkType?: string;
+	readonly ratingLinkType?: string;
 }
 
 interface IRawGalleryExtensionsResult {

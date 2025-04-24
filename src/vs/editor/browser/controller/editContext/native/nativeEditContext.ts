@@ -31,6 +31,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
+import { IME } from '../../../../../base/common/ime.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -51,6 +52,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
 	public readonly domNode: FastDomNode<HTMLDivElement>;
+	private readonly _imeTextArea: FastDomNode<HTMLTextAreaElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
@@ -73,7 +75,7 @@ export class NativeEditContext extends AbstractEditContext {
 		ownerID: string,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
-		viewController: ViewController,
+		private readonly _viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
@@ -82,6 +84,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
+		this._imeTextArea = new FastDomNode(document.createElement('textarea'));
+		this._imeTextArea.setClassName(`ime-text-area`);
+		this._imeTextArea.setAttribute('readonly', 'true');
 		this.domNode.setAttribute('autocorrect', 'off');
 		this.domNode.setAttribute('autocapitalize', 'off');
 		this.domNode.setAttribute('autocomplete', 'off');
@@ -90,12 +95,13 @@ export class NativeEditContext extends AbstractEditContext {
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
+		overflowGuardContainer.appendChild(this._imeTextArea);
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
 			if (newFocusValue) {
-				this._selectionChangeListener.value = this._setSelectionChangeListener(viewController);
+				this._selectionChangeListener.value = this._setSelectionChangeListener(this._viewController);
 				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
 			} else {
 				this._selectionChangeListener.value = undefined;
@@ -115,23 +121,16 @@ export class NativeEditContext extends AbstractEditContext {
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.setIgnoreSelectionChangeTime('onCut');
 			this._ensureClipboardGetsEditorSelection(e);
-			viewController.cut();
+			this._viewController.cut();
 		}));
 
-		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => viewController.emitKeyUp(new StandardKeyboardEvent(e))));
-		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
-
-			const standardKeyboardEvent = new StandardKeyboardEvent(e);
-
-			// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
-			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
-				standardKeyboardEvent.stopPropagation();
-			}
-			viewController.emitKeyDown(standardKeyboardEvent);
-		}));
+		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => this._onKeyUp(e)));
+		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => this._onKeyDown(e)));
+		this._register(addDisposableListener(this._imeTextArea.domNode, 'keyup', (e) => this._onKeyUp(e)));
+		this._register(addDisposableListener(this._imeTextArea.domNode, 'keydown', async (e) => this._onKeyDown(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
-				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
+				this._onType(this._viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
@@ -154,7 +153,7 @@ export class NativeEditContext extends AbstractEditContext {
 				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
 				mode = metadata.mode;
 			}
-			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		// Edit context events
@@ -178,25 +177,38 @@ export class NativeEditContext extends AbstractEditContext {
 						updateRangeEnd: e.updateRangeEnd - 1
 					};
 					highSurrogateCharacter = undefined;
-					this._emitTypeEvent(viewController, textUpdateEvent);
+					this._emitTypeEvent(this._viewController, textUpdateEvent);
 					return;
 				}
 			}
-			this._emitTypeEvent(viewController, e);
+			this._emitTypeEvent(this._viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
-			viewController.compositionStart();
+			this._viewController.compositionStart();
 			// Emits ViewCompositionStartEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
-			viewController.compositionEnd();
+			this._viewController.compositionEnd();
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
+		}));
+		let reenableTracking: boolean = false;
+		this._register(IME.onDidChange(() => {
+			if (IME.enabled && reenableTracking) {
+				this.domNode.focus();
+				this._focusTracker.resume();
+				reenableTracking = false;
+			}
+			if (!IME.enabled && this.isFocused()) {
+				this._focusTracker.pause();
+				this._imeTextArea.focus();
+				reenableTracking = true;
+			}
 		}));
 		this._register(NativeEditContextRegistry.register(ownerID, this));
 	}
@@ -207,6 +219,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
+		this._imeTextArea.domNode.remove();
 		super.dispose();
 	}
 
@@ -313,6 +326,19 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	// --- Private methods ---
+
+	private _onKeyUp(e: KeyboardEvent) {
+		this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
+	}
+
+	private _onKeyDown(e: KeyboardEvent) {
+		const standardKeyboardEvent = new StandardKeyboardEvent(e);
+		// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
+		if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
+			standardKeyboardEvent.stopPropagation();
+		}
+		this._viewController.emitKeyDown(standardKeyboardEvent);
+	}
 
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
@@ -548,7 +574,7 @@ export class NativeEditContext extends AbstractEditContext {
 		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (!this.isFocused() || !isScreenReaderOptimized) {
+			if (!this.isFocused() || !isScreenReaderOptimized || !IME.enabled) {
 				return;
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;

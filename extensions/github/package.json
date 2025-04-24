@@ -20,6 +20,7 @@
     "vscode.git-base"
   ],
   "main": "./out/extension.js",
+  "type": "module",
   "capabilities": {
     "virtualWorkspaces": false,
     "untrustedWorkspaces": {

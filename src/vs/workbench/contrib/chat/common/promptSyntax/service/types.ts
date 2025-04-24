@@ -15,11 +15,14 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
 
 /**
-* Supported prompt types.
-*  - `local` means the prompt is a local file.
-*  - `user` means a "roam-able" prompt file (similar to snippets).
-*/
-type TPromptsType = 'local' | 'user';
+ * Where the prompt is stored.
+ */
+export type TPromptsStorage = 'local' | 'user';
+
+/**
+ * What the prompt is used for.
+ */
+export type TPromptsType = 'instructions' | 'prompt';
 
 /**
  * Represents a prompt path with its type.
@@ -32,10 +35,22 @@ export interface IPromptPath {
 	readonly uri: URI;
 
 	/**
-	 * Type of the prompt.
+	 * Storage of the prompt.
+	 */
+	readonly storage: TPromptsStorage;
+
+	/**
+	 * Type
 	 */
 	readonly type: TPromptsType;
 }
+
+/**
+ * Type for a shared prompt parser instance returned by the {@link IPromptsService}.
+ * Because the parser is shared, we omit the `dispose` method from
+ * the original type so the caller cannot dispose it prematurely
+ */
+export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
 
 /**
  * Provides prompt services.
@@ -49,22 +64,38 @@ export interface IPromptsService extends IDisposable {
 	 */
 	getSyntaxParserFor(
 		model: ITextModel,
-	): TextModelPromptParser & { disposed: false };
+	): TSharedPrompt & { disposed: false };
 
 	/**
 	 * List all available prompt files.
 	 */
-	listPromptFiles(): Promise<readonly IPromptPath[]>;
+	listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
 	getSourceFolders(type: TPromptsType): readonly IPromptPath[];
+
+	/**
+	 * Returns a prompt command if the command name.
+	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 */
+	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
+
+	/**
+	 * Gets the prompt file for a slash command.
+	 */
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined>;
+
+	/**
+	 * Returns a prompt command if the command name is valid.
+	 */
+	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+
 }
 
-/**
- * Decoration CSS class modifiers.
- */
-export enum CssClassModifiers {
-	Inactive = '.prompt-decoration-inactive',
+export interface IChatPromptSlashCommand {
+	readonly command: string;
+	readonly detail: string;
+	readonly promptPath?: IPromptPath;
 }

@@ -238,10 +238,32 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Keyword suggestion for AI search.
+	 */
+	export class AISearchKeyword {
+		/**
+		 * @param keyword The keyword associated with the search.
+		 */
+		constructor(keyword: string);
+
+		/**
+		 * The keyword associated with the search.
+		 */
+		keyword: string;
+	}
+
+	/**
 	 * A result payload for a text search, pertaining to {@link TextSearchMatch2 matches}
 	 * and its associated {@link TextSearchContext2 context} within a single file.
 	 */
 	export type TextSearchResult2 = TextSearchMatch2 | TextSearchContext2;
+
+	/**
+	 * A result payload for an AI search.
+	 * This can be a {@link TextSearchMatch2 match} or a {@link AISearchKeyword keyword}.
+	 * The result can be a match or a keyword.
+	 */
+	export type AISearchResult = TextSearchResult2 | AISearchKeyword;
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
@@ -255,7 +277,7 @@ declare module 'vscode' {
 		 * These results can be direct matches, or context that surrounds matches.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
+		provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<AISearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 	}
 
 	export namespace workspace {

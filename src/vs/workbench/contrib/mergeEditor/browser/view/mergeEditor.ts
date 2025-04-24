@@ -218,6 +218,18 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		});
 		this._sessionDisposables.add(viewModel);
 
+		// Track focus changes to update the editor name
+		this._sessionDisposables.add(autorun(reader => {
+			/** @description Update focused editor name based on focus */
+			const focusedType = viewModel.focusedEditorType.read(reader);
+
+			if (!(input instanceof MergeEditorInput)) {
+				return;
+			}
+
+			input.updateFocusedEditor(focusedType || 'result');
+		}));
+
 		// Set/unset context keys based on input
 		this._ctxResultUri.set(inputModel.resultUri.toString());
 		this._ctxBaseUri.set(model.base.uri.toString());

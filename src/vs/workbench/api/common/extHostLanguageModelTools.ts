@@ -19,6 +19,7 @@ import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
+import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -97,6 +98,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 					case InternalEditToolId:
 					case ExtensionEditToolId:
 					case InternalFetchWebPageToolId:
+					case SearchExtensionsToolId:
 						return isProposedApiEnabled(extension, 'chatParticipantPrivate');
 					default:
 						return true;
@@ -136,7 +138,21 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token)), token);
+		let progress: vscode.Progress<{ message?: string | vscode.MarkdownString; increment?: number }> | undefined;
+		if (isProposedApiEnabled(item.extension, 'toolProgress')) {
+			progress = {
+				report: value => {
+					this._proxy.$acceptToolProgress(dto.callId, {
+						message: typeConvert.MarkdownString.fromStrict(value.message),
+						increment: value.increment,
+						total: 100,
+					});
+				}
+			};
+		}
+
+		// todo: 'any' cast because TS can't handle the overloads
+		const extensionResult = await raceCancellation(Promise.resolve((item.tool.invoke as any)(options, token, progress!)), token);
 		if (!extensionResult) {
 			throw new CancellationError();
 		}
