@@ -518,11 +518,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			: mode?.chatMode;
 
 		return {
-			// fallback to `ask` mode if no mode is defined
-			mode: resultingMode ?? ChatMode.Ask,
-			description: description?.text ?? undefined,
+			mode: resultingMode,
+			description: description?.text,
 			tools: tools?.toolNames,
-			include: include?.text ?? undefined,
+			include: include?.text,
 		};
 	}
 

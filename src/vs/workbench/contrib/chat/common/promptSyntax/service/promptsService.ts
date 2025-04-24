@@ -251,7 +251,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				let isRootInAgentMode = false;
 				let hasTools = false;
 
-				let chatMode: ChatMode = ChatMode.Ask;
+				let chatMode: ChatMode | undefined;
 
 				forEach((node) => {
 					const { metadata } = node;
@@ -267,10 +267,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 						}
 					}
 
-					chatMode = morePrivilegedChatMode(
-						chatMode,
-						mode,
-					);
+					chatMode ??= mode;
+
+					// if both chat modes are set, pick the more privileged one
+					if (chatMode && mode) {
+						chatMode = morePrivilegedChatMode(
+							chatMode,
+							mode,
+						);
+					}
 
 					if (isRootInAgentMode && tools !== undefined) {
 						result.push(...tools);
@@ -295,15 +300,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 			});
 
 		let hasAnyTools = false;
-		let resultingChatMode: ChatMode = ChatMode.Ask;
+		let resultingChatMode: ChatMode | undefined;
 
 		const result: string[] = [];
 		for (const { tools, mode } of allTools) {
-			resultingChatMode = morePrivilegedChatMode(
-				resultingChatMode,
-				mode,
-			);
-			if (tools !== undefined) {
+			resultingChatMode ??= mode;
+
+			// if both chat modes are set, pick the more privileged one
+			if (resultingChatMode && mode) {
+				resultingChatMode = morePrivilegedChatMode(
+					resultingChatMode,
+					mode,
+				);
+			}
+
+			if (tools) {
 				result.push(...tools);
 				hasAnyTools = true;
 			}

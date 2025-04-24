@@ -108,7 +108,7 @@ interface ICombinedNonAgentToolsMetadata {
 	 * Resulting chat mode of a prompt, based on modes
 	 * used in the entire tree of prompt references.
 	 */
-	readonly mode: ChatMode.Ask | ChatMode.Edit;
+	readonly mode?: ChatMode.Ask | ChatMode.Edit;
 }
 
 /**

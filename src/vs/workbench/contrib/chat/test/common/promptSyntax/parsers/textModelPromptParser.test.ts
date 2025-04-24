@@ -946,7 +946,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Ask,
+							undefined,
 							'Mode metadata must have correct value.',
 						);
 
