@@ -724,7 +724,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		if (this.productService.extensionsGallery?.serviceUrl) {
 			const serviceUrl = URI.parse(this.productService.extensionsGallery.serviceUrl);
 			urls.push(`${serviceUrl.scheme}://${serviceUrl.authority}/*`);
-			this.logService.info('', urls);
 		}
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
 			const headers = await this.getMarketplaceHeaders();
