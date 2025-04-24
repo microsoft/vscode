@@ -287,4 +287,16 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	public get featureEnabled(): boolean {
 		return PromptsConfig.enabled(this.configService);
 	}
+
+	/**
+	 * Clear all prompt instruction attachments.
+	 */
+	public clear(): this {
+		for (const attachment of this.attachments.values()) {
+			this.remove(attachment.uri);
+		}
+
+		this._onUpdate.fire();
+		return this;
+	}
 }
