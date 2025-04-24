@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { createURI } from '../testUtils/createUri.js';
 import { ChatMode } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -545,7 +546,7 @@ suite('PromptsService', () => {
 	suite('• getCombinedToolsMetadata', () => {
 		suite('• agent mode', () => {
 			test('• explicit', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -674,7 +675,7 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -802,7 +803,7 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -938,7 +939,7 @@ suite('PromptsService', () => {
 
 		suite('• edit mode', () => {
 			test('• explicit', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -1057,7 +1058,7 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -1180,7 +1181,7 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -1307,7 +1308,7 @@ suite('PromptsService', () => {
 
 		suite('• ask mode', () => {
 			test('• explicit', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -1425,7 +1426,7 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -1547,7 +1548,7 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async () => {
-				const rootFolderName = 'resolves-nested-file-references';
+				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
 				const rootFileName = 'file2.prompt.md';
@@ -1825,6 +1826,191 @@ suite('PromptsService', () => {
 						}
 					],
 				}],
+			);
+		});
+	});
+
+	suite('• findInstructionFilesFor', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('• finds correct instruction files', async () => {
+			const rootFolderName = 'finds-instruction-files';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			const userPromptsFolderName = '/tmp/user-data/prompts';
+			const userPromptsFolderUri = URI.file(userPromptsFolderName);
+
+			sinon.stub(service, 'listPromptFiles')
+				.returns(Promise.resolve([
+					// local instructions
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					// user instructions
+					{
+						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+						storage: 'user',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
+						storage: 'user',
+						type: 'instructions',
+					},
+				]));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'file1.prompt.md',
+							contents: [
+								'## Some Header',
+								'some contents',
+								' ',
+							],
+						},
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'file1.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 1.\'',
+										'include: "**/*.tsx"',
+										'---',
+										'Some instructions 1 contents.',
+									],
+								},
+								{
+									name: 'file2.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 2.\'',
+										'include: "**/folder1/*.tsx"',
+										'---',
+										'Some instructions 2 contents.',
+									],
+								},
+								{
+									name: 'file3.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 3.\'',
+										'include: "**/folder2/*.tsx"',
+										'---',
+										'Some instructions 3 contents.',
+									],
+								},
+								{
+									name: 'file4.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 4.\'',
+										'include: "src/build/*.tsx"',
+										'---',
+										'Some instructions 4 contents.',
+									],
+								},
+								{
+									name: 'file5.prompt.md',
+									contents: [
+										'---',
+										'description: \'Prompt file 5.\'',
+										'---',
+										'Some prompt 5 contents.',
+									],
+								},
+							],
+						},
+						{
+							name: 'folder1',
+							children: [
+								{
+									name: 'main.tsx',
+									contents: 'console.log("Haalou!")',
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			// mock user data instructions
+			await (instaService.createInstance(MockFilesystem, [
+				{
+					name: userPromptsFolderName,
+					children: [
+						{
+							name: 'file10.instructions.md',
+							contents: [
+								'---',
+								'description: \'Instructions file 10.\'',
+								'include: "**/folder1/*.tsx"',
+								'---',
+								'Some instructions 10 contents.',
+							],
+						},
+						{
+							name: 'file11.instructions.md',
+							contents: [
+								'---',
+								'description: \'Instructions file 11.\'',
+								'include: "**/folder1/*.py"',
+								'---',
+								'Some instructions 11 contents.',
+							],
+						},
+						{
+							name: 'file12.prompt.md',
+							contents: [
+								'---',
+								'description: \'Prompt file 12.\'',
+								'---',
+								'Some prompt 12 contents.',
+							],
+						},
+					],
+				}
+			])).mock();
+
+			const instructions = await service
+				.findInstructionFilesFor([
+					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
+				]);
+
+			assert.deepStrictEqual(
+				instructions,
+				[
+					// local instructions
+					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
+					URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+					// user instructions
+					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+				],
+				'Must find correct instruction files.',
 			);
 		});
 	});

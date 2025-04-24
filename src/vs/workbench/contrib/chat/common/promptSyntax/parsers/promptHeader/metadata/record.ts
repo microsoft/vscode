@@ -76,7 +76,7 @@ export abstract class PromptMetadataRecord {
 }
 
 /**
- * TODO: @legomushroom
+ * Base class for all metadata records with a `string` value.
  */
 export abstract class PromptStringMetadata extends PromptMetadataRecord {
 	/**
