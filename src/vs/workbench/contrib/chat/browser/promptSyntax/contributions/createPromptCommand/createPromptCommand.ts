@@ -73,19 +73,10 @@ const command = async (
 		return;
 	}
 
-	const content = (type === 'instructions')
-		? localize(
-			'workbench.command.instructions.create.initial-content',
-			"Add instructions...",
-		)
-		: localize(
-			'workbench.command.prompt.create.initial-content',
-			"Add prompt contents...",
-		);
 	const promptUri = await createPromptFile({
 		fileName,
 		folder: selectedFolder.uri,
-		content,
+		content: '',
 		fileService,
 		openerService,
 	});

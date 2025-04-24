@@ -1,0 +1,10 @@
+{
+	"fileTemplate": {
+		"prefix": "New Chat Instructions",
+		"body": [
+			"${1:instructions}",
+		],
+		"description": "Template for chat instructions",
+		"isFileTemplate": true,
+	}
+}
