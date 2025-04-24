@@ -45,7 +45,7 @@ import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/c
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
-import { IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
+import { IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
@@ -56,12 +56,12 @@ import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerialized
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
-import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
+import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { AiSettingsSearchResult, AiSettingsSearchResultKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
@@ -2414,14 +2414,16 @@ export namespace LanguageModelChatMessage2 {
 			if (c.type === 'text') {
 				return new LanguageModelTextPart(c.value);
 			} else if (c.type === 'tool_result') {
-				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = c.value.map(part => {
+				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[] = c.value.map(part => {
 					if (part.type === 'text') {
 						return new types.LanguageModelTextPart(part.value);
+					} else if (part.type === 'data') {
+						return new types.LanguageModelDataPart(part.value.data.buffer, part.value.mimeType);
 					} else {
 						return new types.LanguageModelPromptTsxPart(part.value);
 					}
 				});
-				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
+				return new types.LanguageModelToolResultPart2(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
 				return new types.LanguageModelDataPart(c.value.data.buffer, c.value.mimeType);
 			} else if (c.type === 'extra_data') {
@@ -2446,7 +2448,7 @@ export namespace LanguageModelChatMessage2 {
 		}
 
 		const content = messageContent.map((c): chatProvider.IChatMessagePart => {
-			if (c instanceof types.LanguageModelToolResultPart) {
+			if (c instanceof types.LanguageModelToolResultPart2) {
 				return {
 					type: 'tool_result',
 					toolCallId: c.callId,
@@ -2461,6 +2463,14 @@ export namespace LanguageModelChatMessage2 {
 								type: 'prompt_tsx',
 								value: part.value,
 							} satisfies IChatResponsePromptTsxPart;
+						} else if (part instanceof types.LanguageModelDataPart) {
+							return {
+								type: 'data',
+								value: {
+									mimeType: part.mimeType as chatProvider.ChatImageMimeType,
+									data: VSBuffer.wrap(part.data)
+								}
+							} satisfies IChatResponseDataPart;
 						} else {
 							// Strip unknown parts
 							return undefined;
@@ -2498,7 +2508,7 @@ export namespace LanguageModelChatMessage2 {
 				} satisfies chatProvider.IChatMessagePart;
 			} else {
 				if (typeof c !== 'string') {
-					throw new Error('Unexpected chat message content type');
+					throw new Error('Unexpected chat message content type llm 2');
 				}
 
 				return {
@@ -3265,6 +3275,62 @@ export namespace LanguageModelToolResult {
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
 		};
+	}
+}
+
+export namespace LanguageModelToolResult2 {
+	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
+		return new types.LanguageModelToolResult2(result.content.map(item => {
+			if (item.kind === 'text') {
+				return new types.LanguageModelTextPart(item.value);
+			} else if (item.kind === 'data') {
+				const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
+				if (!mimeType) {
+					throw new Error('Invalid MIME type');
+				}
+				return new types.LanguageModelDataPart(item.value.data.buffer, mimeType);
+			} else {
+				return new types.LanguageModelPromptTsxPart(item.value);
+			}
+		}));
+	}
+
+	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
+		if (result.toolResultMessage) {
+			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+		}
+
+		let hasBuffers = false;
+		const dto: Dto<IToolResult> = {
+			content: result.content.map(item => {
+				if (item instanceof types.LanguageModelTextPart) {
+					return {
+						kind: 'text',
+						value: item.value
+					};
+				} else if (item instanceof types.LanguageModelPromptTsxPart) {
+					return {
+						kind: 'promptTsx',
+						value: item.value,
+					};
+				} else if (item instanceof types.LanguageModelDataPart) {
+					hasBuffers = true;
+					return {
+						kind: 'data',
+						value: {
+							mimeType: item.mimeType,
+							data: VSBuffer.wrap(item.data)
+						}
+					};
+				} else {
+					throw new Error('Unknown LanguageModelToolResult part type');
+				}
+			}),
+			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
+			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
+		};
+
+		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
 	}
 }
 

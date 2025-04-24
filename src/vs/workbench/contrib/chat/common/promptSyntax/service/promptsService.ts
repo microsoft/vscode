@@ -17,6 +17,8 @@ import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { PROMPT_LANGUAGE_ID } from '../constants.js';
 
 /**
  * Provides prompt services.
@@ -38,6 +40,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
 
@@ -133,7 +136,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		const files = await this.listPromptFiles('prompt');
 		const command = data.command;
-		return files.find(file => getPromptCommandName(file.uri.path) === command);
+		const result = files.find(file => getPromptCommandName(file.uri.path) === command);
+		if (result) {
+			return result;
+		}
+		const model = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getPromptCommandName(model.uri.path) === command);
+		if (model) {
+			return { uri: model.uri, storage: 'local', type: 'prompt' };
+		}
+		return undefined;
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {

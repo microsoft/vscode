@@ -1,0 +1,13 @@
+{
+	"fileTemplate": {
+		"prefix": "New Chat Prompt",
+		"body": [
+			"---",
+			"mode: '${1|ask,edit,agent|}'",
+			"---",
+			"${2:prompt}",
+		],
+		"description": "Template for chat prompt",
+		"isFileTemplate": true,
+	}
+}

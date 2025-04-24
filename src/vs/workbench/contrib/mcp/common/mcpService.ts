@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -266,8 +267,13 @@ class McpToolImplementation implements IToolImpl {
 				});
 
 				outputParts.push(item.text);
+			} else if (item.type === 'image' || item.type === 'audio') {
+				result.content.push({
+					kind: 'data',
+					value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
+				});
 			} else {
-				// TODO@jrieken handle different item types
+				// unsupported for now.
 			}
 		}
 

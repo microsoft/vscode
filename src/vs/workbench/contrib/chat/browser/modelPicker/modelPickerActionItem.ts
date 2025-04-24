@@ -34,10 +34,10 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 					id: model.metadata.id,
 					enabled: true,
 					checked: model.metadata.id === delegate.getCurrentModel()?.metadata.id,
-					category: { ...model.metadata.modelPickerCategory, order: 0 },
+					category: model.metadata.modelPickerCategory,
 					class: undefined,
-					description: model.metadata.description,
-					tooltip: model.metadata.name,
+					description: model.metadata.cost,
+					tooltip: model.metadata.description ?? model.metadata.name,
 					label: model.metadata.name,
 					run: () => {
 						delegate.setModel(model);

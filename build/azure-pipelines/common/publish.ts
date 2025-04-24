@@ -620,6 +620,7 @@ interface Timeline {
 		readonly name: string;
 		readonly type: string;
 		readonly state: string;
+		readonly result: string;
 	}[];
 }
 
@@ -959,11 +960,13 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
+	let timeline: Timeline;
+	let artifacts: Artifact[];
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
-		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
@@ -1044,8 +1047,25 @@ async function main() {
 		}
 	}
 
+	// Fail the job if any of the artifacts failed to publish
 	if (results.some(r => r.status === 'rejected')) {
 		throw new Error('Some artifacts failed to publish');
+	}
+
+	// Also fail the job if any of the stages did not succeed
+	let shouldFail = false;
+
+	for (const stage of stages) {
+		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+
+		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+			shouldFail = true;
+			console.error(`Stage ${stage} did not succeed: ${record.result}`);
+		}
+	}
+
+	if (shouldFail) {
+		throw new Error('Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);
