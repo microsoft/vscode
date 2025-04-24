@@ -13,7 +13,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1232,6 +1232,8 @@ export class InlineChatController2 implements IEditorContribution {
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
@@ -1329,40 +1331,44 @@ export class InlineChatController2 implements IEditorContribution {
 			const { chatModel } = session;
 			const showShowUntil = this._showWidgetOverrideObs.read(r);
 			const hasNoRequests = chatModel.getRequests().length === 0;
-
+			const hideOnRequest = inlineChatService.hideOnRequest.read(r);
 
 			const responseListener = store.add(new MutableDisposable());
 
-			store.add(chatModel.onDidChange(e => {
-				if (e.kind === 'addRequest') {
-					transaction(tx => {
-						this._showWidgetOverrideObs.set(false, tx);
-						visibleSessionObs.set(undefined, tx);
-					});
-					const { response } = e.request;
-					if (!response) {
-						return;
-					}
-					responseListener.value = response.onDidChange(async e => {
-
-						if (!response.isComplete) {
+			if (hideOnRequest) {
+				// hide the request once the request has been added, reveal it again when no edit was made
+				// or when an error happened
+				store.add(chatModel.onDidChange(e => {
+					if (e.kind === 'addRequest') {
+						transaction(tx => {
+							this._showWidgetOverrideObs.set(false, tx);
+							visibleSessionObs.set(undefined, tx);
+						});
+						const { response } = e.request;
+						if (!response) {
 							return;
 						}
+						responseListener.value = response.onDidChange(async e => {
 
-						const shouldShow = response.isCanceled // cancelled
-							|| response.result?.errorDetails // errors
-							|| !response.response.value.find(part => part.kind === 'textEditGroup'
-								&& part.edits.length > 0
-								&& isEqual(part.uri, model.uri)); // NO edits for file
+							if (!response.isComplete) {
+								return;
+							}
 
-						if (shouldShow) {
-							visibleSessionObs.set(session, undefined);
-						}
-					});
-				}
-			}));
+							const shouldShow = response.isCanceled // cancelled
+								|| response.result?.errorDetails // errors
+								|| !response.response.value.find(part => part.kind === 'textEditGroup'
+									&& part.edits.length > 0
+									&& isEqual(part.uri, model.uri)); // NO edits for file
 
-			if (showShowUntil || hasNoRequests) {
+							if (shouldShow) {
+								visibleSessionObs.set(session, undefined);
+							}
+						});
+					}
+				}));
+			}
+
+			if (showShowUntil || hasNoRequests || !hideOnRequest) {
 				visibleSessionObs.set(session, undefined);
 			} else {
 				visibleSessionObs.set(undefined, undefined);
@@ -1385,7 +1391,23 @@ export class InlineChatController2 implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
-				session.editingSession.getEntry(session.uri)?.autoAcceptController.get()?.cancel();
+				this._zone.value.widget.updateToolbar(true);
+				const entry = session.editingSession.getEntry(session.uri);
+
+				entry?.autoAcceptController.get()?.cancel();
+
+				const requestCount = observableFromEvent(this, session.chatModel.onDidChange, () => session.chatModel.getRequests().length).read(r);
+				this._zone.value.widget.updateToolbar(requestCount > 0);
+			}
+		}));
+
+		this._store.add(autorun(r => {
+
+			const session = visibleSessionObs.read(r);
+			const entry = session?.editingSession.readEntry(session.uri, r);
+			const pane = this._editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this._editor);
+			if (pane && entry) {
+				entry?.getEditorIntegration(pane);
 			}
 		}));
 	}

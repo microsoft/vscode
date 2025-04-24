@@ -32,7 +32,7 @@ export class PromptFilesLocator {
 	 * @returns List of prompt files found in the workspace.
 	 */
 	public async listFiles(type: TPromptsType): Promise<readonly URI[]> {
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService);
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
 
 		return await this.listFilesIn(absoluteLocations, type);
@@ -65,8 +65,8 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of possible unambiguous prompt file folders.
 	 */
-	public getConfigBasedSourceFolders(): readonly URI[] {
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService);
+	public getConfigBasedSourceFolders(type: TPromptsType): readonly URI[] {
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
 
 		// locations in the settings can contain glob patterns so we need

@@ -8,13 +8,15 @@ declare module 'vscode' {
 
 	/**
 	 * McpStdioServerDefinition represents an MCP server available by running
-	 * a local process and listening to its stdin and stdout streams.
+	 * a local process and listening to its stdin and stdout streams. The process
+	 * will be spawned as a child process of the extension host and by default
+	 * will not run in a shell environment.
 	 */
 	export class McpStdioServerDefinition {
 		/**
 		 * The human-readable name of the server.
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * The working directory used to start the server.
@@ -62,7 +64,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable name of the server.
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * The URI of the server. The editor will make a POST request to this URI
@@ -99,11 +101,11 @@ declare module 'vscode' {
 	 * To allow the editor to cache available servers, extensions should register
 	 * this before `activate()` resolves.
 	 */
-	export interface McpConfigurationProvider<T extends McpServerDefinition = McpServerDefinition> {
+	export interface McpServerDefinitionProvider<T extends McpServerDefinition = McpServerDefinition> {
 		/**
 		 * Optional event fired to signal that the set of available servers has changed.
 		 */
-		onDidChange?: Event<void>;
+		onDidChangeServerDefinitions?: Event<void>;
 
 		/**
 		 * Provides available MCP servers. The editor will call this method eagerly
@@ -132,6 +134,6 @@ declare module 'vscode' {
 	}
 
 	namespace lm {
-		export function registerMcpConfigurationProvider(id: string, provider: McpConfigurationProvider): Disposable;
+		export function registerMcpServerDefinitionProvider(id: string, provider: McpServerDefinitionProvider): Disposable;
 	}
 }

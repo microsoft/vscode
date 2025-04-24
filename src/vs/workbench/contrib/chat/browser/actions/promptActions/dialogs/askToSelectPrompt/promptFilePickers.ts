@@ -320,10 +320,7 @@ export class PromptFilePickers {
 		// if a "user" prompt, don't show its filesystem path in
 		// the user interface, but do that for all the "local" ones
 		const description = (storage === 'user')
-			? localize(
-				'user-prompt.capitalized',
-				'User prompt',
-			)
+			? localize('user-data-dir.capitalized', 'User data folder')
 			: this._labelService.getUriLabel(dirname(uri), { relative: true });
 
 		const tooltip = (storage === 'user')

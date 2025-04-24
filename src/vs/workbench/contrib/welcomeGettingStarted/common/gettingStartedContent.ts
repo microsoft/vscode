@@ -664,5 +664,57 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 			]
 		}
+	},
+	{
+		id: 'NewWelcomeExperience',
+		title: localize('gettingStarted.setup.title', "Get Started with VS Code"),
+		description: localize('gettingStarted.setup.description', "Customize your editor, learn the basics, and start coding"),
+		isFeatured: false,
+		icon: setupIcon,
+		when: '!isWeb',
+		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),
+		content: {
+			type: 'steps',
+			steps: [
+				createCopilotSetupStep('NewCopilotSetupSignedOut', CopilotSignedOutButton, 'chatSetupSignedOut', true),
+				createCopilotSetupStep('NewCopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && (chatPlanPro || chatPlanLimited)', false),
+				createCopilotSetupStep('NewCopilotSetupSignedIn', CopilotSignedInButton, '!chatSetupSignedOut && (!chatSetupInstalled || chatPlanCanSignUp)', true),
+				{
+					id: 'newPickColorTheme',
+					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
+					description: localize('gettingStarted.pickColor.description.interpolated', "The right theme helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n{0}", Button(localize('titleID', "Browse Color Themes"), 'command:workbench.action.selectTheme')),
+					completionEvents: [
+						'onSettingChanged:workbench.colorTheme',
+						'onCommand:workbench.action.selectTheme'
+					],
+					media: { type: 'markdown', path: 'theme_picker', }
+				},
+				{
+					id: 'newFindLanguageExtensions',
+					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
+					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
+					when: 'workspacePlatform != \'webworker\'',
+					media: {
+						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
+					},
+				},
+				{
+					id: 'newSettingsAndSync',
+					title: localize('gettingStarted.settings.title', "Tune your settings"),
+					description: localize('gettingStarted.settingsAndSync.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. [Back up and sync](command:workbench.userDataSync.actions.turnOn) your essential customizations across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
+					when: 'syncStatus != uninitialized',
+					completionEvents: ['onEvent:sync-enabled'],
+					media: {
+						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
+					},
+				},
+				{
+					id: 'newCommandPaletteTask',
+					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
+					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
+					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
+				}
+			]
+		}
 	}
 ];

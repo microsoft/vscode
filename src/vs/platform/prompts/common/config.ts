@@ -5,11 +5,11 @@
 
 import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
-import { CONFIG_KEY, DEFAULT_SOURCE_FOLDER, LOCATIONS_CONFIG_KEY } from './constants.js';
+import { CONFIG_KEY, PROMPT_DEFAULT_SOURCE_FOLDER, INSTRUCTIONS_LOCATIONS_CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER } from './constants.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
- * @see {@link CONFIG_KEY} and {@link LOCATIONS_CONFIG_KEY}.
+ * @see {@link CONFIG_KEY},  {@link PROMPT_LOCATIONS_CONFIG_KEY} and {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}.
  *
  * ### Functions
  *
@@ -29,7 +29,8 @@ import { CONFIG_KEY, DEFAULT_SOURCE_FOLDER, LOCATIONS_CONFIG_KEY } from './const
  */
 export namespace PromptsConfig {
 	export const KEY = CONFIG_KEY;
-	export const LOCATIONS_KEY = LOCATIONS_CONFIG_KEY;
+	export const PROMPT_LOCATIONS_KEY = PROMPT_LOCATIONS_CONFIG_KEY;
+	export const INSTRUCTIONS_LOCATION_KEY = INSTRUCTIONS_LOCATIONS_CONFIG_KEY;
 
 	/**
 	 * Checks if the feature is enabled.
@@ -50,12 +51,14 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
-	 * @see {@link LOCATIONS_CONFIG_KEY}.
+	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY} or  {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}.
 	 */
 	export const getLocationsValue = (
 		configService: IConfigurationService,
+		type: 'instructions' | 'prompt'
 	): Record<string, boolean> | undefined => {
-		const configValue = configService.getValue(LOCATIONS_CONFIG_KEY);
+		const key = type === 'instructions' ? INSTRUCTIONS_LOCATIONS_CONFIG_KEY : PROMPT_LOCATIONS_CONFIG_KEY;
+		const configValue = configService.getValue(key);
 
 		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {
 			return undefined;
@@ -85,26 +88,28 @@ export namespace PromptsConfig {
 
 	/**
 	 * Gets list of source folders for prompt files.
-	 * Defaults to {@link DEFAULT_SOURCE_FOLDER}.
+	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER} or {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER}.
 	 */
 	export const promptSourceFolders = (
 		configService: IConfigurationService,
+		type: 'instructions' | 'prompt'
 	): string[] => {
-		const value = getLocationsValue(configService);
+		const value = getLocationsValue(configService, type);
+		const defaultSourceFolder = type === 'instructions' ? INSTRUCTIONS_DEFAULT_SOURCE_FOLDER : PROMPT_DEFAULT_SOURCE_FOLDER;
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
 			const paths: string[] = [];
 
 			// if the default source folder is not explicitly disabled, add it
-			if (value[DEFAULT_SOURCE_FOLDER] !== false) {
-				paths.push(DEFAULT_SOURCE_FOLDER);
+			if (value[defaultSourceFolder] !== false) {
+				paths.push(defaultSourceFolder);
 			}
 
 			// copy all the enabled paths to the result list
 			for (const [path, enabled] of Object.entries(value)) {
 				// we already added the default source folder, so skip it
-				if ((enabled === false) || (path === DEFAULT_SOURCE_FOLDER)) {
+				if ((enabled === false) || (path === defaultSourceFolder)) {
 					continue;
 				}
 

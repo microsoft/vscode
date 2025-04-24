@@ -135,6 +135,7 @@ export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'file';
 	readonly value: URI | Location;
 	readonly isRoot: boolean;
+	readonly modelDescription: string;
 }
 
 export namespace IDiagnosticVariableEntryFilterData {
@@ -1449,22 +1450,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._editingSession = new ObservablePromise(editingSessionPromise);
 		this._editingSession.promise.then(editingSession => {
 			this._store.isDisposed ? editingSession.dispose() : this._register(editingSession);
-
-			// const currentStates = new ResourceMap<ModifiedFileEntryState>();
-			// this._register(autorun(r => {
-			// 	editingSession.entries.read(r).forEach(entry => {
-			// 		const state = entry.state.read(r);
-			// 		if (state !== currentStates.get(entry.modifiedURI)) {
-			// 			currentStates.set(entry.modifiedURI, state);
-			// 			if (state === ModifiedFileEntryState.Rejected) {
-			// 				this.currentWorkingSetEntries.push({
-			// 					uri: entry.modifiedURI,
-			// 					state: ChatAgentWorkingSetEntryState.Rejected
-			// 				});
-			// 			}
-			// 		}
-			// 	});
-			// }));
 		});
 	}
 

@@ -5,9 +5,10 @@
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolResult } from '../languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -44,6 +45,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly toolId: string;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+
+	public readonly progress = observableValue<{ message?: string | IMarkdownString; progress: number }>(this, { progress: 0 });
 
 	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
@@ -82,6 +85,14 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	public get confirmationMessages(): IToolConfirmationMessages | undefined {
 		return this._confirmationMessages;
+	}
+
+	public acceptProgress(step: IToolProgressStep) {
+		const prev = this.progress.get();
+		this.progress.set({
+			progress: step.increment ? (prev.progress + step.increment) : prev.progress,
+			message: step.message,
+		}, undefined);
 	}
 
 	public toJSON(): IChatToolInvocationSerialized {

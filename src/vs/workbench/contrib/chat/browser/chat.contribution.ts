@@ -20,7 +20,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { DEFAULT_SOURCE_FOLDER as PROMPT_FILES_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -48,7 +48,7 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerReusablePromptLanguageFeatures } from '../common/promptSyntax/languageFeatures/providers/index.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
@@ -282,8 +282,9 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.enabled.description',
-				"Enable reusable prompt files (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
+				"Enable reusable prompt (`*{0}`) and instruction files in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
 				PROMPT_FILE_EXTENSION,
+				INSTRUCTION_FILE_EXTENSION,
 				PROMPT_DOCUMENTATION_URL,
 			),
 			default: true,
@@ -293,12 +294,40 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt files in Chat, Edits, and Inline Chat sessions."),
+				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
 				previewFeature: true,
 				defaultValue: false
 			}
 		},
-		[PromptsConfig.LOCATIONS_KEY]: {
+		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
+			type: 'object',
+			title: nls.localize(
+				'chat.instructions.config.locations.title',
+				"Instructions File Locations",
+			),
+			markdownDescription: nls.localize(
+				'chat.instructions.config.locations.description',
+				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
+				INSTRUCTION_FILE_EXTENSION,
+				INSTRUCTIONS_DOCUMENTATION_URL,
+			),
+			default: {
+				[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+			},
+			additionalProperties: { type: 'boolean' },
+			restricted: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			examples: [
+				{
+					[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+				},
+				{
+					[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+					'/Users/vscode/repos/instructions': true,
+				},
+			],
+		},
+		[PromptsConfig.PROMPT_LOCATIONS_KEY]: {
 			type: 'object',
 			title: nls.localize(
 				'chat.reusablePrompts.config.locations.title',
@@ -306,12 +335,12 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.locations.description',
-				"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
+				"Specify location(s) of reusable prompt files (`*{0}`) that can be run in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				PROMPT_FILE_EXTENSION,
 				PROMPT_DOCUMENTATION_URL,
 			),
 			default: {
-				[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
+				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
@@ -319,10 +348,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
-					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],

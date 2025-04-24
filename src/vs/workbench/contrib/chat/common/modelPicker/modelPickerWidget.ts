@@ -3,15 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+import { localize } from '../../../../../nls.js';
 
-'use strict';
-
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.ts'
-	}
-});
+export const DEFAULT_MODEL_PICKER_CATEGORY = { label: localize('chat.modelPicker.other', "Other Models") };

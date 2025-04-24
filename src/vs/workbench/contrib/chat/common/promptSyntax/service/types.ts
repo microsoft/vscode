@@ -46,6 +46,13 @@ export interface IPromptPath {
 }
 
 /**
+ * Type for a shared prompt parser instance returned by the {@link IPromptsService}.
+ * Because the parser is shared, we omit the `dispose` method from
+ * the original type so the caller cannot dispose it prematurely
+ */
+export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
+
+/**
  * Provides prompt services.
  */
 export interface IPromptsService extends IDisposable {
@@ -57,7 +64,7 @@ export interface IPromptsService extends IDisposable {
 	 */
 	getSyntaxParserFor(
 		model: ITextModel,
-	): TextModelPromptParser & { disposed: false };
+	): TSharedPrompt & { disposed: false };
 
 	/**
 	 * List all available prompt files.

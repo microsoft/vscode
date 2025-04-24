@@ -60,19 +60,35 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A language model response part containing an image, returned from a {@link LanguageModelChatResponse}.
+	 * A language model response part containing arbitrary data, returned from a {@link LanguageModelChatResponse}.
 	 */
 	export class LanguageModelDataPart {
 		/**
-		 * The image content of the part.
+		 * Factory function to create a `LanguageModelDataPart` for an image.
+		 * @param data Binary image data
+		 * @param mimeType The MIME type of the image
 		 */
-		value: ChatImagePart;
+		static image(data: Uint8Array, mimeType: ChatImageMimeType): LanguageModelDataPart;
+
+		static json(value: object): LanguageModelDataPart;
+
+		static text(value: string): LanguageModelDataPart;
 
 		/**
-		 * Construct an image part with the given content.
-		 * @param value The image content of the part.
+		 * The mime type which determines how the data property is interpreted.
 		 */
-		constructor(value: ChatImagePart);
+		mimeType: string;
+
+		/**
+		 * The data of the part.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * Construct a generic data part with the given content.
+		 * @param value The data of the part.
+		 */
+		constructor(data: Uint8Array, mimeType: string);
 	}
 
 	/**
@@ -86,20 +102,8 @@ declare module 'vscode' {
 		BMP = 'image/bmp',
 	}
 
-	export interface ChatImagePart {
-		/**
-		 * The image's MIME type.
-		 */
-		mimeType: ChatImageMimeType;
-
-		/**
-		 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
-		 */
-		data: Uint8Array;
-	}
-
 	/**
-	 * Tagging onto this proposal, because otherwise managing two different extensions of LangaugeModelChatMessage could be confusing.
+	 * Tagging onto this proposal, because otherwise managing two different extensions of LanguageModelChatMessage could be confusing.
 	 * A language model response part containing arbitrary model-specific data, returned from a {@link LanguageModelChatResponse}.
 	 * TODO@API naming, looking at LanguageModelChatRequestOptions.modelOptions, but LanguageModelModelData is not very good.
 	 * LanguageModelOpaqueData from prompt-tsx?

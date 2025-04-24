@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
+import { basename } from '../../../../../../base/common/path.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
-import { localize } from '../../../../../../nls.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 
 /**
  * Provides prompt services.
@@ -81,7 +81,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		model: ITextModel,
 	): TextModelPromptParser & { disposed: false } {
 		assert(
-			!model.isDisposed(),
+			model.isDisposed() === false,
 			'Cannot create a prompt syntax parser for a disposed model.',
 		);
 
@@ -111,7 +111,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const result: IPromptPath[] = [];
 
-		for (const uri of this.fileLocator.getConfigBasedSourceFolders()) {
+		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
 			result.push({ uri, storage: 'local', type });
 		}
 		const userHome = this.userDataService.currentProfile.promptsHome;
@@ -121,7 +121,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		if (command.match(/^prompt:[\w_\-\.]+/)) {
+		if (command.match(/^[\w_\-\.]+/)) {
 			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
 		}
 		return undefined;
@@ -133,13 +133,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		const files = await this.listPromptFiles('prompt');
 		const command = data.command;
-		return files.find(file => getCommandName(file.uri.path) === command);
+		return files.find(file => getPromptCommandName(file.uri.path) === command);
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles('prompt');
 		return promptFiles.map(promptPath => {
-			const command = getCommandName(promptPath.uri.path);
+			const command = getPromptCommandName(promptPath.uri.path);
 			return {
 				command,
 				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
@@ -149,9 +149,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 }
 
-function getCommandName(path: string) {
+export function getPromptCommandName(path: string) {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
-	return `prompt:${name}`;
+	return name;
 }
 
 

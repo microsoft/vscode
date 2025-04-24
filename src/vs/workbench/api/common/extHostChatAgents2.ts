@@ -560,12 +560,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>) {
+	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): vscode.ChatRequestToolSelection | undefined {
 		if (!isNonEmptyArray(request.userSelectedTools)) {
 			return undefined;
 		}
 		const selector = new Set(request.userSelectedTools);
-		return this._tools.getTools(extension).filter(candidate => selector.has(candidate.name));
+		const tools = this._tools.getTools(extension).filter(candidate => selector.has(candidate.name));
+		return {
+			tools,
+			isExclusive: request.toolSelectionIsExclusive,
+		};
 	}
 
 	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
