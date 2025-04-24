@@ -5,6 +5,13 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
+  - script: |
+      set -e
+      if [ "$(System.StageAttempt)" == "1" ]; then
+        exit 1
+      fi
+    displayName: DO NOT MERGE
+
   - template: ../distro/download-distro.yml@self
 
   - task: AzureKeyVault@2
