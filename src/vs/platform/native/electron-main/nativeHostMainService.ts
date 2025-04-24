@@ -765,7 +765,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
-	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token?: CancellationToken): Promise<IElementData | undefined> {
+	// separate from getElementData although similar components. this is to grab browser id from the simple browser so we can target them in DOM later on.
+	async getBrowserId(windowId: number | undefined): Promise<string | undefined> {
 		const window = this.windowById(windowId, windowId);
 		if (!window?.win) {
 			return undefined;
@@ -784,95 +785,172 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
 
-		// TODO: grab the correct vscodeBrowserReqId
-		const myTarget = targetInfos.find((t: { type: string; url: string | string[] }) => t.type === 'iframe' && t.url.includes('vscodeBrowserReqId'));
-		if (!myTarget) {
-			throw new Error('No target found');
+		let resultId: string | undefined = undefined;
+		try {
+			// find parent id and extract id
+			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
+				const url = new URL(targetInfo.url);
+				return url.searchParams.get('parentId') === window?.id.toString();
+			});
+
+			if (matchingTarget) {
+				const url = new URL(matchingTarget.url);
+				resultId = url.searchParams.get('id')!;
+			}
+		} catch (e) {
+			debuggers.detach();
+			throw new Error('No result id found.', e);
 		}
 
-		const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
-			targetId: myTarget.targetId,
-			flatten: true,
-		});
+		debuggers.detach();
+		return resultId;
+	}
 
-		await debuggers.sendCommand('DOM.enable', {}, sessionId);
-		await debuggers.sendCommand('CSS.enable', {}, sessionId);
-		await debuggers.sendCommand('Overlay.enable', {}, sessionId);
-		await debuggers.sendCommand('Debugger.enable', {}, sessionId);
-		await debuggers.sendCommand('Runtime.enable', {}, sessionId);
+	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token?: CancellationToken): Promise<IElementData | undefined> {
+		const window = this.windowById(windowId, windowId);
+		if (!window?.win) {
+			return undefined;
+		}
 
-		await debuggers.sendCommand('Overlay.setInspectMode', {
-			mode: 'searchForNode',
-			highlightConfig: {
-				showInfo: true,
-				showRulers: false,
-				showStyles: true,
-				showAccessibilityInfo: true,
-				showExtensionLines: false,
-				contrastAlgorithm: 'aa',
-				contentColor: { r: 173, g: 216, b: 255, a: 0.8 },
-				paddingColor: { r: 150, g: 200, b: 255, a: 0.5 },
-				borderColor: { r: 120, g: 180, b: 255, a: 0.7 },
-				marginColor: { r: 200, g: 220, b: 255, a: 0.4 },
-				eventTargetColor: { r: 130, g: 160, b: 255, a: 0.8 },
-				shapeColor: { r: 130, g: 160, b: 255, a: 0.8 },
-				shapeMarginColor: { r: 130, g: 160, b: 255, a: 0.5 },
-				gridHighlightConfig: {
-					rowGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
-					rowHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-					columnGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
-					columnHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-					rowLineColor: { r: 120, g: 180, b: 255 },
-					columnLineColor: { r: 120, g: 180, b: 255 },
-					rowLineDash: true,
-					columnLineDash: true
-				},
-				flexContainerHighlightConfig: {
-					containerBorder: {
-						color: { r: 120, g: 180, b: 255 },
-						pattern: 'solid'
-					},
-					itemSeparator: {
-						color: { r: 140, g: 190, b: 255 },
-						pattern: 'solid'
-					},
-					lineSeparator: {
-						color: { r: 140, g: 190, b: 255 },
-						pattern: 'solid'
-					},
-					mainDistributedSpace: {
-						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-					},
-					crossDistributedSpace: {
-						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-					},
-					rowGapSpace: {
-						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-					},
-					columnGapSpace: {
-						hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-						fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-					}
-				},
-				flexItemHighlightConfig: {
-					baseSizeBox: {
-						hatchColor: { r: 130, g: 170, b: 255, a: 0.6 }
-					},
-					baseSizeBorder: {
-						color: { r: 120, g: 180, b: 255 },
-						pattern: 'solid'
-					},
-					flexibilityArrow: {
-						color: { r: 130, g: 190, b: 255 }
-					}
-				},
-			},
-		}, sessionId);
+		// Find the simple browser webview
+		const allWebContents = webContents.getAllWebContents();
+		const simpleBrowserWebview = allWebContents.find(webContent => webContent.getTitle().includes('Simple Browser'));
 
-		const nodeData = await this.getNodeData(sessionId, debuggers, window.win);
+		if (!simpleBrowserWebview) {
+			return undefined;
+		}
+
+		const debuggers = simpleBrowserWebview.debugger;
+		debuggers.attach();
+
+		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
+		let resultId: string | undefined = undefined;
+		let target: typeof targetInfos[number] | undefined = undefined;
+		let targetSessionId: number | undefined = undefined;
+		try {
+			// find parent id and extract id
+			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
+				const url = new URL(targetInfo.url);
+				return url.searchParams.get('parentId') === window?.id.toString();
+			});
+
+			if (matchingTarget) {
+				const url = new URL(matchingTarget.url);
+				resultId = url.searchParams.get('id')!;
+			}
+
+			// use id to grab simple browser target
+			if (resultId) {
+				target = targetInfos.find((targetInfo: { url: string }) => {
+					const url = new URL(targetInfo.url);
+					return url.searchParams.get('id') === resultId && url.searchParams.get('vscodeBrowserReqId')!;
+				});
+			}
+
+			const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
+				targetId: target.targetId,
+				flatten: true,
+			});
+
+			targetSessionId = sessionId;
+
+			await debuggers.sendCommand('DOM.enable', {}, sessionId);
+			await debuggers.sendCommand('CSS.enable', {}, sessionId);
+			await debuggers.sendCommand('Overlay.enable', {}, sessionId);
+			await debuggers.sendCommand('Debugger.enable', {}, sessionId);
+			await debuggers.sendCommand('Runtime.enable', {}, sessionId);
+
+			await debuggers.sendCommand('Runtime.evaluate', {
+				expression: `(function() {
+					const style = document.createElement('style');
+					style.id = '__pseudoBlocker__';
+					style.textContent = '*::before, *::after { pointer-events: none !important; }';
+					document.head.appendChild(style);
+				})();`,
+			}, sessionId);
+
+			// slightly changed default CDP debugger inspect colors
+			await debuggers.sendCommand('Overlay.setInspectMode', {
+				mode: 'searchForNode',
+				highlightConfig: {
+					showInfo: true,
+					showRulers: false,
+					showStyles: true,
+					showAccessibilityInfo: true,
+					showExtensionLines: false,
+					contrastAlgorithm: 'aa',
+					contentColor: { r: 173, g: 216, b: 255, a: 0.8 },
+					paddingColor: { r: 150, g: 200, b: 255, a: 0.5 },
+					borderColor: { r: 120, g: 180, b: 255, a: 0.7 },
+					marginColor: { r: 200, g: 220, b: 255, a: 0.4 },
+					eventTargetColor: { r: 130, g: 160, b: 255, a: 0.8 },
+					shapeColor: { r: 130, g: 160, b: 255, a: 0.8 },
+					shapeMarginColor: { r: 130, g: 160, b: 255, a: 0.5 },
+					gridHighlightConfig: {
+						rowGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
+						rowHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+						columnGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
+						columnHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+						rowLineColor: { r: 120, g: 180, b: 255 },
+						columnLineColor: { r: 120, g: 180, b: 255 },
+						rowLineDash: true,
+						columnLineDash: true
+					},
+					flexContainerHighlightConfig: {
+						containerBorder: {
+							color: { r: 120, g: 180, b: 255 },
+							pattern: 'solid'
+						},
+						itemSeparator: {
+							color: { r: 140, g: 190, b: 255 },
+							pattern: 'solid'
+						},
+						lineSeparator: {
+							color: { r: 140, g: 190, b: 255 },
+							pattern: 'solid'
+						},
+						mainDistributedSpace: {
+							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+						},
+						crossDistributedSpace: {
+							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+						},
+						rowGapSpace: {
+							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+						},
+						columnGapSpace: {
+							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
+							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
+						}
+					},
+					flexItemHighlightConfig: {
+						baseSizeBox: {
+							hatchColor: { r: 130, g: 170, b: 255, a: 0.6 }
+						},
+						baseSizeBorder: {
+							color: { r: 120, g: 180, b: 255 },
+							pattern: 'solid'
+						},
+						flexibilityArrow: {
+							color: { r: 130, g: 190, b: 255 }
+						}
+					},
+				},
+			}, sessionId);
+		} catch (e) {
+			debuggers.detach();
+			throw new Error('No target found', e);
+		}
+
+		if (!targetSessionId) {
+			debuggers.detach();
+			throw new Error('No target session id found');
+		}
+
+		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win);
 		debuggers.detach();
 
 		const zoomFactor = simpleBrowserWebview.getZoomFactor();
@@ -890,6 +968,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return new Promise((resolve) => {
 			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
+
+					await debuggers.sendCommand('Runtime.evaluate', {
+						expression: `(() => {
+								const style = document.getElementById('__pseudoBlocker__');
+								if (style) style.remove();
+							})();`,
+					}, sessionId);
+
+
 					debuggers.off('message', onMessage);
 					const backendNodeId = params?.backendNodeId;
 					if (!backendNodeId) {
@@ -904,11 +991,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						}
 						const nodeId = nodeIds[0];
 
-						const { outerHTML } = await debuggers.sendCommand('DOM.getOuterHTML', { nodeId }, sessionId);
-						if (!outerHTML) {
-							throw new Error('Failed to get outerHTML.');
-						}
-
 						const { model } = await debuggers.sendCommand('DOM.getBoxModel', { nodeId }, sessionId);
 						if (!model) {
 							throw new Error('Failed to get box model.');
@@ -916,37 +998,113 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 						const margin = model.margin;
 						const x = margin[0];
-						const y = margin[1] + 32.4; // 32.4 is height of the title bar
+						const y = margin[1] + 32.4 + 35; // 32.4 is height of the title bar, 35 is height of the tab bar
 						const width = margin[2] - margin[0];
 						const height = margin[5] - margin[1];
 
-						// Turn computed css into nice string
+						const matched = await debuggers.sendCommand('CSS.getMatchedStylesForNode', { nodeId }, sessionId);
+						if (!matched) {
+							throw new Error('Failed to get matched css.');
+						}
+
 						const response: ComputedStyleResponse = await debuggers.sendCommand('CSS.getComputedStyleForNode', { nodeId }, sessionId);
 						if (!response || !response.computedStyle) {
 							throw new Error('Failed to get computed style.');
 						}
-						const cssString = response.computedStyle.map(({ name, value }) => `${name}: ${value};`).join(' ');
+
+						const formatted = this.formatMatchedStyles(matched, response);
+
+						const { outerHTML } = await debuggers.sendCommand('DOM.getOuterHTML', { nodeId }, sessionId);
+						if (!outerHTML) {
+							throw new Error('Failed to get outerHTML.');
+						}
 
 						resolve({
 							outerHTML,
-							computedStyle: cssString,
+							computedStyle: formatted,
 							bounds: { x, y, width, height }
 						});
 					} catch (err) {
+						debuggers.detach();
 						throw new Error(`Failed to get node data: ${err}`);
 					}
 				}
 			};
 
-			window.webContents.on('ipc-message', (event, channel) => {
+			window.webContents.on('ipc-message', async (event, channel) => {
 				if (channel === 'vscode:cancelElementSelection') {
 					debuggers.off('message', onMessage);
-					debuggers.detach();
+					if (debuggers.isAttached()) {
+						debuggers.detach();
+					}
 				}
 			});
 
 			debuggers.on('message', onMessage);
 		});
+	}
+
+	formatMatchedStyles(matched: any, computed: any): string {
+		const lines: string[] = [];
+
+		// inline
+		if (matched.inlineStyle?.cssProperties?.length) {
+			lines.push('/* Inline style */');
+			lines.push('element {');
+			for (const prop of matched.inlineStyle.cssProperties) {
+				if (prop.name && prop.value) {
+					lines.push(`  ${prop.name}: ${prop.value};`);
+				}
+			}
+			lines.push('}\n');
+		}
+
+		// matched
+		if (matched.matchedCSSRules?.length) {
+			for (const ruleEntry of matched.matchedCSSRules) {
+				const rule = ruleEntry.rule;
+				const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
+				lines.push(`/* Matched Rule from ${rule.origin} */`);
+				lines.push(`${selectors} {`);
+				for (const prop of rule.style.cssProperties) {
+					if (prop.name && prop.value) {
+						lines.push(`  ${prop.name}: ${prop.value};`);
+					}
+				}
+				lines.push('}\n');
+			}
+		}
+
+		// inherited rules
+		if (matched.inherited?.length) {
+			let level = 1;
+			for (const inherited of matched.inherited) {
+				const rules = inherited.matchedCSSRules || [];
+				for (const ruleEntry of rules) {
+					const rule = ruleEntry.rule;
+					const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
+					lines.push(`/* Inherited from ancestor level ${level} (${rule.origin}) */`);
+					lines.push(`${selectors} {`);
+					for (const prop of rule.style.cssProperties) {
+						if (prop.name && prop.value) {
+							lines.push(`  ${prop.name}: ${prop.value};`);
+						}
+					}
+					lines.push('}\n');
+				}
+				level++;
+			}
+		}
+
+		// computed css
+		if (computed?.computedStyle?.length) {
+			lines.push('/* Computed style */');
+			for (const prop of computed.computedStyle) {
+				lines.push(`${prop.name}: ${prop.value};`);
+			}
+		}
+
+		return '\n' + lines.join('\n');
 	}
 
 	//#endregion

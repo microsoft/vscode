@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from '../../../../../base/browser/dom.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -658,30 +657,6 @@ export class AttachContextAction extends Action2 {
 						// Apply the original icon with the new name
 						fullName: selection
 					});
-				} else if (attachmentPick.kind === 'element') {
-					try {
-						const elementInfo = await startElementSelection(layoutService, hostService, webviewService);
-						if (!elementInfo) {
-							return;
-						}
-						toAttach.push({
-							id: 'element-' + Date.now(),
-							name: elementInfo.displayName,
-							fullName: elementInfo.displayName,
-							value: elementInfo.html + '/n' + elementInfo.css,
-							kind: 'element',
-							icon: ThemeIcon.fromId(Codicon.layout.id),
-						}, {
-							id: 'element-screenshot-' + Date.now(),
-							name: 'Element Screenshot',
-							fullName: 'Element Screenshot',
-							kind: 'image',
-							value: elementInfo.screenshot
-						});
-					} catch (err) {
-						notificationService.error(localize('chatContext.element.error', 'Failed to capture element: {0}', err.message));
-					}
-
 				} else if (attachmentPick.kind === 'tool') {
 					toAttach.push({
 						id: attachmentPick.id,
@@ -1028,95 +1003,3 @@ export class AttachContextAction extends Action2 {
  * Register all actions related to reusable prompt files.
  */
 registerReusablePromptActions();
-
-async function startElementSelection(layoutService: ILayoutService, hostService: IHostService, webviewService: IWebviewService, token?: CancellationToken): Promise<{ displayName: string; html: string; css: string; screenshot: Uint8Array }> {
-	// target and limit to the simple browser
-	const cts = new CancellationTokenSource();
-	const targetWindow = DOM.getActiveWindow().document;
-
-	targetWindow.querySelector('#element-selection-message')?.remove();
-
-	const container = targetWindow.createElement('div');
-	container.id = 'element-selection-message';
-	container.className = 'element-selection-message';
-
-	const message = targetWindow.createElement('span');
-	message.textContent = 'Click an element to select it...';
-	container.appendChild(message);
-
-	const cancel = targetWindow.createElement('button');
-	cancel.classList.add('element-selection-cancel');
-	cancel.textContent = 'Cancel';
-
-	cancel.onclick = () => {
-		cts.cancel();
-		container.remove();
-		message.textContent = 'Element selection canceled';
-	};
-
-	const simpleBrowserIframe = targetWindow.querySelector('iframe.webview.ready') as HTMLIFrameElement;
-	if (!simpleBrowserIframe) {
-		throw new Error('Simple Browser iframe not found');
-	}
-
-	container.appendChild(cancel);
-	if (!simpleBrowserIframe.parentElement) {
-		throw new Error('Simple Browser iframe parent not found');
-	}
-
-	simpleBrowserIframe.parentElement.appendChild(container);
-
-	for (const webview of webviewService.webviews) {
-		console.log('some webviews');
-		console.log(webview.extension?.location?.fsPath);
-		console.log(webview);
-	}
-
-	const rect = simpleBrowserIframe.getBoundingClientRect();
-	const elementData = await hostService.getElementData(rect.x, rect.y, cts.token);
-	if (!elementData) {
-		throw new Error('Element data not found');
-	}
-
-	const bounds = elementData.bounds;
-
-	// Wait 1 extra frame to make sure overlay is gone
-	await new Promise(resolve => setTimeout(resolve, 100));
-
-	// remove container so we don't block anything
-	container.remove();
-	const screenshot = await hostService.getScreenshot(bounds);
-	if (!screenshot) {
-		throw new Error('Screenshot failed');
-	}
-
-	simpleBrowserIframe.parentElement.appendChild(container);
-	message.textContent = 'Finished selecting element';
-	cancel.remove();
-
-	setTimeout(() => {
-		container.remove();
-	}, 3000);
-
-	return {
-		displayName: getDisplayNameFromOuterHTML(elementData.outerHTML),
-		html: elementData.outerHTML,
-		css: elementData.computedStyle,
-		screenshot: screenshot.buffer
-	};
-}
-
-// Parse the outerHTML of an element to get its display name
-function getDisplayNameFromOuterHTML(outerHTML: string): string {
-	const firstElementMatch = outerHTML.match(/^<(\w+)([^>]*?)>/);
-	if (!firstElementMatch) {
-		throw new Error('No outer element found');
-	}
-
-	const tagName = firstElementMatch[1];
-	const idMatch = firstElementMatch[2].match(/\s+id\s*=\s*["']([^"']+)["']/i);
-	const id = idMatch ? `#${idMatch[1]}` : '';
-	const classMatch = firstElementMatch[2].match(/\s+class\s*=\s*["']([^"']+)["']/i);
-	const className = classMatch ? `.${classMatch[1].replace(/\s+/g, '.')}` : '';
-	return `${tagName}${id}${className}`;
-}

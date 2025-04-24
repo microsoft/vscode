@@ -653,8 +653,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async getElementData(): Promise<IElementData | undefined> {
-		// This is a stub implementation. The actual implementation would depend on the specific
-		// requirements and the environment in which this code is running.
+		return undefined;
+	}
+
+	async getBrowserId(): Promise<string | undefined> {
 		return undefined;
 	}
 

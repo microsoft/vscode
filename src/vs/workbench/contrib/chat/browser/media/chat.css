@@ -1883,26 +1883,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: absolute;
 	bottom: 10px;
 	right: 10px;
-	padding: 8px 12px;
-	background: rgba(0, 122, 204, 0.8);
-	color: white;
+	padding: 8px 10px;
+	background: var(--vscode-notifications-background);
+	color: var(--vscode-notifications-foreground);
 	border-radius: 4px;
 	font-size: 12px;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-	z-index: 999999;
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	width: max-content
 }
 
-.element-selection-cancel {
-	background: rgba(255, 255, 255, 0.15);
-	border: none;
-	color: white;
-	padding: 4px 8px;
+.element-selection-cancel,
+.element-selection-start {
+	background: var(--vscode-button-background);
+	border: var(--vscode-button-border);
+	color: var(--vscode-button-foreground);
+	padding: 5px 10px;
 	border-radius: 3px;
 	cursor: pointer;
-	font-size: 12px;
+	font-size: 13px;
 	font-family: inherit;
+	white-space: nowrap;
 }

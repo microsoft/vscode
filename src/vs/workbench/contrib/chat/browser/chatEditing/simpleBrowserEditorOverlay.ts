@@ -1,0 +1,286 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import '../media/chatEditingEditorOverlay.css';
+import { combinedDisposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derivedOpts, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { localize } from '../../../../../nls.js';
+import { IChatService } from '../../common/chatService.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { IChatWidgetService, showChatView } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+
+class SimpleBrowserOverlayWidget {
+
+	private readonly _domNode: HTMLElement;
+
+	private readonly _showStore = new DisposableStore();
+
+	constructor(
+		private readonly _editor: IEditorGroup,
+		private readonly _container: HTMLElement,
+		@IHostService private readonly _hostService: IHostService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly _viewService: IViewsService,
+	) {
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'element-selection-message';
+
+		const message = document.createElement('span');
+		const startSelectionMessage = localize('elementSelectionMessage', 'Add UI element to chat.');
+		message.textContent = startSelectionMessage;
+		this._domNode.appendChild(message);
+
+		const startSelection = document.createElement('button');
+		startSelection.classList.add('element-selection-start');
+		startSelection.textContent = localize('elementSelectionStart', 'Start Selection');
+
+		let cts: CancellationTokenSource;
+		startSelection.onclick = async () => {
+			cts = new CancellationTokenSource();
+			this._editor.focus();
+			message.textContent = localize('elementSelectionInProgress', 'Selection in progress...');
+			this._domNode.removeChild(startSelection);
+			this._domNode.appendChild(cancel);
+			await this.addElementToChat(cts);
+			this._domNode.removeChild(cancel);
+			message.textContent = localize('elementSelectionComplete', 'Element added to chat.');
+			setTimeout(() => {
+				message.textContent = startSelectionMessage;
+				this._domNode.appendChild(startSelection);
+			}, 2000);
+		};
+		this._domNode.appendChild(startSelection);
+
+		// Cancel button
+		const cancel = document.createElement('button');
+		cancel.classList.add('element-selection-cancel');
+		cancel.textContent = localize('elementSelectionCancel', 'Cancel');
+		cancel.onclick = () => {
+			cts.cancel();
+			cancel.remove();
+			message.textContent = localize('elementCancelMessage', 'Selection canceled');
+			setTimeout(() => {
+				message.textContent = startSelectionMessage;
+				this._domNode.appendChild(startSelection);
+			}, 2000);
+		};
+	}
+
+	async addElementToChat(cts: CancellationTokenSource) {
+		const rect = this._container.getBoundingClientRect();
+		const elementData = await this._hostService.getElementData(rect.x, rect.y, cts.token);
+		if (!elementData) {
+			throw new Error('Element data not found');
+		}
+		const bounds = elementData.bounds;
+
+		// remove container so we don't block anything on screenshot
+		this._domNode.style.display = 'none';
+
+		// Wait 1 extra frame to make sure overlay is gone
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		const screenshot = await this._hostService.getScreenshot(bounds);
+		if (!screenshot) {
+			throw new Error('Screenshot failed');
+		}
+		this._domNode.style.display = '';
+		const widget = await showChatView(this._viewService) ?? this._chatWidgetService.lastFocusedWidget;
+
+		widget?.attachmentModel?.addContext({
+			id: 'element-' + Date.now(),
+			name: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
+			fullName: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
+			value: elementData.outerHTML + elementData.computedStyle,
+			kind: 'element',
+			icon: ThemeIcon.fromId(Codicon.layout.id),
+		}, {
+			id: 'element-screenshot-' + Date.now(),
+			name: 'Element Screenshot',
+			fullName: 'Element Screenshot',
+			kind: 'image',
+			value: screenshot.buffer
+		});
+	}
+
+	getDisplayNameFromOuterHTML(outerHTML: string): string {
+		const firstElementMatch = outerHTML.match(/^<(\w+)([^>]*?)>/);
+		if (!firstElementMatch) {
+			throw new Error('No outer element found');
+		}
+
+		const tagName = firstElementMatch[1];
+		const idMatch = firstElementMatch[2].match(/\s+id\s*=\s*["']([^"']+)["']/i);
+		const id = idMatch ? `#${idMatch[1]}` : '';
+		const classMatch = firstElementMatch[2].match(/\s+class\s*=\s*["']([^"']+)["']/i);
+		const className = classMatch ? `.${classMatch[1].replace(/\s+/g, '.')}` : '';
+		return `${tagName}${id}${className}`;
+	}
+
+	dispose() {
+		this.hide();
+		this._showStore.dispose();
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	show() {
+		this._showStore.clear();
+	}
+
+	hide() {
+		this._showStore.clear();
+	}
+}
+
+class SimpleBrowserOverlayController {
+
+	private readonly _store = new DisposableStore();
+
+	private readonly _domNode = document.createElement('div');
+
+	constructor(
+		container: HTMLElement,
+		group: IEditorGroup,
+		@IInstantiationService instaService: IInstantiationService,
+		@IChatService chatService: IChatService,
+		@IChatEditingService chatEditingService: IChatEditingService,
+		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
+	) {
+
+		this._domNode.classList.add('chat-editing-editor-overlay');
+		this._domNode.style.position = 'absolute';
+		this._domNode.style.bottom = `5px`;
+		this._domNode.style.right = `5px`;
+		this._domNode.style.zIndex = `100`;
+
+		const widget = instaService.createInstance(SimpleBrowserOverlayWidget, group, container);
+		this._domNode.appendChild(widget.getDomNode());
+		this._store.add(toDisposable(() => this._domNode.remove()));
+		this._store.add(widget);
+
+		const show = () => {
+			if (!container.contains(this._domNode)) {
+				container.appendChild(this._domNode);
+			}
+		};
+
+		const hide = () => {
+			if (container.contains(this._domNode)) {
+				widget.hide();
+				this._domNode.remove();
+			}
+		};
+
+		const activeEditorSignal = observableSignalFromEvent(this, Event.any(group.onDidActiveEditorChange, group.onDidModelChange));
+
+		const activeUriObs = derivedOpts({ equalsFn: isEqual }, r => {
+
+			activeEditorSignal.read(r); // signal
+
+			const editor = group.activeEditorPane;
+			if (editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view') {
+				const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
+				return uri;
+			}
+			return undefined;
+		});
+
+		this._store.add(autorun(r => {
+
+			const data = activeUriObs.read(r);
+
+			if (!data) {
+				hide();
+				return;
+			}
+
+			widget.show();
+			show();
+
+
+		}));
+	}
+
+	dispose(): void {
+		this._store.dispose();
+	}
+}
+
+export class SimpleBrowserOverlay implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.simpleBrowser.overlay';
+
+	private readonly _store = new DisposableStore();
+
+	constructor(
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+
+		const editorGroups = observableFromEvent(
+			this,
+			Event.any(editorGroupsService.onDidAddGroup, editorGroupsService.onDidRemoveGroup),
+			() => editorGroupsService.groups
+		);
+
+		const overlayWidgets = new DisposableMap<IEditorGroup>();
+
+		this._store.add(autorun(r => {
+
+			const toDelete = new Set(overlayWidgets.keys());
+			const groups = editorGroups.read(r);
+
+
+			for (const group of groups) {
+
+				if (!(group instanceof EditorGroupView)) {
+					// TODO@jrieken better with https://github.com/microsoft/vscode/tree/ben/layout-group-container
+					continue;
+				}
+
+				toDelete.delete(group); // we keep the widget for this group!
+
+				if (!overlayWidgets.has(group)) {
+
+					const scopedInstaService = instantiationService.createChild(
+						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
+					);
+
+					const container = group.element;
+
+
+					const ctrl = scopedInstaService.createInstance(SimpleBrowserOverlayController, container, group);
+					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
+				}
+			}
+
+			for (const group of toDelete) {
+				overlayWidgets.deleteAndDispose(group);
+			}
+		}));
+	}
+
+	dispose(): void {
+		this._store.dispose();
+	}
+}
