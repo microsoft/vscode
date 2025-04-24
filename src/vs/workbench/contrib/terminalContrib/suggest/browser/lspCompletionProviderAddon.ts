@@ -51,7 +51,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 
 		// APPLY EDIT FOR CURRENT REPL LINE, this is not executed yet.
-		this._lspTerminalModelContentProvider.mockTypingContent(value);
+		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
 
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
@@ -127,4 +127,10 @@ export function createCompletionItemPython(cursorPosition: number, prefix: strin
 		kind: kind ?? kind ?? TerminalCompletionItemKind.Method
 	};
 }
+
+// # TODO:
+// # Mapping from Language server completion item -> Terminal completion item (This would help with sorting)
+// # Activate language extension on REPL launch
+// # (Pylance) suppress diagnostic for terminal scheme
+// # Handle Replacement index properly for both `.` (dot) and ` ` (space)
 

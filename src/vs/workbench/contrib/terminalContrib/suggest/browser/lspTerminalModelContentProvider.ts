@@ -12,13 +12,17 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ILspTerminalModelContentProvider } from '../../../../browser/lspTerminalCapability.js';
 
+export const VSCODE_LSP_TERMINAL_PROMPT_TRACKER = 'vscode_lsp_terminal_prompt_tracker= {}\n';
+
 export class LspTerminalModelContentProvider extends Disposable implements ILspTerminalModelContentProvider, ITextModelContentProvider {
 	static readonly scheme = Schemas.vscodeTerminal;
 	private _commandDetection: ICommandDetectionCapability | undefined;
 	private _capabilitiesStore: ITerminalCapabilityStore;
 	// private readonly _terminalId: number;
 	private readonly _virtualTerminalDocumentUri: URI;
-	private _flush = false;
+	// private _promptInputModel: IPromptInputModel | undefined;
+
+
 	constructor(
 		capabilityStore: ITerminalCapabilityStore,
 		terminalId: number,
@@ -35,10 +39,13 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._registerTerminalCommandFinishedListener();
 		// this._terminalId = terminalId;
 		this._virtualTerminalDocumentUri = virtualTerminalDocument;
+		// this._promptInputModel = this._commandDetection?.promptInputModel;
 	}
 
 	/**
 	 * Sets or updates content for a terminal virtual document.
+	 * This is when user has executed succesful command in terminal.
+	 * Transfer the content to virtual document, and relocate delimiter to get terminal prompt ready for next prompt.
 	 */
 	setContent(content: string): void {
 		// If model exists, update its content
@@ -49,40 +56,54 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			&& content !== 'exit()') {
 
 			if (model) {
-				// append to existing content
 				const existingContent = model.getValue();
-				const newContent = existingContent + '\n' + content + '\n';
-				model.setValue(newContent);
+				if (existingContent === '') {
+					model.setValue(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
+				} else {
+					// If we are appending to existing content, remove delimiter, attach new content, and re-add delimiter
+					const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
+					const sanitizedExistingContent = delimiterIndex !== -1 ?
+						existingContent.substring(0, delimiterIndex) :
+						existingContent;
+
+					const newContent = sanitizedExistingContent + '\n' + content + '\n' + VSCODE_LSP_TERMINAL_PROMPT_TRACKER;
+					model.setValue(newContent);
+				}
 			}
 		}
 	}
 
-	mockTypingContent(content: string): void {
+	/**
+	 * Real-time conversion of terminal input to virtual document happens here.
+	 * This is when user types in terminal, and we want to track the input.
+	 * We want to track the input and update the virtual document.
+	 * Note: This is for non-executed command.
+	*/
+	trackPromptInputToVirtualFile(content: string): void {
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
 			content !== `export PYTHONSTARTUP=/Users/anthonykim/Desktop/vscode-python/python_files/pythonrc.py` &&
 			content !== 'exit()') {
+
 			if (model) {
-				if (this._flush) {
-					const existingContent = model.getValue();
-					const delimiter = 'yo= {}\n';
+				const existingContent = model.getValue();
+				const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
 
-					// Find the custom delimiter
-					const delimiterIndex = existingContent.lastIndexOf(delimiter);
+				// Keep content only up to delimiter
+				const sanitizedExistingContent = delimiterIndex !== -1 ?
+					existingContent.substring(0, delimiterIndex) :
+					existingContent;
 
-					// Keep only content up to the delimiter (if found)
-					const baseContent = delimiterIndex !== -1 ?
-						existingContent.substring(0, delimiterIndex) :
-						existingContent;
+				// Combine base content with new content
+				const newContent = sanitizedExistingContent + VSCODE_LSP_TERMINAL_PROMPT_TRACKER + content;
 
-					// Combine base content with new content
-					const newContent = baseContent + delimiter + content;
-
-					// Apply new content to the model
-					model.setValue(newContent);
-					console.log('Inside mockTypingContent: ' + newContent + '\n');
-				}
+				model.setValue(newContent);
 			}
+
+			// this._promptInputModel?.onDidChangeInput(state => {
+			// 	// state is of type IPromptInputModelState
+			// 	console.log('Prompt input changed:', state.value + '\n');
+			// });
 		}
 	}
 
@@ -91,13 +112,14 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._store.add(this._capabilitiesStore.onDidAddCapabilityType(e => {
 			if (e === TerminalCapability.CommandDetection) {
 				this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
+				// this._promptInputModel = this._commandDetection?.promptInputModel;
 				if (this._commandDetection) {
 					this._store.add(this._commandDetection.onCommandFinished((e) => {
 						if (e.exitCode === 0) {
 							// If command was successful, update virtual document
 							this.setContent(e.command);
 						}
-						this._flush = true;
+
 					}));
 				}
 
@@ -140,7 +162,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			this._languageService.createById(languageId) :
 			this._languageService.createById('plaintext');
 
-		return this._modelService.createModel('import ast\n', languageSelection, resource, false);
+		return this._modelService.createModel('', languageSelection, resource, false);
 	}
 
 }
