@@ -647,18 +647,21 @@ export namespace CellUri {
 		});
 	}
 
-	export function generateOutputEditorCellOutputUriWithId(notebook: URI, outputId: string, cellId: string): URI {
+	export function generateOutputEditorUri(notebook: URI, cellId: string, cellIndex: number, outputId: string, outputIndex: number): URI {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
 			query: new URLSearchParams({
 				openIn: 'notebookOutputEditor',
-				outputId: outputId,
+				notebook: notebook.toString(),
 				cellId: cellId,
+				cellIndex: String(cellIndex),
+				outputId: outputId,
+				outputIndex: String(outputIndex),
 			}).toString()
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellId?: string} | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellId?: string; cellIndex?: number } | undefined {
 		return extractCellOutputDetails(uri);
 	}
 

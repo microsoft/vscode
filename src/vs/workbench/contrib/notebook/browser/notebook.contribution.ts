@@ -166,7 +166,8 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		'Notebook Output Editor'
 	),
 	[
-		new SyncDescriptor(NotebookOutputEditorInput)
+		new SyncDescriptor(NotebookOutputEditorInput),
+		// new SyncDescriptor(NotebookOutputViewerInput)
 	]
 );
 
@@ -252,15 +253,29 @@ class NotebookEditorSerializer implements IEditorSerializer {
 	}
 }
 
+export type SerializedNotebookOutputEditorData = { notebookUri: URI; cellIndex: number; outputIndex: number };
 class NotebookOutputEditorSerializer implements IEditorSerializer {
-	canSerialize(editor: EditorInput): boolean {
-		return editor.typeId === NotebookOutputEditorInput.ID;
+	canSerialize(input: EditorInput): boolean {
+		return input.typeId === NotebookOutputEditorInput.ID;
 	}
-	serialize(editor: EditorInput): string | undefined {
-		return undefined;
+	serialize(input: EditorInput): string | undefined {
+		assertType(input instanceof NotebookOutputEditorInput);
+
+		const data = input.getSerializedData(); // in case of cell movement etc get latest indexes
+		if (!data) {
+			return undefined;
+		}
+
+		return JSON.stringify(data);
 	}
-	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
-		return undefined;
+	deserialize(instantiationService: IInstantiationService, raw: string): EditorInput | undefined {
+		const data = <SerializedNotebookOutputEditorData>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+
+		const input = instantiationService.createInstance(NotebookOutputEditorInput, data.notebookUri, undefined, data.cellIndex, undefined, data.outputIndex);
+		return input;
 	}
 }
 

@@ -198,7 +198,7 @@ registerAction2(class OpenCellOutputInNotebookOutputEditorAction extends Action2
 		});
 	}
 
-	private getNoteboookEditor(editorService: IEditorService, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): INotebookEditor | undefined {
+	private getNotebookEditor(editorService: IEditorService, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): INotebookEditor | undefined {
 		if (outputContext && 'notebookEditor' in outputContext) {
 			return outputContext.notebookEditor;
 		}
@@ -206,7 +206,7 @@ registerAction2(class OpenCellOutputInNotebookOutputEditorAction extends Action2
 	}
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
-		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
+		const notebookEditor = this.getNotebookEditor(accessor.get(IEditorService), outputContext);
 		if (!notebookEditor) {
 			return;
 		}
@@ -218,20 +218,45 @@ registerAction2(class OpenCellOutputInNotebookOutputEditorAction extends Action2
 			outputViewModel = outputContext.outputViewModel;
 		}
 
-		const cell = outputViewModel?.cellViewModel;
-		if (!cell) {
+		if (!outputViewModel) {
 			return;
 		}
 
-
-
-		if (outputViewModel?.model.outputId && notebookEditor.textModel?.uri) {
-
-			const outputURI = CellUri.generateOutputEditorCellOutputUriWithId(notebookEditor.textModel.uri, outputViewModel.model.outputId, cell.id);
-
-			const openerService = accessor.get(IOpenerService);
-			openerService.open(outputURI, {openToSide: true});
+		const genericCellViewModel = outputViewModel.cellViewModel;
+		if (!genericCellViewModel) {
+			return;
 		}
-	}
 
+		// get cell index
+		const cellViewModel = notebookEditor.getCellByHandle(genericCellViewModel.handle);
+		if (!cellViewModel) {
+			return;
+		}
+		const cellIndex = notebookEditor.getCellIndex(cellViewModel);
+		if (cellIndex === undefined) {
+			return;
+		}
+
+		// get output index
+		const outputIndex = genericCellViewModel.outputsViewModels.indexOf(outputViewModel);
+		if (outputIndex === -1) {
+			return;
+		}
+
+		if (!notebookEditor.textModel) {
+			return;
+		}
+
+		// craft rich output URI to pass data to the notebook output editor/viewer
+		const outputURI = CellUri.generateOutputEditorUri(
+			notebookEditor.textModel.uri,
+			cellViewModel.id,
+			cellIndex,
+			outputViewModel.model.outputId,
+			outputIndex,
+		);
+
+		const openerService = accessor.get(IOpenerService);
+		openerService.open(outputURI, { openToSide: true });
+	}
 });
