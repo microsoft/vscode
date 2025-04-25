@@ -215,6 +215,12 @@ configurationRegistry.registerConfiguration({
 				defaultValue: false
 			}
 		},
+		'chat.sendElementsToChat.enabled': {
+			default: true,
+			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
+			type: 'boolean',
+			tags: ['preview']
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
