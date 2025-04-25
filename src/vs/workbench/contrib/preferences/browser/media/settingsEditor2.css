@@ -77,9 +77,13 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-suggestions a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: underline;
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
 	cursor: pointer;
+	/* font-style: italic; */
+	margin-right: 4px;
+	padding: 0px 4px 2px;
+	border-radius: 4px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-target-container {
