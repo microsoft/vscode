@@ -123,11 +123,10 @@ export class ChatSelectedTools extends Disposable {
 		);
 	}
 
-	// TODO: @legomushroom - do we need changes to `toolNamesOrIds`?
-	selectOnly(toolNamesOrIds: readonly string[]): void {
-		const uniqueTools = new Set(toolNamesOrIds);
+	selectOnly(toolIds: readonly string[]): void {
+		const uniqueTools = new Set(toolIds);
 
-		const disabledTools = this._allTools.get().filter(tool => (tool.toolReferenceName && !uniqueTools.has(tool.toolReferenceName)) && !uniqueTools.has(tool.id));
+		const disabledTools = this._allTools.get().filter(tool => !uniqueTools.has(tool.id));
 
 		this.update([], disabledTools);
 	}

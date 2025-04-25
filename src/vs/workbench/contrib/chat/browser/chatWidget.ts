@@ -53,6 +53,7 @@ import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -250,6 +251,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -1521,10 +1523,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			`Chat mode must be 'agent' when there are 'tools' defined, got ${this.inputPart.currentMode}.`,
 		);
 
+		// convert tools names to tool IDs
+		const toolIds = tools
+			.map(
+				this.toolsService.getToolByName
+					.bind(this.toolsService),
+			)
+			.filter(isDefined)
+			.map(pick('id'));
+
 		// if there are some tools defined in the prompt files, select only the specified tools
 		this.inputPart
 			.selectedToolsModel
-			.selectOnly(tools);
+			.selectOnly(toolIds);
 
 		return input;
 	}
