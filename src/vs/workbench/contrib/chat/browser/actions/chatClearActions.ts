@@ -117,7 +117,7 @@ export function registerNewChatActions() {
 			await editingSession.stop();
 			widget.clear();
 			await waitForChatSessionCleared(editingSession.chatSessionId, chatService);
-			widget.attachmentModel.clear();
+			widget.attachmentModel.clear(true);
 			widget.input.relatedFiles?.clear();
 			widget.focusInput();
 
