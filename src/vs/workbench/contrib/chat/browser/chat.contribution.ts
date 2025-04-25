@@ -250,12 +250,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
 				minimumVersion: '1.99',
-				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
 				previewFeature: true,
 				defaultValue: false
 			}
