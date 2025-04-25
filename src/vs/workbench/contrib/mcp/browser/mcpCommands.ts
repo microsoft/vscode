@@ -56,9 +56,9 @@ export class ListMcpServerCommand extends Action2 {
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
-				id: MenuId.ChatInputAttachmentToolbar,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 0
+				order: 101
 			},
 		});
 	}
@@ -277,7 +277,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, ListMcpServerCommand.id, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatInput, ListMcpServerCommand.id, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
