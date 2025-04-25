@@ -8,8 +8,8 @@ import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../..
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -29,25 +29,47 @@ export interface IChatConfirmationButton {
 export class ChatQueryTitlePart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+	private readonly _renderedTitle = this._register(new MutableDisposable<IMarkdownRenderResult>());
+
+	public get title() {
+		return this._title;
+	}
+
+	public set title(value: string | IMarkdownString) {
+		this._title = value;
+
+		const next = this._renderer.render(this.toMdString(value), {
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		});
+
+		const previousEl = this._renderedTitle.value?.element;
+		if (previousEl?.parentElement) {
+			previousEl.parentElement.replaceChild(next.element, previousEl);
+		} else {
+			this.element.appendChild(next.element); // unreachable?
+		}
+
+		this._renderedTitle.value = next;
+	}
 
 	constructor(
-		element: HTMLElement,
-		title: IMarkdownString | string,
+		private readonly element: HTMLElement,
+		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
-		renderer: MarkdownRenderer,
+		private readonly _renderer: MarkdownRenderer,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
 		element.classList.add('chat-query-title-part');
 
-		const renderedTitle = this._register(renderer.render(this.toMdString(title), {
+		this._renderedTitle.value = _renderer.render(this.toMdString(_title), {
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		}));
-		element.append(renderedTitle.element);
+		});
+		element.append(this._renderedTitle.value.element);
 		if (subtitle) {
 			const str = this.toMdString(subtitle);
-			const renderedTitle = this._register(renderer.render(str, {
+			const renderedTitle = this._register(_renderer.render(str, {
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 				actionHandler: { callback: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted), disposables: this._store },
 			}));

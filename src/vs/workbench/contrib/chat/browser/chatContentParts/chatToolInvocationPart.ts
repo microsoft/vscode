@@ -156,9 +156,9 @@ class ChatToolInvocationSubPart extends Disposable {
 		} else if (Array.isArray(toolInvocation.resultDetails) && toolInvocation.resultDetails?.length) {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
 		} else if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
-			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output);
-		} else if (toolInvocation.toolSpecificData?.kind === 'input') {
-			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2));
+			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output, !!toolInvocation.resultDetails.isError);
+		} else if (toolInvocation.toolSpecificData?.kind === 'input' && !toolInvocation.isComplete) {
+			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2), undefined, false);
 		} else {
 			this.domNode = this.createProgressPart();
 		}
@@ -536,7 +536,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		return progressPart.domNode;
 	}
 
-	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output?: string): HTMLElement {
+	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output: string | undefined, isError: boolean): HTMLElement {
 		let codeBlockIndex = this.codeBlockStartIndex;
 		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
 			const model = this._register(this.modelService.createModel(
@@ -578,9 +578,21 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.editorPool,
 			toCodePart(input),
 			output ? { parts: [toCodePart(output)] } : undefined,
+			isError,
 		));
 		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+		const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
+		if (progressObservable) {
+			this._register(autorunWithStore((reader, store) => {
+				const progress = progressObservable?.read(reader);
+				if (progress.message) {
+					collapsibleListPart.title = progress.message;
+				}
+			}));
+		}
+
 		return collapsibleListPart.domNode;
 	}
 

@@ -321,6 +321,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolSourceKind: tool.data.source.type,
 				});
 			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
+
+			toolResult ??= { content: [] };
+			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
+			if (tool.data.alwaysDisplayInputOutput) {
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: String(err), isError: true };
+			}
+
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
@@ -373,10 +380,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
 		if (!toolResult.toolResultDetails && toolData.alwaysDisplayInputOutput) {
 			toolResult.toolResultDetails = {
-				input: JSON.stringify(dto.parameters, undefined, 2),
+				input: this.formatToolInput(dto),
 				output: this.toolResultToString(toolResult),
 			};
 		}
+	}
+
+	private formatToolInput(dto: IToolInvocation): string {
+		return JSON.stringify(dto.parameters, undefined, 2);
 	}
 
 	private toolResultToString(toolResult: IToolResult): string {

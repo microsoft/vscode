@@ -45,7 +45,10 @@
 	margin: 0 !important;
 }
 .chat-confirmation-widget .chat-confirmation-widget-title .codicon-check {
-	color: var(--vscode-debugIcon-startForeground)!important
+	color: var(--vscode-debugIcon-startForeground) !important;
+}
+.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error {
+	color: var(--vscode-errorForeground) !important;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title .chat-confirmation-widget-expando {

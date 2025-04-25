@@ -43,9 +43,18 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
+	private readonly _titlePart: ChatQueryTitlePart;
 	public readonly domNode: HTMLElement;
 
 	readonly codeblocks: IChatCodeBlockInfo[] = [];
+
+	public set title(s: string | IMarkdownString) {
+		this._titlePart.title = s;
+	}
+
+	public get title(): string | IMarkdownString {
+		return this._titlePart.title;
+	}
 
 	constructor(
 		title: IMarkdownString | string,
@@ -54,6 +63,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		private readonly editorPool: EditorPool,
 		private readonly input: IChatCollapsibleInputData,
 		private readonly output: IChatCollapsibleOutputData | undefined,
+		isError: boolean,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -68,7 +78,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		this.domNode = elements.root;
 
 
-		const titlePart = this._register(instantiationService.createInstance(
+		const titlePart = this._titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			title,
@@ -80,7 +90,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 		elements.title.appendChild(spacer);
-		const check = dom.h(output ? ThemeIcon.asCSSSelector(Codicon.check) : ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')));
+		const check = dom.h(isError
+			? ThemeIcon.asCSSSelector(Codicon.error)
+			: output
+				? ThemeIcon.asCSSSelector(Codicon.check)
+				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
+		);
 		elements.title.appendChild(check.root);
 
 		const expanded = observableValue(this, false);
@@ -135,7 +150,8 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
-			renderOptions: part.options
+			renderOptions: part.options,
+			chatSessionId: this.context.element.sessionId,
 		};
 		const editorReference = this._register(this.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
