@@ -79,7 +79,7 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IWorkspaceSymbolsQuickPickItem
 	| IToolsQuickPickItem | IToolQuickPickItem
 	| IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem
 	| IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IInstructionsQuickPickItem
@@ -99,7 +99,7 @@ const attachmentsOrdinals: (IAttachmentQuickPickItem['kind'])[] = [
 	'tools',
 	'screenshot',
 	'image',
-	'quickaccess',
+	'workspaceSymbol',
 	'diagnostic',
 	'instructions',
 	'folder',
@@ -181,10 +181,9 @@ interface IToolQuickPickItem extends IQuickPickItem {
 	tool: IToolData;
 }
 
-interface IQuickAccessQuickPickItem extends IQuickPickItem {
-	kind: 'quickaccess';
+interface IWorkspaceSymbolsQuickPickItem extends IQuickPickItem {
+	kind: 'workspaceSymbol';
 	id: string;
-	prefix: string;
 }
 
 interface IOpenEditorsQuickPickItem extends IQuickPickItem {
@@ -738,10 +737,9 @@ export class AttachContextAction extends Action2 {
 		});
 
 		quickPickItems.push({
-			kind: 'quickaccess',
+			kind: 'workspaceSymbol',
 			label: localize('chatContext.symbol', 'Symbols...'),
 			iconClass: ThemeIcon.asClassName(Codicon.symbolField),
-			prefix: SymbolsQuickAccessProvider.PREFIX,
 			id: 'symbol'
 		});
 
@@ -856,8 +854,8 @@ export class AttachContextAction extends Action2 {
 
 				if (isIAttachmentQuickPickItem(item)) {
 
-					if (item.kind === 'quickaccess') {
-						instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, item.prefix, placeholder);
+					if (item.kind === 'workspaceSymbol') {
+						instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, SymbolsQuickAccessProvider.PREFIX, placeholder);
 						return;
 					} else if (item.kind === 'instructions') {
 						runAttachInstructionsAction(commandService, { widget });
