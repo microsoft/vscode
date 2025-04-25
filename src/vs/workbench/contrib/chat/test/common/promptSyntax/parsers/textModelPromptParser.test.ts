@@ -70,7 +70,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			initService.createInstance(TextModelPromptParser, this.model, []),
+			initService.createInstance(TextModelPromptParser, this.model, {}),
 		).start();
 	}
 
