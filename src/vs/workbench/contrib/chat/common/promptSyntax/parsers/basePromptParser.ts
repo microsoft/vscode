@@ -695,8 +695,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		this.promptHeader?.dispose();
 		delete this.promptHeader;
 
-		this._onUpdate.fire();
-
 		super.dispose();
 	}
 }

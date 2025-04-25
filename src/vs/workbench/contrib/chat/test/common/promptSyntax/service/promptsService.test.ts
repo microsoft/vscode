@@ -527,7 +527,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• throws if disposed model provided', async function () {
+		test('• throws if a disposed model provided', async function () {
 			const model = disposables.add(createTextModel(
 				'test1\ntest2\n\ntest3\t\n',
 				'barLang',

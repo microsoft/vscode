@@ -17,7 +17,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatWidgetService, showChatView } from '../chat.js';
@@ -26,10 +26,17 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { cleanupOldImages, createFileForMedia } from '../imageUtils.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 class SimpleBrowserOverlayWidget {
 
 	private readonly _domNode: HTMLElement;
+
+	private readonly imagesFolder: URI;
 
 	private readonly _showStore = new DisposableStore();
 
@@ -39,7 +46,14 @@ class SimpleBrowserOverlayWidget {
 		@IHostService private readonly _hostService: IHostService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewService: IViewsService,
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
+
+		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
+		cleanupOldImages(this.fileService, this.logService, this.imagesFolder);
+
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'element-selection-message';
 
@@ -120,6 +134,8 @@ class SimpleBrowserOverlayWidget {
 		this._domNode.style.display = '';
 		const widget = this._chatWidgetService.lastFocusedWidget ?? await showChatView(this._viewService);
 
+		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, screenshot.buffer, 'image/png');
+
 		widget?.attachmentModel?.addContext({
 			id: 'element-' + Date.now(),
 			name: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
@@ -132,7 +148,8 @@ class SimpleBrowserOverlayWidget {
 			name: 'Element Screenshot',
 			fullName: 'Element Screenshot',
 			kind: 'image',
-			value: screenshot.buffer
+			value: screenshot.buffer,
+			references: fileReference ? [{ reference: fileReference, kind: 'reference' }] : [],
 		});
 	}
 

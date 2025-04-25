@@ -90,6 +90,10 @@ registerAction2(class extends Action2 {
 				if (group.activeEditor instanceof GettingStartedInput) {
 					const activeEditor = group.activeEditor as GettingStartedInput;
 					activeEditor.showWelcome = false;
+					if (activeEditor.selectedCategory && activeEditor.selectedStep) {
+						// currently in a walkthrough.
+						return;
+					}
 					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 					return;
 				}
