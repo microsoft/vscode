@@ -10,12 +10,12 @@ import { IEditorPane } from '../../../../../common/editor.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IChatProgressResponseContent } from '../../../common/chatModel.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../../common/chatParserTypes.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -63,6 +63,7 @@ class SaveToPromptAction extends Action2 {
 	): Promise<IEditorPane> {
 		const logService = accessor.get(ILogService);
 		const editorService = accessor.get(IEditorService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
 
 		const logPrefix = 'save to prompt';
 		const { chat } = options;
@@ -95,12 +96,16 @@ class SaveToPromptAction extends Action2 {
 
 			const tools = new Set<string>();
 			for (const record of response.value) {
-				const toolNameOrId = this.getToolNameOrId(record);
-				if (toolNameOrId === undefined) {
+				if (('toolId' in record === false) || !record.toolId) {
 					continue;
 				}
 
-				tools.add(toolNameOrId);
+				const tool = toolsService.getTool(record.toolId);
+				if ((tool === undefined) || (!tool.toolReferenceName)) {
+					continue;
+				}
+
+				tools.add(tool.toolReferenceName);
 			}
 
 			turns.push({
@@ -126,24 +131,6 @@ class SaveToPromptAction extends Action2 {
 		editor.focus();
 
 		return editor;
-	}
-
-	/**
-	 * Get 'tool name' or 'tool ID' from the provided tool
-	 * invocation record.
-	 */
-	private getToolNameOrId(
-		record: IChatProgressResponseContent,
-	): string | undefined {
-		if (('toolReferenceName' in record) && record.toolReferenceName) {
-			return record.toolReferenceName;
-		}
-
-		if (('toolId' in record) && record.toolId) {
-			return record.toolId;
-		}
-
-		return undefined;
 	}
 }
 
