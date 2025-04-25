@@ -1044,9 +1044,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this._waitForPersistedLanguageModel.clear();
 								this.setCurrentLanguageModel(model);
 								this.renderAttachedContext();
-
-								// TODO- remove with https://github.com/microsoft/vscode/issues/246987
-								this.focus();
 							},
 							getModels: () => this.getModels()
 						};
