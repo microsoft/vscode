@@ -248,7 +248,7 @@ declare module 'vscode' {
 		/**
 		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
 		 */
-		readonly tools: Map<LanguageModelToolInformation, boolean>;
+		readonly tools: Map<string, boolean>;
 	}
 
 	// TODO@API fit this into the stream
