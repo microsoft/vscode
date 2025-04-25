@@ -344,6 +344,7 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
 		this.editorInput.showNewExperience = (options as GettingStartedEditorOptions)?.showNewExperience ?? false;
+		this.editorInput.showTelemetryNotice = (options as GettingStartedEditorOptions)?.showTelemetryNotice ?? false;
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
@@ -1628,27 +1629,16 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}));
 
-		let initialSlideIndex = 0;
-		if (selectedStep) {
-			initialSlideIndex = allSlides.findIndex(slide =>
-				slide.steps.some(step => step.id === selectedStep)
-			);
-			if (initialSlideIndex === -1) { initialSlideIndex = 0; }
-		}
-
 		// Set the current walkthrough and step
 		this.currentWalkthrough = category;
 		this.editorInput.selectedCategory = categoryID;
-		const initialStepId = allSlides[initialSlideIndex].id;
-		this.editorInput.selectedStep = initialStepId;
+		this.editorInput.selectedStep = this.currentWalkthrough.steps[0].id;
+		const stepId = this.editorInput.selectedStep.match(/^([^.]+)\./)?.[1] ?? this.editorInput.selectedStep;
 
-		// Search through slidesContainer for slideElement with data-step attribute matching selectedStep.id
-		// then fetch the slideContent and append mediaComponent to it
-		const selectedSlide = slidesContainer.querySelector(`.step-slide[data-step="${initialStepId}"]`);
+		const selectedSlide = slidesContainer.querySelector(`.step-slide[data-step="${stepId}"]`);
 		if (selectedSlide) {
 			const selectedSlideContent = selectedSlide.querySelector('.step-slide-content');
-			const representativeStep = allSlides[initialSlideIndex].steps[0];
-			this.buildMediaComponent(representativeStep.id);
+			this.buildMediaComponent(this.editorInput.selectedStep);
 			selectedSlideContent?.appendChild(this.stepMediaComponent);
 		}
 
@@ -1658,11 +1648,17 @@ export class GettingStartedPage extends EditorPane {
 		reset(categoryTitle, ...renderLabelWithIcons(category.title));
 		categoryHeader.appendChild(categoryTitle);
 
+		const categoryFooter = $('.getting-started-footer');
+		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && this.productService.enableTelemetry) {
+			this.buildTelemetryFooter(categoryFooter);
+		}
+
 		// Build the container for the whole slide deck
 		const stepsContainer = $('.getting-started-steps-container', {},
 			categoryHeader,
 			slidesContainer,
-			navigationContainer
+			navigationContainer,
+			categoryFooter,
 		);
 
 		// Set up the scroll container
