@@ -111,7 +111,7 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 		this._register(this._notebookOptions);
 	}
 
-	createEditor(parent: HTMLElement): void {
+	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-output-editor'));
 	}
 
