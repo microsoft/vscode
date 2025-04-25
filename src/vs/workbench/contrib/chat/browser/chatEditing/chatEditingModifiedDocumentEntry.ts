@@ -158,9 +158,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		const resourceFilter = this._register(new MutableDisposable());
 		this._register(autorun(r => {
-			const res = this.isCurrentlyBeingModifiedBy.read(r);
-			if (res) {
-				const req = res.session.getRequests().find(value => value.id === res.requestId);
+			const inProgress = this._lastModifyingResponseInProgressObs.read(r);
+			if (inProgress) {
+				const res = this._lastModifyingResponseObs.read(r);
+				const req = res && res.session.getRequests().find(value => value.id === res.requestId);
 				resourceFilter.value = markerService.installResourceFilter(this.modifiedURI, req?.message.text || localize('default', "Chat Edits"));
 			} else {
 				resourceFilter.clear();
