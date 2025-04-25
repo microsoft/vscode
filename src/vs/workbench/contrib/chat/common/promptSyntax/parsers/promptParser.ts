@@ -1,0 +1,86 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// TODO: @legomushroom
+import { BasePromptParser } from './basePromptParser.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { TextModelContentsProvider } from '../contentProviders/textModelContentsProvider.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { isUntitled } from '../../../../../../platform/prompts/common/constants.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { assertDefined } from '../../../../../../base/common/types.js';
+import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
+
+/**
+ * Get prompt contents provider object based on the prompt type.
+ */
+const getContentsProvider = (
+	uri: URI,
+	modelService: IModelService,
+	instaService: IInstantiationService,
+): IPromptContentsProvider => {
+	// use text model contents provider for `untitled` documents
+	if (isUntitled(uri)) {
+		const model = modelService.getModel(uri);
+
+		assertDefined(
+			model,
+			`Cannot find model of untitled document '${uri.path}'.`,
+		);
+
+		return instaService
+			.createInstance(TextModelContentsProvider, model);
+	}
+
+	return instaService.createInstance(
+		FilePromptContentProvider,
+		uri,
+		// TODO: @legomushroom - use options instead
+		{ allowNonPromptFiles: true },
+	);
+};
+
+/**
+ * TODO: @legomushroom
+ */
+export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
+	/**
+	 * TODO: @legomushroom
+	 */
+	private readonly contentsProvider: IPromptContentsProvider;
+
+	constructor(
+		uri: URI,
+		seenReferences: string[] = [],
+		@ILogService logService: ILogService,
+		@IModelService modelService: IModelService,
+		@IInstantiationService instaService: IInstantiationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+	) {
+		const contentsProvider = getContentsProvider(uri, modelService, instaService);
+
+		super(
+			contentsProvider,
+			seenReferences,
+			instaService,
+			workspaceService,
+			logService,
+		);
+
+		this.contentsProvider = this._register(contentsProvider);
+	}
+
+	/**
+	 * Returns a string representation of this object.
+	 */
+	public override toString() {
+		const { sourceName } = this.contentsProvider;
+
+		return `prompt-parser:${sourceName}:${this.uri.path}`;
+	}
+}

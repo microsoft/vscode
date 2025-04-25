@@ -280,8 +280,11 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 			// if a prompt header token received, create a new prompt header instance
 			if (token instanceof FrontMatterHeader) {
-				this.promptHeader = new PromptHeader(token.contentToken, this.promptContentsProvider.languageId);
-				this.promptHeader.start();
+				this.promptHeader = new PromptHeader(
+					token.contentToken,
+					this.promptContentsProvider.languageId,
+				).start();
+
 				return;
 			}
 
@@ -497,16 +500,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 */
 	public get metadata(): IPromptMetadata {
 		if (this.header === undefined) {
-			return {
-				mode: ChatMode.Ask,
-			};
+			return {};
 		}
 
 		const { metadata } = this.header;
 		if (metadata === undefined) {
-			return {
-				mode: ChatMode.Ask,
-			};
+			return {};
 		}
 
 		const { tools, mode, description, include } = metadata;

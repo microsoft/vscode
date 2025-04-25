@@ -41,6 +41,11 @@ export abstract class PromptContentsProviderBase<
 	public abstract get languageId(): string;
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	public abstract get sourceName(): string;
+
+	/**
 	 * Function to get contents stream for the provider. This function should
 	 * throw a `ResolveError` or its derivative if the contents cannot be parsed.
 	 *
