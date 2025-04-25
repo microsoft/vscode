@@ -389,7 +389,7 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
 	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
-	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
+	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 
