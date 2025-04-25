@@ -206,7 +206,7 @@ export class DebugTaskRunner implements IDisposable {
 				: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
 			return Promise.reject(createErrorWithActions(errorMessage, [new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID))]));
 		}
-
+		console.log('attempting task run, ', task.getQualifiedLabel());
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 		let taskStarted = false;
 		const store = new DisposableStore();
@@ -223,6 +223,7 @@ export class DebugTaskRunner implements IDisposable {
 					&& getTaskKey(e.__task) === taskKey;
 			})(e => {
 				taskStarted = true;
+				console.log('in here, process ended ', task.getQualifiedLabel());
 				resolve(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
 			}),
 		));
@@ -233,6 +234,7 @@ export class DebugTaskRunner implements IDisposable {
 				// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
 				// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
 				taskStarted = true;
+				console.log('task is active, ', task._label);
 			})
 		);
 
@@ -240,14 +242,20 @@ export class DebugTaskRunner implements IDisposable {
 		store.add(onceFilter(
 			this.taskService.onDidStateChange,
 			e => (e.kind === TaskEventKind.AcquiredInput) && getTaskKey(e.__task) === taskKey
-		)(() => didAcquireInput.fire()));
+		)(() => {
+			didAcquireInput.fire();
+			console.log('task acquired input, ', task._label);
+		}));
 
 		const taskDonePromise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
+			console.log('active tasks, ', tasks.map(t => t._label));
 			if (tasks.find(t => getTaskKey(t) === taskKey)) {
+				console.log('task is already running, ', task._label);
 				didAcquireInput.fire();
 				// Check that the task isn't busy and if it is, wait for it
 				const busyTasks = await this.taskService.getBusyTasks();
 				if (busyTasks.find(t => getTaskKey(t) === taskKey)) {
+					console.log('task is busy, ', task._label);
 					taskStarted = true;
 					return inactivePromise;
 				}

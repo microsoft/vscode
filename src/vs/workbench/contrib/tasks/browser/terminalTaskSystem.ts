@@ -287,9 +287,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		try {
 			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), new Map(), undefined) };
+			console.log('depends on ', task.configurationProperties.dependsOn);
 			if (task.configurationProperties.dependsOn) {
 				// Track the parent task #244744
 				const mapKey = task.getMapKey();
+				console.log('tracking parent task', task.getQualifiedLabel());
 				this._activeTasks[mapKey] = { task, promise: executeResult.promise, count: { count: 0 } };
 			}
 			executeResult.promise.then(summary => {
@@ -434,6 +436,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		delete this._activeTasks[key];
+		console.log('removing ', this._lastTask?.task._label);
+		console.log('active tasks currently', Object.keys(this._activeTasks));
+		if (Object.values(this._activeTasks).length === 1) {
+			if (this._lastTask?.task.configurationProperties.dependsOn) {
+				console.log('removing task from active tasks', this._lastTask.task._label);
+				this._removeFromActiveTasks(this._lastTask.task);
+			}
+		}
 	}
 
 	private _fireTaskEvent(event: ITaskEvent) {
