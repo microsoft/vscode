@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -56,6 +56,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		return this._titlePart.title;
 	}
 
+	private readonly _expanded: ISettableObservable<boolean>;
+
+	public get expanded(): boolean {
+		return this._expanded.get();
+	}
+
 	constructor(
 		title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
@@ -64,6 +70,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		private readonly input: IChatCollapsibleInputData,
 		private readonly output: IChatCollapsibleOutputData | undefined,
 		isError: boolean,
+		initiallyExpanded: boolean,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -76,7 +83,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			dom.h('.chat-confirmation-widget-message@message'),
 		]);
 		this.domNode = elements.root;
-
 
 		const titlePart = this._titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
@@ -98,7 +104,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		);
 		elements.title.appendChild(check.root);
 
-		const expanded = observableValue(this, false);
+		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		const btn = this._register(new Button(elements.expando, {}));
 
 		this._register(autorun(r => {

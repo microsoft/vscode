@@ -104,6 +104,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 class ChatToolInvocationSubPart extends Disposable {
 	private static idPool = 0;
+	/** Remembers expanded tool parts on re-render */
+	private static readonly _expandedByDefault = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
+
 	private readonly _codeblocksPartId = 'tool-' + (ChatToolInvocationSubPart.idPool++);
 
 	public readonly domNode: HTMLElement;
@@ -579,9 +582,11 @@ class ChatToolInvocationSubPart extends Disposable {
 			toCodePart(input),
 			output ? { parts: [toCodePart(output)] } : undefined,
 			isError,
+			ChatToolInvocationSubPart._expandedByDefault.get(this.toolInvocation) ?? false,
 		));
 		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(toDisposable(() => ChatToolInvocationSubPart._expandedByDefault.set(this.toolInvocation, collapsibleListPart.expanded)));
 
 		const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
 		if (progressObservable) {
