@@ -687,7 +687,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'copilotSetup.inline',
 					title: localize('gettingStarted.nes.title', "Next Edit Suggestions"),
-					description: localize('gettingStarted.nes.description', "VS Code Predicts your next move as you code"),
+					description: localize('gettingStarted.nes.description', "Your next move, predicted while you code"),
 					media: {
 						type: 'svg', altText: 'Next Edit Suggestions', path: 'suggestions.svg'
 					},
@@ -695,7 +695,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'copilotSetup.customize',
 					title: localize('gettingStarted.customize.title', "Customize"),
-					description: localize('gettingStarted.customize.description', "Customize your editor with extensions and instructions\n{0}", Button(localize('signUp', "Set up Copilot"), 'command:workbench.action.chat.triggerSetup')),
+					description: localize('gettingStarted.customize.description', "Choose your model, tools, and personalized instructions\n{0}", Button(localize('signUp', "Set up AI in VS Code"), 'command:workbench.action.chat.triggerSetup')),
 					media: {
 						type: 'svg', altText: 'Agent Mode', path: 'sparkle.svg'
 					},
@@ -712,8 +712,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'newFindLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
+					title: localize('newgettingStarted.findLanguageExts.title', "Support for all languages"),
+					description: localize('newgettingStarted.findLanguageExts.description.interpolated', "Install the language extensions you need in your toolkit.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
 					when: 'workspacePlatform != \'webworker\'',
 					media: {
 						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
@@ -721,8 +721,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'newSettingsAndSync',
-					title: localize('gettingStarted.settings.title', "Tune your settings"),
-					description: localize('gettingStarted.settingsAndSync.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. [Back up and sync](command:workbench.userDataSync.actions.turnOn) your essential customizations across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
+					title: localize('newgettingStarted.settings.title', "Customize every aspect of VS Code"),
+					description: localize('newgettingStarted.settingsAndSync.description.interpolated', "[Back up and sync](command:workbench.userDataSync.actions.turnOn) settings across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
 					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
@@ -731,7 +731,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'newCommandPaletteTask',
-					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
+					title: localize('newgettingStarted.commandPalette.title', "All VS Code commands within reach"),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				}
