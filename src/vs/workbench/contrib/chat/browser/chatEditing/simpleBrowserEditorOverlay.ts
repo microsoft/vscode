@@ -25,6 +25,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { cleanupOldImages, createFileForMedia } from '../imageUtils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -186,6 +187,7 @@ class SimpleBrowserOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
@@ -219,6 +221,9 @@ class SimpleBrowserOverlayController {
 
 			const editor = group.activeEditorPane;
 			if (editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view') {
+				if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
+					return undefined;
+				}
 				const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 				return uri;
 			}
@@ -253,7 +258,6 @@ export class SimpleBrowserOverlay implements IWorkbenchContribution {
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-
 		const editorGroups = observableFromEvent(
 			this,
 			Event.any(editorGroupsService.onDidAddGroup, editorGroupsService.onDidRemoveGroup),
