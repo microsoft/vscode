@@ -228,9 +228,8 @@ class McpToolImplementation implements IToolImpl {
 
 		const mcpToolWarning = localize(
 			'mcp.tool.warning',
-			"{0} This tool is from \'{1}\' (MCP Server). Note that MCP servers or malicious conversation content may attempt to misuse '{2}' through tools. Please carefully review any requested actions.",
+			"{0} Note that MCP servers or malicious conversation content may attempt to misuse '{1}' through tools.",
 			'$(info)',
-			server.definition.label,
 			this._productService.nameShort
 		);
 

@@ -160,7 +160,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
 		} else if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
 			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output, !!toolInvocation.resultDetails.isError);
-		} else if (toolInvocation.toolSpecificData?.kind === 'input' && !toolInvocation.isComplete) {
+		} else if (toolInvocation.kind === 'toolInvocation' && toolInvocation.toolSpecificData?.kind === 'input' && !toolInvocation.isComplete) {
 			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2), undefined, false);
 		} else {
 			this.domNode = this.createProgressPart();

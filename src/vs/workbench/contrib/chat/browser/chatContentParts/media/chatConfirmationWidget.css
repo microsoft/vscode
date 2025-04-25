@@ -22,7 +22,7 @@
 	flex-wrap: wrap;
 	width: 100%;
 	border-radius: 3px;
-	padding: 3px 6px;
+	padding: 3px 8px;
 	user-select: none;
 	gap: 4px;
 }
@@ -80,6 +80,10 @@
 	flex-basis: 100%;
 	padding: 0 8px;
 	margin: 8px 0;
+
+	&:last-child {
+		margin-bottom: 0;
+	}
 }
 
 .chat-confirmation-widget.collapsed .chat-confirmation-widget-message {
@@ -108,8 +112,12 @@
 .chat-confirmation-widget .chat-confirmation-buttons-container {
 	display: flex;
 	gap: 8px;
-	margin-top: 13px;
+	margin-top: 0px;
 	flex-wrap: wrap;
+
+	&:last-child {
+		margin-bottom: 8px;
+	}
 }
 
 .chat-confirmation-widget.hideButtons .chat-confirmation-buttons-container {
