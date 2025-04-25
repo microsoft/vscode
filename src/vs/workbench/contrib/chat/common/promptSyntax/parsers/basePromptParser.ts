@@ -38,7 +38,9 @@ import { IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DE
  */
 export interface IPromptParserOptions extends IPromptContentsProviderOptions {
 	/**
-	 * TODO: @legomushroom
+	 * List of reference paths have been already seen before
+	 * getting to the current prompt. Used to prevent infinite
+	 * recursion in prompt file references.
 	 */
 	readonly seenReferences: readonly string[];
 }

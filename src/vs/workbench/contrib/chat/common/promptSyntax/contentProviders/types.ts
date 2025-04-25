@@ -25,7 +25,7 @@ export interface IPromptContentsProvider extends IDisposable {
 	readonly languageId: string;
 
 	/**
-	 * TODO: @legomushroom
+	 * Prompt contents source name.
 	 */
 	readonly sourceName: string;
 

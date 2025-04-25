@@ -129,17 +129,18 @@ class SaveToPromptAction extends Action2 {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get 'tool name' or 'tool ID' from the provided tool
+	 * invocation record.
 	 */
 	private getToolNameOrId(
-		tool: IChatProgressResponseContent,
+		record: IChatProgressResponseContent,
 	): string | undefined {
-		if (('toolReferenceName' in tool) && tool.toolReferenceName) {
-			return tool.toolReferenceName;
+		if (('toolReferenceName' in record) && record.toolReferenceName) {
+			return record.toolReferenceName;
 		}
 
-		if (('toolId' in tool) && tool.toolId) {
-			return tool.toolId;
+		if (('toolId' in record) && record.toolId) {
+			return record.toolId;
 		}
 
 		return undefined;
