@@ -56,7 +56,6 @@ export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 
 	constructor(
 		uri: URI,
-		seenReferences: string[] = [],
 		@ILogService logService: ILogService,
 		@IModelService modelService: IModelService,
 		@IInstantiationService instaService: IInstantiationService,
@@ -66,7 +65,7 @@ export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 
 		super(
 			contentsProvider,
-			seenReferences,
+			[],
 			instaService,
 			workspaceService,
 			logService,
