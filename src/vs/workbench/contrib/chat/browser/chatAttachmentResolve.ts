@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -12,7 +13,7 @@ import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IDraggedResourceEditorInput, MarkerTransferData, DocumentSymbolTransferData } from '../../../../platform/dnd/browser/dnd.js';
+import { IDraggedResourceEditorInput, MarkerTransferData, DocumentSymbolTransferData, NotebookCellOutputTransferData } from '../../../../platform/dnd/browser/dnd.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
@@ -20,7 +21,10 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatModel.js';
+import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../notebook/browser/contrib/chat/notebookChatUtils.js';
+import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
+import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
 
@@ -47,7 +51,7 @@ export async function resolveEditorAttachContext(editor: EditorInput | IDraggedR
 		return undefined;
 	}
 
-	const imageContext = await resolveImageEditorAttachContext(editor, fileService, dialogService);
+	const imageContext = await resolveImageEditorAttachContext(fileService, dialogService, editor.resource);
 	if (imageContext) {
 		return extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 	}
@@ -75,28 +79,27 @@ async function resolveUntitledEditorAttachContext(editor: IDraggedResourceEditor
 }
 
 export async function resolveResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
-	let isOmitted = false;
+	let omittedState = OmittedState.NotOmitted;
 
 	if (!isDirectory) {
 		try {
 			const createdModel = await textModelService.createModelReference(resource);
 			createdModel.dispose();
 		} catch {
-			isOmitted = true;
+			omittedState = OmittedState.Full;
 		}
 
 		if (/\.(svg)$/i.test(resource.path)) {
-			isOmitted = true;
+			omittedState = OmittedState.Full;
 		}
 	}
 
 	return {
+		kind: isDirectory ? 'directory' : 'file',
 		value: resource,
 		id: resource.toString(),
 		name: basename(resource),
-		isFile: !isDirectory,
-		isDirectory,
-		isOmitted
+		omittedState
 	};
 }
 
@@ -108,31 +111,55 @@ export type ImageTransferData = {
 	icon?: ThemeIcon;
 	resource?: URI;
 	id?: string;
+	mimeType?: string;
+	omittedState?: OmittedState;
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = /\.(png|jpg|jpeg|gif|webp)$/i;
 
-export async function resolveImageEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, dialogService: IDialogService): Promise<IChatRequestVariableEntry | undefined> {
-	if (!editor.resource) {
+export async function resolveImageEditorAttachContext(fileService: IFileService, dialogService: IDialogService, resource: URI, data?: VSBuffer): Promise<IChatRequestVariableEntry | undefined> {
+	if (!resource) {
 		return undefined;
 	}
 
-	if (!SUPPORTED_IMAGE_EXTENSIONS_REGEX.test(editor.resource.path)) {
+	const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(resource.path);
+	if (!match) {
 		return undefined;
 	}
 
-	const fileName = basename(editor.resource);
-	const readFile = await fileService.readFile(editor.resource);
-	if (readFile.size > 30 * 1024 * 1024) { // 30 MB
-		dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
-		throw new Error('Image is too large');
+	const mimeType = getMimeTypeFromPath(match);
+	const fileName = basename(resource);
+
+	let dataBuffer: VSBuffer | undefined;
+	if (data) {
+		dataBuffer = data;
+	} else {
+
+		let stat;
+		try {
+			stat = await fileService.stat(resource);
+		} catch {
+			return undefined;
+		}
+
+		const readFile = await fileService.readFile(resource);
+
+		if (stat.size > 30 * 1024 * 1024) { // 30 MB
+			dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
+			throw new Error('Image is too large');
+		}
+
+		dataBuffer = readFile.value;
 	}
 
+	const isPartiallyOmitted = /\.gif$/i.test(resource.path);
 	const imageFileContext = await resolveImageAttachContext([{
-		id: editor.resource.toString(),
+		id: resource.toString(),
 		name: fileName,
-		data: readFile.value.buffer,
+		data: dataBuffer.buffer,
 		icon: Codicon.fileMedia,
-		resource: editor.resource,
+		resource: resource,
+		mimeType: mimeType,
+		omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
 	}]);
 
 	return imageFileContext[0];
@@ -143,13 +170,27 @@ export async function resolveImageAttachContext(images: ImageTransferData[]): Pr
 		id: image.id || await imageToHash(image.data),
 		name: image.name,
 		fullName: image.resource ? image.resource.path : undefined,
-		value: await resizeImage(image.data),
+		value: await resizeImage(image.data, image.mimeType),
 		icon: image.icon,
-		isImage: true,
+		kind: 'image',
 		isFile: false,
 		isDirectory: false,
+		omittedState: image.omittedState || OmittedState.NotOmitted,
 		references: image.resource ? [{ reference: image.resource, kind: 'reference' }] : []
 	})));
+}
+
+const MIME_TYPES: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+};
+
+function getMimeTypeFromPath(match: RegExpExecArray): string | undefined {
+	const ext = match[1].toLowerCase();
+	return MIME_TYPES[ext];
 }
 
 // --- MARKERS ---
@@ -177,7 +218,8 @@ export function resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[
 			id: symbolId(resource, symbol.range),
 			value: { uri: resource, range: symbol.range },
 			symbolKind: symbol.kind,
-			fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
+			icon: SymbolKinds.toIcon(symbol.kind),
+			fullName: symbol.name,
 			name: symbol.name,
 		};
 	});
@@ -192,4 +234,31 @@ function symbolId(resource: URI, range?: IRange): string {
 		}
 	}
 	return resource.fsPath + rangePart;
+}
+
+// --- NOTEBOOKS ---
+
+export function resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData, editorService: IEditorService): IChatRequestVariableEntry[] {
+	const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	if (!notebookEditor) {
+		return [];
+	}
+
+	const outputViewModel = getOutputViewModelFromId(data.outputId, notebookEditor);
+	if (!outputViewModel) {
+		return [];
+	}
+
+	const mimeType = outputViewModel.pickedMimeType?.mimeType;
+	if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
+
+		const entry = createNotebookOutputVariableEntry(outputViewModel, mimeType, notebookEditor);
+		if (!entry) {
+			return [];
+		}
+
+		return [entry];
+	}
+
+	return [];
 }

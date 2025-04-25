@@ -302,7 +302,6 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
-			zIndex: '0',
 			display: this._display,
 		},
 	}, [

@@ -251,11 +251,6 @@ export interface IEditorOptions {
 	inactive?: boolean;
 
 	/**
-	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
-	 * message as needed. By default, an error will be presented as notification if opening was not possible.
-	 */
-
-	/**
 	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
 	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
 	 * in that case.
@@ -303,6 +298,14 @@ export interface IEditorOptions {
 	 * not turn transient.
 	 */
 	transient?: boolean;
+
+	/**
+	 * A hint that the editor should have compact chrome when showing if possible.
+	 *
+	 * Note: this currently is only working if AUX_GROUP is specified as target to
+	 * open the editor in a floating window.
+	 */
+	compact?: boolean;
 }
 
 export interface ITextEditorSelection {

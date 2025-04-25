@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { CodeDataTransfers, containsDragType, extractEditorsDropData, extractMarkerDropData, extractSymbolDropData } from '../../../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData } from '../../../../platform/dnd/browser/dnd.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
@@ -25,7 +25,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatWidgetService } from './chat.js';
-import { ImageTransferData, resolveEditorAttachContext, resolveImageAttachContext, resolveMarkerAttachContext, resolveSymbolsAttachContext } from './chatAttachmentResolve.js';
+import { ImageTransferData, resolveEditorAttachContext, resolveImageAttachContext, resolveMarkerAttachContext, resolveNotebookOutputAttachContext, resolveSymbolsAttachContext } from './chatAttachmentResolve.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { convertStringToUInt8Array } from './imageUtils.js';
@@ -38,6 +38,7 @@ enum ChatDragAndDropType {
 	SYMBOL,
 	HTML,
 	MARKER,
+	NOTEBOOK_CELL_OUTPUT
 }
 
 const IMAGE_DATA_REGEX = /^data:image\/[a-z]+;base64,/;
@@ -168,8 +169,10 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private guessDropType(e: DragEvent): ChatDragAndDropType | undefined {
-		// This is an esstimation based on the datatransfer types/items
-		if (containsImageDragType(e)) {
+		// This is an estimation based on the datatransfer types/items
+		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
+			return ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT;
+		} else if (containsImageDragType(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, 'text/html')) {
 			return ChatDragAndDropType.HTML;
@@ -203,12 +206,20 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.SYMBOL: return localize('symbol', 'Symbol');
 			case ChatDragAndDropType.MARKER: return localize('problem', 'Problem');
 			case ChatDragAndDropType.HTML: return localize('url', 'URL');
+			case ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT: return localize('notebookOutput', 'Output');
 		}
 	}
 
 	private async resolveAttachmentsFromDragEvent(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		if (!this.isDragEventSupported(e)) {
 			return [];
+		}
+
+		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
+			const notebookOutputData = extractNotebookCellOutputDropData(e);
+			if (notebookOutputData) {
+				return resolveNotebookOutputAttachContext(notebookOutputData, this.editorService);
+			}
 		}
 
 		const markerData = extractMarkerDropData(e);

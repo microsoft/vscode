@@ -39,7 +39,6 @@ import { createFileIconThemableTreeContainerScope } from '../../../files/browser
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -464,18 +463,14 @@ registerAction2(class AddToChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const variablesService = accessor.get(IChatVariablesService);
-
 		if (!resource) {
 			return;
 		}
 
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
+		if (widget) {
+			widget.attachmentModel.addFile(resource);
 		}
-
-		variablesService.attachContext('file', resource, widget.location);
 	}
 });
 

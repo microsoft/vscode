@@ -290,6 +290,20 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.nextEditSuggestion': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.nextEditSuggestion', "Plays a signal - sound / audio cue and/or announcement (alert) when there is a next edit suggestion."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.nextEditSuggestion.sound', "Plays a sound when there is a next edit suggestion."),
+					...soundFeatureBase,
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.nextEditSuggestion.announcement', "Announces when there is a next edit suggestion."),
+					...announcementFeatureBase,
+				},
+			}
+		},
 		'accessibility.signals.lineHasError': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.lineHasError', "Plays a signal - sound (audio cue) and/or announcement (alert) - when the active line has an error."),

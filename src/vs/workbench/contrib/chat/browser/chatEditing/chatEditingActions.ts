@@ -23,8 +23,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IListService } from '../../../../../platform/list/browser/listService.js';
-import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -60,17 +59,11 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
 
-	const chatService = accessor.get(IChatService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const chatEditingService = accessor.get(IChatEditingService);
 	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
 	if (!chatWidget) {
-		if (chatService.unifiedViewEnabled) {
-			// TODO ugly
-			chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.isUnifiedPanelWidget);
-		} else {
-			chatWidget = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
-		}
+		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.supportsChangingModes);
 	}
 
 	if (!chatWidget?.viewModel) {
@@ -177,16 +170,21 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+
+
 		for (const uri of uris) {
-			const editedFile = currentEditingSession.getEntry(uri);
-			if (editedFile?.state.get() === ModifiedFileEntryState.Modified) {
-				await editorService.openEditor({
-					original: { resource: URI.from(editedFile.originalURI, true) },
-					modified: { resource: URI.from(editedFile.modifiedURI, true) },
-				});
-			} else {
-				await editorService.openEditor({ resource: uri });
+
+			let pane: IEditorPane | undefined = editorService.activeEditorPane;
+			if (!pane) {
+				pane = await editorService.openEditor({ resource: uri });
 			}
+
+			if (!pane) {
+				return;
+			}
+
+			const editedFile = currentEditingSession.getEntry(uri);
+			editedFile?.getEditorIntegration(pane).toggleDiff(undefined, true);
 		}
 	}
 });
@@ -330,6 +328,7 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	return true;
 }
 
+// TODO@roblourens this may be obsolete?
 export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 	static readonly ID = 'chatEditing.clearWorkingSet';
 
@@ -392,48 +391,6 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 	}
 }
 registerAction2(ChatEditingShowChangesAction);
-
-registerAction2(class AddFilesToWorkingSetAction extends EditingSessionAction {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.addSelectedFilesToWorkingSet',
-			title: localize2('workbench.action.chat.addSelectedFilesToWorkingSet.label', "Add Selected Files to Working Set"),
-			icon: Codicon.attach,
-			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-			f1: true
-		});
-	}
-
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
-		const listService = accessor.get(IListService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-
-		const uris: URI[] = [];
-
-		for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			for (const selection of group.selectedEditors) {
-				if (selection.resource) {
-					uris.push(selection.resource);
-				}
-			}
-		}
-
-		if (uris.length === 0) {
-			const selection = listService.lastFocusedList?.getSelection();
-			if (selection?.length) {
-				for (const file of selection) {
-					if (!!file && typeof file === 'object' && 'resource' in file && URI.isUri(file.resource)) {
-						uris.push(file.resource);
-					}
-				}
-			}
-		}
-
-		for (const file of uris) {
-			await chatWidget.attachmentModel.addFile(file);
-		}
-	}
-});
 
 registerAction2(class RemoveAction extends Action2 {
 	constructor() {

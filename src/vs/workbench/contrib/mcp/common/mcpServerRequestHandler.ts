@@ -466,7 +466,7 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Call a specific tool
 	 */
-	callTool(params: MCP.CallToolRequest['params'], token?: CancellationToken): Promise<MCP.CallToolResult> {
+	callTool(params: MCP.CallToolRequest['params'] & MCP.Request['params'], token?: CancellationToken): Promise<MCP.CallToolResult> {
 		return this.sendRequest<MCP.CallToolRequest, MCP.CallToolResult>({ method: 'tools/call', params }, token);
 	}
 

@@ -49,6 +49,7 @@ import { TestingContextKeys } from '../../common/testingContextKeys.js';
 import { cmpPriority } from '../../common/testingStates.js';
 import { TestUriType, buildTestUri } from '../../common/testingUri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { TestId } from '../../common/testId.js';
 
 
 interface ITreeElement {
@@ -186,6 +187,22 @@ class TestCaseElement implements ITreeElement {
 		public readonly taskIndex: number,
 	) {
 		this.id = `${results.id}/${test.item.extId}`;
+
+		const parentId = TestId.fromString(test.item.extId).parentId;
+		if (parentId) {
+			this.description = '';
+			for (const part of parentId.idsToRoot()) {
+				if (part.isRoot) { break; }
+				const test = results.getStateById(part.toString());
+				if (!test) { break; }
+				if (this.description.length) {
+					this.description += ' \u2039 ';
+				}
+
+				this.description += test.item.label;
+			}
+		}
+
 		this.context = {
 			$mid: MarshalledId.TestItemContext,
 			tests: [InternalTestItem.serialize(test)],

@@ -594,4 +594,6 @@ export const codiconsLibrary = {
 	symbolMethodArrow: register('symbol-method-arrow', 0xec41),
 	copilotUnavailable: register('copilot-unavailable', 0xec42),
 	repoPinned: register('repo-pinned', 0xec43),
+	keyboardTabAbove: register('keyboard-tab-above', 0xec44),
+	keyboardTabBelow: register('keyboard-tab-below', 0xec45),
 } as const;

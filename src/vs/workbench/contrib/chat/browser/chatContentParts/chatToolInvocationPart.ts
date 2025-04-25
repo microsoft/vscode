@@ -8,7 +8,8 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorunWithStore } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -247,7 +248,7 @@ class ChatToolInvocationSubPart extends Disposable {
 
 				const langId = this.languageService.getLanguageIdByLanguageName('json');
 				const model = this._register(this.modelService.createModel(
-					JSON.stringify(inputData.rawInput, undefined, 2),
+					JSON.stringify(inputData.rawInput ?? {}, undefined, 2),
 					this.languageService.createById(langId),
 					createToolInputUri(toolInvocation.toolId)
 				));
@@ -289,7 +290,8 @@ class ChatToolInvocationSubPart extends Disposable {
 					element: this.context.element,
 					languageId: langId ?? 'json',
 					renderOptions: codeBlockRenderOptions,
-					textModel: Promise.resolve(model)
+					textModel: Promise.resolve(model),
+					chatSessionId: this.context.element.sessionId
 				}, this.currentWidthDelegate());
 				this._codeblocks.push({
 					codeBlockIndex: this.codeBlockStartIndex,
@@ -299,7 +301,8 @@ class ChatToolInvocationSubPart extends Disposable {
 					isStreaming: false,
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: model.uri,
-					uriPromise: Promise.resolve(model.uri)
+					uriPromise: Promise.resolve(model.uri),
+					chatSessionId: this.context.element.sessionId
 				});
 				this._register(editor.object.onDidChangeContentHeight(() => {
 					editor.object.layout(this.currentWidthDelegate());
@@ -404,14 +407,16 @@ class ChatToolInvocationSubPart extends Disposable {
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId));
 		const editor = this._register(this.editorPool.get());
-		editor.object.render({
+		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			languageId: langId,
 			renderOptions: codeBlockRenderOptions,
-			textModel: Promise.resolve(model)
+			textModel: Promise.resolve(model),
+			chatSessionId: this.context.element.sessionId
 		}, this.currentWidthDelegate());
+		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
 		this._codeblocks.push({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codemapperUri: undefined,
@@ -420,7 +425,8 @@ class ChatToolInvocationSubPart extends Disposable {
 			isStreaming: false,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			uri: model.uri,
-			uriPromise: Promise.resolve(model.uri)
+			uriPromise: Promise.resolve(model.uri),
+			chatSessionId: this.context.element.sessionId
 		});
 		this._register(editor.object.onDidChangeContentHeight(() => {
 			editor.object.layout(this.currentWidthDelegate());
@@ -453,27 +459,37 @@ class ChatToolInvocationSubPart extends Disposable {
 	}
 
 	private createProgressPart(): HTMLElement {
-		let content: IMarkdownString;
 		if (this.toolInvocation.isComplete && this.toolInvocation.isConfirmed !== false && this.toolInvocation.pastTenseMessage) {
-			content = typeof this.toolInvocation.pastTenseMessage === 'string' ?
-				new MarkdownString().appendText(this.toolInvocation.pastTenseMessage) :
-				this.toolInvocation.pastTenseMessage;
+			const part = this.renderProgressContent(this.toolInvocation.pastTenseMessage);
+			this._register(part);
+			return part.domNode;
 		} else {
-			content = typeof this.toolInvocation.invocationMessage === 'string' ?
-				new MarkdownString().appendText(this.toolInvocation.invocationMessage + '…') :
-				MarkdownString.lift(this.toolInvocation.invocationMessage).appendText('…');
+			const container = document.createElement('div');
+			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
+			this._register(autorunWithStore((reader, store) => {
+				const progress = progressObservable?.read(reader);
+				const part = store.add(this.renderProgressContent(progress?.message || this.toolInvocation.invocationMessage));
+				dom.reset(container, part.domNode);
+			}));
+			return container;
+		}
+	}
+
+	private renderProgressContent(content: IMarkdownString | string) {
+		if (typeof content === 'string') {
+			content = new MarkdownString().appendText(content);
 		}
 
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
 			content
 		};
+
 		const iconOverride = !this.toolInvocation.isConfirmed ?
 			Codicon.error :
 			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;
-		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride));
-		return progressPart.domNode;
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride);
 	}
 
 	private createTerminalMarkdownProgressPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, terminalData: IChatTerminalToolInvocationData): HTMLElement {
@@ -532,7 +548,8 @@ class ChatToolInvocationSubPart extends Disposable {
 				isStreaming: false,
 				ownerMarkdownPartId: this.codeblocksPartId,
 				uri: model.uri,
-				uriPromise: Promise.resolve(model.uri)
+				uriPromise: Promise.resolve(model.uri),
+				chatSessionId: this.context.element.sessionId
 			}
 		));
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

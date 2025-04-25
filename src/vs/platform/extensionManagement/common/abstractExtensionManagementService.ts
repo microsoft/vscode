@@ -98,7 +98,7 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 	abstract installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	abstract uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	abstract uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
-	abstract toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
+	abstract toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
 	abstract getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	abstract resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void>;
 	abstract registerParticipant(pariticipant: IExtensionManagementParticipant): void;
@@ -204,7 +204,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		return this.uninstallExtensions([{ extension, options }]);
 	}
 
-	async toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+	async toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
 		if (isApplicationScopedExtension(extension.manifest) || extension.isBuiltin) {
 			return extension;
 		}

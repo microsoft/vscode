@@ -18,6 +18,9 @@ bash_major_version=${BASH_VERSINFO[0]}
 __vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
 unset VSCODE_SHELL_ENV_REPORTING
 
+envVarsToReport=()
+IFS=',' read -ra envVarsToReport <<< "$__vscode_shell_env_reporting"
+
 if (( BASH_VERSINFO[0] >= 4 )); then
 	use_associative_array=1
 	# Associative arrays are only available in bash 4.0+
@@ -63,8 +66,8 @@ fi
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
+		VARNAME="${ITEM%%=*}"
+		VALUE="${ITEM#*=}"
 		export $VARNAME="$VALUE"
 	done
 	builtin unset VSCODE_ENV_REPLACE
@@ -72,8 +75,8 @@ fi
 if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
+		VARNAME="${ITEM%%=*}"
+		VALUE="${ITEM#*=}"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
 	builtin unset VSCODE_ENV_PREPEND
@@ -81,8 +84,8 @@ fi
 if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
+		VARNAME="${ITEM%%=*}"
+		VALUE="${ITEM#*=}"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
 	builtin unset VSCODE_ENV_APPEND
@@ -248,26 +251,6 @@ __updateEnvCacheAA() {
 	fi
 }
 
-__trackMissingEnvVarsAA() {
-	if [ "$use_associative_array" = 1 ]; then
-		declare -A currentEnvMap
-		while IFS= read -r line; do
-			if [[ "$line" == *"="* ]]; then
-				local key="${line%%=*}"
-				local value="${line#*=}"
-				currentEnvMap["$key"]="$value"
-			fi
-		done < <(env)
-
-		for key in "${!vsc_aa_env[@]}"; do
-			if [ -z "${currentEnvMap[$key]}" ]; then
-				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
-				builtin unset "vsc_aa_env[$key]"
-			fi
-		done
-	fi
-}
-
 __updateEnvCache() {
 	local key="$1"
 	local value="$2"
@@ -287,86 +270,51 @@ __updateEnvCache() {
 	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
-__trackMissingEnvVars() {
-	local current_env_keys=()
-
-	while IFS='=' read -r key value; do
-		current_env_keys+=("$key")
-	done < <(env)
-
-	# Compare vsc_env_keys with user's current_env_keys
-	for key in "${vsc_env_keys[@]}"; do
-		local found=0
-		for env_key in "${current_env_keys[@]}"; do
-			if [[ "$key" == "$env_key" ]]; then
-				found=1
-				break
-			fi
-		done
-		if [ "$found" = 0 ]; then
-			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[i]}" "$(__vsc_escape_value "${vsc_env_values[i]}")" "$__vsc_nonce"
-			builtin unset 'vsc_env_keys[i]'
-			builtin unset 'vsc_env_values[i]'
-		fi
-	done
-
-	# Remove gaps from unset
-	vsc_env_keys=("${vsc_env_keys[@]}")
-	vsc_env_values=("${vsc_env_values[@]}")
-}
-
 __vsc_update_env() {
-	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
+	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
 				# Associative array is empty, do not diff, just add
-				# Use null byte instead of a newline to support multi-line values (e.g. PS1 values)
-				while IFS= read -r -d $'\0' line; do
-					if [[ "$line" == *"="* ]]; then
-						# %% removes longest match of =* Ensure we get everything before first equal sign.
-						local key="${line%%=*}"
-						# # removes shortest match of *= Ensure we get everything after first equal sign. Preserving additional equal signs.
-						local value="${line#*=}"
+				for key in "${envVarsToReport[@]}"; do
+					if [ -n "${!key+x}" ]; then
+						local value="${!key}"
 						vsc_aa_env["$key"]="$value"
 						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 					fi
-				done < <(env -0) # env command with null bytes as separator instead of newlines
+				done
 			else
 				# Diff approach for associative array
-				while IFS= read -r -d $'\0' line; do
-					if [[ "$line" == *"="* ]]; then
-						local key="${line%%=*}"
-						local value="${line#*=}"
+				for key in "${envVarsToReport[@]}"; do
+					if [ -n "${!key+x}" ]; then
+						local value="${!key}"
 						__updateEnvCacheAA "$key" "$value"
 					fi
-				done < <(env -0)
-				__trackMissingEnvVarsAA
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 
 		else
 			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
 				# Non associative arrays are both empty, do not diff, just add
-				while IFS= read -r -d $'\0' line; do
-					if [[ "$line" == *"="* ]]; then
-						local key="${line%%=*}"
-						local value="${line#*=}"
+				for key in "${envVarsToReport[@]}"; do
+					if [ -n "${!key+x}" ]; then
+						local value="${!key}"
 						vsc_env_keys+=("$key")
 						vsc_env_values+=("$value")
 						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 					fi
-				done < <(env -0)
+				done
 			else
 				# Diff approach for non-associative arrays
-				while IFS= read -r -d $'\0' line; do
-					if [[ "$line" == *"="* ]]; then
-						local key="${line%%=*}"
-						local value="${line#*=}"
+				for key in "${envVarsToReport[@]}"; do
+					if [ -n "${!key+x}" ]; then
+						local value="${!key}"
 						__updateEnvCache "$key" "$value"
 					fi
-				done < <(env -0)
-				__trackMissingEnvVars
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce

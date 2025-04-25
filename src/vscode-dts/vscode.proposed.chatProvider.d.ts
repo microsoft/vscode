@@ -41,6 +41,16 @@ declare module 'vscode' {
 		readonly family: string;
 
 		/**
+		 * An optional, human-readable description of the language model.
+		 */
+		readonly description?: string;
+
+		/**
+		 * An optional, human-readable string representing the cost of using the language model.
+		 */
+		readonly cost?: string;
+
+		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
 		 * and subject to change while the identifier is stable.
 		 */
@@ -65,6 +75,14 @@ declare module 'vscode' {
 			readonly toolCalling?: boolean;
 			readonly agentMode?: boolean;
 		};
+
+		/**
+		 * Optional category to group models by in the model picker.
+		 * The lower the order, the higher the category appears in the list.
+		 * Has no effect if `isUserSelectable` is `false`.
+		 * If not specified, the model will appear in the "Other Models" category.
+		 */
+		readonly category?: { label: string; order: number };
 	}
 
 	export interface ChatResponseProviderMetadata {
