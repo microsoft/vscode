@@ -44,6 +44,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
+	public readonly toolReferenceName: string | undefined;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 
@@ -59,6 +60,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.presentation = preparedInvocation?.presentation;
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
+		this.toolReferenceName = toolData.toolReferenceName;
 
 		if (!this._confirmationMessages) {
 			// No confirmation needed
@@ -110,6 +112,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
+			toolReferenceName: this.toolReferenceName,
 		};
 	}
 }
