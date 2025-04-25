@@ -123,6 +123,7 @@ export class ChatSelectedTools extends Disposable {
 		);
 	}
 
+	// TODO: @legomushroom - do we need changes to `toolNamesOrIds`?
 	selectOnly(toolNamesOrIds: readonly string[]): void {
 		const uniqueTools = new Set(toolNamesOrIds);
 

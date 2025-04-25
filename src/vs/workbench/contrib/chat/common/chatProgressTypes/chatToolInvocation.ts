@@ -112,7 +112,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
-			toolReferenceName: this.toolReferenceName,
 		};
 	}
 }
