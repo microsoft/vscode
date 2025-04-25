@@ -30,17 +30,25 @@ import { NotebookOptions } from '../notebookOptions.js';
 import { INotebookEditorService } from '../services/notebookEditorService.js';
 import { BackLayerWebView, INotebookDelegateForWebview } from '../view/renderers/backLayerWebView.js';
 import { NotebookOutputEditorInput } from './notebookOutputEditorInput.js';
+import { BareFontInfo, FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { FontMeasurements } from '../../../../../editor/browser/config/fontMeasurements.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+
 
 
 export class NotebookOutputEditor extends EditorPane implements INotebookDelegateForWebview {
 
 	static readonly ID: string = NOTEBOOK_OUTPUT_EDITOR_ID;
 
-
 	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
 
 	private _rootElement!: HTMLElement;
 	private _outputWebview: BackLayerWebView<ICommonCellInfo> | null = null;
+
+	private _fontInfo: FontInfo | undefined;
+
 
 	private _notebookEditor: NotebookEditorWidget | undefined;
 	private _notebookRef: IReference<IResolvedNotebookEditorModel> | undefined;
@@ -61,6 +69,7 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService,
@@ -73,6 +82,19 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 	createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-output-editor'));
+	}
+
+	private get fontInfo() {
+		if (!this._fontInfo) {
+			this._fontInfo = this.createFontInfo();
+		}
+
+		return this._fontInfo;
+	}
+
+	private createFontInfo() {
+		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
+		return FontMeasurements.readFontInfo(this.window, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.window).value));
 	}
 
 	private async _createOriginalWebview(id: string, viewType: string, resource: URI): Promise<void> {
@@ -92,8 +114,8 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 	}
 
-	_generateFontFamily(): string {
-		return `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
+	private _generateFontFamily(): string {
+		return this.fontInfo.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
 	}
 
 	override getTitle(): string {
