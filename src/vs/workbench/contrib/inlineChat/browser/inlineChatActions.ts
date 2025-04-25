@@ -12,7 +12,7 @@ import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/code
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatController1, InlineChatController2, InlineChatRunOptions } from './inlineChatController.js';
 import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_HAS_AGENT2, MENU_INLINE_CHAT_SIDE } from '../common/inlineChat.js';
-import { ctxHasRequestInProgress, ctxIsGlobalEditingSession, ctxRequestCount } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession, ctxRequestCount } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -633,25 +633,25 @@ class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 1,
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ContextKeyExpr.greater(ctxRequestCount.key, 0)),
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ContextKeyExpr.greater(ctxRequestCount.key, 0), ctxHasEditorModification),
 			}]
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: any[]): void {
+	override async runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		const inlineChatSessions = accessor.get(IInlineChatSessionService);
 		if (!editor.hasModel()) {
 			return;
 		}
 		const textModel = editor.getModel();
 		const session = inlineChatSessions.getSession2(textModel.uri);
-		if (!session) {
-			return;
-		}
-		if (this._keep) {
-			session.editingSession.accept();
-		} else {
-			session.editingSession.reject();
+		if (session) {
+			if (this._keep) {
+				await session.editingSession.accept();
+			} else {
+				await session.editingSession.reject();
+			}
+			session.dispose();
 		}
 	}
 }
@@ -676,7 +676,11 @@ export class CloseSessionAction2 extends AbstractInline2ChatAction {
 			title: localize2('close2', "Close"),
 			f1: true,
 			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ctxHasRequestInProgress.negate(), ContextKeyExpr.equals(ctxRequestCount.key, 0)),
+			precondition: ContextKeyExpr.and(
+				CTX_INLINE_CHAT_VISIBLE,
+				ctxHasRequestInProgress.negate(),
+				ContextKeyExpr.or(ctxRequestCount.isEqualTo(0), ctxHasEditorModification.negate())
+			),
 			keybinding: [{
 				when: ctxRequestCount.isEqualTo(0),
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -688,7 +692,12 @@ export class CloseSessionAction2 extends AbstractInline2ChatAction {
 			menu: [{
 				id: MENU_INLINE_CHAT_SIDE,
 				group: 'navigation',
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ContextKeyExpr.equals(ctxRequestCount.key, 0)),
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ctxRequestCount.isEqualTo(0)),
+			}, {
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				group: '0_main',
+				order: 1,
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT2, ctxHasEditorModification.negate()),
 			}]
 		});
 	}
