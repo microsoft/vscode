@@ -217,7 +217,7 @@ export class Extension implements IExtension {
 	}
 
 	get private(): boolean {
-		return this.local ? this.local.private : this.gallery ? this.gallery.private : false;
+		return this.gallery ? this.gallery.private : this.local ? this.local.private : false;
 	}
 
 	get pinned(): boolean {
