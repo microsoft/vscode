@@ -41,7 +41,7 @@ import { ITOCEntry, getCommonlyUsedData, tocData } from './settingsLayout.js';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
 import { createTOCIterator, TOCTree, TOCTreeModel } from './tocTree.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData } from '../common/preferences.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData, wordifyKey } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -69,7 +69,6 @@ import { IExtensionManifest } from '../../../../platform/extensions/common/exten
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
-
 
 export const enum SettingsFocusContext {
 	Search,
@@ -169,6 +168,7 @@ export class SettingsEditor2 extends EditorPane {
 	private countElement!: HTMLElement;
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
+	private suggestionsDiv!: HTMLElement;
 
 	private splitView!: SplitView<number>;
 
@@ -226,6 +226,8 @@ export class SettingsEditor2 extends EditorPane {
 	private readonly DISMISSED_EXTENSION_SETTINGS_DELIMITER = '\t';
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
+
+	private readonly searchSuggestionDisposables: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -669,6 +671,11 @@ export class SettingsEditor2 extends EditorPane {
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		headerControlsContainer.style.borderColor = asCssVariable(settingsHeaderBorder);
+
+		this.suggestionsDiv = DOM.append(headerControlsContainer, $('div.settings-suggestions'));
+		if (this.configurationService.getValue('workbench.settings.showExperimentalSuggestions') === false) {
+			this.suggestionsDiv.hidden = true;
+		}
 
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
@@ -1608,6 +1615,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async triggerSearch(query: string): Promise<void> {
+		this.clearSearchSuggestions();
 		const progressRunner = this.editorProgressService.show(true, 800);
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
@@ -1703,7 +1711,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
 			let remoteResults = null;
-			if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
+			if ((!localResults || !localResults.exactMatch) && !searchInProgress.token.isCancellationRequested) {
 				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
 			}
 
@@ -1715,7 +1723,7 @@ export class SettingsEditor2 extends EditorPane {
 			// ref https://github.com/microsoft/vscode/issues/224946
 			this.onDidFinishSearch();
 
-			if (remoteResults) {
+			if (remoteResults?.filterMatches.length) {
 				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
 					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
 					if (!searchInProgress.token.isCancellationRequested) {
@@ -1723,6 +1731,13 @@ export class SettingsEditor2 extends EditorPane {
 							this.logService.trace('No ranked results found');
 						} else {
 							this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
+							const combinedResultsKeys = new Set([
+								...(localResults?.filterMatches.map(m => m.setting.key) ?? []),
+								...(remoteResults.filterMatches.map(m => m.setting.key))
+							]);
+							const unlistedResults = rankedResults.filter(r => !combinedResultsKeys.has(r));
+							this.logService.trace(`Got unlisted results ${unlistedResults.join(', ')}`);
+							this.setSearchSuggestions(unlistedResults);
 						}
 					}
 				}
@@ -1739,6 +1754,43 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTree.scrollTop = 0;
 		this.refreshTOCTree();
 		this.renderTree(undefined, true);
+	}
+
+	private clearSearchSuggestions(): void {
+		this.searchSuggestionDisposables.clear();
+		this.suggestionsDiv.innerText = '';
+	}
+
+	private setSearchSuggestions(suggestions: string[]): void {
+		this.clearSearchSuggestions();
+
+		if (suggestions.length === 0) {
+			return;
+		}
+
+		this.suggestionsDiv.innerText = localize('suggestionsPrefix', "Did you mean: ");
+		suggestions.forEach((suggestion, idx) => {
+			const suggestionLink = document.createElement('a');
+			suggestionLink.textContent = wordifyKey(suggestion);
+			suggestionLink.tabIndex = 0;
+			suggestionLink.setAttribute('aria-label', suggestion);
+			this.searchSuggestionDisposables.add(DOM.addDisposableListener(suggestionLink, 'click', (e) => {
+				e.preventDefault();
+				this.searchWidget.setValue(suggestion);
+				this.focusSearch();
+			}));
+			this.searchSuggestionDisposables.add(DOM.addDisposableListener(suggestionLink, 'keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					this.searchWidget.setValue(suggestion);
+					this.focusSearch();
+				}
+			}));
+			this.suggestionsDiv.appendChild(suggestionLink);
+			if (idx < suggestions.length - 1) {
+				this.suggestionsDiv.appendChild(document.createTextNode(', '));
+			}
+		});
 	}
 
 	private localFilterPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
