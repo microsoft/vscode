@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResource, IResourcePreview, USER_DATA_SYNC_SCHEME, USER_DATA_SYNC_LOG_ID, } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView, getSyncAreaLabel } from '../common/userDataSync.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -104,7 +103,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -262,7 +260,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			try {
 				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.logService.info('Settings Sync: Token updated for the account', current.accountName);
+				this.traceOrInfo('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -271,11 +269,19 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.userDataSyncAccountService.updateAccount(value);
 	}
 
+	private traceOrInfo(msg: string, ...args: any[]): void {
+		if (this.environmentService.isBuilt) {
+			this.logService.info(msg, ...args);
+		} else {
+			this.logService.trace(msg, ...args);
+		}
+	}
+
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		this.logService.trace(`Settings Sync: Updating the account status to ${accountStatus}`);
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			this.traceOrInfo(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -367,7 +373,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	syncNow(): Promise<void> {
-		return this.userDataAutoSyncService.triggerSync(['Sync Now'], false, true);
+		return this.userDataAutoSyncService.triggerSync(['Sync Now'], { immediately: true, disableCache: true });
 	}
 
 	private async doTurnOnSync(token: CancellationToken): Promise<void> {
@@ -716,7 +722,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async onDidAuthFailure(): Promise<void> {
-		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update('auth failure');
 	}

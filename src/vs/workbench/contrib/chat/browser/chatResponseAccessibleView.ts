@@ -7,14 +7,14 @@ import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRend
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
-export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
+export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
@@ -32,7 +32,6 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 
 		const verifiedWidget: IChatWidget = widget;
 		const focusedItem = verifiedWidget.getFocus();
-
 		if (!focusedItem) {
 			return;
 		}
@@ -64,6 +63,19 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
+		}
+		if (isResponseVM(item)) {
+			const toolInvocation = item.response.value.find(item => item.kind === 'toolInvocation');
+			if (toolInvocation?.confirmationMessages) {
+				const title = toolInvocation.confirmationMessages.title;
+				const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : toolInvocation.confirmationMessages.message.value;
+				const terminalCommand = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
+				responseContent += `${title}`;
+				if (terminalCommand) {
+					responseContent += `: ${terminalCommand}`;
+				}
+				responseContent += `\n${message}`;
+			}
 		}
 		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
 	}

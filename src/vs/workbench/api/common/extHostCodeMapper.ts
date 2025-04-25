@@ -8,8 +8,9 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import * as extHostProtocol from './extHost.protocol.js';
-import { ChatAgentResult, DocumentContextItem, TextEdit } from './extHostTypeConverters.js';
+import { NotebookEdit, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
+import { asArray } from '../../../base/common/arrays.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
 
@@ -33,36 +34,32 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		// Construct a response object to pass to the provider
 		const stream: vscode.MappedEditsResponseStream = {
 			textEdit: (target: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) => {
-				edits = (Array.isArray(edits) ? edits : [edits]);
+				edits = asArray(edits);
 				this._proxy.$handleProgress(internalRequest.requestId, {
 					uri: target,
 					edits: edits.map(TextEdit.from)
+				});
+			},
+			notebookEdit: (target: vscode.Uri, edits: vscode.NotebookEdit | vscode.NotebookEdit[]) => {
+				edits = asArray(edits);
+				this._proxy.$handleProgress(internalRequest.requestId, {
+					uri: target,
+					edits: edits.map(NotebookEdit.from)
 				});
 			}
 		};
 
 		const request: vscode.MappedEditsRequest = {
+			location: internalRequest.location,
+			chatRequestId: internalRequest.chatRequestId,
+			chatRequestModel: internalRequest.chatRequestModel,
+			chatSessionId: internalRequest.chatSessionId,
 			codeBlocks: internalRequest.codeBlocks.map(block => {
 				return {
 					code: block.code,
 					resource: URI.revive(block.resource),
 					markdownBeforeBlock: block.markdownBeforeBlock
 				};
-			}),
-			conversation: internalRequest.conversation.map(item => {
-				if (item.type === 'request') {
-					return {
-						type: 'request',
-						message: item.message
-					} satisfies vscode.ConversationRequest;
-				} else {
-					return {
-						type: 'response',
-						message: item.message,
-						result: item.result ? ChatAgentResult.to(item.result) : undefined,
-						references: item.references?.map(DocumentContextItem.to)
-					} satisfies vscode.ConversationResponse;
-				}
 			})
 		};
 
@@ -72,7 +69,7 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 
 	registerMappedEditsProvider(extension: IExtensionDescription, provider: vscode.MappedEditsProvider2): vscode.Disposable {
 		const handle = ExtHostCodeMapper._providerHandlePool++;
-		this._proxy.$registerCodeMapperProvider(handle);
+		this._proxy.$registerCodeMapperProvider(handle, extension.displayName ?? extension.name);
 		this.providers.set(handle, provider);
 		return {
 			dispose: () => {

@@ -13,6 +13,7 @@ import { Range } from '../../../common/core/range.js';
 import { IModelDecoration } from '../../../common/model.js';
 import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 import { HoverStartSource } from './hoverOperation.js';
+import { ScrollEvent } from '../../../../base/common/scrollable.js';
 
 export interface IHoverPart {
 	/**
@@ -148,12 +149,13 @@ export interface IRenderedHoverParts<T extends IHoverPart> extends IDisposable {
  */
 export class RenderedHoverParts<T extends IHoverPart> implements IRenderedHoverParts<T> {
 
-	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[]) { }
+	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[], private readonly disposables?: IDisposable) { }
 
 	dispose() {
 		for (const part of this.renderedHoverParts) {
 			part.dispose();
 		}
+		this.disposables?.dispose();
 	}
 }
 
@@ -167,6 +169,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
 	handleHide?(): void;
+	handleScroll?(e: ScrollEvent): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

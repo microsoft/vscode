@@ -2,25 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ChatInputPart } from './chatInputPart.js';
-import { IChatWidgetService } from './chat.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { localize } from '../../../../nls.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
-import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { Mimes } from '../../../../base/common/mime.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { basename } from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatWidgetService } from './chat.js';
+import { ChatInputPart } from './chatInputPart.js';
+import { cleanupOldImages, createFileForMedia, resizeImage } from './imageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 
@@ -30,6 +33,7 @@ interface SerializedCopyData {
 }
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
+	private readonly imagesFolder: URI;
 
 	public readonly kind = new HierarchicalKind('chat.attach.image');
 	public readonly providedPasteEditKinds = [this.kind];
@@ -40,7 +44,13 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
 		private readonly extensionService: IExtensionService,
-	) { }
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
+		cleanupOldImages(this.fileService, this.logService, this.imagesFolder,);
+	}
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		if (!this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
@@ -89,37 +99,49 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			tempDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const imageContext = await getImageAttachContext(currClipboard, mimeType, token, tempDisplayName);
-
-		if (token.isCancellationRequested || !imageContext) {
+		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, currClipboard, mimeType);
+		if (token.isCancellationRequested || !fileReference) {
 			return;
 		}
+
+		const scaledImageData = await resizeImage(currClipboard);
+		if (token.isCancellationRequested || !scaledImageData) {
+			return;
+		}
+
+		const scaledImageContext = await getImageAttachContext(scaledImageData, mimeType, token, tempDisplayName, fileReference);
+		if (token.isCancellationRequested || !scaledImageContext) {
+			return;
+		}
+
+		widget.attachmentModel.addContext(scaledImageContext);
 
 		// Make sure to attach only new contexts
 		const currentContextIds = widget.attachmentModel.getAttachmentIDs();
-		if (currentContextIds.has(imageContext.id)) {
+		if (currentContextIds.has(scaledImageContext.id)) {
 			return;
 		}
 
-		const edit = createCustomPasteEdit(model, imageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
+		const edit = createCustomPasteEdit(model, scaledImageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
 		return createEditSession(edit);
 	}
 }
 
-async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string): Promise<IChatRequestVariableEntry | undefined> {
+async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string, resource: URI): Promise<IChatRequestVariableEntry | undefined> {
 	const imageHash = await imageToHash(data);
 	if (token.isCancellationRequested) {
 		return undefined;
 	}
 
 	return {
+		kind: 'image',
 		value: data,
 		id: imageHash,
 		name: displayName,
-		isImage: true,
 		icon: Codicon.fileMedia,
-		isDynamic: true,
-		mimeType
+		mimeType,
+		isPasted: true,
+		references: [{ reference: resource, kind: 'reference' }]
 	};
 }
 
@@ -243,7 +265,6 @@ function getCopiedContext(code: string, file: URI, language: string, range: IRan
 		id: `${fileName}${start}${end}${range.startColumn}${range.endColumn}`,
 		name: `${fileName} ${pastedLines}`,
 		icon: Codicon.code,
-		isDynamic: true,
 		pastedLines,
 		language,
 		fileName: file.toString(),
@@ -303,10 +324,13 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IExtensionService extensionService: IExtensionService,
-		@IModelService modelService: IModelService
+		@IFileService fileService: IFileService,
+		@IModelService modelService: IModelService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService logService: ILogService,
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 	}

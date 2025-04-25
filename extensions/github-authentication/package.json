@@ -39,11 +39,12 @@
       }
     ],
     "configuration": [{
-      "title": "GitHub Enterprise Server Authentication Provider",
+      "title": "%config.github-enterprise.title%",
       "properties": {
         "github-enterprise.uri": {
           "type": "string",
-          "description": "GitHub Enterprise Server URI"
+          "markdownDescription": "%config.github-enterprise.uri.description%",
+          "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
         }
       }
     }

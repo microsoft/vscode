@@ -88,14 +88,14 @@ export class AttachedViewHandler extends Disposable {
 }
 
 export abstract class AbstractTokens extends Disposable {
-	protected _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	protected abstract _backgroundTokenizationState: BackgroundTokenizationState;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
 	}
 
-	protected readonly _onDidChangeBackgroundTokenizationState = this._register(new Emitter<void>());
+	protected abstract readonly _onDidChangeBackgroundTokenizationState: Emitter<void>;
 	/** @internal, should not be exposed by the text model! */
-	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+	public abstract readonly onDidChangeBackgroundTokenizationState: Event<void>;
 
 	protected readonly _onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 	/** @internal, should not be exposed by the text model! */

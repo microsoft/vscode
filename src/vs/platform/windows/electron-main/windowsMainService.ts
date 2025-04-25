@@ -160,6 +160,8 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	label?: string;
 }
 
+const EMPTY_WINDOW: IPathToOpen = Object.create(null);
+
 interface IWorkspacePathToOpen extends IPathToOpen {
 	readonly workspace: IWorkspaceIdentifier;
 }
@@ -208,7 +210,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly windows = new Map<number, ICodeWindow>();
 
-	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
+	private readonly windowsStateHandler: WindowsStateHandler;
 
 	constructor(
 		private readonly machineId: string,
@@ -217,7 +219,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateService stateService: IStateService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
@@ -235,6 +237,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		super();
+
+		this.windowsStateHandler = this._register(new WindowsStateHandler(this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 		this.registerListeners();
 	}
@@ -304,7 +308,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const emptyWindowsWithBackupsToRestore: IEmptyWindowBackupInfo[] = [];
 
 		let filesToOpen: IFilesToOpen | undefined;
-		let openOneEmptyWindow = false;
+		let maybeOpenEmptyWindow = false;
 
 		// Identify things to open from open config
 		const pathsToOpen = await this.getPathsToOpen(openConfig);
@@ -332,7 +336,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			} else if (path.backupPath) {
 				emptyWindowsWithBackupsToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority });
 			} else {
-				openOneEmptyWindow = true;
+				maybeOpenEmptyWindow = true; // depends on other parameters such as `forceEmpty` and how many windows have opened already
 			}
 		}
 
@@ -368,9 +372,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Open based on config
-		const { windows: usedWindows, filesOpenedInWindow } = await this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, openOneEmptyWindow, filesToOpen, foldersToAdd, foldersToRemove);
+		const { windows: usedWindows, filesOpenedInWindow } = await this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, maybeOpenEmptyWindow, filesToOpen, foldersToAdd, foldersToRemove);
 
-		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, openOneEmptyWindow: ${openOneEmptyWindow})`);
+		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, maybeOpenEmptyWindow: ${maybeOpenEmptyWindow})`);
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
@@ -469,7 +473,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		workspacesToOpen: IWorkspacePathToOpen[],
 		foldersToOpen: ISingleFolderWorkspacePathToOpen[],
 		emptyToRestore: IEmptyWindowBackupInfo[],
-		openOneEmptyWindow: boolean,
+		maybeOpenEmptyWindow: boolean,
 		filesToOpen: IFilesToOpen | undefined,
 		foldersToAdd: ISingleFolderWorkspacePathToOpen[],
 		foldersToRemove: ISingleFolderWorkspacePathToOpen[]
@@ -639,8 +643,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// Open empty window either if enforced or when files still have to open
-		if (filesToOpen || openOneEmptyWindow) {
+		// Finally, open an empty window if
+		// - we still have files to open
+		// - user forces an empty window (e.g. via command line)
+		// - no window has opened yet
+		if (filesToOpen || (maybeOpenEmptyWindow && (openConfig.forceEmpty || usedWindows.length === 0))) {
 			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
 
 			addUsedWindow(await this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
@@ -749,14 +756,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Check for force empty
 		else if (openConfig.forceEmpty) {
-			pathsToOpen = [Object.create(null)];
+			pathsToOpen = [EMPTY_WINDOW];
 		}
 
 		// Extract paths: from CLI
 		else if (openConfig.cli._.length || openConfig.cli['folder-uri'] || openConfig.cli['file-uri']) {
 			pathsToOpen = await this.doExtractPathsFromCLI(openConfig.cli);
 			if (pathsToOpen.length === 0) {
-				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to open from command line
+				pathsToOpen.push(EMPTY_WINDOW); // add an empty window if we did not have windows to open from command line
 			}
 
 			isCommandLineOrAPICall = true;
@@ -766,7 +773,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		else {
 			pathsToOpen = await this.doGetPathsFromLastSession();
 			if (pathsToOpen.length === 0) {
-				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to restore
+				pathsToOpen.push(EMPTY_WINDOW); // add an empty window if we did not have windows to restore
 			}
 
 			isRestoringPaths = true;
@@ -1159,13 +1166,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
 
 			// assume this is a file that does not yet exist
-			if (options.ignoreFileNotFound) {
+			if (options.ignoreFileNotFound && error.code === 'ENOENT') {
 				return {
 					fileUri,
 					type: FileType.File,
 					exists: false
 				};
 			}
+
+			this.logService.error(`Invalid path provided: ${path}, ${error.message}`);
 		}
 
 		return undefined;
@@ -1489,10 +1498,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.loggerService.getLogLevel(),
-			loggers: {
-				window: [],
-				global: this.loggerService.getRegisteredLoggers()
-			},
+			loggers: this.loggerService.getGlobalLoggers(),
 			logsPath: this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 
 			product,
@@ -1574,11 +1580,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration.extensionEnvironment = currentWindowConfig.extensionEnvironment;
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
+				configuration['disable-extension'] = currentWindowConfig['disable-extension'];
 			}
-			configuration.loggers = {
-				global: configuration.loggers.global,
-				window: currentWindowConfig?.loggers.window ?? configuration.loggers.window
-			};
+			configuration.loggers = configuration.loggers;
 		}
 
 		// Update window identifier and session now

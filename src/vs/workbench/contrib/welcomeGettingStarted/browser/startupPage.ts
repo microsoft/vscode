@@ -14,7 +14,7 @@ import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchStat
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -24,11 +24,11 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -37,7 +37,7 @@ const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
-export class StartupPageEditorResolverContribution implements IWorkbenchContribution {
+export class StartupPageEditorResolverContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.startupPageEditorResolver';
 
@@ -45,6 +45,10 @@ export class StartupPageEditorResolverContribution implements IWorkbenchContribu
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
+		super();
+		const disposables = new DisposableStore();
+		this._register(disposables);
+
 		editorResolverService.registerEditor(
 			`${GettingStartedInput.RESOURCE.scheme}:/**`,
 			{
@@ -59,7 +63,7 @@ export class StartupPageEditorResolverContribution implements IWorkbenchContribu
 			{
 				createEditorInput: ({ resource, options }) => {
 					return {
-						editor: this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions),
+						editor: disposables.add(this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions)),
 						options: {
 							...options,
 							pinned: false
@@ -114,15 +118,13 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.PROFILE)
 		) {
 			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-			await this.openGettingStarted(true);
-			return;
 		}
 
 		if (this.tryOpenWalkthroughForFolder()) {
 			return;
 		}
 
-		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService);
+		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService, this.logService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
@@ -131,22 +133,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
 				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
-
-				const isStartupEditorReadme = startupEditorSetting.value === 'readme';
-				const isStartupEditorUserReadme = startupEditorSetting.userValue === 'readme';
-				const isStartupEditorDefaultReadme = startupEditorSetting.defaultValue === 'readme';
-
-				// 'readme' should not be set in workspace settings to prevent tracking,
-				// but it can be set as a default (as in codespaces or from configurationDefaults) or a user setting
-				if (isStartupEditorReadme && (!isStartupEditorUserReadme || !isStartupEditorDefaultReadme)) {
-					this.logService.warn(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditorSetting.userValue}, default=${startupEditorSetting.defaultValue})`);
-				}
-
-				const openWithReadme = isStartupEditorReadme && (isStartupEditorUserReadme || isStartupEditorDefaultReadme);
-				if (openWithReadme) {
+				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					await this.openGettingStarted();
+					await this.openGettingStarted(true);
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -222,7 +212,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 }
 
-function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
+function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService, logService: ILogService) {
 	if (environmentService.skipWelcome) {
 		return false;
 	}
@@ -236,7 +226,7 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 	}
 
 	return startupEditor.value === 'welcomePage'
-		|| startupEditor.value === 'readme' && (startupEditor.userValue === 'readme' || startupEditor.defaultValue === 'readme')
+		|| startupEditor.value === 'readme'
 		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench')
 		|| startupEditor.value === 'terminal';
 }

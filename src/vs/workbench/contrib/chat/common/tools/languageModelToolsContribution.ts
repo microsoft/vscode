@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { DisposableMap, Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
-import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
+import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
+import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
 	name: string;
@@ -66,8 +68,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				name: {
 					description: localize('toolName', "A unique name for this tool. This name must be a globally unique identifier, and is also used as a name when presenting this tool to a language model."),
 					type: 'string',
-					// Borrow OpenAI's requirement for tool names
-					pattern: '^[\\w-]+$'
+					// [\\w-]+ is OpenAI's requirement for tool names
+					pattern: '^(?!copilot_|vscode_)[\\w-]+$'
 				},
 				toolReferenceName: {
 					markdownDescription: localize('toolName2', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeReferencedInPrompt`'),
@@ -121,7 +123,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand, or they may want to pick a tag that can be used to identify just the tools contributed by this extension."),
 					type: 'array',
 					items: {
-						type: 'string'
+						type: 'string',
+						pattern: '^(?!copilot_|vscode_)'
 					}
 				}
 			}
@@ -141,6 +144,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 	constructor(
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@ILogService logService: ILogService,
+		@IProductService productService: IProductService
 	) {
 		languageModelToolsExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
@@ -160,6 +164,15 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
+					if ((rawTool.name.startsWith('copilot_') || rawTool.name.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with name starting with "vscode_" or "copilot_"`);
+						continue;
+					}
+
+					if (rawTool.tags?.some(tag => tag.startsWith('copilot_') || tag.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
+					}
+
 					const rawIcon = rawTool.icon;
 					let icon: IToolData['icon'] | undefined;
 					if (typeof rawIcon === 'string') {
@@ -174,13 +187,20 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						};
 					}
 
+					// If OSS and the product.json is not set up, fall back to checking api proposal
+					const isBuiltinTool = productService.defaultChatAgent?.chatExtensionId ?
+						ExtensionIdentifier.equals(extension.description.identifier, productService.defaultChatAgent.chatExtensionId) :
+						isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
 					const tool: IToolData = {
 						...rawTool,
-						extensionId: extension.description.identifier,
+						source: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
+						requiresConfirmation: !isBuiltinTool,
+						alwaysDisplayInputOutput: !isBuiltinTool,
+						supportsToolPicker: rawTool.canBeReferencedInPrompt
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

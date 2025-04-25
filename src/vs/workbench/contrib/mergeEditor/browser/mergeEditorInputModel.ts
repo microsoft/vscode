@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn } from '../../../../base/common/assert.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import Severity from '../../../../base/common/severity.js';
@@ -27,6 +27,8 @@ import { MergeEditorTelemetry } from './telemetry.js';
 import { StorageCloseWithConflicts } from '../common/mergeEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 
 export interface MergeEditorArgs {
 	base: URI;
@@ -273,6 +275,8 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 	}
 
@@ -292,17 +296,32 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 		modelListener.add(this.textFileService.files.onDidCreate(handleDidCreate));
 		this.textFileService.files.models.forEach(handleDidCreate);
 
-		const [
+		let [
 			base,
 			result,
 			input1Data,
 			input2Data,
 		] = await Promise.all([
-			this._textModelService.createModelReference(args.base),
+			this._textModelService.createModelReference(args.base).then<IReference<ITextModel>>(v => ({
+				object: v.object.textEditorModel,
+				dispose: () => v.dispose(),
+			})).catch(e => {
+				onUnexpectedError(e);
+				console.error(e); // Only file not found error should be handled ideally
+				return undefined;
+			}),
 			this._textModelService.createModelReference(args.result),
 			toInputData(args.input1, this._textModelService, store),
 			toInputData(args.input2, this._textModelService, store),
 		]);
+
+		if (base === undefined) {
+			const tm = this._modelService.createModel('', this._languageService.createById(result.object.getLanguageId()));
+			base = {
+				dispose: () => { tm.dispose(); },
+				object: tm
+			};
+		}
 
 		store.add(base);
 		store.add(result);
@@ -321,7 +340,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 
 		const model = this._instantiationService.createInstance(
 			MergeEditorModel,
-			base.object.textEditorModel,
+			base.object,
 			input1Data,
 			input2Data,
 			result.object.textEditorModel,

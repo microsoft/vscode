@@ -8,9 +8,9 @@
 	position: fixed;
 	height: 100%;
 	width: 100%;
-	left:0;
-	top:0;
-	z-index: 2600;
+	left: 0;
+	top: 0;
+	z-index: 2575; /* Above Context Views, Below Workbench Hover */
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -69,6 +69,10 @@
 	-webkit-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container ul {
+	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
 }
 
 /** Dialog: Message */
@@ -152,4 +156,32 @@
 	text-overflow: ellipsis;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
+}
+
+/** Dialog: Dropdown */
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
+	margin: 4px 5px;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown:focus-within {
+	/**
+	 * This is a trick to make the focus outline appear on the entire
+	 * container of the dropdown button to ensure the dialog box looks
+	 * consistent to dialogs without dropdown buttons.
+	 */
+	outline-offset: 2px !important;
+	outline-width: 1px;
+	outline-style: solid;
+	outline-color: var(--vscode-focusBorder);
+	border-radius: 2px;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
+	padding-left: 5px;
+	padding-right: 5px;
 }

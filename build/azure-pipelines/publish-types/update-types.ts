@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as cp from 'child_process';
-import * as path from 'path';
+import fs from 'fs';
+import cp from 'child_process';
+import path from 'path';
 
 let tag = '';
 try {

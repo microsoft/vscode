@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.element-selection-message {
+	position: absolute;
+	bottom: 10px;
+	right: 10px;
+	padding: 8px 10px;
+	background: var(--vscode-notifications-background);
+	color: var(--vscode-notifications-foreground);
+	border-radius: 4px;
+	font-size: 12px;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: max-content
+}
+
+.element-selection-cancel,
+.element-selection-start {
+	padding: 5px 10px;
+	width: fit-content;
+}
+
+.element-selection-message .hidden {
+	display: none;
+}

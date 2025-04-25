@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as url from 'url';
-import ansiColors = require('ansi-colors');
+import fs from 'fs';
+import path from 'path';
+import url from 'url';
+import ansiColors from 'ansi-colors';
 import { IExtensionDefinition } from './builtInExtensions';
 
 const root = path.dirname(path.dirname(__dirname));
