@@ -73,7 +73,7 @@
 	border-top-width: 0 !important;
 }
 
-.bubbly-part.panel .action-item {
+.bubbly-part.panel .composite-bar-container .action-item {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--bubbly-radius-base);
 	/*padding: 2px;*/
@@ -82,6 +82,36 @@
 	transition: background-color 0.05s linear;
 	display: flex;
 	align-items: center;
+}
+
+.bubbly-part.panel .global-actions .action-item {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--bubbly-radius-base);
+	width: 28px;
+	height: 28px;
+	box-sizing: border-box;
+	transition: background-color 0.05s linear;
+	display: flex;
+	align-items: center;
+}
+
+.bubbly-part.panel .title-actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--bubbly-radius-base);
+	min-width: 28px;
+	min-height: 28px;
+	box-sizing: border-box;
+	transition: background-color 0.05s linear;
+	display: flex;
+	align-items: center;
+}
+
+.bubbly-part.panel .title-actions {
+	margin-right: 2px;
+}
+
+.bubbly-part.panel .global-actions .action-item:hover {
+	background-color: none;
 }
 
 .bubbly-part.panel .composite-bar-container .action-item {
@@ -223,16 +253,26 @@
 
 /* Activity bar (when on sidebar) */
 .bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar  .actions-container {
-	gap: 2px;
+	gap: 0px;
 }
 
 .bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .codicon {
 	width: 28px;
-	height: 30px;
+	height: 28px;
 	align-items: center;
 	justify-content: center;
 	padding: 2px;
 	border-radius: var(--bubbly-radius-base);
+}
+
+.bubbly-part.pane-composite-part.sidebar > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon,
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
+	padding: 0 0px;
+}
+
+.bubbly-part.pane-composite-part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content,
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
+	margin-right: 2px;
 }
 
 .bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .codicon {
@@ -252,11 +292,6 @@
 .bubbly-part.sidebar .composite.header {
 	height: 42px;
 	align-items: center;
-}
-
-.bubbly-part.sidebar .composite.header .action-item {
-	height: 30px !important;
-	width: 30px !important;
 }
 
 /* Activity bar (when on left side of screen, detached from sidebar) */
