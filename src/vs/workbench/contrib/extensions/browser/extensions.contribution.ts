@@ -1190,6 +1190,21 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			});
 		});
+		// NEW
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.showInstalledExtensions',
+			title: localize2('showInstalledExtensions', 'Show Installed Extensions'),
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: extensionsFilterSubMenu,
+				group: '3_installed',
+				order: 1, // adjust as needed
+			}],
+			menuTitles: {
+				[extensionsFilterSubMenu.id]: localize('installed filter', 'Installed')
+			},
+			run: () => this.extensionsWorkbenchService.openSearch('@installed ')
+		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.clearExtensionsSearchResults',

@@ -2227,6 +2227,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 	}
 }
 
+
 export abstract class AbstractConfigureRecommendedExtensionsAction extends Action {
 
 	constructor(
