@@ -488,7 +488,6 @@ export class AttachContextAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
 		const quickInputService = accessor.get(IQuickInputService);
-
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 
@@ -630,6 +629,7 @@ export class AttachContextAction extends Action2 {
 							fullName: pick.label,
 							value: resizedImage,
 							kind: 'image',
+							references: [{ reference: pick.resource, kind: 'reference' }]
 						});
 					}
 				} else {

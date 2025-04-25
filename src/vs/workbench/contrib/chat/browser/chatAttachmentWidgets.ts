@@ -25,7 +25,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, INotebookOutputVariableEntry, OmittedState } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, OmittedState } from '../common/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -36,6 +36,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -541,4 +542,42 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		return output?.outputs.find(o => o.mime === attachment.mimeType);
 	}
 
+}
+
+export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: IElementVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		shouldFocusClearButton: boolean,
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IEditorService editorService: IEditorService,
+	) {
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		const ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
+		this.element.ariaLabel = ariaLabel;
+
+		this.element.style.position = 'relative';
+		this.element.style.cursor = 'pointer';
+		const attachmentLabel = attachment.name;
+		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
+		this.label.setLabel(withIcon, undefined, { title: localize('chat.clickToViewContents', "Click to view the contents of: {0}", attachmentLabel) });
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
+			const content = attachment.value?.toString() || '';
+			await editorService.openEditor({
+				resource: undefined,
+				contents: content,
+				options: {
+					pinned: true
+				}
+			});
+		}));
+
+		this.attachClearButton();
+	}
 }
