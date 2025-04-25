@@ -1166,7 +1166,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const variable = toChatVariable({ uri: promptPath.uri, isPromptFile: true }, true);
 			attachedContext.push(variable);
 		}
-		return `Follow the prompt instructions from ${basename(promptPath.uri)}\n${input}`;
+
+		return input;
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
@@ -1190,7 +1191,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (instructionsEnabled) {
 				input = await this._handlePromptSlashCommand(input, attachedContext);
 				await this.autoAttachInstructions(attachedContext);
-				await this.setupChatModeAndTools(attachedContext);
+				input = await this.setupChatModeAndTools(input, attachedContext);
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
@@ -1455,24 +1456,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * the metadata defined in headers of attached prompt files.
 	 */
 	private async setupChatModeAndTools(
+		input: string,
 		attachedContext: readonly IChatRequestVariableEntry[],
-	): Promise<void> {
-		// process starting from the 'root' prompt files
+	): Promise<string> {
+		// process prompt files starting from the 'root' ones
 		const promptFileVariables = attachedContext
 			.filter(isPromptFileChatVariable)
 			.filter(pick('isRoot'));
+		const promptUris = promptFileVariables.map(toUri);
 
 		if (promptFileVariables.length === 0) {
-			return;
+			return input;
 		}
 
+		if (!input.trim()) {
+			const promptNames = (promptUris.length === 1)
+				? `'${basename(promptUris[0])}'`
+				: `the prompt files`;
+
+			input = `Follow instructions from ${promptNames}.`;
+		}
+
+
 		const metadata = await this.promptsService
-			.getCombinedToolsMetadata(
-				promptFileVariables.map(toUri),
-			);
+			.getCombinedToolsMetadata(promptUris);
 
 		if (metadata === null) {
-			return;
+			return input;
 		}
 
 		const { mode, tools } = metadata;
@@ -1487,7 +1497,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// if not tools to enable are present, we are done
 		if (tools === undefined) {
-			return;
+			return input;
 		}
 
 		// sanity check on the logic of the `getPromptFilesMetadata` method
@@ -1502,6 +1512,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart
 			.selectedToolsModel
 			.selectOnly(tools);
+
+		return input;
 	}
 
 	/**
