@@ -166,8 +166,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		'Notebook Output Editor'
 	),
 	[
-		new SyncDescriptor(NotebookOutputEditorInput),
-		// new SyncDescriptor(NotebookOutputViewerInput)
+		new SyncDescriptor(NotebookOutputEditorInput)
 	]
 );
 
@@ -1092,7 +1091,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.openOutputInPreviewEditor]: {
-			description: nls.localize('notebook.openOutputInPreviewEditor.description', "Controls whether or not the action to open a cell output in a preview editor is enabled. This action can be used via the cell output menu."),
+			description: nls.localize('notebook.output.openInPreviewEditor.description', "Controls whether or not the action to open a cell output in a preview editor is enabled. This action can be used via the cell output menu."),
 			type: 'boolean',
 			default: false,
 			tags: ['preview']

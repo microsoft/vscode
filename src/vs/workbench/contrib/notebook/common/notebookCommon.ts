@@ -653,7 +653,6 @@ export namespace CellUri {
 			query: new URLSearchParams({
 				openIn: 'notebookOutputEditor',
 				notebook: notebook.toString(),
-				cellId: cellId,
 				cellIndex: String(cellIndex),
 				outputId: outputId,
 				outputIndex: String(outputIndex),
@@ -661,7 +660,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellId?: string; cellIndex?: number } | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellIndex?: number } | undefined {
 		return extractCellOutputDetails(uri);
 	}
 
@@ -1017,7 +1016,7 @@ export const NotebookSetting = {
 	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
-	openOutputInPreviewEditor: 'notebook.openOutputInPreviewEditor.enabled',
+	openOutputInPreviewEditor: 'notebook.output.openInPreviewEditor.enabled',
 	showFoldingControls: 'notebook.showFoldingControls',
 	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',

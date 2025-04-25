@@ -362,15 +362,12 @@ export class NotebookOutputEditorContribution implements IWorkbenchContribution 
 			{
 				createEditorInput: async ({ resource, options }) => {
 					const outputUriData = CellUri.parseCellOutputUri(resource);
-					if (!outputUriData || !outputUriData.notebook || outputUriData.cellIndex === undefined || outputUriData.outputIndex === undefined || !outputUriData.cellId || !outputUriData.outputId) {
+					if (!outputUriData || !outputUriData.notebook || outputUriData.cellIndex === undefined || outputUriData.outputIndex === undefined || !outputUriData.outputId) {
 						throw new Error('Invalid output uri for notebook output editor');
 					}
 
-
 					const notebookUri = this.uriIdentityService.asCanonicalUri(outputUriData.notebook);
-
 					const cellIndex = outputUriData.cellIndex;
-
 					const outputId = outputUriData.outputId;
 					const outputIndex = outputUriData.outputIndex;
 

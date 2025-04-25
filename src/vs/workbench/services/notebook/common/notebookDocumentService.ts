@@ -66,7 +66,7 @@ export function generateMetadataUri(notebook: URI): URI {
 	return notebook.with({ scheme: Schemas.vscodeNotebookMetadata, fragment });
 }
 
-export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellId?: string; cellIndex?: number } | undefined {
+export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellIndex?: number } | undefined {
 	if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 		return;
 	}
@@ -84,7 +84,6 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 		fragment: null,
 		query: null,
 	});
-	const cellid = params.get('cellId') || undefined;
 	const cellIndex = params.get('cellIndex') ? parseInt(params.get('cellIndex') || '', 10) : undefined;
 
 	return {
@@ -94,7 +93,6 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 		outputIndex: outputIndex,
 		cellHandle: parsedCell?.handle,
 		cellFragment: uri.fragment,
-		cellId: cellid,
 		cellIndex: cellIndex,
 	};
 }
