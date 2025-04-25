@@ -14,7 +14,7 @@
 	font-size: 12px;
 	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 	display: flex;
-align-items: center;
+	align-items: center;
 	gap: 8px;
 	width: max-content
 }
