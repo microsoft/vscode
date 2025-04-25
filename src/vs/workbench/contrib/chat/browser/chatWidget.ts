@@ -1525,10 +1525,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// convert tools names to tool IDs
 		const toolIds = tools
-			.map(
-				this.toolsService.getToolByName
-					.bind(this.toolsService),
-			)
+			.map((toolName) => {
+				const tool = this.toolsService.getToolByName(toolName);
+
+				if (tool === undefined) {
+					this.logService.warn(
+						`[setup tools]: cannot to find tool '${toolName}'`,
+					);
+				}
+
+				return tool;
+			})
 			.filter(isDefined)
 			.map(pick('id'));
 
