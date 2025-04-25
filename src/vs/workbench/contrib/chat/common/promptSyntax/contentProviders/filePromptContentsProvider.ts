@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -10,7 +11,9 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
@@ -43,10 +46,30 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	 */
 	private readonly options: IFileContentsProviderOptions;
 
+	public override get languageId(): string {
+		const model = this.modelService.getModel(this.uri);
+
+		if (model !== null) {
+			return model.getLanguageId();
+		}
+
+		const inferredId = this.languageService
+			.guessLanguageIdByFilepathOrFirstLine(this.uri);
+
+		if (inferredId !== null) {
+			return inferredId;
+		}
+
+		// fallback to the default prompt language ID
+		return PROMPT_LANGUAGE_ID;
+	}
+
 	constructor(
 		public readonly uri: URI,
 		options: Partial<IFileContentsProviderOptions> = {},
 		@IFileService private readonly fileService: IFileService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -114,7 +137,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 			// if URI doesn't point to a prompt file, don't try to resolve it,
 			// unless the `allowNonPromptFiles` option is set to `true`
-			if ((allowNonPromptFiles !== true) && (isPromptFile(this.uri) === false)) {
+			if ((allowNonPromptFiles !== true) && (isPromptOrInstructionsFile(this.uri) === false)) {
 				throw new NotPromptFile(this.uri);
 			}
 
@@ -146,6 +169,8 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 			promptContentsSource.uri,
 			options,
 			this.fileService,
+			this.modelService,
+			this.languageService,
 		);
 	}
 

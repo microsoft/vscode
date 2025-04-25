@@ -36,6 +36,11 @@ export abstract class PromptContentsProviderBase<
 	public abstract override toString(): string;
 
 	/**
+	 * Language ID of the prompt contents.
+	 */
+	public abstract get languageId(): string;
+
+	/**
 	 * Function to get contents stream for the provider. This function should
 	 * throw a `ResolveError` or its derivative if the contents cannot be parsed.
 	 *
@@ -59,8 +64,6 @@ export abstract class PromptContentsProviderBase<
 		super();
 		// ensure that the `onChangeEmitter` always fires with the correct context
 		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
-		// subscribe to the change event emitted by an extending class
-		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 	}
 
 	/**
@@ -129,6 +132,9 @@ export abstract class PromptContentsProviderBase<
 
 		// `'full'` means "everything has changed"
 		this.onContentsChanged('full');
+
+		// subscribe to the change event emitted by a child class
+		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 
 		return this;
 	}

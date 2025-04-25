@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -76,6 +76,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 
+	readonly hideOnRequest: IObservable<boolean>;
+
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
@@ -89,7 +91,10 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-	) { }
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+		this.hideOnRequest = observableConfigValue(InlineChatConfigKeys.HideOnRequest, false, this._configurationService);
+	}
 
 	dispose() {
 		this._store.dispose();

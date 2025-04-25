@@ -593,9 +593,13 @@
 	padding-bottom: 26px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-value-description {
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-description {
 	display: flex;
 	cursor: pointer;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-description.disabled {
+	cursor: initial;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {

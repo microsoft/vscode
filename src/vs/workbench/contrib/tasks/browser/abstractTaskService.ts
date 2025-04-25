@@ -2249,7 +2249,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								configuringTask.configures.type,
 								JSON.stringify(configuringTask._source.config.element, undefined, 4)
 							));
-							this._showOutput();
 						}
 					});
 

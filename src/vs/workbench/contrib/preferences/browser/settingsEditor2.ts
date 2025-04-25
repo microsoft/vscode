@@ -68,6 +68,7 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 
 
 export const enum SettingsFocusContext {
@@ -249,6 +250,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(300);
@@ -1700,13 +1702,31 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+			let remoteResults = null;
 			if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
-				await this.remoteSearchPreferences(query, searchInProgress.token);
+				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
+			}
+
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
 			}
 
 			// Update UI only after all the search results are in
 			// ref https://github.com/microsoft/vscode/issues/224946
 			this.onDidFinishSearch();
+
+			if (remoteResults) {
+				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
+					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
+					if (!searchInProgress.token.isCancellationRequested) {
+						if (rankedResults === null) {
+							this.logService.trace('No ranked results found');
+						} else {
+							this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
+						}
+					}
+				}
+			}
 		});
 	}
 

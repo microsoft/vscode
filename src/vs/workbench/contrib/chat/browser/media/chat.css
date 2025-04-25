@@ -25,7 +25,7 @@
 	-webkit-user-select: text;
 }
 
-.interactive-item-container .header {
+.interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -201,7 +201,7 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .value .rendered-markdown {
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
 	.codicon {
 		font-size: inherit;
 	}
@@ -239,6 +239,10 @@
 .interactive-item-container .value .interactive-session-followups,
 .interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown .chat-extensions-content-part a {
+	color: inherit;
 }
 
 .interactive-item-container .value .rendered-markdown a {
@@ -313,13 +317,13 @@
 	font-weight: unset;
 }
 
-.interactive-item-container .value .rendered-markdown {
-	/* Codicons next to text need to be aligned with the text */
-	.codicon {
-		position: relative;
-		top: 2px;
-	}
+/* Codicons next to text need to be aligned with the text */
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) .codicon {
+	position: relative;
+	top: 2px;
+}
 
+.interactive-item-container .value .rendered-markdown {
 	.chat-codeblock-pill-widget .codicon {
 		top: -1px;
 	}

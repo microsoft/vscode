@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
-import { FrontMatterValueToken } from './frontMatterToken.js';
+import { FrontMatterValueToken, TValueTypeName } from './frontMatterToken.js';
 import { LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
 
 /**
  * Token that represents an `array` value in a Front Matter header.
  */
-export class FrontMatterArray extends FrontMatterValueToken {
+export class FrontMatterArray extends FrontMatterValueToken<'array'> {
+	/**
+	 * Name of the `array` value type.
+	 */
+	public override readonly valueTypeName = 'array';
+
 	constructor(
 		/**
 		 * List of tokens of the array value. Must start and end
@@ -19,13 +24,28 @@ export class FrontMatterArray extends FrontMatterValueToken {
 		 */
 		public readonly tokens: readonly [
 			LeftBracket,
-			...FrontMatterValueToken[],
+			...FrontMatterValueToken<TValueTypeName>[],
 			RightBracket,
 		],
 	) {
 		super(
 			BaseToken.fullRange(tokens),
 		);
+	}
+
+	/**
+	 * List of the array items.
+	 */
+	public get items(): readonly FrontMatterValueToken<TValueTypeName>[] {
+		const result = [];
+
+		for (const token of this.tokens) {
+			if (token instanceof FrontMatterValueToken) {
+				result.push(token);
+			}
+		}
+
+		return result;
 	}
 
 	public override get text(): string {
