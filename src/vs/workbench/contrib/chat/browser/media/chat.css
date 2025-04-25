@@ -411,6 +411,10 @@
 	.tool-input-output-part.expanded .input-output {
 		display: inherit;
 	}
+
+	&:not(:last-child) {
+		margin-bottom: 8px;
+	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
