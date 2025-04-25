@@ -219,15 +219,15 @@ export class PromptHeader extends Disposable {
 	private get toolsAndModeCompatible(): boolean {
 		const { tools, mode } = this.meta;
 
-		// if `mode` is not set or equal to `agent` mode,
-		// then the tools metadata can have any value so noop
-		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
-			return true;
-		}
-
 		// if `tools` is not set, then the mode metadata
 		// can have any value so skip the validation
 		if (tools === undefined) {
+			return true;
+		}
+
+		// if `mode` is not set or equal to `agent` mode,
+		// then the tools metadata can have any value so noop
+		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
 			return true;
 		}
 
