@@ -14,6 +14,27 @@ import { ObservableDisposable } from '../../../../../../base/common/observableDi
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
 
+
+// TODO: @legomushroom - rename?
+/**
+ * Options of the {@link PromptParser} class.
+ */
+export interface IPromptContentsProviderOptions {
+	/**
+	 * Whether to allow files that don't have usual prompt
+	 * file extension to be treated as a prompt file.
+	 */
+	readonly allowNonPromptFiles: boolean;
+	// TODO: @legomushroom - add seen refs
+}
+
+/**
+ * Default {@link IPromptContentsProviderOptions} options.
+ */
+const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
+	allowNonPromptFiles: false,
+};
+
 /**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
  *
@@ -65,8 +86,22 @@ export abstract class PromptContentsProviderBase<
 	 */
 	protected readonly onChangeEmitter = this._register(new Emitter<TChangeEvent | 'full'>());
 
-	constructor() {
+	/**
+	 * Options passed to the constructor, extended with
+	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 */
+	protected readonly options: IPromptContentsProviderOptions;
+
+	constructor(
+		options: Partial<IPromptContentsProviderOptions>,
+	) {
 		super();
+
+		this.options = {
+			...DEFAULT_OPTIONS,
+			...options,
+		};
+
 		// ensure that the `onChangeEmitter` always fires with the correct context
 		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
 	}

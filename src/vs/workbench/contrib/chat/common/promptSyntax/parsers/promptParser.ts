@@ -15,12 +15,14 @@ import { isUntitled } from '../../../../../../platform/prompts/common/constants.
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
+import { IPromptContentsProviderOptions } from '../contentProviders/promptContentsProviderBase.js';
 
 /**
  * Get prompt contents provider object based on the prompt type.
  */
 const getContentsProvider = (
 	uri: URI,
+	options: Partial<IPromptContentsProviderOptions>,
 	modelService: IModelService,
 	instaService: IInstantiationService,
 ): IPromptContentsProvider => {
@@ -34,14 +36,13 @@ const getContentsProvider = (
 		);
 
 		return instaService
-			.createInstance(TextModelContentsProvider, model);
+			.createInstance(TextModelContentsProvider, model, options);
 	}
 
 	return instaService.createInstance(
 		FilePromptContentProvider,
 		uri,
-		// TODO: @legomushroom - use options instead
-		{ allowNonPromptFiles: true },
+		options,
 	);
 };
 
@@ -56,15 +57,17 @@ export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 
 	constructor(
 		uri: URI,
+		options: Partial<IPromptContentsProviderOptions>,
 		@ILogService logService: ILogService,
 		@IModelService modelService: IModelService,
 		@IInstantiationService instaService: IInstantiationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
-		const contentsProvider = getContentsProvider(uri, modelService, instaService);
+		const contentsProvider = getContentsProvider(uri, options, modelService, instaService);
 
 		super(
 			contentsProvider,
+			// TODO: @legomushroom - use seen refs from the options?
 			[],
 			instaService,
 			workspaceService,
