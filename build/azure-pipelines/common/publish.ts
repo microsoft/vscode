@@ -480,11 +480,11 @@ class ESRPReleaseService {
 	private async getReleaseStatus(releaseId: string): Promise<ReleaseResultMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -497,11 +497,11 @@ class ESRPReleaseService {
 	private async getReleaseDetails(releaseId: string): Promise<ReleaseDetailsMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -588,7 +588,7 @@ export async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
 
 	try {
-		const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+		const res = await retry(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
 
 		if (!res.ok) {
 			throw new Error(`Unexpected status code: ${res.status}`);
