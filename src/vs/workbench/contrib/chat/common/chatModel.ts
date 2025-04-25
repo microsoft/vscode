@@ -20,7 +20,7 @@ import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/co
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
+import { Location, SymbolKind, TextEdit, WorkspaceEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
@@ -285,6 +285,11 @@ export interface IChatNotebookEditGroup {
 	done: boolean | undefined;
 }
 
+export interface IChatWorkspaceEdit {
+	kind: 'workspaceEdit';
+	edit: WorkspaceEdit;
+}
+
 /**
  * Progress kinds that are included in the history of a response.
  * Excludes "internal" types that are included in history.
@@ -301,6 +306,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatTask
 	| IChatTextEditGroup
 	| IChatNotebookEditGroup
+	| IChatWorkspaceEdit
 	| IChatConfirmation
 	| IChatExtensionsContent;
 
@@ -535,6 +541,7 @@ class AbstractResponse implements IResponse {
 				case 'toolInvocationSerialized':
 				case 'extensions':
 				case 'undoStop':
+				case 'workspaceEdit':
 					// Ignore
 					continue;
 				case 'inlineReference':
@@ -628,7 +635,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatUndoStop, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatWorkspaceEdit | IChatTask | IChatUndoStop, quiet?: boolean): void {
 		if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
@@ -645,6 +652,12 @@ export class Response extends AbstractResponse implements IDisposable {
 				const idx = this._responseParts.indexOf(lastResponsePart);
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
+			this._updateRepr(quiet);
+		} else if (progress.kind === 'workspaceEdit') {
+			this._responseParts.push({
+				kind: 'workspaceEdit',
+				edit: progress.edit,
+			});
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
 			// If the progress.uri is a cell Uri, its possible its part of the inline chat.
@@ -909,7 +922,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	/**
 	 * Apply a progress update to the actual response content.
 	 */
-	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit, quiet?: boolean) {
+	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatWorkspaceEdit, quiet?: boolean) {
 		this.bufferWhenPaused(() => this._response.updateContent(responsePart, quiet));
 	}
 
@@ -1716,6 +1729,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			progress.kind === 'command' ||
 			progress.kind === 'textEdit' ||
 			progress.kind === 'notebookEdit' ||
+			progress.kind === 'workspaceEdit' ||
 			progress.kind === 'warning' ||
 			progress.kind === 'progressTask' ||
 			progress.kind === 'confirmation' ||

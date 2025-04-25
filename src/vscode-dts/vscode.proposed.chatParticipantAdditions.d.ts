@@ -64,6 +64,11 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
 
+	export class ChatResponseWorkspaceEditPart {
+		edit: WorkspaceEdit;
+		constructor(edit: WorkspaceEdit);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string;
@@ -79,7 +84,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -185,6 +190,12 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[]): void;
 
 		notebookEdit(target: Uri, isDone: true): void;
+
+		/**
+		 * Add workspace edits to the response that can span multiple files.
+		 * @param edit The workspace edit containing changes across multiple files
+		 */
+		workspaceEdit(edit: WorkspaceEdit): void;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri, isEdit?: boolean): void;

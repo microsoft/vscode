@@ -306,7 +306,7 @@ function codeblockHasClosingBackticks(str: string): boolean {
 	return !!str.match(/\n```+$/);
 }
 
-class CollapsedCodeBlock extends Disposable {
+export class CollapsedCodeBlock extends Disposable {
 
 	public readonly element: HTMLElement;
 
