@@ -425,6 +425,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// trigger re-layout of chat input when number of instruction attachment changes
 		this.promptInstructionsAttachmentsPart.onAttachmentsChange(() => {
 			this._handleAttachedContextChange();
+			this._onDidChangeHeight.fire();
 		});
 
 		this.initSelectedModel();
