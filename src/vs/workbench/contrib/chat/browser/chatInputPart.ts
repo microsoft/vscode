@@ -10,13 +10,12 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IActionProvider } from '../../../../base/browser/ui/dropdown/dropdown.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -42,7 +41,6 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
-import { DropdownMenuActionViewItemWithKeybinding } from '../../../../platform/actions/browser/dropdownActionViewItemWithKeybinding.js';
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -72,20 +70,20 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
-import { IChatFollowup, IChatService } from '../common/chatService.js';
+import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptInstructionsAttachmentsCollectionWidget } from './attachments/promptInstructions/promptInstructionsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { DefaultChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, ElementChatAttachmentWidget } from './chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -98,6 +96,7 @@ import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
+import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 
 const $ = dom.$;
 
@@ -1054,7 +1053,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getMode: () => this.currentMode,
 						onDidChangeMode: this._onDidChangeCurrentChatMode.event
 					};
-					return this.instantiationService.createInstance(ToggleChatModeActionViewItem, action, delegate);
+					return this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
 				}
 
 				return undefined;
@@ -1537,80 +1536,6 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
-
-interface IModePickerDelegate {
-	onDidChangeMode: Event<void>;
-	getMode(): ChatMode;
-}
-
-class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
-	constructor(
-		action: MenuItemAction,
-		private readonly delegate: IModePickerDelegate,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatService chatService: IChatService,
-		@IChatAgentService chatAgentService: IChatAgentService,
-	) {
-		const makeAction = (mode: ChatMode): IAction => ({
-			...action,
-			id: mode,
-			label: this.modeToString(mode),
-			class: undefined,
-			enabled: true,
-			checked: delegate.getMode() === mode,
-			run: async () => {
-				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
-				this.renderLabel(this.element!);
-				return result;
-			}
-		});
-
-		const actionProvider: IActionProvider = {
-			getActions: () => {
-				const agentStateActions = [
-					makeAction(ChatMode.Edit),
-				];
-				if (chatAgentService.hasToolsAgent) {
-					agentStateActions.push(makeAction(ChatMode.Agent));
-				}
-
-				agentStateActions.unshift(makeAction(ChatMode.Ask));
-				return agentStateActions;
-			}
-		};
-
-		super(action, actionProvider, contextMenuService, undefined, keybindingService, contextKeyService);
-		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
-	}
-
-	private modeToString(mode: ChatMode) {
-		switch (mode) {
-			case ChatMode.Agent:
-				return localize('chat.agentMode', "Agent");
-			case ChatMode.Edit:
-				return localize('chat.normalMode', "Edit");
-			case ChatMode.Ask:
-			default:
-				return localize('chat.askMode', "Ask");
-		}
-	}
-
-	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		// Can't call super.renderLabel because it has a hack of forcing the 'codicon' class
-		this.setAriaLabelAttributes(element);
-
-		const state = this.modeToString(this.delegate.getMode());
-		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
-		return null;
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-modelPicker-item');
-	}
-}
 
 class AddFilesButton extends ActionViewItem {
 
