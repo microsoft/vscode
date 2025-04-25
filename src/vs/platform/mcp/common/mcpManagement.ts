@@ -6,13 +6,12 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IMcpServerManifest } from './mcpPlatformTypes.js';
+import { IMcpServerConfiguration, IMcpServerManifest } from './mcpPlatformTypes.js';
 
 export interface ILocalMcpServer {
 	readonly name: string;
-	readonly id?: string;
-	readonly manifest: IMcpServerManifest;
-	readonly publisherDisplayName?: string;
+	readonly config: Omit<IMcpServerConfiguration, 'manifest'>;
+	readonly manifest?: IMcpServerManifest;
 }
 
 export interface IGalleryMcpServer {

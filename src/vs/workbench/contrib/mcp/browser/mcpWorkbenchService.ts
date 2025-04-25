@@ -18,7 +18,7 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 	}
 
 	get id(): string {
-		return this.gallery?.id ?? this.local?.id ?? '';
+		return this.gallery?.id ?? this.local?.manifest?.id ?? '';
 	}
 
 	get label(): string {
@@ -30,7 +30,7 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 	}
 
 	get publisherDisplayName(): string | undefined {
-		return this.gallery?.publisherDisplayName ?? this.local?.publisherDisplayName;
+		return this.gallery?.publisherDisplayName ?? this.local?.manifest?.publisherDisplayName;
 	}
 
 	get description(): string {

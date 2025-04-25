@@ -14,7 +14,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService } from './mcpManagement.js';
-import { IMcpConfiguration, IMcpServerConfig, IMcpServerManifest } from './mcpPlatformTypes.js';
+import { IMcpConfiguration } from './mcpPlatformTypes.js';
 
 export class McpManagementService extends Disposable implements IMcpManagementService {
 
@@ -41,32 +41,20 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			return [];
 		}
 
-		return Promise.all(Object.entries(userLocal.value.servers).map(async ([name, config]) => {
-			let manifest: IMcpServerManifest | undefined;
-			if (config.location) {
-				const value = await this.fileService.readFile(URI.parse(config.location));
-				manifest = <IMcpServerManifest>JSON.parse(value.value.toString());
-			}
-			if (!manifest) {
-				manifest = {
-					name,
-					version: '0.0.0',
-					server: config
-				};
-			}
+		return Object.entries(userLocal.value.servers).map(([name, config]) => {
 			return {
 				name,
-				manifest,
-				publisherDisplayName: config.metadata?.publisherDisplayName,
+				manifest: config.manifest,
+				config
 			};
-		}));
+		});
 	}
 
 	async installFromGallery(server: IGalleryMcpServer): Promise<void> {
 		this.logService.trace('MCP Management Service: installGallery', server.url);
 
 		const manifest = await this.mcpGalleryService.getManifest(server, CancellationToken.None);
-		const manifestPath = this.uriIdentityService.extUri.joinPath(this.mcpLocation, server.name, 'manifest.json');
+		// const manifestPath = this.uriIdentityService.extUri.joinPath(this.mcpLocation, server.name, 'manifest.json');
 		await this.fileService.writeFile(
 			this.uriIdentityService.extUri.joinPath(this.mcpLocation, server.name, 'manifest.json'),
 			VSBuffer.fromString(JSON.stringify(manifest))
@@ -78,18 +66,18 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		if (!value.servers) {
 			value.servers = {};
 		}
-		const serverConfig = <IMcpServerConfig>manifest.server;
-		value.servers[server.name] = {
-			location: manifestPath.toString(),
-			type: 'stdio',
-			command: serverConfig.command,
-			args: serverConfig.args,
-			env: serverConfig.env,
-			metadata: {
-				publisher: server.publisher,
-				publisherDisplayName: server.publisherDisplayName,
-			}
-		};
+		// const serverConfig = <IMcpServerLaunchConfig>manifest.server;
+		// value.servers[server.name] = {
+		// 	location: manifestPath.toString(),
+		// 	type: 'stdio',
+		// 	command: serverConfig.command,
+		// 	args: serverConfig.args,
+		// 	env: serverConfig.env,
+		// 	metadata: {
+		// 		publisher: server.publisher,
+		// 		publisherDisplayName: server.publisherDisplayName,
+		// 	}
+		// };
 
 		await this.configurationService.updateValue('mcp', value, ConfigurationTarget.USER_LOCAL);
 	}
