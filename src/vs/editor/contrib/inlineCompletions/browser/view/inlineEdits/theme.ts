@@ -5,11 +5,10 @@
 
 import { Color } from '../../../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
-import { observableFromEventOpts } from '../../../../../../base/common/observableInternal/utils.js';
+import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { diffRemoved, diffInsertedLine, diffInserted, buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, transparent, darken, ColorIdentifier } from '../../../../../../platform/theme/common/colorUtils.js';
+import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, diffInserted, diffInsertedLine, diffRemoved, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { ColorIdentifier, darken, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 

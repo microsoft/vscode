@@ -37,11 +37,13 @@ suite("CodeEditorWidget", () => {
 
 			const derived = derivedHandleChanges(
 				{
-					createEmptyChangeSummary: () => undefined,
-					handleChange: (context) => {
-						const obsName = observableName(context.changedObservable, obsEditor);
-						log.log(`handle change: ${obsName} ${formatChange(context.change)}`);
-						return true;
+					changeTracker: {
+						createChangeSummary: () => undefined,
+						handleChange: (context) => {
+							const obsName = observableName(context.changedObservable, obsEditor);
+							log.log(`handle change: ${obsName} ${formatChange(context.change)}`);
+							return true;
+						},
 					},
 				},
 				(reader) => {

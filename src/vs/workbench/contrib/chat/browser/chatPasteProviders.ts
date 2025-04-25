@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
@@ -24,7 +23,7 @@ import { IExtensionService, isProposedApiEnabled } from '../../../services/exten
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatInputPart } from './chatInputPart.js';
-import { resizeImage } from './imageUtils.js';
+import { cleanupOldImages, createFileForMedia, resizeImage } from './imageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 
@@ -50,7 +49,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		@ILogService private readonly logService: ILogService,
 	) {
 		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
-		this.cleanupOldImages();
+		cleanupOldImages(this.fileService, this.logService, this.imagesFolder,);
 	}
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -100,7 +99,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			tempDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const fileReference = await this.createFileForMedia(currClipboard, mimeType);
+		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, currClipboard, mimeType);
 		if (token.isCancellationRequested || !fileReference) {
 			return;
 		}
@@ -126,57 +125,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const edit = createCustomPasteEdit(model, scaledImageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
 		return createEditSession(edit);
 	}
-
-	private async createFileForMedia(
-		dataTransfer: Uint8Array,
-		mimeType: string,
-	): Promise<URI | undefined> {
-		const exists = await this.fileService.exists(this.imagesFolder);
-		if (!exists) {
-			await this.fileService.createFolder(this.imagesFolder);
-		}
-
-		const ext = mimeType.split('/')[1] || 'png';
-		const filename = `image-${Date.now()}.${ext}`;
-		const fileUri = joinPath(this.imagesFolder, filename);
-
-		const buffer = VSBuffer.wrap(dataTransfer);
-		await this.fileService.writeFile(fileUri, buffer);
-
-		return fileUri;
-	}
-
-	private async cleanupOldImages(): Promise<void> {
-		const exists = await this.fileService.exists(this.imagesFolder);
-		if (!exists) {
-			return;
-		}
-
-		const duration = 7 * 24 * 60 * 60 * 1000; // 7 days
-		const files = await this.fileService.resolve(this.imagesFolder);
-		if (!files.children) {
-			return;
-		}
-
-		await Promise.all(files.children.map(async (file) => {
-			try {
-				const timestamp = this.getTimestampFromFilename(file.name);
-				if (timestamp && (Date.now() - timestamp > duration)) {
-					await this.fileService.del(file.resource);
-				}
-			} catch (err) {
-				this.logService.error('Failed to clean up old images', err);
-			}
-		}));
-	}
-
-	private getTimestampFromFilename(filename: string): number | undefined {
-		const match = filename.match(/image-(\d+)\./);
-		if (match) {
-			return parseInt(match[1], 10);
-		}
-		return undefined;
-	}
 }
 
 async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string, resource: URI): Promise<IChatRequestVariableEntry | undefined> {
@@ -190,7 +138,6 @@ async function getImageAttachContext(data: Uint8Array, mimeType: string, token: 
 		value: data,
 		id: imageHash,
 		name: displayName,
-		isImage: true,
 		icon: Codicon.fileMedia,
 		mimeType,
 		isPasted: true,

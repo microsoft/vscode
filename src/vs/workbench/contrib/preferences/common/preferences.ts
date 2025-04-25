@@ -178,3 +178,43 @@ export function compareTwoNullableNumbers(a: number | undefined, b: number | und
 
 export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "Preview setting: this setting controls a new feature that is still under refinement yet ready to use. Feedback is welcome.");
 export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "Experimental setting: this setting controls a new feature that is actively being developed and may be unstable. It is subject to change or removal.");
+
+export const knownAcronyms = new Set<string>();
+[
+	'css',
+	'html',
+	'scss',
+	'less',
+	'json',
+	'js',
+	'ts',
+	'ie',
+	'id',
+	'php',
+	'scm',
+].forEach(str => knownAcronyms.add(str));
+
+export const knownTermMappings = new Map<string, string>();
+knownTermMappings.set('power shell', 'PowerShell');
+knownTermMappings.set('powershell', 'PowerShell');
+knownTermMappings.set('javascript', 'JavaScript');
+knownTermMappings.set('typescript', 'TypeScript');
+knownTermMappings.set('github', 'GitHub');
+
+export function wordifyKey(key: string): string {
+	key = key
+		.replace(/\.([a-z0-9])/g, (_, p1) => ` \u203A ${p1.toUpperCase()}`) // Replace dot with spaced '>'
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
+		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
+		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
+			return knownAcronyms.has(match.toLowerCase()) ?
+				match.toUpperCase() :
+				match;
+		});
+
+	for (const [k, v] of knownTermMappings) {
+		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
+	}
+
+	return key;
+}

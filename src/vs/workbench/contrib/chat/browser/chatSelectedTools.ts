@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { reset } from '../../../../base/browser/dom.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -43,6 +42,8 @@ export class ChatSelectedTools extends Disposable {
 
 	readonly toolsActionItemViewItemProvider: IActionViewItemProvider & { onDidRender: Event<void> };
 
+	private readonly _allTools: IObservable<Readonly<IToolData>[]>;
+
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instaService: IInstantiationService,
@@ -52,10 +53,7 @@ export class ChatSelectedTools extends Disposable {
 
 		this._selectedTools = this._register(storedTools(StorageScope.WORKSPACE, StorageTarget.MACHINE, storageService));
 
-		const allTools = observableFromEvent(
-			toolsService.onDidChangeTools,
-			() => Array.from(toolsService.getTools()).filter(t => t.supportsToolPicker)
-		);
+		this._allTools = observableFromEvent(toolsService.onDidChangeTools, () => Array.from(toolsService.getTools()));
 
 		const disabledData = this._selectedTools.map(data => {
 			return (data.disabledBuckets?.length || data.disabledTools?.length) && {
@@ -66,7 +64,7 @@ export class ChatSelectedTools extends Disposable {
 
 		this.tools = derived(r => {
 			const disabled = disabledData.read(r);
-			const tools = allTools.read(r);
+			const tools = this._allTools.read(r);
 			if (!disabled) {
 				return tools;
 			}
@@ -77,7 +75,7 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		const toolsCount = derived(r => {
-			const count = allTools.read(r).length;
+			const count = this._allTools.read(r).length;
 			const enabled = this.tools.read(r).length;
 			return { count, enabled };
 		});
@@ -95,7 +93,7 @@ export class ChatSelectedTools extends Disposable {
 					override render(container: HTMLElement): void {
 						this.options.icon = false;
 						this.options.label = true;
-						container.classList.add('chat-mcp');
+						container.classList.add('chat-mcp', 'chat-attachment-button');
 						super.render(container);
 					}
 
@@ -125,10 +123,27 @@ export class ChatSelectedTools extends Disposable {
 		);
 	}
 
+	selectOnly(tools: readonly string[]): void {
+		const uniqueTools = new Set(tools);
+
+		const disabledTools = this._allTools.get().filter(tool => !uniqueTools.has(tool.id));
+
+		this.update([], disabledTools);
+	}
+
 	update(disableBuckets: readonly ToolDataSource[], disableTools: readonly IToolData[]): void {
 		this._selectedTools.set({
 			disabledBuckets: disableBuckets.map(ToolDataSource.toKey),
 			disabledTools: disableTools.map(t => t.id)
 		}, undefined);
+	}
+
+	asEnablementMap(): Map<IToolData, boolean> {
+		const result = new Map<IToolData, boolean>();
+		const enabledTools = new Set(this.tools.get().map(t => t.id));
+		for (const tool of this._allTools.get()) {
+			result.set(tool, enabledTools.has(tool.id));
+		}
+		return result;
 	}
 }

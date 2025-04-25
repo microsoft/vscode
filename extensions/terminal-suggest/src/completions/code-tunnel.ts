@@ -86,7 +86,7 @@ const codeTunnelCompletionSpec: Fig.Spec = {
 		...extensionManagementOptions('code-tunnel'),
 		...troubleshootingOptions('code-tunnel'),
 		...globalTunnelOptions,
-		...codeTunnelOptions
+		...codeTunnelOptions,
 	]
 };
 

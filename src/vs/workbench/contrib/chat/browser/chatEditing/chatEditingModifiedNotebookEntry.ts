@@ -115,7 +115,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
 			if (initialContent) {
-				restoreSnapshot(originalRef.object.notebook, initialContent);
+				try {
+					restoreSnapshot(originalRef.object.notebook, initialContent);
+				} catch (ex) {
+					console.error(`Error restoring snapshot: ${initialContent}`, ex);
+					initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
+				}
 			} else {
 				initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
 				// Both models are the same, ensure the cell ids are the same, this way we get a perfect diffing.
@@ -253,24 +258,28 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// const didResetToOriginalContent = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService) === this.initialContent;
 		let didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
 		const currentState = this._stateObs.get();
-		if (currentState === ModifiedFileEntryState.Rejected) {
-			return;
-		}
 		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
 			this.initializeModelsFromDiff();
+			this._notifyAction('rejected');
 			return;
 		}
 
 		if (!e.rawEvents.length) {
 			return;
 		}
+
+		if (currentState === ModifiedFileEntryState.Rejected) {
+			return;
+		}
+
 		if (isTransientIPyNbExtensionEvent(this.modifiedModel.notebookType, e)) {
 			return;
 		}
 
 		this._allEditsAreFromUs = false;
+		this._userEditScheduler.schedule();
 
 		// Changes to cell text is sync'ed and handled separately.
 		// See ChatEditingNotebookCellEntry._mirrorEdits
@@ -478,6 +487,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// create a snapshot of the current state of the model, before the next set of edits
 		let initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
 		let last = '';
+		let redoState = ModifiedFileEntryState.Rejected;
 
 		return {
 			type: UndoRedoElementType.Resource,
@@ -487,11 +497,32 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			confirmBeforeUndo: false,
 			undo: async () => {
 				last = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
-				restoreSnapshot(this.modifiedModel, initial);
+				this._isEditFromUs = true;
+				try {
+					restoreSnapshot(this.modifiedModel, initial);
+					restoreSnapshot(this.originalModel, initial);
+				} finally {
+					this._isEditFromUs = false;
+				}
+				redoState = this._stateObs.get() === ModifiedFileEntryState.Accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
+				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
+				this.updateCellDiffInfo([], undefined);
+				this.initializeModelsFromDiff();
+				this._notifyAction('userModified');
 			},
 			redo: async () => {
 				initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
-				restoreSnapshot(this.modifiedModel, last);
+				this._isEditFromUs = true;
+				try {
+					restoreSnapshot(this.modifiedModel, last);
+					restoreSnapshot(this.originalModel, last);
+				} finally {
+					this._isEditFromUs = false;
+				}
+				this._stateObs.set(redoState, undefined);
+				this.updateCellDiffInfo([], undefined);
+				this.initializeModelsFromDiff();
+				this._notifyAction('userModified');
 			}
 		};
 	}
@@ -654,6 +685,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (new SnapshotComparer(currentSnapshot).isEqual(this.originalModel)) {
 			const state = accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
 			this._stateObs.set(state, undefined);
+			this._notifyAction(accepted ? 'accepted' : 'rejected');
 		}
 	}
 

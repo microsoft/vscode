@@ -18,12 +18,13 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
-import { IMcpService, IMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
+import { IMcpServer, IMcpService, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
@@ -94,9 +95,9 @@ export class AttachToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 			menu: {
 				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-				id: MenuId.ChatInputAttachmentToolbar,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1
+				order: 100
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
@@ -110,12 +111,13 @@ export class AttachToolsAction extends Action2 {
 
 		const quickPickService = accessor.get(IQuickInputService);
 		const mcpService = accessor.get(IMcpService);
+		const mcpRegistry = accessor.get(IMcpRegistry);
 		const toolsService = accessor.get(ILanguageModelToolsService);
-		const extensionService = accessor.get(IExtensionService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const editorService = accessor.get(IEditorService);
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
@@ -145,6 +147,7 @@ export class AttachToolsAction extends Action2 {
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 		type AddPick = IQuickPickItem & { pickable: false; run: () => void };
 		type MyPick = ToolPick | BucketPick | AddPick;
+		type ActionableButton = IQuickInputButton & { action: () => void };
 
 		const addMcpPick: AddPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
 		const addExpPick: AddPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
@@ -178,39 +181,60 @@ export class AttachToolsAction extends Action2 {
 				continue;
 			}
 
-			let bucket: BucketPick;
+			let bucket: BucketPick | undefined;
 
 			if (tool.source.type === 'mcp') {
 				const mcpServer = mcpServerByTool.get(tool.id);
 				if (!mcpServer) {
 					continue;
 				}
-				bucket = toolBuckets.get(mcpServer.definition.id) ?? {
-					type: 'item',
-					label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
-					status: localize('mcpstatus', "From {0} ({1})", mcpServer.collection.label, McpConnectionState.toString(mcpServer.connectionState.get())),
-					ordinal: BucketOrdinal.Mcp,
-					source: tool.source,
-					picked: false,
-					children: []
-				};
-				toolBuckets.set(mcpServer.definition.id, bucket);
-			} else if (tool.source.type === 'extension') {
-				const extensionId = tool.source.extensionId;
-				const ext = extensionService.extensions.find(value => ExtensionIdentifier.equals(value.identifier, extensionId));
-				if (!ext) {
-					continue;
-				}
+				const key = tool.source.type + mcpServer.definition.id;
+				bucket = toolBuckets.get(key);
 
-				bucket = toolBuckets.get(ExtensionIdentifier.toKey(extensionId)) ?? {
+				if (!bucket) {
+					const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
+					const buttons: ActionableButton[] = [];
+					if (collection?.presentation?.origin) {
+						buttons.push({
+							iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+							tooltip: localize('configMcpCol', "Configure {0}", collection.label),
+							action: () => editorService.openEditor({
+								resource: collection!.presentation!.origin,
+							})
+						});
+					}
+					if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
+						buttons.push({
+							iconClass: ThemeIcon.asClassName(Codicon.warning),
+							tooltip: localize('mcpShowOutput', "Show Output"),
+							action: () => mcpServer.showOutput(),
+						});
+					}
+
+					bucket = {
+						type: 'item',
+						label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
+						status: localize('mcpstatus', "from {0}", mcpServer.collection.label),
+						ordinal: BucketOrdinal.Mcp,
+						source: tool.source,
+						picked: false,
+						children: [],
+						buttons,
+					};
+					toolBuckets.set(key, bucket);
+				}
+			} else if (tool.source.type === 'extension') {
+				const key = tool.source.type + ExtensionIdentifier.toKey(tool.source.extensionId);
+
+				bucket = toolBuckets.get(key) ?? {
 					type: 'item',
-					label: ext.displayName ?? ext.name,
+					label: tool.source.label,
 					ordinal: BucketOrdinal.Extension,
 					picked: false,
 					source: tool.source,
 					children: []
 				};
-				toolBuckets.set(ExtensionIdentifier.toKey(ext.identifier), bucket);
+				toolBuckets.set(key, bucket);
 			} else if (tool.source.type === 'internal') {
 				bucket = defaultBucket;
 			} else {
@@ -242,6 +266,9 @@ export class AttachToolsAction extends Action2 {
 		}
 		function isAddPick(obj: any): obj is AddPick {
 			return Boolean((obj as AddPick).run);
+		}
+		function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
+			return typeof (obj as ActionableButton).action === 'function';
 		}
 
 		const store = new DisposableStore();
@@ -310,6 +337,13 @@ export class AttachToolsAction extends Action2 {
 		_update();
 		picker.items = picks;
 		picker.show();
+
+		store.add(picker.onDidTriggerItemButton(e => {
+			if (isActionableButton(e.button)) {
+				e.button.action();
+				store.dispose();
+			}
+		}));
 
 		store.add(picker.onDidChangeSelection(selectedPicks => {
 			if (ignoreEvent) {

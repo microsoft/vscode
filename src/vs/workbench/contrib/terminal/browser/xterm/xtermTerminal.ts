@@ -225,6 +225,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
+			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
 			overviewRuler: {
 				width: 14,

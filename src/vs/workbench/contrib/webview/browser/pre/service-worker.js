@@ -18,7 +18,7 @@ const searchParams = new URL(location.toString()).searchParams;
 
 const remoteAuthority = searchParams.get('remoteAuthority');
 
-let ID = '';
+const ID = searchParams.get('id');
 
 /**
  * Origin used for resources
@@ -135,7 +135,6 @@ sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
 		case 'version': {
 			const source = /** @type {Client} */ (event.source);
-			ID = event.data.webviewID;
 			sw.clients.get(source.id).then(client => {
 				if (client) {
 					client.postMessage({

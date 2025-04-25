@@ -146,7 +146,7 @@
     "vscode-tas-client": "^0.1.84"
   },
   "overrides": {
-    "@azure/msal-node-runtime": "^0.18.1"
+    "@azure/msal-node-runtime": "^0.18.2"
   },
   "repository": {
     "type": "git",
