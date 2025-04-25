@@ -10,6 +10,7 @@ import { IEditorPane } from '../../../../../common/editor.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IChatProgressResponseContent } from '../../../common/chatModel.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
@@ -94,11 +95,12 @@ class SaveToPromptAction extends Action2 {
 
 			const tools = new Set<string>();
 			for (const record of response.value) {
-				if ((('toolReferenceName' in record) === false) || (!record.toolReferenceName)) {
+				const toolNameOrId = this.getToolNameOrId(record);
+				if (toolNameOrId === undefined) {
 					continue;
 				}
 
-				tools.add(record.toolReferenceName);
+				tools.add(toolNameOrId);
 			}
 
 			turns.push({
@@ -124,6 +126,23 @@ class SaveToPromptAction extends Action2 {
 		editor.focus();
 
 		return editor;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private getToolNameOrId(
+		tool: IChatProgressResponseContent,
+	): string | undefined {
+		if (('toolReferenceName' in tool) && tool.toolReferenceName) {
+			return tool.toolReferenceName;
+		}
+
+		if (('toolId' in tool) && tool.toolId) {
+			return tool.toolId;
+		}
+
+		return undefined;
 	}
 }
 
