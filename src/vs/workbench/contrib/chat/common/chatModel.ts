@@ -196,7 +196,7 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 	readonly kind: 'diagnostic';
 }
 
-export interface IElementVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'>, IDiagnosticVariableEntryFilterData {
+export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
 }
 

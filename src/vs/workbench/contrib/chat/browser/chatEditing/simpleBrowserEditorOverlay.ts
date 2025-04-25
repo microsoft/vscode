@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../media/chatEditingEditorOverlay.css';
+import '../media/simpleBrowserOverlay.css';
 import { combinedDisposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
-import { IChatService } from '../../common/chatService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
@@ -19,7 +17,6 @@ import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -27,6 +24,7 @@ import { IChatWidgetService, showChatView } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -59,7 +57,8 @@ class SimpleBrowserOverlayWidget {
 		cancelButton.label = localize('cancel', 'Cancel');
 
 		this.hideElement(cancelButton.element);
-		selectButton.onDidClick(async () => {
+
+		this._showStore.add(addDisposableListener(selectButton.element, 'click', async () => {
 			cts = new CancellationTokenSource();
 			this._editor.focus();
 
@@ -78,9 +77,9 @@ class SimpleBrowserOverlayWidget {
 				message.textContent = startSelectionMessage;
 				this.showElement(selectButton.element);
 			}, 3000);
-		});
+		}));
 
-		cancelButton.onDidClick(() => {
+		this._showStore.add(addDisposableListener(cancelButton.element, 'click', () => {
 			cts.cancel();
 			this.hideElement(cancelButton.element);
 			message.textContent = localize('elementCancelMessage', 'Selection canceled');
@@ -88,7 +87,7 @@ class SimpleBrowserOverlayWidget {
 				message.textContent = startSelectionMessage;
 				this.showElement(selectButton.element);
 			}, 3000);
-		});
+		}));
 	}
 
 	hideElement(element: HTMLElement) {
@@ -118,7 +117,7 @@ class SimpleBrowserOverlayWidget {
 			throw new Error('Screenshot failed');
 		}
 		this._domNode.style.display = '';
-		const widget = await showChatView(this._viewService) ?? this._chatWidgetService.lastFocusedWidget;
+		const widget = this._chatWidgetService.lastFocusedWidget ?? await showChatView(this._viewService);
 
 		widget?.attachmentModel?.addContext({
 			id: 'element-' + Date.now(),
@@ -175,9 +174,6 @@ class SimpleBrowserOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
-		@IChatService chatService: IChatService,
-		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');

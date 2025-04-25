@@ -6,8 +6,7 @@
 .interactive-session {
 	max-width: 850px;
 	margin: auto;
-	position: relative;
-	/* For chat dnd */
+	position: relative; /* For chat dnd */
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
@@ -80,19 +79,15 @@
 	0% {
 		content: "";
 	}
-
 	25% {
 		content: ".";
 	}
-
 	50% {
 		content: "..";
 	}
-
 	75% {
 		content: "...";
 	}
-
 	100% {
 		content: "";
 	}
@@ -126,7 +121,7 @@
 	background: var(--vscode-chat-avatarBackground);
 }
 
-.interactive-item-container .header .avatar + .avatar {
+.interactive-item-container .header .avatar+.avatar {
 	margin-left: -8px;
 }
 
@@ -266,8 +261,7 @@
 
 .interactive-list {
 	overflow: hidden;
-	position: relative;
-	/* For the scroll down button */
+	position: relative; /* For the scroll down button */
 }
 
 .hc-black .interactive-request,
@@ -345,7 +339,6 @@
 		margin-top: 0;
 
 	}
-
 	/* Override the top to avoid the toolbar getting clipped by overflow:hidden */
 	> div[data-code]:first-child .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
 	> div[data-code]:first-child .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
@@ -360,12 +353,12 @@
 	}
 
 	/* not ideal but I cannot query the last div with this class... */
-	.rendered-markdown:last-of-type > P > SPAN:empty {
+	.rendered-markdown:last-of-type>P>SPAN:empty {
 		display: inline-block;
 		width: 11px;
 	}
 
-	.rendered-markdown:last-of-type > P > SPAN:empty::after {
+	.rendered-markdown:last-of-type>P>SPAN:empty::after {
 		content: '';
 		white-space: nowrap;
 		overflow: hidden;
@@ -464,11 +457,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
-.chat-tool-hover,
-.interactive-item-container {
-
-	.monaco-tokenized-source,
-	code {
+.chat-tool-hover, .interactive-item-container {
+	.monaco-tokenized-source, code {
 		font-family: var(--monaco-monospace-font);
 		font-size: 12px;
 		color: var(--vscode-textPreformat-foreground);
@@ -501,7 +491,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 }
 
-.interactive-item-container.interactive-item-compact .header .avatar + .avatar {
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar {
 	margin-left: -4px;
 }
 
@@ -601,8 +591,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
-	padding: 0 6px 6px 6px;
-	/* top padding is inside the editor widget */
+	padding: 0 6px 6px 6px; /* top padding is inside the editor widget */
 	max-width: 100%;
 }
 
@@ -781,8 +770,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-top: 3px;
 	margin-left: -4px;
 	padding-left: 4px;
-	font-size: 14px;
-	/* The + codicon is large, make it look more like the x codicon */
+	font-size: 14px; /* The + codicon is large, make it look more like the x codicon */
 	height: calc(100% - 3px);
 	width: 17px;
 	outline-offset: -2px !important;
@@ -857,24 +845,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	border-radius: 2px;
 }
-
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button .monaco-button,
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button .monaco-button:hover {
 	border-right: 1px solid transparent;
 	background-color: unset;
 	padding: 0;
 }
-
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button > .separator {
 	border-right: 1px solid transparent;
 	padding: 0 1px;
 	height: 22px;
 }
-
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover > .separator {
 	border-color: var(--vscode-input-border, transparent);
 }
-
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -1001,11 +985,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	0% {
 		--chat-editing-last-edit-shift: 100%;
 	}
-
 	50% {
 		--chat-editing-last-edit-shift: 7%;
 	}
-
 	100% {
 		--chat-editing-last-edit-shift: 100%;
 	}
@@ -1052,8 +1034,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-used-context-list .codicon-warning {
-	color: var(--vscode-notificationsWarningIcon-foreground);
-	/* Have to override default styles which apply to all lists */
+	color: var(--vscode-notificationsWarningIcon-foreground); /* Have to override default styles which apply to all lists */
 }
 
 .chat-used-context-list .monaco-icon-label-container {
@@ -1079,39 +1060,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	gap: 4px;
 }
-
 .chat-attached-context .chat-prompt-attachment .codicon {
 	color: inherit;
 	text-decoration: none;
 }
-
 .chat-attached-context .chat-prompt-attachment .chat-implicit-hint {
 	opacity: 0.7;
 	font-size: .9em;
 	margin-top: -0.5px;
 }
-
 .chat-attached-context .chat-prompt-attachment.warning {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
-
 .chat-attached-context .chat-prompt-attachment.error {
 	color: var(--vscode-notificationsErrorIcon-foreground);
 }
-
 .chat-attached-context .chat-prompt-attachment.disabled {
 	border-style: dashed;
 	opacity: 0.75;
 }
-
 .chat-attached-context .chat-prompt-attachment:focus .monaco-button {
 	border-color: var(--vscode-focusBorder);
 }
-
 .chat-attached-context .chat-prompt-attachment .monaco-icon-label-container {
 	margin-top: -0.1em;
 }
-
 /*
  * This overly-specific CSS selector is needed to beat priority of some
  * styles applied on the `.chat-attached-context-attachment` element.
@@ -1120,12 +1093,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context .chat-prompt-attachment.warning.implicit {
 	border: 1px solid currentColor;
 }
-
 .chat-attached-context .chat-prompt-attachment.implicit .monaco-button {
 	padding-left: 2px;
 	padding-right: 2px;
 }
-
 /*
  * If in one of the non-normal states, make sure the `main icon` of
  * the component has the same color as the component itself
@@ -1135,21 +1106,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
 	color: inherit;
 }
-
 .chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
 	font-style: italic;
 }
-
 .chat-attached-context .chat-prompt-attachment.disabled:hover {
 	opacity: 1;
 }
-
 .chat-attached-context .chat-prompt-attachment.disabled .chat-implicit-hint,
 .chat-attached-context .chat-prompt-attachment.disabled .label-name {
 	font-style: italic;
 	text-decoration: line-through;
 }
-
 .chat-attached-context .chat-prompt-attachment.disabled:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
@@ -1157,20 +1124,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
 .chat-quota-error-widget .codicon-warning {
-	color: var(--vscode-notificationsWarningIcon-foreground) !important;
-	/* Have to override default styles which apply to all lists */
+	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .chat-notification-widget .chat-error-codicon .codicon-error,
 .interactive-response .interactive-response-error-details .codicon-error {
-	color: var(--vscode-errorForeground) !important;
-	/* Have to override default styles which apply to all lists */
+	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .chat-notification-widget .chat-info-codicon .codicon-info,
 .interactive-response .interactive-response-error-details .codicon-info {
-	color: var(--vscode-notificationsInfoIcon-foreground) !important;
-	/* Have to override default styles which apply to all lists */
+	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .interactive-session .interactive-input-part {
@@ -1492,7 +1456,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 }
 
-.interactive-response .interactive-response-codicon-details {
+.interactive-response  .interactive-response-codicon-details {
 	display: flex;
 	align-items: start;
 	gap: 6px;
@@ -1749,7 +1713,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: block;
 	max-height: 350px;
 	max-width: 100%;
-	min-width: 150px;
+	min-width: 200px;
 	min-height: 200px;
 
 }
@@ -1879,31 +1843,5 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
-	display: none;
-}
-
-.element-selection-message {
-	position: absolute;
-	bottom: 10px;
-	right: 10px;
-	padding: 8px 10px;
-	background: var(--vscode-notifications-background);
-	color: var(--vscode-notifications-foreground);
-	border-radius: 4px;
-	font-size: 12px;
-	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	width: max-content
-}
-
-.element-selection-cancel,
-.element-selection-start {
-	padding: 5px 10px;
-	width: fit-content;
-}
-
-.element-selection-message .hidden {
 	display: none;
 }

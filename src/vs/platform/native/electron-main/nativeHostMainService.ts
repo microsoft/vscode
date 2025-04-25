@@ -757,7 +757,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
-	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token?: CancellationToken): Promise<IElementData | undefined> {
+	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token: CancellationToken): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId, windowId);
 		if (!window?.win) {
 			return undefined;
