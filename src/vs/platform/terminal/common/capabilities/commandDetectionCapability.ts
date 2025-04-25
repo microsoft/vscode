@@ -28,7 +28,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
 	private _promptTerminator: string | undefined;
-	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
+	private _currentCommand: PartialTerminalCommand;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
@@ -85,7 +85,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly

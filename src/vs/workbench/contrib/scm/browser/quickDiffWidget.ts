@@ -28,7 +28,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { ISplice } from '../../../../base/common/sequence.js';
-import { ChangeType, getChangeHeight, getChangeType, getChangeTypeColor, getModifiedEndLineNumber, lineIntersectsChange, QuickDiffChange } from '../common/quickDiff.js';
+import { ChangeType, getChangeHeight, getChangeType, getChangeTypeColor, getModifiedEndLineNumber, IQuickDiffService, lineIntersectsChange, QuickDiff, QuickDiffChange } from '../common/quickDiff.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -58,33 +58,26 @@ export interface IQuickDiffSelectItem extends ISelectOptionItem {
 }
 
 export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSelectItem> {
-	private readonly optionsItems: IQuickDiffSelectItem[];
+	private optionsItems: IQuickDiffSelectItem[] = [];
 
 	constructor(
 		action: IAction,
-		providers: string[],
-		selected: string,
 		@IContextViewService contextViewService: IContextViewService,
 		@IThemeService themeService: IThemeService
 	) {
-		const items = providers.map(provider => ({ provider, text: provider }));
-		let startingSelection = providers.indexOf(selected);
-		if (startingSelection === -1) {
-			startingSelection = 0;
-		}
 		const styles = { ...defaultSelectBoxStyles };
 		const theme = themeService.getColorTheme();
 		const editorBackgroundColor = theme.getColor(editorBackground);
 		const peekTitleColor = theme.getColor(peekViewTitleBackground);
 		const opaqueTitleColor = peekTitleColor?.makeOpaque(editorBackgroundColor!) ?? editorBackgroundColor!;
 		styles.selectBackground = opaqueTitleColor.lighten(.6).toString();
-		super(null, action, items, startingSelection, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base') });
-		this.optionsItems = items;
+		super(null, action, [], 0, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base') });
 	}
 
-	public setSelection(provider: string) {
+	public setSelection(providers: string[], provider: string) {
+		this.optionsItems = providers.map(provider => ({ provider, text: provider }));
 		const index = this.optionsItems.findIndex(item => item.provider === provider);
-		this.select(index);
+		this.setOptions(this.optionsItems, index);
 	}
 
 	protected override getActionContext(_: string, index: number): IQuickDiffSelectItem {
@@ -168,7 +161,8 @@ class QuickDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
@@ -229,7 +223,6 @@ class QuickDiffWidget extends PeekViewWidget {
 			return;
 		}
 		this.diffEditor.setModel(diffEditorModel);
-		this.dropdown?.setSelection(labeledChange.label);
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 
@@ -238,6 +231,7 @@ class QuickDiffWidget extends PeekViewWidget {
 		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
 		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
 
+		this.updateDropdown(labeledChange.label);
 		this.renderTitle(labeledChange.label);
 
 		const changeType = getChangeType(change);
@@ -308,14 +302,7 @@ class QuickDiffWidget extends PeekViewWidget {
 	}
 
 	private shouldUseDropdown(): boolean {
-		const change = this.model.changes[this._index];
-		const quickDiffWithChange = this.model.changes
-			.filter(c => change.change2.modified.overlapOrTouch(c.change2.modified))
-			.map(c => c.label);
-
-		const quickDiffs = this.model.quickDiffs
-			.filter(quickDiff => quickDiff.visible && quickDiffWithChange.includes(quickDiff.label));
-
+		const quickDiffs = this.getQuickDiffsContainingChange();
 		return quickDiffs.length > 1;
 	}
 
@@ -340,17 +327,31 @@ class QuickDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.push(this._disposables.add(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose())), { label: false, icon: true });
 	}
 
+	private updateDropdown(label: string): void {
+		const quickDiffs = this.getQuickDiffsContainingChange();
+		this.dropdown?.setSelection(quickDiffs.map(quickDiff => quickDiff.label), label);
+	}
+
+	private getQuickDiffsContainingChange(): QuickDiff[] {
+		const change = this.model.changes[this._index];
+
+		const quickDiffsWithChange = this.model.changes
+			.filter(c => change.change2.modified.overlapOrTouch(c.change2.modified))
+			.map(c => c.providerId);
+
+		return this.model.quickDiffs
+			.filter(quickDiff => quickDiffsWithChange.includes(quickDiff.id) &&
+				this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id));
+	}
+
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
-		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
-
+		// Render an empty picker which will be populated later
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
 		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem,
-			new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
-			visibleQuickDiffs.map(quickDiff => quickDiff.label), this.model.changes[this._index].label);
+			new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)));
 		this.dropdown.render(this.dropdownContainer);
-		this.updateActions();
 	}
 
 	protected override _getActionBarOptions(): IActionBarOptions {

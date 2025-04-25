@@ -30,41 +30,19 @@ export interface IAttachOptions {
 }
 
 /**
- * Return value of the {@link attachInstructionsFiles} function.
- */
-interface IAttachResult {
-	/**
-	 * Chat widget instance files were attached to.
-	 */
-	readonly widget: IChatWidget;
-
-	/**
-	 * List of instruction files that were already
-	 * attached to the chat input.
-	 */
-	readonly alreadyAttached: readonly URI[];
-}
-
-/**
  * Attaches provided instructions to a chat input.
  */
 export const attachInstructionsFiles = async (
 	files: URI[],
 	options: IAttachOptions,
-): Promise<IAttachResult> => {
-
+): Promise<IChatWidget> => {
 	const widget = await getChatWidgetObject(options);
 
-	const alreadyAttached: URI[] = [];
-
 	for (const file of files) {
-		if (widget.attachmentModel.promptInstructions.add(file)) {
-			alreadyAttached.push(file);
-			continue;
-		}
+		widget.attachmentModel.promptInstructions.add(file);
 	}
 
-	return { widget, alreadyAttached };
+	return widget;
 };
 
 /**

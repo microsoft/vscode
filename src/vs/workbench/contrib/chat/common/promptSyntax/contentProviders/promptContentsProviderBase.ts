@@ -36,6 +36,11 @@ export abstract class PromptContentsProviderBase<
 	public abstract override toString(): string;
 
 	/**
+	 * Language ID of the prompt contents.
+	 */
+	public abstract get languageId(): string;
+
+	/**
 	 * Function to get contents stream for the provider. This function should
 	 * throw a `ResolveError` or its derivative if the contents cannot be parsed.
 	 *

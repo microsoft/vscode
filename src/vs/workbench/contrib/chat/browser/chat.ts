@@ -101,6 +101,7 @@ export interface IChatCodeBlockInfo {
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
+	readonly chatSessionId: string;
 	focus(): void;
 }
 

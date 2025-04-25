@@ -225,7 +225,7 @@ export class McpAddConfigurationCommand {
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
+	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; server: McpConfigurationServer; inputs?: ConfiguredInput[]; inputValues?: Record<string, string> } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
 			title: assistedTypes[type].title,
@@ -301,20 +301,13 @@ export class McpAddConfigurationCommand {
 				return undefined;
 		}
 
-		const configWithName = await this._commandService.executeCommand<McpConfigurationServer & { name: string }>(
+		return await this._commandService.executeCommand<{ name: string; server: McpConfigurationServer; inputs?: ConfiguredInput[]; inputValues?: Record<string, string> }>(
 			AddConfigurationCopilotCommand.StartFlow,
 			{
 				name: packageName,
 				type: packageType
 			}
 		);
-
-		if (!configWithName) {
-			return undefined;
-		}
-
-		const { name, ...config } = configWithName;
-		return { name, config };
 	}
 
 	/** Shows the location of a server config once it's discovered. */
@@ -371,6 +364,8 @@ export class McpAddConfigurationCommand {
 		// Step 2: Get server details based on type
 		let serverConfig: McpConfigurationServer | undefined;
 		let suggestedName: string | undefined;
+		let inputs: ConfiguredInput[] | undefined;
+		let inputValues: Record<string, string> | undefined;
 		switch (serverType) {
 			case AddConfigurationType.Stdio:
 				serverConfig = await this.getStdioConfig();
@@ -382,8 +377,10 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.PipPackage:
 			case AddConfigurationType.DockerImage: {
 				const r = await this.getAssistedConfig(serverType);
-				serverConfig = r?.config;
+				serverConfig = r?.server;
 				suggestedName = r?.name;
+				inputs = r?.inputs;
+				inputValues = r?.inputValues;
 				break;
 			}
 			default:
@@ -418,12 +415,24 @@ export class McpAddConfigurationCommand {
 				: undefined;
 
 		if (writeToUriDirect) {
-			await this._jsonEditingService.write(writeToUriDirect, [{
-				path: ['servers', serverId],
-				value: serverConfig
-			}], true);
+			await this._jsonEditingService.write(writeToUriDirect, [
+				{
+					path: ['servers', serverId],
+					value: serverConfig
+				},
+				...(inputs || []).map(i => ({
+					path: ['inputs', -1],
+					value: i,
+				})),
+			], true);
 		} else {
-			await this.writeToUserSetting(serverId, serverConfig, target!);
+			await this.writeToUserSetting(serverId, serverConfig, target!, inputs);
+		}
+
+		if (inputValues) {
+			for (const [key, value] of Object.entries(inputValues)) {
+				await this._mcpRegistry.setSavedInput(key, target ?? ConfigurationTarget.WORKSPACE, value);
+			}
 		}
 
 		const packageType = this.getPackageType(serverType);

@@ -20,6 +20,11 @@ export interface IPromptContentsProvider extends IDisposable {
 	readonly uri: URI;
 
 	/**
+	 * Language ID of the prompt contents.
+	 */
+	readonly languageId: string;
+
+	/**
 	 * Start the contents provider to produce the underlying contents.
 	 */
 	start(): this;

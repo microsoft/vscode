@@ -6,6 +6,7 @@
 import { URI } from '../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { wait } from '../../../../../../../base/test/common/testUtils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 
 /**
@@ -47,12 +48,19 @@ export class MockFilesystem {
 	 * Starts the mock process.
 	 */
 	public async mock(): Promise<TWithURI<IMockFolder>[]> {
-		return await Promise.all(
+		const result = await Promise.all(
 			this.folders
 				.map((folder) => {
 					return this.mockFolder(folder);
 				}),
 		);
+
+		// wait for the filesystem event to settle before proceeding
+		// this is temporary workaround and should be fixed once we
+		// improve behavior of the `settled()` / `allSettled()` methods
+		await wait(25);
+
+		return result;
 	}
 
 	/**

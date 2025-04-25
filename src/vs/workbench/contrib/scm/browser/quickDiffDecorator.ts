@@ -74,7 +74,8 @@ class QuickDiffDecorator extends Disposable {
 	constructor(
 		private readonly codeEditor: ICodeEditor,
 		private readonly quickDiffModelRef: IReference<QuickDiffModel>,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
 	) {
 		super();
 
@@ -134,15 +135,15 @@ class QuickDiffDecorator extends Disposable {
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
 		const primaryQuickDiff = this.quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
-		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(labeledChange => labeledChange.label === primaryQuickDiff?.label);
+		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(change => change.providerId === primaryQuickDiff?.id);
 
 		const decorations: IModelDeltaDecoration[] = [];
 		for (const change of this.quickDiffModelRef.object.changes) {
 			const quickDiff = this.quickDiffModelRef.object.quickDiffs
-				.find(quickDiff => quickDiff.label === change.label);
+				.find(quickDiff => quickDiff.id === change.providerId);
 
-			if (!quickDiff?.visible) {
-				// Not visible
+			// Skip quick diffs that are not visible
+			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
 				continue;
 			}
 
@@ -356,8 +357,8 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 			const visibleDecorationCount = observableFromEvent(this,
 				quickDiffModelRef.object.onDidChange, () => {
-					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
-					return quickDiffModelRef.object.changes.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label)).length;
+					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id));
+					return quickDiffModelRef.object.changes.filter(change => visibleQuickDiffs.some(quickDiff => quickDiff.id === change.providerId)).length;
 				});
 
 			store.add(autorun(reader => {
@@ -423,7 +424,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 				this.decorators.set(textModel.uri, new DisposableMap<string>());
 			}
 
-			this.decorators.get(textModel.uri)!.set(editorId, new QuickDiffDecorator(editor, quickDiffModelRef, this.configurationService));
+			this.decorators.get(textModel.uri)!.set(editorId, new QuickDiffDecorator(editor, quickDiffModelRef, this.configurationService, this.quickDiffService));
 		}
 
 		// Dispose decorators for editors that are no longer visible.

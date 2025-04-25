@@ -5,6 +5,7 @@
 
 import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
+import { PromptIncludeMetadata } from './metadata/include.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
@@ -34,6 +35,11 @@ export interface IHeaderMetadata {
 	 * Chat mode metadata in the prompt header.
 	 */
 	mode?: PromptModeMetadata;
+
+	/**
+	 * Chat include metadata in the prompt header.
+	 */
+	include?: PromptIncludeMetadata;
 }
 
 /**
@@ -78,6 +84,7 @@ export class PromptHeader extends Disposable {
 
 	constructor(
 		public readonly contentsToken: Text,
+		public readonly languageId: string,
 	) {
 		super();
 
@@ -144,7 +151,7 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "description" metadata
 		// add it to the list of parsed metadata records
 		if (PromptDescriptionMetadata.isDescriptionRecord(token)) {
-			const descriptionMetadata = new PromptDescriptionMetadata(token);
+			const descriptionMetadata = new PromptDescriptionMetadata(token, this.languageId);
 			const { diagnostics } = descriptionMetadata;
 
 			this.issues.push(...diagnostics);
@@ -156,7 +163,7 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
-			const toolsMetadata = new PromptToolsMetadata(token);
+			const toolsMetadata = new PromptToolsMetadata(token, this.languageId);
 			const { diagnostics } = toolsMetadata;
 
 			this.issues.push(...diagnostics);
@@ -169,7 +176,7 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "mode" metadata
 		// add it to the list of parsed metadata records
 		if (PromptModeMetadata.isModeRecord(token)) {
-			const modeMetadata = new PromptModeMetadata(token);
+			const modeMetadata = new PromptModeMetadata(token, this.languageId);
 			const { diagnostics } = modeMetadata;
 
 			this.issues.push(...diagnostics);
@@ -177,6 +184,19 @@ export class PromptHeader extends Disposable {
 			this.recordNames.add(recordName);
 
 			return this.validateToolsAndModeCompatibility();
+		}
+
+		// if the record might be a "include" metadata
+		// add it to the list of parsed metadata records
+		if (PromptIncludeMetadata.isIncludeRecord(token)) {
+			const includeMetadata = new PromptIncludeMetadata(token, this.languageId);
+			const { diagnostics } = includeMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.include = includeMetadata;
+			this.recordNames.add(recordName);
+
+			return;
 		}
 
 		// all other records are currently not supported

@@ -22,6 +22,7 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -44,6 +45,7 @@ class TextModelPromptParserTest extends Disposable {
 	constructor(
 		uri: URI,
 		initialContents: string[],
+		languageId: string = PROMPT_LANGUAGE_ID,
 		@IFileService fileService: IFileService,
 		@IInstantiationService initService: IInstantiationService,
 	) {
@@ -60,7 +62,7 @@ class TextModelPromptParserTest extends Disposable {
 		this.model = this._register(
 			createTextModel(
 				initialContents.join(lineEnding),
-				'fooLang',
+				languageId,
 				undefined,
 				uri,
 			),
@@ -163,12 +165,14 @@ suite('TextModelPromptParser', () => {
 	const createTest = (
 		uri: URI,
 		initialContents: string[],
+		languageId: string = PROMPT_LANGUAGE_ID,
 	): TextModelPromptParserTest => {
 		return disposables.add(
 			instantiationService.createInstance(
 				TextModelPromptParserTest,
 				uri,
 				initialContents,
+				languageId,
 			),
 		);
 	};
@@ -286,10 +290,11 @@ suite('TextModelPromptParser', () => {
 	});
 
 	suite('• header', () => {
-		test('• has correct metadata', async () => {
-			const test = createTest(
-				createURI('/absolute/folder/and/a/filename.txt'),
-				[
+		suite(' • metadata', () => {
+			test('• has correct \'prompt\' metadata', async () => {
+				const test = createTest(
+					createURI('/absolute/folder/and/a/filename.txt'),
+					[
 					/* 01 */"---",
 					/* 02 */"description: 'My prompt.'\t\t",
 					/* 03 */"	something: true", /* unknown metadata record */
@@ -297,51 +302,125 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
+					/* 07 */"	include: 'frontend/**/*spec.ts'",
 					/* 08 */"---",
 					/* 09 */"The cactus on my desk has a thriving Instagram account.",
 					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
 					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
 					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
-				],
-			);
+					],
+				);
 
-			await test.validateReferences([
-				new ExpectedReference({
-					uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
-					text: '[text](./foo-bar-baz/another-file.ts)',
-					path: './foo-bar-baz/another-file.ts',
-					startLine: 10,
-					startColumn: 43,
-					pathStartColumn: 50,
-					childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
-				}),
-			]);
+				await test.validateReferences([
+					new ExpectedReference({
+						uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+						text: '[text](./foo-bar-baz/another-file.ts)',
+						path: './foo-bar-baz/another-file.ts',
+						startLine: 11,
+						startColumn: 43,
+						pathStartColumn: 50,
+						childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+					}),
+				]);
 
-			const { header, metadata } = test.parser;
-			assertDefined(
-				header,
-				'Prompt header must be defined.',
-			);
+				const { header, metadata } = test.parser;
+				assertDefined(
+					header,
+					'Prompt header must be defined.',
+				);
 
-			const { tools, mode, description } = metadata;
-			assert.deepStrictEqual(
-				tools,
-				['tool_name1', 'tool_name2'],
-				`Prompt header must have correct tools metadata.`,
-			);
+				const { tools, mode, description, include } = metadata;
+				assert.deepStrictEqual(
+					tools,
+					['tool_name1', 'tool_name2'],
+					`Prompt header must have correct tools metadata.`,
+				);
 
-			assert.strictEqual(
-				mode,
-				'agent',
-				`Prompt header must have correct mode metadata.`,
-			);
+				assert.strictEqual(
+					mode,
+					'agent',
+					`Prompt header must have correct 'mode' metadata.`,
+				);
 
-			assert.strictEqual(
-				description,
-				'My prompt.',
-				`Prompt header must have correct description metadata.`,
-			);
+				assert.strictEqual(
+					description,
+					'My prompt.',
+					`Prompt header must have correct 'description' metadata.`,
+				);
+
+				assert.strictEqual(
+					include,
+					undefined,
+					`Prompt header must have no 'include' metadata.`,
+				);
+			});
+
+			test('• has correct \'instructions\' metadata', async () => {
+				const test = createTest(
+					createURI('/absolute/folder/and/a/filename.instructions.md'),
+					[
+					/* 01 */"---",
+					/* 02 */"description: 'My prompt.'\t\t",
+					/* 03 */"	something: true", /* unknown metadata record */
+					/* 04 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
+					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
+					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 07 */"	mode: 'agent'",
+					/* 07 */"	include: 'frontend/**/*spec.ts'",
+					/* 08 */"---",
+					/* 09 */"The cactus on my desk has a thriving Instagram account.",
+					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+					],
+					INSTRUCTIONS_LANGUAGE_ID,
+				);
+
+				await test.validateReferences([
+					new ExpectedReference({
+						uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+						text: '[text](./foo-bar-baz/another-file.ts)',
+						path: './foo-bar-baz/another-file.ts',
+						startLine: 11,
+						startColumn: 43,
+						pathStartColumn: 50,
+						childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+					}),
+				]);
+
+				const { header, metadata } = test.parser;
+				assertDefined(
+					header,
+					'Prompt header must be defined.',
+				);
+
+				const { tools, mode, description, include } = metadata;
+				assert.deepStrictEqual(
+					tools,
+					['tool_name1', 'tool_name2'],
+					`Prompt header must have correct tools metadata.`,
+				);
+
+				assert.strictEqual(
+					mode,
+					'agent',
+					`Prompt header must have correct 'mode' metadata.`,
+				);
+
+				assert.strictEqual(
+					description,
+					'My prompt.',
+					`Prompt header must have correct 'description' metadata.`,
+				);
+
+				assert.strictEqual(
+					include,
+					'frontend/**/*spec.ts',
+					`Prompt header must have no 'include' metadata.`,
+				);
+			});
 		});
 
 		suite('• diagnostics', () => {
@@ -429,6 +508,130 @@ suite('TextModelPromptParser', () => {
 					new ExpectedDiagnosticWarning(
 						new Range(7, 1, 7, 1 + 19),
 						'Duplicate metadata record \'tools\' will be ignored.',
+					),
+				]);
+			});
+
+			suite('• include metadata', () => {
+				suite('• language', () => {
+					test('• prompt', async () => {
+						const test = createTest(
+							createURI('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"include: '**/*'",
+					/* 03 */"mode: \"ask\"",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							PROMPT_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						const { include, mode } = metadata;
+						assert.strictEqual(
+							mode,
+							ChatMode.Ask,
+							'Mode metadata must have correct value.',
+						);
+
+						assert(
+							include === undefined,
+							'Include metadata must not be defined.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 1, 2, 1 + 15),
+								'The \'include\' metadata record is only valid in instruction files.',
+							),
+						]);
+					});
+
+					test('• instructions', async () => {
+						const test = createTest(
+							createURI('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"include: '**/*'",
+					/* 03 */"mode: \"edit\"",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						const { include, mode } = metadata;
+						assert.strictEqual(
+							mode,
+							ChatMode.Edit,
+							'Mode metadata must have correct value.',
+						);
+
+						assert.strictEqual(
+							include,
+							'**/*',
+							'Include metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([]);
+					});
+				});
+			});
+
+			test('• invalid glob pattern', async () => {
+				const test = createTest(
+					createURI('/absolute/folder/and/a/my.prompt.md'),
+					[
+					/* 01 */"---",
+					/* 02 */"mode: \"agent\"",
+					/* 03 */"include: ''",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+					],
+					INSTRUCTIONS_LANGUAGE_ID,
+				);
+
+				await test.allSettled();
+
+				const { header, metadata } = test.parser;
+				assertDefined(
+					header,
+					'Prompt header must be defined.',
+				);
+
+				const { include, mode } = metadata;
+				assert.strictEqual(
+					mode,
+					ChatMode.Agent,
+					'Mode metadata must have correct value.',
+				);
+
+				assert.strictEqual(
+					include,
+					undefined,
+					'Include metadata must not be defined.',
+				);
+
+				await test.validateHeaderDiagnostics([
+					new ExpectedDiagnosticWarning(
+						new Range(3, 10, 3, 10 + 2),
+						'Invalid glob pattern \'\'.',
 					),
 				]);
 			});
@@ -743,7 +946,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							ChatMode.Ask,
+							undefined,
 							'Mode metadata must have correct value.',
 						);
 

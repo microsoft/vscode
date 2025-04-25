@@ -7,6 +7,7 @@ import { $ } from '../../../../base/browser/dom.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -52,11 +53,13 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestModel, ChatRequestModel, ChatModel, IChatRequestVariableData, IChatRequestToolEntry } from '../common/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestToolEntry, IChatRequestVariableData } from '../common/chatModel.js';
+import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
@@ -64,9 +67,6 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import './media/chatSetup.css';
-import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -518,7 +518,7 @@ class SetupTool extends Disposable implements IToolImpl {
 		super();
 	}
 
-	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const result: IToolResult = {
 			content: [
 				{

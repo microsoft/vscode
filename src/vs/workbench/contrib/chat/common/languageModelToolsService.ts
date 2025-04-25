@@ -8,15 +8,17 @@ import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Location } from '../../../../editor/common/languages.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { Location } from '../../../../editor/common/languages.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export interface IToolData {
 	id: string;
@@ -39,6 +41,14 @@ export interface IToolData {
 	alwaysDisplayInputOutput?: boolean;
 	supportsToolPicker?: boolean;
 }
+
+export interface IToolProgressStep {
+	readonly message: string | IMarkdownString | undefined;
+	readonly increment: number | undefined;
+	readonly total: number | undefined;
+}
+
+export type ToolProgress = IProgress<IToolProgressStep>;
 
 export type ToolDataSource =
 	| {
@@ -99,9 +109,13 @@ export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInpu
 }
 
 export interface IToolResult {
-	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+}
+
+export function toolResultHasBuffers(result: IToolResult): boolean {
+	return result.content.some(part => part.kind === 'data');
 }
 
 export interface IToolResultPromptTsxPart {
@@ -116,6 +130,14 @@ export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
 export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
+}
+
+export interface IToolResultDataPart {
+	kind: 'data';
+	value: {
+		mimeType: string;
+		data: VSBuffer;
+	};
 }
 
 export interface IToolConfirmationMessages {
@@ -135,7 +157,7 @@ export interface IPreparedToolInvocation {
 }
 
 export interface IToolImpl {
-	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 

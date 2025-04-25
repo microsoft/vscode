@@ -36,6 +36,7 @@ import { ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { CompletionItemKinds } from '../../../common/languages.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 /**
  * Suggest widget colors
@@ -231,7 +232,7 @@ export class SuggestWidget implements IDisposable {
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'listitem',
+				getRole: () => isWindows ? 'listitem' : 'option',
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: CompletionItem) => {

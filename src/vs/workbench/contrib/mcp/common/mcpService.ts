@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -15,7 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
@@ -256,7 +257,7 @@ class McpToolImplementation implements IToolImpl {
 		};
 	}
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, token: CancellationToken) {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken) {
 
 		const result: IToolResult = {
 			content: []
@@ -264,7 +265,7 @@ class McpToolImplementation implements IToolImpl {
 
 		const outputParts: string[] = [];
 
-		const callResult = await this._tool.call(invocation.parameters as Record<string, any>, token);
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, token);
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
 				result.content.push({
@@ -273,8 +274,13 @@ class McpToolImplementation implements IToolImpl {
 				});
 
 				outputParts.push(item.text);
+			} else if (item.type === 'image' || item.type === 'audio') {
+				result.content.push({
+					kind: 'data',
+					value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
+				});
 			} else {
-				// TODO@jrieken handle different item types
+				// unsupported for now.
 			}
 		}
 

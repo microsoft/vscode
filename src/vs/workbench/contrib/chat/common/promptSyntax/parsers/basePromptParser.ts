@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TopError } from './topError.js';
+import { ChatMode } from '../../constants.js';
 import { PromptHeader } from './promptHeader/header.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
@@ -30,7 +31,6 @@ import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCod
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
-import { ChatMode } from '../../constants.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -280,7 +280,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 			// if a prompt header token received, create a new prompt header instance
 			if (token instanceof FrontMatterHeader) {
-				this.promptHeader = new PromptHeader(token.contentToken);
+				this.promptHeader = new PromptHeader(token.contentToken, this.promptContentsProvider.languageId);
 				this.promptHeader.start();
 				return;
 			}
@@ -509,8 +509,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			};
 		}
 
-
-		const { tools, mode, description } = metadata;
+		const { tools, mode, description, include } = metadata;
 
 		// compute resulting mode based on presence
 		// of `tools` metadata in the prompt header
@@ -518,20 +517,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			? ChatMode.Agent
 			: mode?.chatMode;
 
-		// fallback to `ask` mode if no mode is defined
-		const result: IPromptMetadata = {
-			mode: resultingMode ?? ChatMode.Ask,
+		return {
+			mode: resultingMode,
+			description: description?.text,
+			tools: tools?.toolNames,
+			include: include?.text,
 		};
-
-		if (description !== undefined) {
-			result.description = description.text ?? undefined;
-		}
-
-		if (tools !== undefined) {
-			result.tools = tools.toolNames;
-		}
-
-		return result;
 	}
 
 	/**

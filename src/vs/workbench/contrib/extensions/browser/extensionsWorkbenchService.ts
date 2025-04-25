@@ -217,7 +217,7 @@ export class Extension implements IExtension {
 	}
 
 	get private(): boolean {
-		return this.local ? this.local.private : this.gallery ? this.gallery.private : false;
+		return this.gallery ? this.gallery.private : this.local ? this.local.private : false;
 	}
 
 	get pinned(): boolean {
@@ -2694,7 +2694,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await Promise.all(this.getAllExtensions().map(async extensions => {
 			const local = extensions.local.find(e => areSameExtensions(e.identifier, extension.identifier))?.local;
 			if (local && local.isApplicationScoped === isApplicationScoped) {
-				await this.extensionManagementService.toggleAppliationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
+				await this.extensionManagementService.toggleApplicationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
 			}
 		}));
 	}

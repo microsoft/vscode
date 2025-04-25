@@ -6,7 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from '../browser/workbenchTestServices.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-sandbox/services.js';
-import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IElementData } from '../../../platform/native/common/native.js';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -166,7 +166,8 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async profileRenderer(): Promise<any> { throw new Error(); }
-	async getScreenshot(): Promise<VSBuffer | undefined> { return undefined; }
+	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
+	async getElementData(offsetX: number, offsetY: number, token: CancellationToken): Promise<IElementData | undefined> { return undefined; }
 }
 
 export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {

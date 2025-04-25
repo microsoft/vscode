@@ -178,15 +178,14 @@ export class QuickDiffModel extends Disposable {
 	public getQuickDiffResults(): QuickDiffResult[] {
 		return this._quickDiffs.map(quickDiff => {
 			const changes = this.changes
-				.filter(change => change.label === quickDiff.label);
+				.filter(change => change.providerId === quickDiff.id);
 
 			return {
-				label: quickDiff.label,
 				original: quickDiff.originalResource,
 				modified: this._model.resource,
 				changes: changes.map(change => change.change),
 				changes2: changes.map(change => change.change2)
-			};
+			} satisfies QuickDiffResult;
 		});
 	}
 
@@ -290,6 +289,7 @@ export class QuickDiffModel extends Disposable {
 						}
 
 						allDiffs.push({
+							providerId: quickDiff.id,
 							label: quickDiff.label,
 							original: quickDiff.originalResource,
 							modified: this._model.resource,
@@ -339,7 +339,11 @@ export class QuickDiffModel extends Disposable {
 				return [];
 			}
 
-			if (equals(this._quickDiffs, quickDiffs, (a, b) => a.originalResource.toString() === b.originalResource.toString() && a.label === b.label && a.visible === b.visible)) {
+			if (equals(this._quickDiffs, quickDiffs, (a, b) =>
+				a.id === b.id &&
+				a.originalResource.toString() === b.originalResource.toString() &&
+				this.quickDiffService.isQuickDiffProviderVisible(a.id) === this.quickDiffService.isQuickDiffProviderVisible(b.id))
+			) {
 				return quickDiffs;
 			}
 
@@ -399,7 +403,8 @@ export class QuickDiffModel extends Disposable {
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
 		const visibleQuickDiffLabels = this.quickDiffs
-			.filter(quickDiff => (!provider || quickDiff.label === provider) && quickDiff.visible)
+			.filter(quickDiff => (!provider || quickDiff.label === provider) &&
+				this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
 			.map(quickDiff => quickDiff.label);
 
 		if (!inclusive) {
@@ -411,11 +416,11 @@ export class QuickDiffModel extends Disposable {
 			return nextChange !== -1 ? nextChange : 0;
 		}
 
-		const primaryQuickDiffLabel = this.quickDiffs
-			.find(quickDiff => quickDiff.kind === 'primary')?.label;
+		const primaryQuickDiffId = this.quickDiffs
+			.find(quickDiff => quickDiff.kind === 'primary')?.id;
 
 		const primaryInclusiveChangeIndex = this.changes
-			.findIndex(change => change.label === primaryQuickDiffLabel &&
+			.findIndex(change => change.providerId === primaryQuickDiffId &&
 				change.change.modifiedStartLineNumber <= lineNumber &&
 				getModifiedEndLineNumber(change.change) >= lineNumber);
 
@@ -438,7 +443,8 @@ export class QuickDiffModel extends Disposable {
 			}
 
 			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
+			const quickDiff = this.quickDiffs.find(quickDiff => quickDiff.id === this.changes[i].providerId);
+			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
 				continue;
 			}
 

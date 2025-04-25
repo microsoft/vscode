@@ -10,7 +10,7 @@ import { ExtHostQuickDiffShape, IMainContext, MainContext, MainThreadQuickDiffSh
 import { asPromise } from '../../../base/common/async.js';
 import { DocumentSelector } from './extHostTypeConverters.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	private static handlePool: number = 0;
@@ -40,7 +40,9 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	registerQuickDiffProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, quickDiffProvider: vscode.QuickDiffProvider, id: string, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 		const handle = ExtHostQuickDiff.handlePool++;
 		this.providers.set(handle, quickDiffProvider);
-		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), `${extension.identifier.value}.${id}`, label, rootUri);
+
+		const extensionId = ExtensionIdentifier.toKey(extension.identifier);
+		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), `${extensionId}.${id}`, label, rootUri);
 		return {
 			dispose: () => {
 				this.proxy.$unregisterQuickDiffProvider(handle);

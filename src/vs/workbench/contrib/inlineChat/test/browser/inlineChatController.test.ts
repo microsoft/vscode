@@ -72,6 +72,8 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { IPromptsService } from '../../../chat/common/promptSyntax/service/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('InlineChatController', function () {
 
@@ -196,6 +198,11 @@ suite('InlineChatController', function () {
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
 			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
 			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
+			[IPromptsService, new class extends mock<IPromptsService>() {
+				override async findInstructionFilesFor(_file: readonly URI[]): Promise<readonly URI[]> {
+					return [];
+				}
+			}],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

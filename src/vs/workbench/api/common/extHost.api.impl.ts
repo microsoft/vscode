@@ -110,6 +110,7 @@ import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -218,6 +219,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
+	const extHostAiSettingsSearch = rpcProtocol.set(ExtHostContext.ExtHostAiSettingsSearch, new ExtHostAiSettingsSearch(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
@@ -1438,10 +1440,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerEmbeddingVectorProvider(model: string, provider: vscode.EmbeddingVectorProvider) {
 				checkProposedApiEnabled(extension, 'aiRelatedInformation');
 				return extHostAiEmbeddingVector.registerEmbeddingVectorProvider(extension, model, provider);
+			},
+			registerSettingsSearchProvider(provider: vscode.SettingsSearchProvider) {
+				checkProposedApiEnabled(extension, 'aiSettingsSearch');
+				return extHostAiSettingsSearch.registerSettingsSearchProvider(extension, provider);
 			}
 		};
 
-		// namespace: chat
+		// namespace: chatregisterMcpServerDefinitionProvider
 		const chat: typeof vscode.chat = {
 			registerMappedEditsProvider(_selector: vscode.DocumentSelector, _provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
@@ -1521,11 +1527,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
 				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
 			},
-			registerMcpConfigurationProvider(id, provider) {
+			registerMcpServerDefinitionProvider(id, provider) {
 				checkProposedApiEnabled(extension, 'mcpConfigurationProvider');
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			}
 		};
+
+		// todo@connor4312: proposed API back-compat
+		(lm as any).registerMcpConfigurationProvider = lm.registerMcpServerDefinitionProvider;
 
 		// namespace: speech
 		const speech: typeof vscode.speech = {
@@ -1781,6 +1790,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
 			InlineCompletionEndOfLifeReasonKind: extHostTypes.InlineCompletionEndOfLifeReasonKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
+			ChatImageMimeType: extHostTypes.ChatImageMimeType,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
@@ -1811,13 +1821,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
+			LanguageModelToolResultPart2: extHostTypes.LanguageModelToolResultPart2,
 			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
+			LanguageModelToolResult2: extHostTypes.LanguageModelToolResult2,
 			LanguageModelDataPart: extHostTypes.LanguageModelDataPart,
 			LanguageModelExtraDataPart: extHostTypes.LanguageModelExtraDataPart,
-			ChatImageMimeType: extHostTypes.ChatImageMimeType,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,
 			PreparedTerminalToolInvocation: extHostTypes.PreparedTerminalToolInvocation,
 			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,
@@ -1835,6 +1846,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 			McpHttpServerDefinition: extHostTypes.McpHttpServerDefinition,
 			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
+			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind
 		};
 	};
 }
