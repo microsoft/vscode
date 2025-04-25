@@ -169,16 +169,11 @@ class SimpleBrowserOverlayWidget {
 	}
 
 	dispose() {
-		this.hide();
 		this._showStore.dispose();
 	}
 
 	getDomNode(): HTMLElement {
 		return this._domNode;
-	}
-
-	hide() {
-		this._showStore.clear();
 	}
 }
 
@@ -214,7 +209,6 @@ class SimpleBrowserOverlayController {
 
 		const hide = () => {
 			if (container.contains(this._domNode)) {
-				widget.hide();
 				this._domNode.remove();
 			}
 		};
@@ -246,8 +240,6 @@ class SimpleBrowserOverlayController {
 			}
 
 			show();
-
-
 		}));
 	}
 
