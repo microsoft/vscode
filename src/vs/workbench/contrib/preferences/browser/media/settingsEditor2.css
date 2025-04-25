@@ -74,6 +74,7 @@
 	flex: 0 0 100%;
 	width: 100%;
 	min-height: 20px;
+	margin-bottom: 9px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-suggestions a {
