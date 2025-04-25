@@ -65,10 +65,16 @@ export class ChatAttachmentModel extends Disposable {
 		return new Set(this._attachments.keys());
 	}
 
-	clear(): void {
+	clear(
+		clearStickyAttachments: boolean = false,
+	): void {
 		const deleted = Array.from(this._attachments.keys());
 		this._attachments.clear();
-		this.promptInstructions.clear();
+
+		if (clearStickyAttachments) {
+			this.promptInstructions.clear();
+		}
+
 		this._onDidChange.fire({ deleted, added: [], updated: [] });
 	}
 
