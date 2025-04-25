@@ -23,7 +23,6 @@ export interface IPromptContentsProviderOptions {
 	 * file extension to be treated as a prompt file.
 	 */
 	readonly allowNonPromptFiles: boolean;
-	// TODO: @legomushroom - add seen refs
 }
 
 /**
@@ -53,15 +52,7 @@ export abstract class PromptContentsProviderBase<
 	public abstract readonly uri: URI;
 	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
 	public abstract override toString(): string;
-
-	/**
-	 * Language ID of the prompt contents.
-	 */
 	public abstract get languageId(): string;
-
-	/**
-	 * TODO: @legomushroom
-	 */
 	public abstract get sourceName(): string;
 
 	/**

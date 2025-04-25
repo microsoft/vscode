@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// TODO: @legomushroom
-import { BasePromptParser, IPromptParserOptions } from './basePromptParser.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { assertDefined } from '../../../../../../base/common/types.js';
+import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { BasePromptParser, IPromptParserOptions } from './basePromptParser.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { isUntitled } from '../../../../../../platform/prompts/common/constants.js';
 import { TextModelContentsProvider } from '../contentProviders/textModelContentsProvider.js';
+import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { IPromptContentsProvider } from '../contentProviders/types.js';
-import { isUntitled } from '../../../../../../platform/prompts/common/constants.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 
 /**
  * Get prompt contents provider object based on the prompt type.
@@ -43,11 +42,12 @@ const getContentsProvider = (
 };
 
 /**
- * TODO: @legomushroom
+ * General prompt parser class that automatically infers a prompt
+ * contents provider type by the type of provided prompt URI.
  */
 export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 	/**
-	 * TODO: @legomushroom
+	 * Underlying prompt contents provider instance.
 	 */
 	private readonly contentsProvider: IPromptContentsProvider;
 
