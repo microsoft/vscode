@@ -127,6 +127,10 @@ export class ChatPromptAttachmentModel extends Disposable {
 			this.initService.createInstance(
 				PromptParser,
 				this.uri,
+				// in this case we know that the attached file must have been a
+				// prompt file, hence we pass the `allowNonPromptFiles` option
+				// to the provider to allow for non-prompt files to be attached
+				{ allowNonPromptFiles: true },
 			)
 		);
 

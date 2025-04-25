@@ -222,8 +222,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					parser = this.initService.createInstance(
 						PromptParser,
 						uri,
-						// TODO: @legomushroom - put back
-						// { allowNonPromptFiles: true },
+						{ allowNonPromptFiles: true },
 					).start();
 
 					await parser.allSettled();
