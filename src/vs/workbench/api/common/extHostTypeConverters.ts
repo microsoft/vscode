@@ -2903,7 +2903,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], toolSelection: vscode.ChatRequestToolSelection | undefined, tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], toolSelection: vscode.ChatRequestToolSelection | undefined, tools: Map<string, boolean>, extension: IRelaxedExtensionDescription): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
 		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
 		const requestWithAllProps: vscode.ChatRequest = {

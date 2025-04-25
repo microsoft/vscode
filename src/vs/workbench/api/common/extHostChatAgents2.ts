@@ -561,13 +561,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getTools2ForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<vscode.LanguageModelToolInformation, boolean> {
+	private getTools2ForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
 		if (!request.userSelectedTools2) {
 			return new Map();
 		}
-		const result = new Map<vscode.LanguageModelToolInformation, boolean>();
+		const result = new Map<string, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
-			result.set(tool, request.userSelectedTools2[tool.name] ?? false);
+			result.set(tool.name, request.userSelectedTools2[tool.name] ?? false);
 		}
 		return result;
 	}

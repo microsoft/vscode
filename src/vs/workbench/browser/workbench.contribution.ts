@@ -615,9 +615,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('settings.editor.ui', "Use the settings UI editor."),
 					localize('settings.editor.json', "Use the JSON file editor."),
 				],
-				'description': localize('settings.editor.desc', "Determines which settings editor to use by default."),
+				'description': localize('settings.editor.desc', "Determines which Settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
+			},
+			'workbench.settings.showExperimentalSuggestions': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('settings.showExperimentalSuggestions', "Controls whether experimental suggestions are shown in the Settings editor. This setting requires a reload to take effect."),
+				'tags': ['experimental']
 			},
 			'workbench.hover.delay': {
 				'type': 'number',
