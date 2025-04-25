@@ -7,6 +7,7 @@ import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { FilePromptContentProvider } from './filePromptContentsProvider.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
@@ -15,7 +16,6 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.
@@ -26,6 +26,10 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	 */
 	public get uri(): URI {
 		return this.model.uri;
+	}
+
+	public override get sourceName(): string {
+		return 'text-model';
 	}
 
 	public override get languageId(): string {

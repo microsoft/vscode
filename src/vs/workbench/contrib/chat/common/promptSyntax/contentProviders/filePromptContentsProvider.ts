@@ -46,6 +46,10 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	 */
 	private readonly options: IFileContentsProviderOptions;
 
+	public override get sourceName(): string {
+		return 'file';
+	}
+
 	public override get languageId(): string {
 		const model = this.modelService.getModel(this.uri);
 

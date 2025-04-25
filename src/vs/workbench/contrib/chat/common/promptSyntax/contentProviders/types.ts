@@ -25,6 +25,11 @@ export interface IPromptContentsProvider extends IDisposable {
 	readonly languageId: string;
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	readonly sourceName: string;
+
+	/**
 	 * Start the contents provider to produce the underlying contents.
 	 */
 	start(): this;
