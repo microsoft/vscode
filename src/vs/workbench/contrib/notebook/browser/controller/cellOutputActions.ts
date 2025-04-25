@@ -191,7 +191,7 @@ registerAction2(class OpenCellOutputInNotebookOutputEditorAction extends Action2
 			title: localize('notebookActions.openOutputInNotebookOutputEditor', "Open in Output Preview"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, ContextKeyExpr.equals('config.notebook.openOutputInPreviewEditor.enabled', true))
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, ContextKeyExpr.equals('config.notebook.output.openInPreviewEditor.enabled', true))
 			},
 			f1: false,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
