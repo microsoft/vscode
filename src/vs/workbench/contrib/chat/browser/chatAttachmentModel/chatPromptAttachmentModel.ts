@@ -5,15 +5,11 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { assertDefined } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { isUntitled } from '../../../../../platform/prompts/common/constants.js';
+import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TextModelContentsProvider } from '../../common/promptSyntax/contentProviders/textModelContentsProvider.js';
-import { FilePromptContentProvider } from '../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 
 /**
  * Type for a generic prompt parser object.
@@ -124,48 +120,18 @@ export class ChatPromptAttachmentModel extends Disposable {
 	constructor(
 		public readonly uri: URI,
 		@IInstantiationService private readonly initService: IInstantiationService,
-		@IModelService private readonly textModelService: IModelService,
 	) {
 		super();
 
-		this._reference = this._register(this.initService.createInstance(
-			BasePromptParser,
-			this.getContentsProvider(uri),
-			[],
-		));
+		this._reference = this._register(
+			this.initService.createInstance(
+				PromptParser,
+				this.uri,
+			)
+		);
 
 		this._reference.onUpdate(
 			this._onUpdate.fire.bind(this._onUpdate),
-		);
-	}
-
-	/**
-	 * Get prompt contents provider object based on the prompt type.
-	 */
-	private getContentsProvider(
-		uri: URI,
-	): IPromptContentsProvider {
-		// use text model contents provider for `untitled` documents
-		if (isUntitled(uri)) {
-			const model = this.textModelService.getModel(uri);
-
-			assertDefined(
-				model,
-				`Cannot find model of untitled document '${uri.path}'.`,
-			);
-
-			return this.initService.createInstance(TextModelContentsProvider, model);
-		}
-
-		// use file contents provider for all other documents; in this case
-		// we know that the attached file must have been a prompt file,
-		// hence we pass the `allowNonPromptFiles` option to the provider
-		return this._register(
-			this.initService.createInstance(
-				FilePromptContentProvider,
-				uri,
-				{ allowNonPromptFiles: true },
-			),
 		);
 	}
 

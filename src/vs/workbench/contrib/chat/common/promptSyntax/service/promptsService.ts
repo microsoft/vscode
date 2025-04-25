@@ -7,13 +7,13 @@ import { ChatMode } from '../../constants.js';
 import { localize } from '../../../../../../nls.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { flatten, forEach } from '../utils/treeUtils.js';
+import { PromptParser } from '../parsers/promptParser.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPromptFileReference } from '../parsers/types.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { pick } from '../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
-import { FilePromptParser } from '../parsers/filePromptParser.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -217,12 +217,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	): Promise<IMetadata[]> {
 		const metadata = await Promise.all(
 			promptUris.map(async (uri) => {
-				let parser: FilePromptParser | undefined;
+				let parser: PromptParser | undefined;
 				try {
 					parser = this.initService.createInstance(
-						FilePromptParser,
+						PromptParser,
 						uri,
-						{ allowNonPromptFiles: true },
+						// TODO: @legomushroom - put back
+						// { allowNonPromptFiles: true },
 					).start();
 
 					await parser.allSettled();
