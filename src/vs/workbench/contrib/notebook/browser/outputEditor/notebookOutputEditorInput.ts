@@ -4,35 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../../nls.js';
-import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorInputCapabilities } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IResolvedNotebookEditorModel } from '../../common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
-import { NotebookEditorWidget } from '../notebookEditorWidget.js';
-import { INotebookEditorService } from '../services/notebookEditorService.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 
 
 class ResolvedNotebookOutputEditorInputModel implements IDisposable {
 	constructor(
-		readonly notebookRef: IReference<IResolvedNotebookEditorModel>,
+		readonly resolvedNotebookEditorModel: IResolvedNotebookEditorModel,
 		readonly notebookUri: URI,
-		readonly cellId: string,
+		readonly cell: NotebookCellTextModel,
 		readonly outputId: string,
 	) { }
 
 	dispose(): void {
-		this.notebookRef.dispose();
+		this.resolvedNotebookEditorModel.dispose();
 	}
 }
 
-// export class NotebookOutputViewerInput extends EditorInput { // for viewing static outputs, encode mime + data
+// TODO @Yoyokrazy -- future feat. for viewing static outputs -- encode mime + data
+// export class NotebookOutputViewerInput extends EditorInput {
 // 	static readonly ID: string = 'workbench.input.notebookOutputViewerInput';
 // }
 
-export class NotebookOutputEditorInput extends EditorInput { // for viewing dynamic outputs w execution refreshing
+export class NotebookOutputEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.notebookOutputEditorInput';
 
 	private _notebookRef: IReference<IResolvedNotebookEditorModel> | undefined;
@@ -40,24 +40,22 @@ export class NotebookOutputEditorInput extends EditorInput { // for viewing dyna
 
 	readonly cellIndex: number;
 
-	public cellId: string | undefined;
+	public cellUri: URI | undefined;
 
 	readonly outputIndex: number;
 	private outputId: string | undefined;
 
 	constructor(
 		notebookUri: URI,
-		cellId: string | undefined,
 		cellIndex: number,
 		outputId: string | undefined,
 		outputIndex: number,
-		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService,
 	) {
 		super();
 		this._notebookUri = notebookUri;
 
-		this.cellId = cellId;
+		this.cellUri = undefined;
 		this.cellIndex = cellIndex;
 
 		this.outputId = outputId;
@@ -73,56 +71,46 @@ export class NotebookOutputEditorInput extends EditorInput { // for viewing dyna
 			this._notebookRef = await this.notebookEditorModelResolverService.resolve(this._notebookUri);
 		}
 
-		const notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(this._notebookUri)?.value;
-		if (!notebookEditor) {
-			throw new Error('Notebook editor not found');
-		}
-
-		if (!notebookEditor.viewModel) {
-			// Wait for the viewModel to be attached before proceeding if it hasn't attached
-			await getEditorViewModelAttachedPromise(notebookEditor);
-		}
-
-		const cell = notebookEditor.cellAt(this.cellIndex);
+		const cell = this._notebookRef.object.notebook.cells[this.cellIndex];
 		if (!cell) {
 			throw new Error('Cell not found');
 		}
-		if (!this.cellId) {
-			this.cellId = cell.id;
-		}
 
-		const oId = this._notebookRef.object.notebook.cells.find(c => c.handle === cell.handle)?.outputs[this.outputIndex];
-		if (!oId) {
+		this.cellUri = cell.uri;
+
+		const resolvedOutputId = cell.outputs[this.outputIndex]?.outputId;
+		if (!resolvedOutputId) {
 			throw new Error('Output not found');
 		}
+
 		if (!this.outputId) {
-			this.outputId = oId.outputId;
+			this.outputId = resolvedOutputId;
 		}
 
 		return new ResolvedNotebookOutputEditorInputModel(
-			this._notebookRef,
+			this._notebookRef.object,
 			this._notebookUri,
-			this.cellId,
-			this.outputId,
+			cell,
+			resolvedOutputId,
 		);
 	}
 
 	public getSerializedData(): { notebookUri: URI; cellIndex: number; outputIndex: number } | undefined {
-		// need to translate from ids -> current indexes
-		// ids aren't deterministic across reloads, so indexes are best option
+		// need to translate from uris -> current indexes
+		// uris aren't deterministic across reloads, so indices are best option
 
-		const notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(this._notebookUri)?.value;
-		if (!notebookEditor) {
+		if (!this._notebookRef) {
 			return;
 		}
 
-		const cellIndex = notebookEditor.viewModel?.viewCells.findIndex(c => c.id === this.cellId);
-		if (cellIndex === undefined || cellIndex === -1) {
+		const cellIndex = this._notebookRef.object.notebook.cells.findIndex(c => isEqual(c.uri, this.cellUri));
+		const cell = this._notebookRef.object.notebook.cells[cellIndex];
+		if (!cell) {
 			return;
 		}
 
-		const outputIndex = notebookEditor.cellAt(cellIndex)?.outputsViewModels.findIndex(o => o.model.outputId === this.outputId);
-		if (outputIndex === undefined || outputIndex === -1) {
+		const outputIndex = cell.outputs.findIndex(o => o.outputId === this.outputId);
+		if (outputIndex === -1) {
 			return;
 		}
 
@@ -152,10 +140,4 @@ export class NotebookOutputEditorInput extends EditorInput { // for viewing dyna
 	override dispose(): void {
 		super.dispose();
 	}
-}
-
-function getEditorViewModelAttachedPromise(editor: NotebookEditorWidget) {
-	return new Promise<void>((resolve, reject) => {
-		Event.once(editor.onDidAttachViewModel)(() => editor.viewModel ? resolve() : reject());
-	});
 }

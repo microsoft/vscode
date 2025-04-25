@@ -182,16 +182,16 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 	}
 });
 
-export const OPEN_OUTPUT_IN_NOTEBOOK_OUTPUT_EDITOR_COMMAND_ID = 'notebook.cellOutput.openInNotebookOutputEditor';
+export const OPEN_OUTPUT_IN_OUTPUT_PREVIEW_COMMAND_ID = 'notebook.cellOutput.openInOutputPreview';
 
 registerAction2(class OpenCellOutputInNotebookOutputEditorAction extends Action2 {
 	constructor() {
 		super({
-			id: OPEN_OUTPUT_IN_NOTEBOOK_OUTPUT_EDITOR_COMMAND_ID,
-			title: localize('notebookActions.openOutputInNotebookOutputEditor', "Open Cell Output in Notebook Output Editor"),
+			id: OPEN_OUTPUT_IN_OUTPUT_PREVIEW_COMMAND_ID,
+			title: localize('notebookActions.openOutputInNotebookOutputEditor', "Open in Output Preview"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
-				when: NOTEBOOK_CELL_HAS_OUTPUTS
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, ContextKeyExpr.equals('config.notebook.openOutputInPreviewEditor.enabled', true))
 			},
 			f1: false,
 			category: NOTEBOOK_ACTIONS_CATEGORY,

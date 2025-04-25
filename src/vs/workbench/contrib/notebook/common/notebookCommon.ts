@@ -1017,6 +1017,7 @@ export const NotebookSetting = {
 	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
+	openOutputInPreviewEditor: 'notebook.openOutputInPreviewEditor.enabled',
 	showFoldingControls: 'notebook.showFoldingControls',
 	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',

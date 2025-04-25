@@ -261,7 +261,7 @@ class NotebookOutputEditorSerializer implements IEditorSerializer {
 	serialize(input: EditorInput): string | undefined {
 		assertType(input instanceof NotebookOutputEditorInput);
 
-		const data = input.getSerializedData(); // in case of cell movement etc get latest indexes
+		const data = input.getSerializedData(); // in case of cell movement etc get latest indices
 		if (!data) {
 			return undefined;
 		}
@@ -274,7 +274,7 @@ class NotebookOutputEditorSerializer implements IEditorSerializer {
 			return undefined;
 		}
 
-		const input = instantiationService.createInstance(NotebookOutputEditorInput, data.notebookUri, undefined, data.cellIndex, undefined, data.outputIndex);
+		const input = instantiationService.createInstance(NotebookOutputEditorInput, data.notebookUri, data.cellIndex, undefined, data.outputIndex);
 		return input;
 	}
 }
@@ -1090,6 +1090,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			tags: ['notebookLayout']
+		},
+		[NotebookSetting.openOutputInPreviewEditor]: {
+			description: nls.localize('notebook.openOutputInPreviewEditor.description', "Controls whether or not the action to open a cell output in a preview editor is enabled. This action can be used via the cell output menu."),
+			type: 'boolean',
+			default: false,
+			tags: ['preview']
 		},
 		[NotebookSetting.showFoldingControls]: {
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),

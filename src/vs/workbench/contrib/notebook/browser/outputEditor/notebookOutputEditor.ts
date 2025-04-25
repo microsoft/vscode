@@ -6,7 +6,8 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import * as nls from '../../../../../nls.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IReference } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -21,13 +22,11 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
-import { CellUri, IResolvedNotebookEditorModel, NOTEBOOK_OUTPUT_EDITOR_ID } from '../../common/notebookCommon.js';
-import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
+import { CellUri, NOTEBOOK_OUTPUT_EDITOR_ID } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
-import { CellEditState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, RenderOutputType } from '../notebookBrowser.js';
-import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from '../notebookEditorWidget.js';
+import { CellEditState, IBaseCellEditorOptions, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, RenderOutputType } from '../notebookBrowser.js';
+import { getDefaultNotebookCreationOptions } from '../notebookEditorWidget.js';
 import { NotebookOptions } from '../notebookOptions.js';
-import { INotebookEditorService } from '../services/notebookEditorService.js';
 import { BackLayerWebView, INotebookDelegateForWebview } from '../view/renderers/backLayerWebView.js';
 import { NotebookOutputEditorInput } from './notebookOutputEditorInput.js';
 import { BareFontInfo, FontInfo } from '../../../../../editor/common/config/fontInfo.js';
@@ -35,8 +34,48 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { FontMeasurements } from '../../../../../editor/browser/config/fontMeasurements.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+import { NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
+import { NotebookEventDispatcher } from '../viewModel/eventDispatcher.js';
+import { ViewContext } from '../viewModel/viewContext.js';
 
+export class NoopCellEditorOptions extends Disposable implements IBaseCellEditorOptions {
+	private static fixedEditorOptions: ICodeEditorOptions = {
+		scrollBeyondLastLine: false,
+		scrollbar: {
+			verticalScrollbarSize: 14,
+			horizontal: 'auto',
+			useShadows: true,
+			verticalHasArrows: false,
+			horizontalHasArrows: false,
+			alwaysConsumeMouseWheel: false
+		},
+		renderLineHighlightOnlyWhenFocus: true,
+		overviewRulerLanes: 0,
+		lineDecorationsWidth: 0,
+		folding: true,
+		fixedOverflowWidgets: true,
+		minimap: { enabled: false },
+		renderValidationDecorations: 'on',
+		lineNumbersMinChars: 3
+	};
 
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private _value: ICodeEditorOptions;
+
+	get value(): Readonly<ICodeEditorOptions> {
+		return this._value;
+	}
+
+	constructor() {
+		super();
+		this._value = Object.freeze({
+			...NoopCellEditorOptions.fixedEditorOptions,
+			padding: { top: 12, bottom: 12 },
+			readOnly: true
+		});
+	}
+}
 
 export class NotebookOutputEditor extends EditorPane implements INotebookDelegateForWebview {
 
@@ -49,14 +88,8 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 	private _fontInfo: FontInfo | undefined;
 
-
-	private _notebookEditor: NotebookEditorWidget | undefined;
-	private _notebookRef: IReference<IResolvedNotebookEditorModel> | undefined;
-
-	private readonly _notebookOptions: NotebookOptions;
-	get notebookOptions() {
-		return this._notebookOptions;
-	}
+	private _notebookOptions: NotebookOptions;
+	private _notebookViewModel: NotebookViewModel | undefined;
 
 	private _isDisposed: boolean = false;
 	get isDisposed() {
@@ -71,8 +104,6 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService,
 
 	) {
 		super(NotebookOutputEditor.ID, group, telemetryService, themeService, storageService);
@@ -134,32 +165,27 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 			throw new Error('Invalid notebook output editor input');
 		}
 
-		this._notebookRef = await this.notebookEditorModelResolverService.resolve(model.notebookUri);
-		if (!this._notebookRef.object) {
-			throw new Error('Invalid notebook editor, no matching notebook editor');
+		const resolvedNotebookEditorModel = model.resolvedNotebookEditorModel;
+
+		await this._createOriginalWebview(generateUuid(), resolvedNotebookEditorModel.viewType, URI.from({ scheme: Schemas.vscodeNotebookCellOutput, path: '', query: 'openIn=notebookOutputEditor' }));
+
+		const notebookTextModel = resolvedNotebookEditorModel.notebook;
+		const eventDispatcher = this._register(new NotebookEventDispatcher());
+		const editorOptions = this._register(new NoopCellEditorOptions());
+		const viewContext = new ViewContext(
+			this._notebookOptions,
+			eventDispatcher,
+			_language => editorOptions
+		);
+
+		this._notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, notebookTextModel.viewType, notebookTextModel, viewContext, null, { isReadOnly: true });
+
+		const cellViewModel = this._notebookViewModel.getCellByHandle(model.cell.handle);
+		if (!cellViewModel) {
+			throw new Error('Invalid NotebookOutputEditorInput, no matching cell view model');
 		}
 
-		await this._createOriginalWebview(generateUuid(), this._notebookRef.object.viewType, URI.from({ scheme: Schemas.vscodeNotebookCellOutput, path: '', query: 'openIn=notebookOutputEditor' }));
-
-		const notebookTextModel = this._notebookRef.object.notebook;
-
-		const cellTextModel = notebookTextModel.cells.find(cellTextModel => cellTextModel.outputs.some(output => output.outputId === model.outputId));
-		if (!cellTextModel) {
-			throw new Error('Invalid cell output uri, no matching cell');
-		}
-
-		const cellInfo: ICommonCellInfo = {
-			cellId: model.cellId,
-			cellHandle: cellTextModel.handle,
-			cellUri: cellTextModel.uri,
-		};
-
-		this._notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(model.notebookUri)?.value;
-		if (!this._notebookEditor) {
-			throw new Error('Invalid notebook editor, no matching notebook editor');
-		}
-
-		const cellOutputViewModel = this._notebookEditor.getCellByInfo(cellInfo).outputsViewModels.find(outputViewModel => outputViewModel.model.outputId === model.outputId);
+		const cellOutputViewModel = cellViewModel.outputsViewModels.find(outputViewModel => outputViewModel.model.outputId === model.outputId);
 		if (!cellOutputViewModel) {
 			throw new Error('Invalid NotebookOutputEditorInput, no matching cell output view model');
 		}
@@ -168,7 +194,6 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 		const [mimeTypes, pick] = cellOutputViewModel.resolveMimeTypes(notebookTextModel, undefined);
 		const pickedMimeTypeRenderer = cellOutputViewModel.pickedMimeType || mimeTypes[pick];
-
 		if (mimeTypes.length !== 0) {
 			const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
 			result = renderer
@@ -180,6 +205,12 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 		if (!result) {
 			throw new Error('No InsetRenderInfo for output');
 		}
+
+		const cellInfo: ICommonCellInfo = {
+			cellId: cellViewModel.id,
+			cellHandle: model.cell.handle,
+			cellUri: model.cell.uri,
+		};
 
 		this._outputWebview?.createOutput(cellInfo, result, 0, 0);
 	}
@@ -239,10 +270,7 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 	}
 
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel {
-		if (!this._notebookEditor) {
-			throw new Error('Invalid notebook editor, no matching notebook editor');
-		}
-		return this._notebookEditor.getCellByInfo(cellInfo);
+		throw new Error('Not implemented');
 	}
 
 	layout(dimension: DOM.Dimension, position: DOM.IDomPosition): void {
@@ -303,7 +331,6 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 	override dispose() {
 		this._isDisposed = true;
-		this._notebookRef?.dispose();
 		super.dispose();
 	}
 }
@@ -313,7 +340,6 @@ export class NotebookOutputEditorContribution implements IWorkbenchContribution 
 	static readonly ID = 'workbench.contribution.notebookOutputEditorContribution';
 
 	constructor(
-		// @INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,) {
@@ -325,8 +351,6 @@ export class NotebookOutputEditorContribution implements IWorkbenchContribution 
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
-				// We want to support all notebook types which could have any file extension,
-				// so we just check if the resource corresponds to a notebook
 				canSupportResource: (resource: URI) => {
 					if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
 						const params = new URLSearchParams(resource.query);
@@ -345,13 +369,12 @@ export class NotebookOutputEditorContribution implements IWorkbenchContribution 
 
 					const notebookUri = this.uriIdentityService.asCanonicalUri(outputUriData.notebook);
 
-					const cellId = outputUriData.cellId;
 					const cellIndex = outputUriData.cellIndex;
 
 					const outputId = outputUriData.outputId;
 					const outputIndex = outputUriData.outputIndex;
 
-					const editorInput = this.instantiationService.createInstance(NotebookOutputEditorInput, notebookUri, cellId, cellIndex, outputId, outputIndex);
+					const editorInput = this.instantiationService.createInstance(NotebookOutputEditorInput, notebookUri, cellIndex, outputId, outputIndex);
 					return {
 						editor: editorInput,
 						options: options
