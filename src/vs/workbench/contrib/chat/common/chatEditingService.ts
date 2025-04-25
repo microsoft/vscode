@@ -197,8 +197,10 @@ export interface IModifiedFileEntryEditorIntegration extends IDisposable {
 
 	/**
 	 * Toggle between diff-editor and normal editor
+	 * @param change An opaque change object
+	 * @param show Optional boolean to control if the diff should show
 	 */
-	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void>;
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined, show?: boolean): Promise<void>;
 }
 
 export interface IModifiedFileEntry {

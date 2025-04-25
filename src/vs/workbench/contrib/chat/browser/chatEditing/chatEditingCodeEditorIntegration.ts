@@ -598,7 +598,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}
 	}
 
-	async toggleDiff(widget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(widget: IModifiedFileEntryChangeHunk | undefined, show?: boolean): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -614,18 +614,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
-		if (isDiffEditor) {
-			// normal EDITOR
-			await this._editorService.openEditor({
-				resource: this._entry.modifiedURI,
-				options: {
-					selection,
-					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
-				}
-			});
-
-		} else {
-			// DIFF editor
+		// Use the 'show' argument to control the diff state if provided
+		if (show !== undefined ? show : !isDiffEditor) {
+			// Open DIFF editor
 			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
 				original: { resource: this._entry.originalURI },
@@ -637,16 +628,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			});
 
 			if (diffEditor && diffEditor.input) {
-
-				// this is needed, passing the selection doesn't seem to work
 				diffEditor.getControl()?.setSelection(selection);
-
-				// close diff editor when entry is decided
 				const d = autorun(r => {
 					const state = this._entry.state.read(r);
 					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
 						d.dispose();
-
 						const editorIdents: IEditorIdentifier[] = [];
 						for (const candidate of this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 							if (isDiffEditorInput(candidate.editor)
@@ -661,6 +647,15 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					}
 				});
 			}
+		} else {
+			// Open normal editor
+			await this._editorService.openEditor({
+				resource: this._entry.modifiedURI,
+				options: {
+					selection,
+					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
+				}
+			});
 		}
 	}
 }
