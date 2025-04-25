@@ -676,9 +676,30 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('NewCopilotSetupSignedOut', CopilotSignedOutButton, 'chatSetupSignedOut', true),
-				createCopilotSetupStep('NewCopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && (chatPlanPro || chatPlanLimited)', false),
-				createCopilotSetupStep('NewCopilotSetupSignedIn', CopilotSignedInButton, '!chatSetupSignedOut && (!chatSetupInstalled || chatPlanCanSignUp)', true),
+				{
+					id: 'copilotSetup.chat',
+					title: localize('gettingStarted.agentMode.title', "Agent Mode"),
+					description: localize('gettingStarted.agentMode.description', "Tackle complex, multi-step tasks with AI"),
+					media: {
+						type: 'svg', altText: 'Agent Mode', path: 'agent.svg'
+					},
+				},
+				{
+					id: 'copilotSetup.inline',
+					title: localize('gettingStarted.nes.title', "Next Edit Suggestions"),
+					description: localize('gettingStarted.nes.description', "VS Code Predicts your next move as you code"),
+					media: {
+						type: 'svg', altText: 'Next Edit Suggestions', path: 'suggestions.svg'
+					},
+				},
+				{
+					id: 'copilotSetup.customize',
+					title: localize('gettingStarted.customize.title', "Customize"),
+					description: localize('gettingStarted.customize.description', "Customize your editor with extensions and instructions\n{0}", Button(localize('signUp', "Set up Copilot"), 'command:workbench.action.chat.triggerSetup')),
+					media: {
+						type: 'svg', altText: 'Agent Mode', path: 'sparkle.svg'
+					},
+				},
 				{
 					id: 'newPickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
