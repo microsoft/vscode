@@ -5,7 +5,7 @@
 			"---",
 			"mode: '${1|ask,edit,agent|}'",
 			"---",
-			"${2:prompt}",
+			"${2:Prompt description}",
 		],
 		"description": "Template for chat prompt",
 		"isFileTemplate": true,
