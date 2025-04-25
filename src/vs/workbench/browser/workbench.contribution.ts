@@ -619,6 +619,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
 			},
+			'workbench.settings.showExperimentalSuggestions': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('settings.showExperimentalSuggestions', "Controls whether experimental suggestions are shown in the settings editor."),
+				'tags': ['experimental']
+			},
 			'workbench.hover.delay': {
 				'type': 'number',
 				'description': localize('workbench.hover.delay', "Controls the delay in milliseconds after which the hover is shown for workbench items (ex. some extension provided tree view items). Already visible items may require a refresh before reflecting this setting change."),

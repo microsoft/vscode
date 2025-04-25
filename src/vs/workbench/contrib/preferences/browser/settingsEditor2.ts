@@ -673,6 +673,9 @@ export class SettingsEditor2 extends EditorPane {
 		headerControlsContainer.style.borderColor = asCssVariable(settingsHeaderBorder);
 
 		this.suggestionsDiv = DOM.append(headerControlsContainer, $('div.settings-suggestions'));
+		if (this.configurationService.getValue('workbench.settings.showExperimentalSuggestions') === false) {
+			this.suggestionsDiv.hidden = true;
+		}
 
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
