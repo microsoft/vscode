@@ -9,6 +9,7 @@ import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../ba
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from './actionList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number };
@@ -96,11 +97,18 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		}
 
+		const previouslyFocusedElement = getActiveElement();
+
 		const actionWidgetDelegate: IActionListDelegate<IActionWidgetDropdownAction> = {
-			onSelect(action, preview) {
+			onSelect: (action, preview) => {
 				action.run();
+				this.actionWidgetService.hide();
 			},
-			onHide: () => { }
+			onHide: () => {
+				if (isHTMLElement(previouslyFocusedElement)) {
+					previouslyFocusedElement.focus();
+				}
+			}
 		};
 
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
