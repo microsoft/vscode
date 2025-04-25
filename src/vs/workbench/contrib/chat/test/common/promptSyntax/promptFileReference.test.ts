@@ -932,7 +932,7 @@ suite('PromptFileReference (Unix)', function () {
 			);
 		});
 
-		suite('• include', () => {
+		suite('• applyTo', () => {
 			test('• prompt language', async function () {
 				if (isWindows) {
 					this.skip();
@@ -961,7 +961,7 @@ suite('PromptFileReference (Unix)', function () {
 								name: 'file2.prompt.md',
 								contents: [
 									'---',
-									'include: \'**/*\'',
+									'applyTo: \'**/*\'',
 									'tools: [ false, \'my-tool12\' , ]',
 									'description: \'Description of my prompt.\'',
 									'---',
@@ -1030,7 +1030,7 @@ suite('PromptFileReference (Unix)', function () {
 				const rootReference = await test.run();
 
 				const { metadata, allToolsMetadata } = rootReference;
-				const { tools, mode, description, applyTo: include } = metadata;
+				const { tools, mode, description, applyTo } = metadata;
 
 				assert.deepStrictEqual(
 					tools,
@@ -1062,9 +1062,9 @@ suite('PromptFileReference (Unix)', function () {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					undefined,
-					'Must have no \'include\' metadata.',
+					'Must have no \'applyTo\' metadata.',
 				);
 			});
 
@@ -1097,7 +1097,7 @@ suite('PromptFileReference (Unix)', function () {
 								name: 'file2.instructions.md',
 								contents: [
 									'---',
-									'include: \'**/*\'',
+									'applyTo: \'**/*\'',
 									'tools: [ false, \'my-tool12\' , ]',
 									'description: \'Description of my prompt.\'',
 									'---',
@@ -1166,7 +1166,7 @@ suite('PromptFileReference (Unix)', function () {
 				const rootReference = await test.run();
 
 				const { metadata, allToolsMetadata } = rootReference;
-				const { tools, mode, description, applyTo: include } = metadata;
+				const { tools, mode, description, applyTo } = metadata;
 
 				assert.deepStrictEqual(
 					tools,
@@ -1198,9 +1198,9 @@ suite('PromptFileReference (Unix)', function () {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					'**/*',
-					'Must have no \'include\' metadata.',
+					'Must have no \'applyTo\' metadata.',
 				);
 			});
 		});
