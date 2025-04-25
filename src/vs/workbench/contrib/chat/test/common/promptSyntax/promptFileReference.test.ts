@@ -20,7 +20,6 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
@@ -30,8 +29,8 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
+import { IPromptParserOptions, TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { IFileContentsProviderOptions } from '../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
@@ -91,7 +90,7 @@ class TestPromptFileReference extends Disposable {
 	 * Run the test.
 	 */
 	public async run(
-		options: Partial<IFileContentsProviderOptions> = {},
+		options: Partial<IPromptParserOptions> = {},
 	): Promise<FilePromptParser> {
 		// create the files structure on the disk
 		await (this.initService.createInstance(MockFilesystem, this.fileStructure)).mock();

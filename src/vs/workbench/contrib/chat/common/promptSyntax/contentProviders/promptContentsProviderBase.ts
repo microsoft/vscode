@@ -14,10 +14,8 @@ import { ObservableDisposable } from '../../../../../../base/common/observableDi
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
 
-
-// TODO: @legomushroom - rename?
 /**
- * Options of the {@link PromptParser} class.
+ * Options of the {@link PromptContentsProviderBase} class.
  */
 export interface IPromptContentsProviderOptions {
 	/**
@@ -31,7 +29,7 @@ export interface IPromptContentsProviderOptions {
 /**
  * Default {@link IPromptContentsProviderOptions} options.
  */
-const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
+export const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
 	allowNonPromptFiles: false,
 };
 

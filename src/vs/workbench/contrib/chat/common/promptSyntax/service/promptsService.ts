@@ -69,7 +69,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parser: TextModelPromptParser = initService.createInstance(
 					TextModelPromptParser,
 					model,
-					[],
+					{ seenReferences: [] },
 				).start();
 
 				// this is a sanity check and the contract of the object cache,
