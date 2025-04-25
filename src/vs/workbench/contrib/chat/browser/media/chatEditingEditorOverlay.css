@@ -45,6 +45,13 @@
 	display: inline-flex;
 }
 
+.chat-editor-overlay-widget .chat-editor-overlay-progress .progress-message {
+	white-space: nowrap;
+	max-width: 13em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding-right: 8px;
+}
 
 .chat-editor-overlay-widget .action-item > .action-label {
 	padding: 5px;
