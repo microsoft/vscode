@@ -270,7 +270,7 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 	}
 
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel {
-		throw new Error('Not implemented');
+		return this._notebookViewModel?.getCellByHandle(cellInfo.cellHandle) as IGenericCellViewModel;
 	}
 
 	layout(dimension: DOM.Dimension, position: DOM.IDomPosition): void {
