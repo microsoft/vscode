@@ -13,6 +13,8 @@ import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/acti
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode } from '../../common/constants.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
@@ -28,6 +30,8 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		private readonly delegate: IModePickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const makeAction = (mode: ChatMode): IAction => ({
 			...action,
@@ -61,7 +65,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			actionProvider,
 		};
 
-		super(action, modelPickerActionWidgetOptions, actionWidgetService);
+		super(action, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
 	}

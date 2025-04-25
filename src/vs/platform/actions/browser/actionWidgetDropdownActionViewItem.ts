@@ -12,6 +12,8 @@ import { IAction } from '../../../base/common/actions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IActionWidgetService } from '../../actionWidget/browser/actionWidget.js';
 import { ActionWidgetDropdown, IActionWidgetDropdownOptions } from '../../actionWidget/browser/actionWidgetDropdown.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 
 /**
  * Action view item for the custom action widget dropdown widget.
@@ -23,7 +25,9 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		private readonly actionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'>,
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(undefined, action);
 	}
@@ -63,16 +67,14 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		element.ariaLabel = this._action.label || '';
 	}
 
-	protected override getTooltip(): string | undefined {
-		let title: string | null = null;
+	protected override getTooltip() {
+		const keybinding = this._keybindingService.lookupKeybinding(this.action.id, this._contextKeyService);
+		const keybindingLabel = keybinding && keybinding.getLabel();
 
-		if (this.action.tooltip) {
-			title = this.action.tooltip;
-		} else if (this.action.label) {
-			title = this.action.label;
-		}
-
-		return title ?? undefined;
+		const tooltip = this.action.tooltip ?? this.action.label;
+		return keybindingLabel
+			? `${tooltip} (${keybindingLabel})`
+			: tooltip;
 	}
 
 	show(): void {
