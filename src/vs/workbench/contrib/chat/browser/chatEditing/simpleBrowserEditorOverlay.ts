@@ -25,6 +25,8 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatWidgetService, showChatView } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -47,48 +49,54 @@ class SimpleBrowserOverlayWidget {
 		message.textContent = startSelectionMessage;
 		this._domNode.appendChild(message);
 
-		const startSelection = document.createElement('button');
-		startSelection.classList.add('element-selection-start', 'monaco-button');
-		startSelection.textContent = localize('elementSelectionStart', 'Start Selection');
-
 		let cts: CancellationTokenSource;
-		startSelection.onclick = async () => {
+		const selectButton = new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('selectAnElement', 'Click to select an element.') });
+		const cancelButton = new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') });
+
+		selectButton.element.className = 'element-selection-start';
+		selectButton.label = localize('startSelection', 'Start Selection');
+		cancelButton.element.className = 'element-selection-cancel';
+		cancelButton.label = localize('cancel', 'Cancel');
+
+		this.hideElement(cancelButton.element);
+		selectButton.onDidClick(async () => {
 			cts = new CancellationTokenSource();
 			this._editor.focus();
 
 			// start selection
 			message.textContent = localize('elementSelectionInProgress', 'Selection in progress...');
-			this._domNode.removeChild(startSelection);
-			this._domNode.appendChild(cancel);
+			this.hideElement(selectButton.element);
+			this.showElement(cancelButton.element);
 
 			await this.addElementToChat(cts);
-
 			// stop selection
-			this._domNode.removeChild(cancel);
+			this.hideElement(cancelButton.element);
 			message.textContent = localize('elementSelectionComplete', 'Element added to chat.');
 
 			// wait 3 seconds before showing the start selection button again
 			setTimeout(() => {
 				message.textContent = startSelectionMessage;
-				this._domNode.appendChild(startSelection);
+				this.showElement(selectButton.element);
 			}, 3000);
-		};
-		this._domNode.appendChild(startSelection);
+		});
 
-		// Cancel button
-		const cancel = document.createElement('button');
-		cancel.classList.add('element-selection-cancel', 'monaco-button');
-		cancel.textContent = localize('elementSelectionCancel', 'Cancel');
-		cancel.onclick = () => {
+		cancelButton.onDidClick(() => {
 			cts.cancel();
-			cancel.remove();
-
+			this.hideElement(cancelButton.element);
 			message.textContent = localize('elementCancelMessage', 'Selection canceled');
 			setTimeout(() => {
 				message.textContent = startSelectionMessage;
-				this._domNode.appendChild(startSelection);
+				this.showElement(selectButton.element);
 			}, 3000);
-		};
+		});
+	}
+
+	hideElement(element: HTMLElement) {
+		element.classList.add('hidden');
+	}
+
+	showElement(element: HTMLElement) {
+		element.classList.remove('hidden');
 	}
 
 	async addElementToChat(cts: CancellationTokenSource) {

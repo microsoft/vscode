@@ -1900,13 +1900,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .element-selection-cancel,
 .element-selection-start {
-	background: var(--vscode-button-background);
-	border: var(--vscode-button-border);
-	color: var(--vscode-button-foreground);
 	padding: 5px 10px;
-	border-radius: 3px;
-	cursor: pointer;
-	font-size: 13px;
-	font-family: inherit;
-	white-space: nowrap;
+	width: fit-content;
+}
+
+.element-selection-message .hidden {
+	display: none;
 }
