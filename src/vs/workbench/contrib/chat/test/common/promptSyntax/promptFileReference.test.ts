@@ -1030,7 +1030,7 @@ suite('PromptFileReference (Unix)', function () {
 				const rootReference = await test.run();
 
 				const { metadata, allToolsMetadata } = rootReference;
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo: include } = metadata;
 
 				assert.deepStrictEqual(
 					tools,
@@ -1166,7 +1166,7 @@ suite('PromptFileReference (Unix)', function () {
 				const rootReference = await test.run();
 
 				const { metadata, allToolsMetadata } = rootReference;
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo: include } = metadata;
 
 				assert.deepStrictEqual(
 					tools,

@@ -13,12 +13,12 @@ import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../edi
 /**
  * Name of the metadata record in the prompt header.
  */
-const RECORD_NAME = 'include';
+const RECORD_NAME = 'applyTo';
 
 /**
- * Prompt `include` metadata record inside the prompt header.
+ * Prompt `applyTo` metadata record inside the prompt header.
  */
-export class PromptIncludeMetadata extends PromptStringMetadata {
+export class PromptApplyToMetadata extends PromptStringMetadata {
 	constructor(
 		recordToken: FrontMatterRecord,
 		languageId: string,
@@ -41,7 +41,7 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 			return result;
 		}
 
-		// the include metadata makes sense only for 'instruction' prompts
+		// the applyTo metadata makes sense only for 'instruction' prompts
 		if (this.languageId !== INSTRUCTIONS_LANGUAGE_ID) {
 			result.push(
 				new PromptMetadataError(
@@ -66,7 +66,7 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 				new PromptMetadataWarning(
 					this.valueToken.range,
 					localize(
-						'prompt.header.metadata.include.diagnostics.non-valid-glob',
+						'prompt.header.metadata.applyTo.diagnostics.non-valid-glob',
 						"Invalid glob pattern '{0}'.",
 						cleanText,
 					),
@@ -100,9 +100,9 @@ export class PromptIncludeMetadata extends PromptStringMetadata {
 
 	/**
 	 * Check if a provided front matter token is a metadata record
-	 * with name equal to `include`.
+	 * with name equal to `applyTo`.
 	 */
-	public static isIncludeRecord(
+	public static isApplyToRecord(
 		token: FrontMatterToken,
 	): boolean {
 		if ((token instanceof FrontMatterRecord) === false) {

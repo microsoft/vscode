@@ -184,15 +184,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		for (const instruction of instructions.flatMap(flatten)) {
 			const { metadata, uri } = instruction;
-			const { include } = metadata;
+			const { applyTo } = metadata;
 
-			if (include === undefined) {
+			if (applyTo === undefined) {
 				continue;
 			}
 
 			// if glob pattern is one of the special wildcard values,
 			// add the instructions file event if no files are attached
-			if ((include === '**') || (include === '**/*')) {
+			if ((applyTo === '**') || (applyTo === '**/*')) {
 				result.push(uri);
 
 				continue;
@@ -201,7 +201,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// match each attached file with each glob pattern and
 			// add the instructions file its rule matches the file
 			for (const file of files) {
-				if (match(include, file.fsPath)) {
+				if (match(applyTo, file.fsPath)) {
 					result.push(uri);
 
 					continue;
