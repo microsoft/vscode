@@ -466,6 +466,7 @@ export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
 	userSelectedTools?: string[];
+	userSelectedTools2?: Record<string, boolean>;
 	toolSelectionIsExclusive?: boolean;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;

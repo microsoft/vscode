@@ -42,7 +42,7 @@ export class ChatSelectedTools extends Disposable {
 
 	readonly toolsActionItemViewItemProvider: IActionViewItemProvider & { onDidRender: Event<void> };
 
-	private allTools: IObservable<Readonly<IToolData>[]>;
+	private readonly _allTools: IObservable<Readonly<IToolData>[]>;
 
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
@@ -53,10 +53,7 @@ export class ChatSelectedTools extends Disposable {
 
 		this._selectedTools = this._register(storedTools(StorageScope.WORKSPACE, StorageTarget.MACHINE, storageService));
 
-		this.allTools = observableFromEvent(
-			toolsService.onDidChangeTools,
-			() => Array.from(toolsService.getTools()).filter(t => t.supportsToolPicker)
-		);
+		this._allTools = observableFromEvent(toolsService.onDidChangeTools, () => Array.from(toolsService.getTools()));
 
 		const disabledData = this._selectedTools.map(data => {
 			return (data.disabledBuckets?.length || data.disabledTools?.length) && {
@@ -67,7 +64,7 @@ export class ChatSelectedTools extends Disposable {
 
 		this.tools = derived(r => {
 			const disabled = disabledData.read(r);
-			const tools = this.allTools.read(r);
+			const tools = this._allTools.read(r);
 			if (!disabled) {
 				return tools;
 			}
@@ -78,7 +75,7 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		const toolsCount = derived(r => {
-			const count = this.allTools.read(r).length;
+			const count = this._allTools.read(r).length;
 			const enabled = this.tools.read(r).length;
 			return { count, enabled };
 		});
@@ -126,20 +123,10 @@ export class ChatSelectedTools extends Disposable {
 		);
 	}
 
-	/**
-	 * Select only the provided tools unselecting the rest.
-	 *
-	 * @param tools Set of tool IDs to select.
-	 */
-	public selectOnly(
-		tools: readonly string[],
-	): void {
-		const allTools = this.allTools.get();
+	selectOnly(tools: readonly string[]): void {
 		const uniqueTools = new Set(tools);
 
-		const disabledTools = allTools.filter((tool) => {
-			return (uniqueTools.has(tool.id) === false);
-		});
+		const disabledTools = this._allTools.get().filter(tool => !uniqueTools.has(tool.id));
 
 		this.update([], disabledTools);
 	}
@@ -149,5 +136,14 @@ export class ChatSelectedTools extends Disposable {
 			disabledBuckets: disableBuckets.map(ToolDataSource.toKey),
 			disabledTools: disableTools.map(t => t.id)
 		}, undefined);
+	}
+
+	asEnablementMap(): Map<IToolData, boolean> {
+		const result = new Map<IToolData, boolean>();
+		const enabledTools = new Set(this.tools.get().map(t => t.id));
+		for (const tool of this._allTools.get()) {
+			result.set(tool, enabledTools.has(tool.id));
+		}
+		return result;
 	}
 }

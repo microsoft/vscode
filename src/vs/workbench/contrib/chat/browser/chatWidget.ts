@@ -1229,6 +1229,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 
 			this.input.validateCurrentMode();
+
+			let userSelectedTools: string[] | undefined;
+			let userSelectedTools2: Record<string, boolean> | undefined;
+			if (this.input.currentMode === ChatMode.Agent) {
+				userSelectedTools = this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id);
+
+				userSelectedTools2 = {};
+				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
+					userSelectedTools2[tool.id] = enablement;
+				}
+			}
+
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
 				mode: this.inputPart.currentMode,
 				userSelectedModelId: this.inputPart.currentLanguageModel,
@@ -1237,7 +1249,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.inputPart.currentMode },
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
-				userSelectedTools: this.input.currentMode === ChatMode.Agent ? this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id) : undefined,
+				userSelectedTools,
+				userSelectedTools2,
 			});
 
 			if (result) {
