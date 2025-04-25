@@ -94,11 +94,11 @@ class SaveToPromptAction extends Action2 {
 
 			const tools = new Set<string>();
 			for (const record of response.value) {
-				if (('toolId' in record) === false) {
+				if ((('toolReferenceName' in record) === false) || (!record.toolReferenceName)) {
 					continue;
 				}
 
-				tools.add(record.toolId);
+				tools.add(record.toolReferenceName);
 			}
 
 			turns.push({

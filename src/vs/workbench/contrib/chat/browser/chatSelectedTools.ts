@@ -123,10 +123,10 @@ export class ChatSelectedTools extends Disposable {
 		);
 	}
 
-	selectOnly(tools: readonly string[]): void {
-		const uniqueTools = new Set(tools);
+	selectOnly(toolReferenceNames: readonly string[]): void {
+		const uniqueTools = new Set(toolReferenceNames);
 
-		const disabledTools = this._allTools.get().filter(tool => !uniqueTools.has(tool.id));
+		const disabledTools = this._allTools.get().filter(tool => tool.toolReferenceName && !uniqueTools.has(tool.toolReferenceName));
 
 		this.update([], disabledTools);
 	}
