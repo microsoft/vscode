@@ -1709,7 +1709,6 @@ export class SettingsEditor2 extends EditorPane {
 			if (searchInProgress.token.isCancellationRequested) {
 				return;
 			}
-			this.clearSearchSuggestions();
 			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
 			let remoteResults = null;
 			if ((!localResults || !localResults.exactMatch) && !searchInProgress.token.isCancellationRequested) {
@@ -1769,7 +1768,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		this.suggestionsDiv.innerText = localize('suggestions', "Did you mean: ");
+		this.suggestionsDiv.innerText = localize('suggestionsPrefix', "Did you mean: ");
 		suggestions.forEach((suggestion, idx) => {
 			const suggestionLink = document.createElement('a');
 			suggestionLink.textContent = wordifyKey(suggestion);
