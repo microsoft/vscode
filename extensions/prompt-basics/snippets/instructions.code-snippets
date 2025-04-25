@@ -5,9 +5,9 @@
 			"---",
 			"applyTo: '${1|**,**/*.ts|}'",
 			"---",
-			"${2:Enter your instructions here...}",
+			"${2:Instructions here...}",
 		],
-		"description": "Template for chat instructions",
+		"description": "Instructions",
 		"isFileTemplate": true,
 	}
 }
