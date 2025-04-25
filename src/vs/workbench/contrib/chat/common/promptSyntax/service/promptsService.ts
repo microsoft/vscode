@@ -56,6 +56,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// for the provided model, if no active non-disposed parser exists
 		this.cache = this._register(
 			new ObjectCache((model) => {
+				assert(
+					model.isDisposed() === false,
+					'Text model must not be disposed.',
+				);
+
 				/**
 				 * Note! When/if shared with "file" prompts, the `seenReferences` array below must be taken into account.
 				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
@@ -65,9 +70,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					TextModelPromptParser,
 					model,
 					[],
-				);
-
-				parser.start();
+				).start();
 
 				// this is a sanity check and the contract of the object cache,
 				// we must return a non-disposed object from this factory function
