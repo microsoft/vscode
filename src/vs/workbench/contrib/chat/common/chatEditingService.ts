@@ -212,6 +212,7 @@ export interface IModifiedFileEntry {
 
 	readonly state: IObservable<ModifiedFileEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
+	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 
 	accept(transaction: ITransaction | undefined): Promise<void>;
