@@ -330,7 +330,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo: include } = metadata;
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
@@ -396,7 +396,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo: include } = metadata;
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
@@ -535,7 +535,7 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						const { include, mode } = metadata;
+						const { applyTo: include, mode } = metadata;
 						assert.strictEqual(
 							mode,
 							ChatMode.Ask,
@@ -576,7 +576,7 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						const { include, mode } = metadata;
+						const { applyTo: include, mode } = metadata;
 						assert.strictEqual(
 							mode,
 							ChatMode.Edit,
@@ -615,7 +615,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { include, mode } = metadata;
+				const { applyTo: include, mode } = metadata;
 				assert.strictEqual(
 					mode,
 					ChatMode.Agent,

@@ -542,7 +542,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return {};
 		}
 
-		const { tools, mode, description, include } = metadata;
+		const { tools, mode, description, applyTo } = metadata;
 
 		// compute resulting mode based on presence
 		// of `tools` metadata in the prompt header
@@ -554,7 +554,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			mode: resultingMode,
 			description: description?.text,
 			tools: tools?.toolNames,
-			include: include?.text,
+			applyTo: applyTo?.text,
 		};
 	}
 
