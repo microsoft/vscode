@@ -193,6 +193,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
 			this.logService.debug('ChatWidget#setViewModel: have viewModel');
+
+			if (viewModel.model.editingSessionObs) {
+				viewModel.model.editingSessionObs?.promise.then(() => this._isReady = true);
+			} else {
+				this._isReady = true;
+			}
 		} else {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
@@ -476,7 +482,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		await this.viewModel?.model.editingSessionObs?.promise;
 		if (this.viewModel) {
 			this.logService.debug('ChatWidget#waitForReady: ready');
-			this._isReady = true;
 		} else {
 			this.logService.debug('ChatWidget#waitForReady: no viewModel');
 		}
