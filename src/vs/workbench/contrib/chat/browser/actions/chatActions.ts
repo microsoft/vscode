@@ -159,6 +159,7 @@ export function registerChatActions() {
 				if (opts.isPartialQuery) {
 					chatWidget.setInput(opts.query);
 				} else {
+					await chatWidget.waitForReady();
 					chatWidget.acceptInput(opts.query);
 				}
 			}

@@ -209,6 +209,7 @@ export interface IChatWidget {
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): void;
+	waitForReady(): Promise<void>;
 	getViewState(): IChatViewState;
 	togglePaused(): void;
 }
