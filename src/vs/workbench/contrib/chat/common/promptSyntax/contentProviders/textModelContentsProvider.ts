@@ -14,8 +14,8 @@ import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
-import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.

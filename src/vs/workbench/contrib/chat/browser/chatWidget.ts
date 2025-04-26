@@ -1165,7 +1165,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(toUri(variable), promptPath.uri))) {
 			// not yet attached, so attach it
-			const variable = toChatVariable({ uri: promptPath.uri, isPromptFile: true }, true);
+			const variable = toChatVariable({ uri: promptPath.uri }, 'prompt', true);
 			attachedContext.push(variable);
 		}
 
@@ -1478,6 +1478,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const promptFileVariables = attachedContext
 			.filter(isPromptFileChatVariable)
 			.filter(pick('isRoot'));
+
 		const promptUris = promptFileVariables.map(toUri);
 
 		if (promptFileVariables.length === 0) {
@@ -1565,7 +1566,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// add instructions to the final context list
 		attachedContext.push(
 			...automaticInstructions.map((uri) => {
-				return toChatVariable({ uri, isPromptFile: true }, true);
+				return toChatVariable(
+					{ uri },
+					'instructions',
+					true,
+				);
 			}),
 		);
 

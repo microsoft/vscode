@@ -31,6 +31,7 @@ import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
+import { TPromptsType } from './promptSyntax/service/types.js';
 
 interface IBaseChatRequestVariableEntry {
 	id: string;
@@ -132,6 +133,8 @@ export interface IDiagnosticVariableEntryFilterData {
  * Chat variable that represents an attached prompt file.
  */
 export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
+	// TODO: @legomushroom improve the type?
+	readonly type: TPromptsType | undefined;
 	readonly kind: 'file';
 	readonly value: URI | Location;
 	readonly isRoot: boolean;

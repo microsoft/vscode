@@ -13,6 +13,7 @@ import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+import { TPromptsType } from '../../common/promptSyntax/service/types.js';
 
 /**
  * Prefix for all prompt instruction variable IDs.
@@ -56,10 +57,14 @@ export const createPromptVariableId = (
  * 				 This object most likely was explicitly attached by the user.
  */
 export const toChatVariable = (
-	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
+	// TODO: @legomushroom - pass URI directly?
+	reference: Pick<IPromptFileReference, 'uri'>,
+	type: TPromptsType | undefined,
 	isRoot: boolean,
 ): IPromptVariableEntry => {
-	const { uri, isPromptFile } = reference;
+	const { uri } = reference;
+
+	const isPromptFile = (type === 'prompt') || (type === 'instructions');
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
@@ -80,6 +85,7 @@ export const toChatVariable = (
 	return {
 		id,
 		name,
+		type,
 		value: uri,
 		kind: 'file',
 		modelDescription,
@@ -188,7 +194,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 			// we do the same here - first add all child references of the model
 			result.push(
 				...reference.allValidReferences.map((link) => {
-					return toChatVariable(link, false);
+					return toChatVariable(link, 'instructions', false);
 				}),
 			);
 
@@ -196,11 +202,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 			result.push(
 				toChatVariable({
 					uri: reference.uri,
-					// the attached file must have been a prompt file therefore
-					// we force that assumption here; this makes sure that prompts
-					// in untitled documents can be also attached to the chat input
-					isPromptFile: true,
-				}, true),
+				}, 'instructions', true),
 			);
 		}
 

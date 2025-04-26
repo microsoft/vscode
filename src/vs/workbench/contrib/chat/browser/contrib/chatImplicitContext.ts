@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -25,8 +26,8 @@ import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
-import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/types.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { IPromptsService, TPromptsType, TSharedPrompt } from '../../common/promptSyntax/service/types.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
@@ -247,8 +248,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private prompt: TSharedPrompt | undefined;
 
 	get id() {
-		if (this.prompt !== undefined) {
-			const variable = toChatVariable(this.prompt, true);
+		if (this.prompt && isOneOfPromptLanguages(this.prompt.languageId)) {
+			const variable = toChatVariable(
+				this.prompt,
+				toPromptType(this.prompt.languageId),
+				true,
+			);
 
 			return variable.id;
 		}
@@ -267,8 +272,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
-		if (this.prompt !== undefined) {
-			const variable = toChatVariable(this.prompt, true);
+		if (this.prompt && isOneOfPromptLanguages(this.prompt.languageId)) {
+			const variable = toChatVariable(
+				this.prompt,
+				toPromptType(this.prompt.languageId),
+				true,
+			);
 
 			return variable.name;
 		}
@@ -285,8 +294,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
-		if (this.prompt !== undefined) {
-			const variable = toChatVariable(this.prompt, true);
+		if (this.prompt && isOneOfPromptLanguages(this.prompt.languageId)) {
+			const variable = toChatVariable(
+				this.prompt,
+				toPromptType(this.prompt.languageId),
+				true,
+			);
 
 			return variable.modelDescription;
 		}
@@ -339,8 +352,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 		// remove and dispose existent prompt parser instance
 		this.removePrompt();
+
 		// if language ID is a 'prompt' language, create a prompt parser instance
-		if (value && (languageId === PROMPT_LANGUAGE_ID)) {
+		if (value && languageId && isOneOfPromptLanguages(languageId)) {
 			this.addPrompt(value);
 		}
 
@@ -349,7 +363,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	public async toBaseEntries(): Promise<readonly IChatRequestFileEntry[]> {
 		// chat variable for non-prompt file attachment
-		if (this.prompt === undefined) {
+		if ((this.prompt === undefined) || (isOneOfPromptLanguages(this.prompt.languageId) === false)) {
 			return [{
 				kind: 'file',
 				id: this.id,
@@ -357,25 +371,27 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 				value: this.value,
 				modelDescription: this.modelDescription,
 			}];
-
 		}
 
 		// prompt can have any number of nested references, hence
 		// collect all of valid ones and return the entire list
 		await this.prompt.allSettled();
+
+		// TODO: @legomushroom
+		const promptType = toPromptType(this.prompt.languageId);
+
 		return [
 			// add all valid child references in the prompt
 			...this.prompt.allValidReferences.map((link) => {
+				// TODO: @legomushroom
+				// const linkLanguageId = link.languageId;
+
 				return toChatVariable(link, false);
 			}),
 			// and then the root prompt reference itself
 			toChatVariable({
 				uri: this.prompt.uri,
-				// the attached file must have been a prompt file therefore
-				// we force that assumption here; this makes sure that prompts
-				// in untitled documents can be also attached to the chat input
-				isPromptFile: true,
-			}, true),
+			}, promptType, true),
 		];
 	}
 
@@ -404,6 +420,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			);
 		}
 
+		// td - remove prompt if languages changes
 		this.prompt = this.promptsService.getSyntaxParserFor(model);
 	}
 
@@ -419,3 +436,60 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		super.dispose();
 	}
 }
+
+/**
+ * TODO: @legomushroom
+ */
+type TPromptLanguage = typeof PROMPT_LANGUAGE_ID | typeof INSTRUCTIONS_LANGUAGE_ID;
+
+/**
+ * TODO: @legomushroom
+ */
+const isOneOfPromptLanguages = (
+	languageId: string
+): languageId is TPromptLanguage => {
+	if (languageId === PROMPT_LANGUAGE_ID) {
+		return true;
+	}
+
+	if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
+		return true;
+	}
+
+	return false;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const toPromptType = (
+	languageId: TPromptLanguage,
+): TPromptsType => {
+	if (languageId === PROMPT_LANGUAGE_ID) {
+		return 'prompt';
+	}
+
+	if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
+		return 'instructions';
+	}
+
+	assertNever(
+		languageId,
+		`Unknown prompt language ${languageId}`,
+	);
+};
+
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - rename
+const asPromptType = (
+	languageId: string,
+): TPromptsType | undefined => {
+	if (isOneOfPromptLanguages(languageId)) {
+		return toPromptType(languageId);
+	}
+
+	return undefined;
+};

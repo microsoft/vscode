@@ -176,7 +176,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// we do the same here - first add all child references to the list
 			contextArr.push(
 				...variable.allValidReferences.map((link) => {
-					return toChatVariable(link, false);
+					// TODO: @legomushroom - what to do here?
+					return toChatVariable(link, 'prompt', false);
 				}),
 			);
 		}

@@ -32,6 +32,8 @@ import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCo
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
+import { TPromptsType } from '../service/types.js';
+import { PROMPT_LANGUAGE_ID } from '../constants.js';
 
 /**
  * Options of the {@link BasePromptParser} class.
@@ -98,6 +100,26 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	public get header(): PromptHeader | undefined {
 		return this.promptHeader;
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get languageId(): string {
+		return this.contentsProvider.languageId;
+	}
+
+	// /**
+	//  * TODO: @legomushroom
+	//  */
+	// public get promptType(): TPromptsType | 'other' {
+	// 	// const { languageId } = this.contentsProvider;
+
+	// 	// if (languageId === PROMPT_LANGUAGE_ID) {
+	// 	// 	return
+	// 	// }
+
+	// 	// return this.promptContentsProvider.languageId;
+	// }
 
 	/**
 	 * The event is fired when lines or their content change.
@@ -205,7 +227,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	constructor(
-		private readonly promptContentsProvider: TContentsProvider,
+		private readonly contentsProvider: TContentsProvider,
 		options: Partial<IPromptParserOptions>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
@@ -244,7 +266,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		seenReferences.push(this.uri.path);
 
 		this._register(
-			this.promptContentsProvider.onContentChanged((streamOrError) => {
+			this.contentsProvider.onContentChanged((streamOrError) => {
 				// process the received message
 				this.onContentsChanged(streamOrError, seenReferences);
 
@@ -254,7 +276,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		);
 
 		// dispose self when contents provider is disposed
-		this.promptContentsProvider.onDispose(this.dispose.bind(this));
+		this.contentsProvider.onDispose(this.dispose.bind(this));
 	}
 
 	/**
@@ -316,7 +338,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			if (token instanceof FrontMatterHeader) {
 				this.promptHeader = new PromptHeader(
 					token.contentToken,
-					this.promptContentsProvider.languageId,
+					this.contentsProvider.languageId,
 				).start();
 
 				return;
@@ -364,7 +386,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			? extUri.resolvePath(parentFolder, token.path)
 			: URI.file(token.path);
 
-		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
+		const contentProvider = this.contentsProvider.createNew({ uri: referenceUri });
 
 		const reference = this.instantiationService
 			.createInstance(PromptReference, contentProvider, token, { seenReferences });
@@ -438,7 +460,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return this;
 		}
 
-		this.promptContentsProvider.start();
+		this.contentsProvider.start();
 		return this;
 	}
 
@@ -446,7 +468,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Associated URI of the prompt.
 	 */
 	public get uri(): URI {
-		return this.promptContentsProvider.uri;
+		return this.contentsProvider.uri;
 	}
 
 	/**
