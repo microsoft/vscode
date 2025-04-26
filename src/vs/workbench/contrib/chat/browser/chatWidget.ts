@@ -179,6 +179,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private scrollLock = true;
 
 	private _isReady = false;
+	private _onDidBecomeReady = this._register(new Emitter<void>());
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
@@ -195,9 +196,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug('ChatWidget#setViewModel: have viewModel');
 
 			if (viewModel.model.editingSessionObs) {
-				viewModel.model.editingSessionObs?.promise.then(() => this._isReady = true);
+				this.logService.debug('ChatWidget#setViewModel: waiting for editing session');
+				viewModel.model.editingSessionObs?.promise.then(() => {
+					this._isReady = true;
+					this._onDidBecomeReady.fire();
+				});
 			} else {
 				this._isReady = true;
+				this._onDidBecomeReady.fire();
 			}
 		} else {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
@@ -471,15 +477,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		this.logService.debug('ChatWidget#waitForReady: waiting for viewModel');
-		await Event.toPromise(
-			Event.filter(
-				this.onDidChangeViewModel,
-				() => !!this.viewModel,
-			));
+		this.logService.debug('ChatWidget#waitForReady: waiting for ready');
+		await Event.toPromise(this._onDidBecomeReady.event);
 
-		this.logService.debug('ChatWidget#waitForReady: waiting for editing session');
-		await this.viewModel?.model.editingSessionObs?.promise;
 		if (this.viewModel) {
 			this.logService.debug('ChatWidget#waitForReady: ready');
 		} else {
