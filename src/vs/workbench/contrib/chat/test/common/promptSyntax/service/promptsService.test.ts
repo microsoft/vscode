@@ -1801,7 +1801,7 @@ suite('PromptsService', () => {
 														'---',
 														'description: "Another file description."',
 														'tools: [\'my-tool3\', false, "my-tool2" ]',
-														'include: "**/*.tsx"',
+														'applyTo: "**/*.tsx"',
 														'---',
 														`[](${rootFolder}/folder1/some-other-folder)`,
 														'another-file.instructions.md contents\t [#file:file.txt](../file.txt)',
@@ -1831,14 +1831,14 @@ suite('PromptsService', () => {
 						description: 'Root prompt description.',
 						tools: ['my-tool1'],
 						mode: 'agent',
-						include: undefined,
+						applyTo: undefined,
 					},
 					children: [
 						{
 							uri: URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md'),
 							metadata: {
 								description: undefined,
-								include: undefined,
+								applyTo: undefined,
 								tools: ['my-tool1'],
 								mode: 'agent',
 							},
@@ -1849,7 +1849,7 @@ suite('PromptsService', () => {
 										description: 'Another file description.',
 										tools: ['my-tool3', 'my-tool2'],
 										mode: 'agent',
-										include: '**/*.tsx',
+										applyTo: '**/*.tsx',
 									},
 									children: undefined,
 								},
@@ -1860,7 +1860,7 @@ suite('PromptsService', () => {
 							metadata: {
 								tools: ['my-tool1', 'my-tool2'],
 								description: 'File 4 splendid description.',
-								include: undefined,
+								applyTo: undefined,
 								mode: 'agent',
 							},
 							children: undefined,
@@ -1941,7 +1941,7 @@ suite('PromptsService', () => {
 									contents: [
 										'---',
 										'description: \'Instructions file 1.\'',
-										'include: "**/*.tsx"',
+										'applyTo: "**/*.tsx"',
 										'---',
 										'Some instructions 1 contents.',
 									],
@@ -1951,7 +1951,7 @@ suite('PromptsService', () => {
 									contents: [
 										'---',
 										'description: \'Instructions file 2.\'',
-										'include: "**/folder1/*.tsx"',
+										'applyTo: "**/folder1/*.tsx"',
 										'---',
 										'Some instructions 2 contents.',
 									],
@@ -1961,7 +1961,7 @@ suite('PromptsService', () => {
 									contents: [
 										'---',
 										'description: \'Instructions file 3.\'',
-										'include: "**/folder2/*.tsx"',
+										'applyTo: "**/folder2/*.tsx"',
 										'---',
 										'Some instructions 3 contents.',
 									],
@@ -1971,7 +1971,7 @@ suite('PromptsService', () => {
 									contents: [
 										'---',
 										'description: \'Instructions file 4.\'',
-										'include: "src/build/*.tsx"',
+										'applyTo: "src/build/*.tsx"',
 										'---',
 										'Some instructions 4 contents.',
 									],
@@ -2009,7 +2009,7 @@ suite('PromptsService', () => {
 							contents: [
 								'---',
 								'description: \'Instructions file 10.\'',
-								'include: "**/folder1/*.tsx"',
+								'applyTo: "**/folder1/*.tsx"',
 								'---',
 								'Some instructions 10 contents.',
 							],
@@ -2019,7 +2019,7 @@ suite('PromptsService', () => {
 							contents: [
 								'---',
 								'description: \'Instructions file 11.\'',
-								'include: "**/folder1/*.py"',
+								'applyTo: "**/folder1/*.py"',
 								'---',
 								'Some instructions 11 contents.',
 							],
