@@ -23,7 +23,7 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { Location, isLocation } from '../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -178,6 +178,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private scrollLock = true;
 
+	private _isReady = false;
+	private _onDidBecomeReady = this._register(new Emitter<void>());
+
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 	private set viewModel(viewModel: ChatViewModel | undefined) {
@@ -190,6 +193,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._viewModel = viewModel;
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
+			this.logService.debug('ChatWidget#setViewModel: have viewModel');
+
+			if (viewModel.model.editingSessionObs) {
+				this.logService.debug('ChatWidget#setViewModel: waiting for editing session');
+				viewModel.model.editingSessionObs?.promise.then(() => {
+					this._isReady = true;
+					this._onDidBecomeReady.fire();
+				});
+			} else {
+				this._isReady = true;
+				this._onDidBecomeReady.fire();
+			}
+		} else {
+			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
 
 		this._onDidChangeViewModel.fire();
@@ -454,6 +471,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.inputPart.attachmentModel;
 	}
 
+	async waitForReady(): Promise<void> {
+		if (this._isReady) {
+			this.logService.debug('ChatWidget#waitForReady: already ready');
+			return;
+		}
+
+		this.logService.debug('ChatWidget#waitForReady: waiting for ready');
+		await Event.toPromise(this._onDidBecomeReady.event);
+
+		if (this.viewModel) {
+			this.logService.debug('ChatWidget#waitForReady: ready');
+		} else {
+			this.logService.debug('ChatWidget#waitForReady: no viewModel');
+		}
+	}
+
 	render(parent: HTMLElement): void {
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
@@ -588,6 +621,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	clear(): void {
+		this.logService.debug('ChatWidget#clear');
+		this._isReady = false;
 		if (this._dynamicMessageLayoutData) {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
