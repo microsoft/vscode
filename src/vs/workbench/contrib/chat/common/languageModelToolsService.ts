@@ -37,7 +37,6 @@ export interface IToolData {
 	 * on the host, undefined if known.
 	 */
 	runsInWorkspace?: boolean;
-	requiresConfirmation?: boolean;
 	alwaysDisplayInputOutput?: boolean;
 	supportsToolPicker?: boolean;
 }

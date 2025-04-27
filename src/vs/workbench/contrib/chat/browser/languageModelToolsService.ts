@@ -9,7 +9,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -339,27 +338,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		let prepared = tool.impl!.prepareToolInvocation ?
+		const prepared = tool.impl!.prepareToolInvocation ?
 			await tool.impl!.prepareToolInvocation(dto.parameters, token)
 			: undefined;
-
-		if (!prepared?.confirmationMessages && tool.data.requiresConfirmation && tool.data.source.type === 'extension') {
-			if (!prepared) {
-				prepared = {};
-			}
-
-			const toolWarning = localize(
-				'tool.warning',
-				"{0} This tool is from the extension `{1}`. Please carefully review any requested actions.",
-				'$(info)',
-				tool.data.source.extensionId.value,
-			);
-			prepared.confirmationMessages = {
-				title: localize('msg.title', "Run {0}", `"${tool.data.displayName}"`),
-				message: new MarkdownString((tool.data.userDescription ?? tool.data.modelDescription) + '\n\n' + toolWarning, { supportThemeIcons: true }),
-				allowAutoConfirm: true,
-			};
-		}
 
 		if (prepared?.confirmationMessages) {
 			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
