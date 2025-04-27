@@ -89,6 +89,8 @@ const defaultChat = {
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
+const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+
 //#region Contribution
 
 const ToolsAgentContextKey = ContextKeyExpr.and(
@@ -406,8 +408,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			if (result.success) {
 				if (result.dialogSkipped) {
 					progress({
-						kind: 'progressMessage',
-						content: new MarkdownString(localize('copilotSetupSuccess', "Copilot setup finished successfully."))
+						kind: 'markdownContent',
+						content: new MarkdownString([localize('copilotSetupSuccess', "Copilot setup finished successfully."), copilotSettingsMessage].join('\n\n'))
 					});
 				} else if (requestModel) {
 					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Copilot agent...
@@ -720,7 +722,7 @@ class ChatSetup {
 
 		// SKU Settings
 		if (this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
-			const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+			const settings = copilotSettingsMessage;
 			element.appendChild($('p.setup-settings', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 		}
 
