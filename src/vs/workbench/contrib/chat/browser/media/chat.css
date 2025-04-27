@@ -411,6 +411,10 @@
 	.tool-input-output-part.expanded .input-output {
 		display: inherit;
 	}
+
+	&:not(:last-child) {
+		margin-bottom: 8px;
+	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -1713,6 +1717,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: block;
 	max-height: 350px;
 	max-width: 100%;
+	min-width: 200px;
+	min-height: 200px;
+
 }
 
 .chat-attached-context-hover .chat-attached-context-url {
@@ -1757,6 +1764,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 14px;
 	height: 14px;
 	border-radius: 2px;
+	object-fit: cover;
 }
 
 .chat-attached-context-attachment .chat-attached-context-custom-text {

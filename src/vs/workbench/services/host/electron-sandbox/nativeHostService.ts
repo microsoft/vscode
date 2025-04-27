@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHostService } from '../browser/host.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IElementData, INativeHostService } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -18,6 +18,8 @@ import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCou
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -193,8 +195,17 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Screenshots
 
-	getScreenshot(): Promise<VSBuffer | undefined> {
-		return this.nativeHostService.getScreenshot();
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> {
+		return this.nativeHostService.getScreenshot(rect);
+	}
+
+	async getElementData(offsetX: number, offsetY: number, token: CancellationToken): Promise<IElementData | undefined> {
+		const disposable = token.onCancellationRequested(() => {
+			ipcRenderer.send('vscode:cancelElementSelection');
+		});
+		const elementData = this.nativeHostService.getElementData(offsetX, offsetY, token);
+		elementData.finally(() => disposable.dispose());
+		return elementData;
 	}
 
 	//#endregion

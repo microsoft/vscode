@@ -521,10 +521,10 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let sessionData: ISerializableChatData | undefined;
-		if (this.useFileStorage) {
-			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
-		} else {
+		if (!this.useFileStorage || this.transferredSessionData?.sessionId === sessionId) {
 			sessionData = revive(this._persistedSessions[sessionId]);
+		} else {
+			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
 		}
 
 		if (!sessionData) {
@@ -768,6 +768,7 @@ export class ChatService extends Disposable implements IChatService {
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools,
+							userSelectedTools2: options?.userSelectedTools2,
 							toolSelectionIsExclusive: options?.toolSelectionIsExclusive,
 							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;

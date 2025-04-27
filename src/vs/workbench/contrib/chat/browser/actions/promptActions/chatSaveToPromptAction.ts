@@ -15,6 +15,7 @@ import { PromptsConfig } from '../../../../../../platform/prompts/common/config.
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../../common/chatParserTypes.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -62,6 +63,7 @@ class SaveToPromptAction extends Action2 {
 	): Promise<IEditorPane> {
 		const logService = accessor.get(ILogService);
 		const editorService = accessor.get(IEditorService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
 
 		const logPrefix = 'save to prompt';
 		const { chat } = options;
@@ -94,11 +96,16 @@ class SaveToPromptAction extends Action2 {
 
 			const tools = new Set<string>();
 			for (const record of response.value) {
-				if (('toolId' in record) === false) {
+				if (('toolId' in record === false) || !record.toolId) {
 					continue;
 				}
 
-				tools.add(record.toolId);
+				const tool = toolsService.getTool(record.toolId);
+				if ((tool === undefined) || (!tool.toolReferenceName)) {
+					continue;
+				}
+
+				tools.add(tool.toolReferenceName);
 			}
 
 			turns.push({

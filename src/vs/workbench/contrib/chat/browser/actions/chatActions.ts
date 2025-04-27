@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -21,7 +22,7 @@ import { SuggestController } from '../../../../../editor/contrib/suggest/browser
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Action2, ICommandPaletteOptions, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -50,7 +51,7 @@ import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatMode, validateChatMode } from '../../common/constants.js';
+import { ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -100,86 +101,139 @@ export interface IChatViewOpenRequestEntry {
 
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
+abstract class OpenChatGlobalAction extends Action2 {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatMode) {
+		super({
+			...overrides,
+			icon: Codicon.copilot,
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+		opts = typeof opts === 'string' ? { query: opts } : opts;
+
+		const chatService = accessor.get(IChatService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		const viewsService = accessor.get(IViewsService);
+		const hostService = accessor.get(IHostService);
+
+
+		let chatWidget = widgetService.lastFocusedWidget;
+		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
+		// Otherwise, open the view.
+		if (!this.mode || !chatWidget || !isAncestorOfActiveElement(chatWidget.domNode)) {
+			chatWidget = await showChatView(viewsService);
+		}
+
+		if (!chatWidget) {
+			return;
+		}
+
+		const mode = opts?.mode ?? this.mode;
+		if (mode && validateChatMode(mode)) {
+			chatWidget.input.setChatMode(mode);
+		}
+		if (opts?.previousRequests?.length && chatWidget.viewModel) {
+			for (const { request, response } of opts.previousRequests) {
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
+		}
+		if (opts?.attachScreenshot) {
+			const screenshot = await hostService.getScreenshot();
+			if (screenshot) {
+				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
+			}
+		}
+		if (opts?.query) {
+			if (opts.query.startsWith('@') && (chatWidget.input.currentMode === ChatMode.Agent || chatService.edits2Enabled)) {
+				chatWidget.input.setChatMode(ChatMode.Ask);
+			}
+			if (opts.isPartialQuery) {
+				chatWidget.setInput(opts.query);
+			} else {
+				await chatWidget.waitForReady();
+				chatWidget.acceptInput(opts.query);
+			}
+		}
+		if (opts?.toolIds && opts.toolIds.length > 0) {
+			for (const toolId of opts.toolIds) {
+				const tool = toolsService.getTool(toolId);
+				if (tool) {
+					chatWidget.attachmentModel.addContext({
+						id: tool.id,
+						name: tool.displayName,
+						fullName: tool.displayName,
+						value: undefined,
+						icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
+						kind: 'tool'
+					});
+				}
+			}
+		}
+
+		chatWidget.focusInput();
+	}
+}
+
+class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
+	constructor() {
+		super({
+			id: CHAT_OPEN_ACTION_ID,
+			title: localize2('openChat', "Open Chat"),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+				}
+			},
+			menu: [{
+				id: MenuId.ChatTitleBarMenu,
+				group: 'a_open',
+				order: 1
+			}]
+		});
+	}
+}
+
+export function getOpenChatActionIdForMode(mode: ChatMode): string {
+	const modeStr = modeToString(mode);
+	return `workbench.action.chat.open${modeStr}`;
+}
+
+abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
+	constructor(mode: ChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
+		super({
+			id: getOpenChatActionIdForMode(mode),
+			title: localize2('openChatMode', "Open Chat ({0})", modeToString(mode)),
+			keybinding
+		}, mode);
+	}
+}
+
 export function registerChatActions() {
-	registerAction2(class OpenChatGlobalAction extends Action2 {
-
+	registerAction2(PrimaryOpenChatGlobalAction);
+	registerAction2(class extends ModeOpenChatGlobalAction {
+		constructor() { super(ChatMode.Ask); }
+	});
+	registerAction2(class extends ModeOpenChatGlobalAction {
 		constructor() {
-			super({
-				id: CHAT_OPEN_ACTION_ID,
-				title: localize2('openChat', "Open Chat"),
-				icon: Codicon.copilot,
-				f1: true,
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.Setup.hidden.negate(),
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-					}
-				},
-				menu: [{
-					id: MenuId.ChatTitleBarMenu,
-					group: 'a_open',
-					order: 1
-				}]
-			});
+			super(ChatMode.Agent, {
+				when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+				}
+			},);
 		}
-
-		override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
-			opts = typeof opts === 'string' ? { query: opts } : opts;
-
-			const chatService = accessor.get(IChatService);
-			const toolsService = accessor.get(ILanguageModelToolsService);
-			const viewsService = accessor.get(IViewsService);
-			const hostService = accessor.get(IHostService);
-
-			const chatWidget = await showChatView(viewsService);
-			if (!chatWidget) {
-				return;
-			}
-			if (opts?.mode && validateChatMode(opts.mode)) {
-				chatWidget.input.setChatMode(opts.mode);
-			}
-			if (opts?.previousRequests?.length && chatWidget.viewModel) {
-				for (const { request, response } of opts.previousRequests) {
-					chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
-				}
-			}
-			if (opts?.attachScreenshot) {
-				const screenshot = await hostService.getScreenshot();
-				if (screenshot) {
-					chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
-				}
-			}
-			if (opts?.query) {
-				if (opts.query.startsWith('@') && (chatWidget.input.currentMode === ChatMode.Agent || chatService.edits2Enabled)) {
-					chatWidget.input.setChatMode(ChatMode.Ask);
-				}
-				if (opts.isPartialQuery) {
-					chatWidget.setInput(opts.query);
-				} else {
-					chatWidget.acceptInput(opts.query);
-				}
-			}
-			if (opts?.toolIds && opts.toolIds.length > 0) {
-				for (const toolId of opts.toolIds) {
-					const tool = toolsService.getTool(toolId);
-					if (tool) {
-						chatWidget.attachmentModel.addContext({
-							id: tool.id,
-							name: tool.displayName,
-							fullName: tool.displayName,
-							value: undefined,
-							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
-							kind: 'tool'
-						});
-					}
-				}
-			}
-
-			chatWidget.focusInput();
-		}
+	});
+	registerAction2(class extends ModeOpenChatGlobalAction {
+		constructor() { super(ChatMode.Edit); }
 	});
 
 	registerAction2(class ToggleChatAction extends Action2 {

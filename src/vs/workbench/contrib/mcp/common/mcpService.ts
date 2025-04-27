@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -17,6 +17,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
@@ -107,6 +108,7 @@ export class McpService extends Disposable implements IMcpService {
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
 					supportsToolPicker: true,
+					alwaysDisplayInputOutput: true,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp'],
 				};
@@ -226,14 +228,14 @@ class McpToolImplementation implements IToolImpl {
 
 		const mcpToolWarning = localize(
 			'mcp.tool.warning',
-			"{0} This tool is from \'{1}\' (MCP Server). Note that MCP servers or malicious conversation content may attempt to misuse '{2}' through tools. Please carefully review any requested actions.",
+			"{0} Note that MCP servers or malicious conversation content may attempt to misuse '{1}' through tools.",
 			'$(info)',
-			server.definition.label,
 			this._productService.nameShort
 		);
 
 		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
 		const title = tool.definition.annotations?.title || ('`' + tool.definition.name + '`');
+		const subtitle = localize('msg.subtitle', "{0} (MCP Server)", server.definition.label);
 
 		return {
 			confirmationMessages: needsConfirmation ? {
@@ -243,6 +245,11 @@ class McpToolImplementation implements IToolImpl {
 			} : undefined,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
+			originMessage: new MarkdownString(markdownCommandLink({
+				id: McpCommandIds.ShowConfiguration,
+				title: subtitle,
+				arguments: [server.collection.id, server.definition.id],
+			}), { isTrusted: true }),
 			toolSpecificData: {
 				kind: 'input',
 				rawInput: parameters

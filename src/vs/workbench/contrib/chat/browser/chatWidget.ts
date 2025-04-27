@@ -23,7 +23,7 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { Location, isLocation } from '../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -53,6 +53,7 @@ import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -153,6 +154,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
+	get domNode() {
+		return this.container;
+	}
+
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
@@ -177,6 +182,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private scrollLock = true;
 
+	private _isReady = false;
+	private _onDidBecomeReady = this._register(new Emitter<void>());
+
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 	private set viewModel(viewModel: ChatViewModel | undefined) {
@@ -189,6 +197,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._viewModel = viewModel;
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
+			this.logService.debug('ChatWidget#setViewModel: have viewModel');
+
+			if (viewModel.model.editingSessionObs) {
+				this.logService.debug('ChatWidget#setViewModel: waiting for editing session');
+				viewModel.model.editingSessionObs?.promise.then(() => {
+					this._isReady = true;
+					this._onDidBecomeReady.fire();
+				});
+			} else {
+				this._isReady = true;
+				this._onDidBecomeReady.fire();
+			}
+		} else {
+			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
 
 		this._onDidChangeViewModel.fire();
@@ -250,6 +272,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -452,6 +475,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.inputPart.attachmentModel;
 	}
 
+	async waitForReady(): Promise<void> {
+		if (this._isReady) {
+			this.logService.debug('ChatWidget#waitForReady: already ready');
+			return;
+		}
+
+		this.logService.debug('ChatWidget#waitForReady: waiting for ready');
+		await Event.toPromise(this._onDidBecomeReady.event);
+
+		if (this.viewModel) {
+			this.logService.debug('ChatWidget#waitForReady: ready');
+		} else {
+			this.logService.debug('ChatWidget#waitForReady: no viewModel');
+		}
+	}
+
 	render(parent: HTMLElement): void {
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
@@ -586,6 +625,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	clear(): void {
+		this.logService.debug('ChatWidget#clear');
+		this._isReady = false;
 		if (this._dynamicMessageLayoutData) {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
@@ -1229,6 +1270,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 
 			this.input.validateCurrentMode();
+
+			let userSelectedTools: string[] | undefined;
+			let userSelectedTools2: Record<string, boolean> | undefined;
+			if (this.input.currentMode === ChatMode.Agent) {
+				userSelectedTools = this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id);
+
+				userSelectedTools2 = {};
+				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
+					userSelectedTools2[tool.id] = enablement;
+				}
+			}
+
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
 				mode: this.inputPart.currentMode,
 				userSelectedModelId: this.inputPart.currentLanguageModel,
@@ -1237,7 +1290,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.inputPart.currentMode },
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
-				userSelectedTools: this.input.currentMode === ChatMode.Agent ? this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id) : undefined,
+				userSelectedTools,
+				userSelectedTools2,
 			});
 
 			if (result) {
@@ -1508,10 +1562,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			`Chat mode must be 'agent' when there are 'tools' defined, got ${this.inputPart.currentMode}.`,
 		);
 
+		// convert tools names to tool IDs
+		const toolIds = tools
+			.map((toolName) => {
+				const tool = this.toolsService.getToolByName(toolName);
+
+				if (tool === undefined) {
+					this.logService.warn(
+						`[setup tools]: cannot to find tool '${toolName}'`,
+					);
+				}
+
+				return tool;
+			})
+			.filter(isDefined)
+			.map(pick('id'));
+
 		// if there are some tools defined in the prompt files, select only the specified tools
 		this.inputPart
 			.selectedToolsModel
-			.selectOnly(tools);
+			.selectOnly(toolIds);
 
 		return input;
 	}

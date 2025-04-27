@@ -3,28 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isEqual } from '../../../../../../../base/common/resources.js';
+import { getCodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
+import { SnippetController2 } from '../../../../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { localize } from '../../../../../../../nls.js';
-import { createPromptFile } from './utils/createPromptFile.js';
-import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
-import { askForPromptFileName } from './dialogs/askForPromptName.js';
-import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
-import { ILogService } from '../../../../../../../platform/log/common/log.js';
-import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
+import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IPromptsService, TPromptsType } from '../../../../common/promptSyntax/service/types.js';
-import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../../../services/userDataSync/common/userDataSync.js';
-import { IUserDataSyncEnablementService, SyncResource } from '../../../../../../../platform/userDataSync/common/userDataSync.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IUserDataSyncEnablementService, SyncResource } from '../../../../../../../platform/userDataSync/common/userDataSync.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../../../services/userDataSync/common/userDataSync.js';
+import { ISnippetsService } from '../../../../../snippets/browser/snippets.js';
+import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
+import { IPromptsService, TPromptsType } from '../../../../common/promptSyntax/service/types.js';
+import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
+import { askForPromptFileName } from './dialogs/askForPromptName.js';
+import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
+import { createPromptFile } from './utils/createPromptFile.js';
 
 /**
  * The command implementation.
@@ -43,6 +49,9 @@ const command = async (
 	const notificationService = accessor.get(INotificationService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
+	const snippetService = accessor.get(ISnippetsService);
+	const editorService = accessor.get(IEditorService);
+
 
 	const placeHolder = (type === 'instructions')
 		? localize(
@@ -82,6 +91,19 @@ const command = async (
 	});
 
 	await openerService.open(promptUri);
+
+	const editor = getCodeEditor(editorService.activeTextEditorControl);
+	if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
+		const languageId = type === 'instructions' ? INSTRUCTIONS_LANGUAGE_ID : PROMPT_LANGUAGE_ID;
+
+		const snippets = await snippetService.getSnippets(languageId, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
+		if (snippets.length > 0) {
+			SnippetController2.get(editor)?.apply([{
+				range: editor.getModel().getFullModelRange(),
+				template: snippets[0].body
+			}]);
+		}
+	}
 
 	if (selectedFolder.storage !== 'user') {
 		return;

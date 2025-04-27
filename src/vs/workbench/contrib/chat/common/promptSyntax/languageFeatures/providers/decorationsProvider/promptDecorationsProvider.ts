@@ -48,6 +48,12 @@ export class PromptDecorator extends ProviderInstanceBase {
 	protected override async onPromptParserUpdate(): Promise<this> {
 		await this.parser.allSettled();
 
+		// by the time the promise above completes, either this object
+		// or the text model might be already has been disposed
+		if (this.disposed || this.model.isDisposed()) {
+			return this;
+		}
+
 		this.removeAllDecorations();
 		this.addDecorations();
 
@@ -100,7 +106,7 @@ export class PromptDecorator extends ProviderInstanceBase {
 	}
 
 	/**
-	 *
+	 * Update existing decorations.
 	 */
 	private changeModelDecorations(
 		decorations: readonly TChangedDecorator[],
@@ -115,7 +121,7 @@ export class PromptDecorator extends ProviderInstanceBase {
 	}
 
 	/**
-	 * Add a decorations for all prompt tokens.
+	 * Add decorations for all prompt tokens.
 	 */
 	private addDecorations(): this {
 		this.model.changeDecorations((accessor) => {
@@ -162,6 +168,10 @@ export class PromptDecorator extends ProviderInstanceBase {
 	}
 
 	public override dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+
 		this.removeAllDecorations();
 
 		super.dispose();

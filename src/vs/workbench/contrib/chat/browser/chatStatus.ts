@@ -320,9 +320,9 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			const limited = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
-			if ((limited && (chatQuota?.percentRemaining === 0 || completionsQuota?.percentRemaining === 0)) || (!limited && premiumChatQuota?.percentRemaining === 0 && !premiumChatQuota.overageEnabled)) {
+			if ((limited && (chatQuota?.percentRemaining === 0 || completionsQuota?.percentRemaining === 0)) || (!limited && typeof premiumChatQuota?.percentRemaining === 'number' && premiumChatQuota.percentRemaining <= 25 && !premiumChatQuota.overageEnabled)) {
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				button.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Pay for Additional Requests");
+				button.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Additional Premium Requests");
 				disposables.add(button.onDidClick(() => this.runCommandAndClose(limited ? 'workbench.action.chat.upgradePlan' : () => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 			}
 
@@ -503,9 +503,9 @@ class ChatStatusDashboard extends Disposable {
 
 			if (supportsOverage) {
 				if (quota.overageEnabled) {
-					overageLabel.textContent = localize('additionalUsageEnabled', "Pay per additional requests is enabled.");
+					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests are enabled.");
 				} else {
-					overageLabel.textContent = localize('additionalUsageDisabled', "Pay per additional requests is disabled.");
+					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests are disabled.");
 				}
 			} else {
 				overageLabel.textContent = '';

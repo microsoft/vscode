@@ -32,7 +32,7 @@ import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IHistoryService } from '../../services/history/common/history.js';
 import { IInstantiationService, ServiceIdentifier } from '../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from '../../../platform/window/common/window.js';
+import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IRectangle } from '../../../platform/window/common/window.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -183,6 +183,7 @@ import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IElementData } from '../../../platform/native/common/native.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1577,7 +1578,8 @@ export class TestHostService implements IHostService {
 
 	async toggleFullScreen(): Promise<void> { }
 
-	async getScreenshot(): Promise<VSBuffer | undefined> { return undefined; }
+	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
+	async getElementData(offsetX: number, offsetY: number, token: CancellationToken): Promise<IElementData | undefined> { return undefined; }
 
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 

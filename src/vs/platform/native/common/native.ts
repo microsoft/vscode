@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
@@ -36,6 +37,12 @@ export interface IOSStatistics {
 
 export interface INativeHostOptions {
 	readonly targetWindowId?: number;
+}
+
+export interface IElementData {
+	readonly outerHTML: string;
+	readonly computedStyle: string;
+	readonly bounds: IRectangle;
 }
 
 export interface ICommonNativeHostService {
@@ -148,7 +155,8 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(): Promise<VSBuffer | undefined>;
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+	getElementData(offsetX: number, offsetY: number, token: CancellationToken): Promise<IElementData | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;

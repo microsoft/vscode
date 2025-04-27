@@ -196,9 +196,13 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 	readonly kind: 'diagnostic';
 }
 
+export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'element';
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
-	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry;
+	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -214,6 +218,10 @@ export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IIm
 
 export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
 	return obj.kind === 'notebookOutput';
+}
+
+export function isElementVariableEntry(obj: IChatRequestVariableEntry): obj is IElementVariableEntry {
+	return obj.kind === 'element';
 }
 
 export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
@@ -1462,7 +1470,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			return;
 		}
 
-		this.currentEditedFileEvents.set(action.uri, { eventKind: state, uri: action.uri });
+		if (!this.currentEditedFileEvents.has(action.uri) || this.currentEditedFileEvents.get(action.uri)?.eventKind === ChatRequestEditedFileEventKind.Keep) {
+			this.currentEditedFileEvents.set(action.uri, { eventKind: state, uri: action.uri });
+		}
 	}
 
 	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {

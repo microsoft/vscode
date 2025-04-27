@@ -5,7 +5,7 @@
 
 import '../media/chatEditingEditorOverlay.css';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableFromEventOpts, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -30,6 +30,8 @@ import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import * as arrays from '../../../../../base/common/arrays.js';
+import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 
 class ChatEditorOverlayWidget extends Disposable {
 
@@ -67,25 +69,29 @@ class ChatEditorOverlayWidget extends Disposable {
 				return undefined;
 			}
 
-			const response = this._entry.read(r)?.isCurrentlyBeingModifiedBy.read(r);
-
-			if (response) {
-
-				if (response?.isPaused.read(r)) {
-					return { message: localize('paused', "Edits Paused"), paused: true };
-				}
-
-				const entry = this._entry.read(r);
-				if (entry) {
-					return { message: localize('working', "Working...") };
-				}
+			const response = this._entry.read(r)?.lastModifyingResponse.read(r);
+			if (!response) {
+				return { message: localize('working', "Working...") };
 			}
 
-			if (session.isGlobalEditingSession) {
-				return undefined;
+			if (response.isPaused.read(r)) {
+				return { message: localize('paused', "Paused"), paused: true };
 			}
 
-			return { message: localize('working', "Working...") };
+			const lastPart = observableFromEventOpts({ equalsFn: arrays.equals }, response.onDidChange, () => response.response.value)
+				.read(r)
+				.filter(part => part.kind === 'progressMessage' || part.kind === 'toolInvocation')
+				.at(-1);
+
+			if (lastPart?.kind === 'toolInvocation') {
+				return { message: lastPart.invocationMessage };
+
+			} else if (lastPart?.kind === 'progressMessage') {
+				return { message: lastPart.content };
+
+			} else {
+				return { message: localize('working', "Working...") };
+			}
 		});
 
 
@@ -101,9 +107,11 @@ class ChatEditorOverlayWidget extends Disposable {
 
 			this._domNode.classList.toggle('busy', busy);
 
-			textProgress.innerText = busy && value && !this._session.read(r)?.isGlobalEditingSession
-				? value.message
-				: '';
+			if (!busy || !value || this._session.read(r)?.isGlobalEditingSession) {
+				textProgress.innerText = '';
+			} else if (value) {
+				textProgress.innerText = renderStringAsPlaintext(value.message);
+			}
 		}));
 
 		this._toolbarNode = document.createElement('div');

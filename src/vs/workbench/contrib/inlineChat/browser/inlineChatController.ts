@@ -1310,7 +1310,7 @@ export class InlineChatController2 implements IEditorContribution {
 					break;
 				}
 			}
-			if (!foundOne && _editor.hasWidgetFocus()) {
+			if (!foundOne && editorObs.isFocused.read(r)) {
 				this._isActiveController.set(true, undefined);
 			}
 		}));
