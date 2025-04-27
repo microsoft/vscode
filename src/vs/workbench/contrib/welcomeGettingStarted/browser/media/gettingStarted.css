@@ -1076,15 +1076,23 @@
 	max-width: 1000px;
 	margin: 0 auto;
 	display: grid;
-	grid-template-rows: 25% 50% 25%;
+	padding-top: 10%;
+	padding-left: 10%;
+	padding-right: 10%;
+	grid-template-rows: 5% 60% 5% auto;
 	grid-template-areas:
 		"header"
 		"slides"
-		"dots";
+		"dots"
+		"footer";
 	height: 100%;
 	width: 100%;
 	align-self: center;
 	/* Center vertically in parent */
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 {
+	font-size: 40px;
 }
 
 /* Step slides container */
@@ -1116,7 +1124,8 @@
 	max-width: 1200px;
 	width: 100%;
 	height: 100%;
-	gap: 40px;
+	gap: 60px;
+	/* Increased from 40px */
 }
 
 /* Left column - text content only */
@@ -1142,22 +1151,23 @@
 
 /* Navigation buttons in dots container for newSlide scenario */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container {
+	width: 75%;
+	/* Increased from 60% */
+	max-width: 900px;
+	/* Increased from 600px */
+	margin: 12px auto;
+	/* Increased from 8px */
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	grid-area: dots;
-	gap: 6px;
-	margin: 8px 0;
-	width: 60%;
-	height: 25%;
-	max-width: 600px;
-	margin: 8px auto;
+	height: max-content;
 }
 
 /* Center dots between navigation buttons */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .dots-centered {
 	display: flex;
-	gap: 6px;
+	gap: 48px;
 	justify-content: center;
 	align-items: center;
 	width: max-content;
@@ -1171,7 +1181,9 @@
 	align-items: center;
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
-	padding: 2px 8px;
+	padding: 3px 12px;
+	font-size: 16px;
+	line-height: 1.5;
 	border-radius: 4px;
 	white-space: nowrap;
 	flex-shrink: 0;
@@ -1180,6 +1192,13 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation:hover {
 	color: var(--vscode-textLink-activeForeground);
 	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Make the back/next button icons larger */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation .codicon {
+	font-size: 18px;
+	padding-left: 4px;
+	padding-right: 4px;
 }
 
 /* Remove auto margins that spread things out */
@@ -1202,8 +1221,10 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot {
-	width: 13px;
-	height: 13px;
+	width: 19px;
+	/* Increased from 13px */
+	height: 19px;
+	/* Increased from 13px */
 	background-color: var(--vscode-button-secondaryBackground);
 	border: none;
 	border-radius: 50%;
@@ -1219,27 +1240,59 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot.active {
 	background-color: var(--vscode-button-background);
-	width: 14px;
-	height: 14px;
+	width: 18px;
+	/* Increased from 14px */
+	height: 18px;
+	/* Increased from 14px */
 }
 
 /* Footer area */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer,
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .getting-started-footer {
-	padding: 16px 0;
-	width: 100%;
-	display: flex;
+	grid-area: footer;
+	align-self: flex-end;
+	justify-self: center;
+	text-align: center;
 	flex-direction: column;
 	align-items: center;
-	gap: 12px;
 	border-top: 1px solid var(--vscode-welcomePage-tileBorder);
 }
 
 /* Step title styling */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide h3.step-title {
-	font-size: 1.5em;
-	margin: 0 0 16px 0;
+	font-size: 2.25em;
+	/* Increased from 1.5em */
+	margin: 0 0 24px 0;
+	/* Increased from 16px bottom margin */
 	padding: 0;
+	line-height: 1.5;
+}
+
+/* Increase description text size */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description {
+	font-size: 16px;
+	/* Increased from default */
+	line-height: 1.5;
+}
+
+/* Buttons in description */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container .monaco-button {
+	height: 36px;
+	/* Increased from 24px */
+	padding: 0 16px;
+	/* Increased from 0 11px */
+	font-size: 15px;
+	/* Increased from default */
+}
+
+/* Multi-step container buttons */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
+	height: 36px;
+	/* Increased from 24px */
+	padding: 0 16px;
+	/* Increased from 0 11px */
+	font-size: 15px;
+	/* Increased from default */
 }
 
 /* Responsive design - stack on smaller screens */
@@ -1289,13 +1342,17 @@
 	display: none;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container {
+	margin-top: 50px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container .monaco-button {
-	height: 24px;
+	height: 40px;
 	width: fit-content;
 	display: flex;
-	padding: 0 11px;
+	padding: 0 10%;
 	align-items: center;
-	min-width: max-content;
+	font-size: 24px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container {
@@ -1310,21 +1367,22 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step {
-	margin-bottom: 8px;
 	display: flex;
 	flex-direction: column;
-	padding-left: 4px;
+	padding: 8px 12px 8px 12px;
 	cursor: pointer;
 	transition: background-color 0.1s ease;
 	border-left: 3px solid transparent;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step-title {
-	font-size: 16px;
+	font-size: 24px;
 	margin: 0;
-	padding-top: 4px;
-	padding-left: 4px;
-	font-weight: 500;
+	padding: 16px 0 4px 16px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step-description {
+	padding: 0 0 0 16px
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step.active {
@@ -1333,14 +1391,16 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container {
-	padding-left: 2px;
+	margin-top: 50px;
+	margin-left: 16px
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
-	height: 24px;
+	height: 40px;
 	width: fit-content;
 	display: flex;
-	padding: 0 11px;
+	padding: 0 10%;
 	align-items: center;
 	min-width: max-content;
+	font-size: 24px;
 }
