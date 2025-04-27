@@ -170,12 +170,25 @@
 	gap: 3px;/* this adds a gap between the left side and right side when there are many editors open */
 }
 
-.monaco-workbench .bubbly-part.editor > .content .editor-group-container > .title .tabs-container {/* The 3-2 little actions on top right */
-	height: calc(var(--editor-group-tab-height) + var(--editor-group-tab-padding) * 2);
+.monaco-workbench .bubbly-part.editor > .content .editor-group-container > .title .tabs-container {
+	padding-top: var(--editor-group-tab-padding);
+	padding-bottom: var(--editor-group-tab-padding);
 	align-items: center;
 	margin-left: 8px;
 	margin-right: 2px;
 	gap: 4px;
+}
+
+.monaco-workbench .bubbly-part.editor > .content .editor-group-container > .title .tabs-and-actions-container.wrapping .tabs-container {
+	row-gap: 6px;
+}
+
+.bubbly-part.editor .tabs-and-actions-container.wrapping .tabs-container .tab.last-in-row:not(:last-child) {
+	flex-grow: 0 !important;
+}
+
+.bubbly-part.editor .tabs-and-actions-container.wrapping .editor-actions {
+	bottom: 8px !important;
 }
 
 .bubbly-part.editor .tabs-and-actions-container .actions-container {
