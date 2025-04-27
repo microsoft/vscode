@@ -681,7 +681,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.agentMode.title', "Agent Mode"),
 					description: localize('gettingStarted.agentMode.description', "Tackle complex, multi-step tasks with AI"),
 					media: {
-						type: 'svg', altText: 'Agent Mode', path: 'agent.svg'
+						type: 'svg', altText: 'VS Code Copilot multi file edits', path: 'multi-file-edits.svg'
 					},
 				},
 				{
@@ -689,7 +689,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.nes.title', "Next Edit Suggestions"),
 					description: localize('gettingStarted.nes.description', "Your next move, predicted while you code"),
 					media: {
-						type: 'svg', altText: 'Next Edit Suggestions', path: 'suggestions.svg'
+						type: 'svg', altText: 'Next Edit Suggestions', path: 'ai-powered-suggestions.svg'
 					},
 				},
 				{
@@ -697,7 +697,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.customize.title', "Customize"),
 					description: localize('gettingStarted.customize.description', "Choose your model, tools, and personalized instructions\n{0}", Button(localize('signUp', "Set up AI in VS Code"), 'command:workbench.action.chat.triggerSetup')),
 					media: {
-						type: 'svg', altText: 'Agent Mode', path: 'sparkle.svg'
+						type: 'svg', altText: 'Customize', path: 'multi-file-edits.svg'
 					},
 				},
 				{
