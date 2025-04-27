@@ -1076,10 +1076,9 @@
 	max-width: 1000px;
 	margin: 0 auto;
 	display: grid;
-	padding-top: 10%;
 	padding-left: 10%;
 	padding-right: 10%;
-	grid-template-rows: 5% 60% 5% auto;
+	grid-template-rows: 25% 50% 5% auto;
 	grid-template-areas:
 		"header"
 		"slides"

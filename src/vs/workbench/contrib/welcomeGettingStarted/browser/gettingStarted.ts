@@ -1630,9 +1630,6 @@ export class GettingStartedPage extends EditorPane {
 			const currentIndex = this.getCurrentSlideIndex(allSlides);
 			if (currentIndex < allSlides.length - 1) {
 				this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
-			} else {
-				// open the welcome page
-				this.scrollPrev();
 			}
 		}));
 
