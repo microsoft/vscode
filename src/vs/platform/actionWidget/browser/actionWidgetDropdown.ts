@@ -10,6 +10,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from './acti
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number };
@@ -40,6 +41,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		container: HTMLElement,
 		private readonly _options: IActionWidgetDropdownOptions,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(container, _options);
 	}
@@ -93,6 +95,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					disabled: false,
 					hideIcon: false,
 					label: action.label,
+					keybinding: this.keybindingService.lookupKeybinding(action.id)
 				});
 			}
 		}

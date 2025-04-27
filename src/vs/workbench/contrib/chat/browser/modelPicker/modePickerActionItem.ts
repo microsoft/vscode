@@ -8,7 +8,6 @@ import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/i
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -16,7 +15,8 @@ import { IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } fro
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatMode, modeToString } from '../../common/constants.js';
+import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
 
 export interface IModePickerDelegate {
@@ -35,8 +35,8 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 	) {
 		const makeAction = (mode: ChatMode): IAction => ({
 			...action,
-			id: mode,
-			label: this.modeToString(mode),
+			id: getOpenChatActionIdForMode(mode),
+			label: modeToString(mode),
 			class: undefined,
 			enabled: true,
 			checked: delegate.getMode() === mode,
@@ -70,21 +70,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
 	}
 
-	private modeToString(mode: ChatMode) {
-		switch (mode) {
-			case ChatMode.Agent:
-				return localize('chat.agentMode', "Agent");
-			case ChatMode.Edit:
-				return localize('chat.normalMode', "Edit");
-			case ChatMode.Ask:
-			default:
-				return localize('chat.askMode', "Ask");
-		}
-	}
-
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
-		const state = this.modeToString(this.delegate.getMode());
+		const state = modeToString(this.delegate.getMode());
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}

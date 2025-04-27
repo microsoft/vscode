@@ -169,6 +169,7 @@ export interface IChatAcceptInputOptions {
 }
 
 export interface IChatWidget {
+	readonly domNode: HTMLElement;
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
