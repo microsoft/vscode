@@ -1470,7 +1470,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			return;
 		}
 
-		this.currentEditedFileEvents.set(action.uri, { eventKind: state, uri: action.uri });
+		if (!this.currentEditedFileEvents.has(action.uri) || this.currentEditedFileEvents.get(action.uri)?.eventKind === ChatRequestEditedFileEventKind.Keep) {
+			this.currentEditedFileEvents.set(action.uri, { eventKind: state, uri: action.uri });
+		}
 	}
 
 	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
