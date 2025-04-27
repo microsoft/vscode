@@ -132,11 +132,31 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	static registerAgent(instantiationService: IInstantiationService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	static registerVSCodeAgent(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
-			return SetupAgent.doRegisterAgent(instantiationService, chatAgentService, id, name, isDefault, description, location, mode, context, controller);
+			const disposables = new DisposableStore();
+
+			const { agent, disposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(disposable);
+
+			disposables.add(SetupTool.registerTool(instantiationService, {
+				id: 'setup.tools.createNewWorkspace',
+				source: {
+					type: 'internal',
+				},
+				icon: Codicon.newFolder,
+				displayName: localize('setupToolDisplayName', "New Workspace"),
+				modelDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+				userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+				canBeReferencedInPrompt: true,
+				toolReferenceName: 'new',
+				when: ContextKeyExpr.true(),
+				supportsToolPicker: true,
+			}).disposable);
+
+			return { agent, disposable: disposables };
 		});
 	}
 
@@ -502,7 +522,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 class SetupTool extends Disposable implements IToolImpl {
 
-	static registerTools(instantiationService: IInstantiationService, toolData: IToolData): { tool: SetupTool; disposable: IDisposable } {
+	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): { tool: SetupTool; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const toolService = accessor.get(ILanguageModelToolsService);
 
@@ -773,21 +793,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (!context.state.installed && !vscodeAgentDisposables.value) {
 					const disposables = vscodeAgentDisposables.value = new DisposableStore();
 
-					disposables.add(SetupAgent.registerAgent(this.instantiationService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller).disposable);
-					disposables.add(SetupTool.registerTools(this.instantiationService, {
-						id: 'setup.tools.createNewWorkspace',
-						source: {
-							type: 'internal',
-						},
-						icon: Codicon.newFolder,
-						displayName: localize('setupToolDisplayName', "New Workspace"),
-						modelDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
-						userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
-						canBeReferencedInPrompt: true,
-						toolReferenceName: 'new',
-						when: ContextKeyExpr.true(),
-						supportsToolPicker: true,
-					}).disposable);
+					disposables.add(SetupAgent.registerVSCodeAgent(this.instantiationService, context, controller).disposable);
 				}
 			} else {
 				defaultAgentDisposables.clear();
