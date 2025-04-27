@@ -1,6 +1,9 @@
 /* Bubbly parts */
 .bubbly-part {
 	box-sizing: border-box;
+}
+
+:root {
 	--bubbly-radius-s: 4px;
 	--bubbly-radius-base: 6px;/* The main radius - used on most elements */
 	--bubbly-radius-l: 8px;
@@ -62,6 +65,17 @@
 	border-radius: var(--bubbly-radius-s);
 }
 
+/* Notifications */
+.monaco-workbench > .notifications-toasts .notifications-list-container,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast, .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:before,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
+	border-radius: var(--bubbly-radius-xl) !important;
+}
+
+.notification-list-item-buttons-container .monaco-button {
+	border-radius: var(--bubbly-radius-base);
+}
 
 /* Panel (bottom bar) */
 .bubbly-part.panel .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
