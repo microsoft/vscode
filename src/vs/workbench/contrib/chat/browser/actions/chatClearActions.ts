@@ -68,10 +68,10 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class NewEditSessionAction extends EditingSessionAction {
+	registerAction2(class NewChatAction extends EditingSessionAction {
 		constructor() {
 			super({
-				id: ACTION_ID_NEW_EDIT_SESSION,
+				id: ACTION_ID_NEW_CHAT,
 				title: localize2('chat.newEdits.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
@@ -134,7 +134,7 @@ export function registerNewChatActions() {
 			}
 		}
 	});
-	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION);
+	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
