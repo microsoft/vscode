@@ -82,36 +82,17 @@ export function logTime(
 			`Method '${methodName}' is not defined.`,
 		);
 
-		// override the decorated method
+		// override the decorated method with the one that logs
+		// a timing message after the original method finishes execution
 		descriptor.value = function (
 			this: TObject,
 			...args: Parameters<typeof originalMethod>
 		): ReturnType<typeof originalMethod> {
-			const startTime = performance.now();
-			const result = originalMethod.call(this, ...args);
-			const syncTimeMs = performance.now() - startTime;
-
-			// handle asynchronous decorated methods
-			if (result instanceof Promise) {
-				return result.then((resolved) => {
-					const asyncTimeMs = performance.now() - startTime;
-
-					log({
-						methodName: `${this.constructor.name}.${methodName}`,
-						logLevel,
-						timeMs: asyncTimeMs,
-					}, this.logService);
-					return resolved;
-				});
-			}
-
-			// handle synchronous decorated methods
-			log({
-				methodName: `${this.constructor.name}.${methodName}`,
-				logLevel,
-				timeMs: syncTimeMs,
-			}, this.logService);
-			return result;
+			return logExecutionTime(
+				`${this.constructor.name}.${methodName}`,
+				originalMethod.bind(this, ...args),
+				getLogFunction(logLevel, this.logService),
+			);
 		};
 
 		return descriptor;
@@ -119,60 +100,85 @@ export function logTime(
 }
 
 /**
- * Options of the {@link log} function.
+ * TODO: @legomushroom
  */
-interface ILogOptions {
-	/**
-	 * Method execution time, milliseconds.
-	 */
-	timeMs: number;
+export const logExecutionTime = <T>(
+	blockName: string,
+	callback: () => T | Promise<T>,
+	logger: (message: string, ...args: any[]) => void,
+): ReturnType<typeof callback> => {
+	const startTime = performance.now();
+	const result = callback();
+	const syncTimeMs = performance.now() - startTime;
 
-	/**
-	 * Name of the decorated method.
-	 */
-	methodName: string;
+	// handle asynchronous decorated methods
+	if (result instanceof Promise) {
+		return result.then((resolved) => {
+			const asyncTimeMs = performance.now() - startTime;
 
-	/**
-	 * Log level to use for the timing message.
-	 */
-	logLevel: TLogLevel;
-}
+			log(
+				blockName,
+				asyncTimeMs,
+				logger,
+			);
+			return resolved;
+		});
+	}
+
+	// handle synchronous decorated methods
+	log(
+		blockName,
+		syncTimeMs,
+		logger,
+	);
+
+	return result;
+};
 
 /**
- * Internal helper to log the timing message with
- * provided details and log level.
+ * Gets method of {@link logger} by the provided {@link logLevel}.
  */
-const log = (
-	options: ILogOptions,
+const getLogFunction = <T extends TLogLevel>(
+	logLevel: T,
 	logger: ILogger,
-): void => {
-	const { logLevel, methodName, timeMs } = options;
-
-	// allow-any-unicode-next-line
-	const message = `[⏱][${methodName}] took ${timeMs.toFixed(2)} ms`;
-
+): ILogger[T] => {
 	if (logLevel === 'trace') {
-		return logger.trace(message);
+		return logger.trace;
 	}
 
 	if (logLevel === 'debug') {
-		return logger.debug(message);
+		return logger.debug;
 	}
 
 	if (logLevel === 'info') {
-		return logger.info(message);
+		return logger.info;
 	}
 
 	if (logLevel === 'warn') {
-		return logger.warn(message);
+		return logger.warn;
 	}
 
 	if (logLevel === 'error') {
-		return logger.error(message);
+		return logger.error;
 	}
 
 	assertNever(
 		logLevel,
 		`Unknown log level '${logLevel}'.`,
+	);
+};
+
+/**
+ * Internal helper to log the timing message with
+ * provided details and logger.
+ */
+const log = (
+	methodName: string,
+	timeMs: number,
+	logger: (message: string, ...args: any[]) => void,
+): void => {
+	return logger(
+		// allow-any-unicode-next-line
+		`[⏱][${methodName}] took ${timeMs.toFixed(2)} ms`,
 	);
 };
