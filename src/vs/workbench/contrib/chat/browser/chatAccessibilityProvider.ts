@@ -64,12 +64,19 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
 		let label: string = '';
 
-		const toolInvocation = element.response.value.filter(v => v.kind === 'toolInvocation').filter(v => !v.isComplete);
+		const toolInvocation = element.response.value.filter(v => v.kind === 'toolInvocation');
 		let toolInvocationHint = '';
 		if (toolInvocation.length) {
-			const titles = toolInvocation.map(v => v.confirmationMessages?.title).filter(v => !!v);
-			if (titles.length) {
-				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, titles.join(', '));
+			const waitingForConfirmation = toolInvocation.filter(v => !v.isComplete);
+			if (waitingForConfirmation.length) {
+				const titles = toolInvocation.map(v => v.confirmationMessages?.title).filter(v => !!v);
+				if (titles.length) {
+					toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, titles.join(', '));
+				}
+			} else { // all completed
+				for (const invocation of toolInvocation) {
+					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", invocation.confirmationMessages?.title);
+				}
 			}
 		}
 		const tableCount = marked.lexer(element.response.toString()).filter(token => token.type === 'table')?.length ?? 0;
