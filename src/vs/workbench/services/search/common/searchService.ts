@@ -90,7 +90,10 @@ export class SearchService extends Disposable implements ISearchService {
 		};
 	}
 
-	async aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, cachedResults?: {
+		complete: ISearchComplete;
+		query: string;
+	}): Promise<ISearchComplete> {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			// Match
 			if (onProgress) { // don't override open editor results
@@ -105,7 +108,7 @@ export class SearchService extends Disposable implements ISearchService {
 				this.logService.debug('SearchService#search', progress.message);
 			}
 		};
-		return this.doSearch(query, token, onProviderProgress);
+		return this.doSearch(query, token, onProviderProgress, cachedResults);
 	}
 
 	async getAIName(): Promise<string | undefined> {
@@ -118,7 +121,11 @@ export class SearchService extends Disposable implements ISearchService {
 		token?: CancellationToken | undefined,
 		onProgress?: ((result: ISearchProgressItem) => void) | undefined,
 		notebookFilesToIgnore?: ResourceSet,
-		asyncNotebookFilesToIgnore?: Promise<ResourceSet>
+		asyncNotebookFilesToIgnore?: Promise<ResourceSet>,
+		cachedResults?: {
+			complete: ISearchComplete;
+			query: string;
+		}
 	): {
 		syncResults: ISearchComplete;
 		asyncResults: Promise<ISearchComplete>;
@@ -153,7 +160,7 @@ export class SearchService extends Disposable implements ISearchService {
 					this.logService.debug('SearchService#search', progress.message);
 				}
 			};
-			return await this.doSearch(query, token, onProviderProgress);
+			return await this.doSearch(query, token, onProviderProgress, cachedResults);
 		};
 
 		return {
@@ -170,7 +177,10 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.fileSearchProviders.has(scheme);
 	}
 
-	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, cachedResults?: {
+		complete: ISearchComplete;
+		query: string;
+	}): Promise<ISearchComplete> {
 		this.logService.trace('SearchService#search', JSON.stringify(query));
 
 		const schemesInQuery = this.getSchemesInQuery(query);
@@ -200,6 +210,16 @@ export class SearchService extends Disposable implements ISearchService {
 			query.folderQueries = query.folderQueries.filter((_, i) => exists[i]);
 
 			let completes = await this.searchWithProviders(query, progressCallback, token);
+
+			// let completes = undefined;
+			// if (cachedResults) {
+			// 	cachedResults.complete.results.forEach(element => {
+			// 		progressCallback(element);
+			// 	});
+			// 	completes = [cachedResults.complete];
+			// } else {
+			// 	completes = await this.searchWithProviders(query, progressCallback, token);
+			// }
 			completes = arrays.coalesce(completes);
 			if (!completes.length) {
 				return {

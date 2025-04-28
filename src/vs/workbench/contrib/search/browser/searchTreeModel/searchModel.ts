@@ -48,6 +48,10 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 	private aiSearchCancelledForNewSearch: boolean = false;
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
 	private readonly _aiTextResultProviderName: Lazy<Promise<string | undefined>>;
+	public cachedResults: {
+		complete: ISearchComplete;
+		query: string;
+	} | undefined;
 
 	private readonly _id: string;
 
@@ -143,17 +147,19 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			async (p: ISearchProgressItem) => {
 				this.onSearchProgress(p, searchInstanceID, false, true);
 				onProgress?.(p);
-			}).finally(() => {
-				tokenSource.dispose(true);
-			}).then(
-				value => {
-					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
-					return value;
-				},
-				e => {
-					this.onSearchError(e, Date.now() - start, true);
-					throw e;
-				});
+			},
+			this.cachedResults
+		).finally(() => {
+			tokenSource.dispose(true);
+		}).then(
+			value => {
+				this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
+				return value;
+			},
+			e => {
+				this.onSearchError(e, Date.now() - start, true);
+				throw e;
+			});
 		return asyncAIResults;
 	}
 
@@ -180,6 +186,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			tokenSource.token, asyncGenerateOnProgress,
 			notebookResult.openFilesToScan,
 			notebookResult.allScannedFiles,
+			this.cachedResults
 		);
 
 		const syncResults = textResult.syncResults.results;
@@ -398,10 +405,17 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		}
 		return false;
 	}
-	clearAiSearchResults(): void {
+	clearAiSearchResults(clearAll: boolean): void {
 		this._aiResultQueue.length = 0;
 		// it's not clear all as we are only clearing the AI results
-		this._searchResult.aiTextSearchResult.clear(false);
+		this._searchResult.aiTextSearchResult.clear(clearAll);
+	}
+	/**
+	 * Replaces all search results in this model with the provided ISearchResult instance.
+	 * @param results The search results to replace with.
+	 */
+	replaceAllSearchResults(results: ISearchResult): void {
+		this._searchResult = results;
 	}
 	override dispose(): void {
 		this.cancelSearch();

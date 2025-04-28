@@ -11,14 +11,14 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from './searchIcons.js';
 import * as Constants from '../common/constants.js';
 import { ISearchHistoryService } from '../common/searchHistoryService.js';
-import { VIEW_ID } from '../../../services/search/common/search.js';
+import { ISearchComplete, VIEW_ID } from '../../../services/search/common/search.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SearchStateKey, SearchUIState } from '../common/search.js';
 import { category, getSearchView } from './searchActionsBase.js';
-import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, isSearchTreeFileMatch } from './searchTreeModel/searchTreeCommon.js';
+import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, isSearchTreeFileMatch, ISearchModel } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
@@ -221,13 +221,21 @@ registerAction2(class SearchWithAIAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: [boolean, ISearchModel, ISearchComplete, string]) {
+		const [clearAll, model, complete, query] = args;
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const viewer = searchView.getControl();
 			searchView.model.searchResult.aiTextSearchResult.hidden = false;
 			searchView.model.cancelAISearch(true);
-			searchView.model.clearAiSearchResults();
+			searchView.model.clearAiSearchResults(!!clearAll);
+			if (model.searchResult.query) {
+				model.searchResult.query.contentPattern.pattern = query || '';
+			}
+			if (model.searchResult) {
+				searchView.replaceSearchModel(model, Promise.resolve(complete));
+				// searchView.model.replaceAllSearchResults(searchResult);
+			}
 			await searchView.queueRefreshTree();
 			await forcedExpandRecursively(viewer, searchView.model.searchResult.aiTextSearchResult);
 		}

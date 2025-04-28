@@ -170,6 +170,7 @@ export class SearchView extends ViewPane {
 	private searchDataSource: SearchViewDataSource | undefined;
 
 	private refreshTreeController: RefreshTreeController;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -697,7 +698,9 @@ export class SearchView extends ViewPane {
 
 	private async refreshAndUpdateCount(event?: IChangeEvent): Promise<void> {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
+		if (!this.model.cachedResults) {
+			this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
+		}
 		return this.refreshTreeController.queue(event);
 	}
 
@@ -1849,7 +1852,7 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
-		this._refreshResultsScheduler.schedule();
+		// this._refreshResultsScheduler.schedule();
 
 		this.searchWidget.setReplaceAllActionState(false);
 
@@ -1952,10 +1955,57 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private handleKeywordClick(keyword: string) {
+	private handleKeywordClick = (keyword: string) => {
+		const query = this.viewModel.searchResult.query?.contentPattern.pattern;
 		this.searchWidget.searchInput?.setValue(keyword);
 		this.triggerQueryChange({ preserveFocus: false, triggeredOnType: false, shouldKeepAIResults: false });
-	}
+		const searchResults = this.searchResult.getCachedSearchComplete(true);
+		if (searchResults && query) {
+			this.model.cachedResults = {
+				complete: searchResults,
+				query,
+			};
+		}
+		this.updatePreviousResultMessage();
+	};
+
+	private handlePreviousResults = () => {
+		this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId, true, this.viewModel, this.model.cachedResults?.complete, this.model.cachedResults?.query);
+	};
+
+	private updatePreviousResultMessage = () => {
+		const messageEl = this.clearMessage();
+		const title = nls.localize('previousResult.message', "See previous results");
+		const button = this.messageDisposables.add(new SearchLinkButton(
+			title,
+			() => this.handlePreviousResults(),
+			this.hoverService
+		));
+		dom.append(messageEl, button.element);
+	};
+
+	// private async forcedExpandRecursively(
+	// 	viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>,
+	// 	element: RenderableMatch | undefined
+	// ) {
+	// 	if (element) {
+	// 		if (!viewer.hasNode(element)) {
+	// 			return;
+	// 		}
+	// 		await viewer.expand(element, true);
+	// 	}
+
+	// 	const children = viewer.getNode(element)?.children;
+
+	// 	if (children) {
+	// 		for (const child of children) {
+	// 			if (isSearchResult(child.element)) {
+	// 				throw Error('SearchResult should not be a child of a RenderableMatch');
+	// 			}
+	// 			this.forcedExpandRecursively(viewer, child.element);
+	// 		}
+	// 	}
+	// }
 
 	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
 		let currentKeyword = keywords.shift()?.keyword || '';
@@ -2445,6 +2495,20 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 
 	}
 
+	// private createAISearchResultsIterator(aiSearchResult: ITextSearchHeading): Iterable<ISearchTreeFolderMatch | ISearchTreeFileMatch> {
+	// 	// setTimeout(() => {
+	// 	// 	this.searchView.getControl().updateChildren();
+	// 	// }, 30000);
+	// 	const folderMatches = aiSearchResult.folderMatches()
+	// 		.filter(fm => !fm.isEmpty())
+	// 		.sort(searchMatchComparer);
+
+	// 	if (folderMatches.length === 1) {
+	// 		return this.createFolderIterator(folderMatches[0]);
+	// 	}
+	// 	return folderMatches;
+	// }
+
 	private createTextSearchResultIterator(textSearchResult: ITextSearchHeading): Iterable<ISearchTreeFolderMatch | ISearchTreeFileMatch> {
 		const folderMatches = textSearchResult.folderMatches()
 			.filter(fm => !fm.isEmpty())
@@ -2490,6 +2554,8 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		} else if (isTextSearchHeading(element)) {
 			if (element.isAIContributed && !this.searchView.model.hasAIResults) {
 				return this.searchView.addAIResults().then(() => this.createTextSearchResultIterator(element));
+
+				// return this.createAISearchResultsIterator(element);
 			}
 			return this.createTextSearchResultIterator(element);
 		} else if (isSearchTreeFolderMatch(element)) {

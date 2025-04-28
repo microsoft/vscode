@@ -95,7 +95,7 @@ class SearchOperation {
 	constructor(
 		readonly progress?: (match: IFileMatch) => any,
 		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>(),
+		readonly matches2 = new Map<string, IFileMatch>(),
 		readonly keywords: AISearchKeyword[] = []
 	) {
 		//
@@ -115,6 +115,10 @@ class SearchOperation {
 		}
 
 		this.progress?.(match);
+	}
+
+	get matches(): Map<string, IFileMatch<URI>> {
+		return this.matches2;
 	}
 
 	addKeyword(result: AISearchKeyword): void {
