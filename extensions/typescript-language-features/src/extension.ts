@@ -34,7 +34,7 @@ export function activate(
 
 	// Disable extension if using the experimental TypeScript Go extension
 	const config = vscode.workspace.getConfiguration('typescript');
-	const useTsgo = config.get<boolean>('useTsgo', false);
+	const useTsgo = config.get<boolean>('experimental.useTsgo', false);
 
 	if (useTsgo) {
 		commandManager.register(new DisableTsgoCommand());

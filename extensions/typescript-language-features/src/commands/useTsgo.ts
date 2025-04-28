@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { Command } from './commandManager';
 
 export class EnableTsgoCommand implements Command {
-	public readonly id = 'typescript.enableTsgo';
+	public readonly id = 'typescript.experimental.enableTsgo';
 
 	public async execute(): Promise<void> {
 		await updateTsgoSetting(true);
@@ -15,7 +15,7 @@ export class EnableTsgoCommand implements Command {
 }
 
 export class DisableTsgoCommand implements Command {
-	public readonly id = 'typescript.disableTsgo';
+	public readonly id = 'typescript.experimental.disableTsgo';
 
 	public async execute(): Promise<void> {
 		await updateTsgoSetting(false);
@@ -31,7 +31,7 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 	// Error if the TypeScript Go extension is not installed with a button to open the GitHub repo
 	if (!tsgoExtension) {
 		return vscode.window.showErrorMessage(
-			'The TypeScript Go extension is not installed.',
+			vscode.l10n.t('The TypeScript Go extension is not installed.'),
 			{
 				title: 'Open on GitHub',
 				isCloseAffordance: true,
@@ -44,14 +44,14 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 	}
 
 	const tsConfig = vscode.workspace.getConfiguration('typescript');
-	const currentValue = tsConfig.get<boolean>('useTsgo', false);
+	const currentValue = tsConfig.get<boolean>('experimental.useTsgo', false);
 	if (currentValue === enable) {
 		return;
 	}
 
 	// Determine the target scope for the configuration update
 	let target = vscode.ConfigurationTarget.Global;
-	const inspect = tsConfig.inspect<boolean>('useTsgo');
+	const inspect = tsConfig.inspect<boolean>('experimental.useTsgo');
 	if (inspect?.workspaceValue !== undefined) {
 		target = vscode.ConfigurationTarget.Workspace;
 	} else if (inspect?.workspaceFolderValue !== undefined) {
@@ -69,6 +69,6 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 	}
 
 	// Update the setting, restart the extension host, and enable the TypeScript Go extension
-	await tsConfig.update('useTsgo', enable, target);
+	await tsConfig.update('experimental.useTsgo', enable, target);
 	await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
 }
