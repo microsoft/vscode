@@ -7,12 +7,12 @@ import { assertNever } from '../assert.js';
 import { assertDefined } from '../types.js';
 
 /**
- * TODO: @legomushroom
+ * Type for supported log levels.
  */
 export type TLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 /**
- * TODO: @legomushroom
+ * Interface for an object that provides logging methods.
  */
 export interface ILogger {
 	trace(message: string, ...args: any[]): void;
@@ -23,30 +23,46 @@ export interface ILogger {
 }
 
 /**
- * TODO: @legomushroom
+ * Type for an object that contains a `logService` property
+ * with the logging methods.
  */
 type TObjectWithLogger<T extends object> = T & { logService: ILogger };
 
-// /**
-//  * TODO: @legomushroom
-//  */
-// interface IOptions {
-// 	readonly name?: string;
-// 	readonly logLevel: TLogLevel;
-// }
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// const DEFAULT_OPTIONS: IOptions = {
-// 	logLevel: 'trace',
-// };
-
 /**
- * TODO: @legomushroom
+ * Decorator allows to log execution time of any method of a class.
+ * The class must have the `logService` property that provides
+ * logging methods that the decorator can call.
+ *
+ * The decorated method can be asynchronous or synchronous, but
+ * the timing message is logged only it finishes *successfully*.
+ *
+ * @param logLevel Log level to use for the time message.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * class MyClass {
+ *     constructor(
+ *         @LogService public readonly logService: ILogService,
+ *     ) {}
+ *
+ *     @logTime('info')
+ *     public async myMethod(): Promise<string> {
+ *         // some artificial delay
+ *         await new Promise((resolve) => setTimeout(resolve, 10));
+ *
+ *         return 'haalou!';
+ *     }
+ * }
+ *
+ * const myObject = instantiationService.createInstance(MyClass);
+ *
+ * // once the method completes successfully, the information
+ * // message '[MyClass.myMethod] took 10.00 ms' is logged
+ * await myObject.myMethod();
+ * ```
  */
 export function logTime(
-	// TODO: @legomushroom
 	logLevel: TLogLevel = 'trace',
 ) {
 	return function logExecutionTimeDecorator<
@@ -63,6 +79,7 @@ export function logTime(
 			`Method '${methodName}' is not defined.`,
 		);
 
+		// override the decorated method
 		descriptor.value = function (
 			this: TObject,
 			...args: Parameters<typeof originalMethod>
@@ -77,7 +94,7 @@ export function logTime(
 				timeMs,
 			};
 
-			// TODO: @legomushroom
+			// handle asynchronous decorated methods
 			if (result instanceof Promise) {
 				return result.then((resolved) => {
 					log(logOptions, this.logService);
@@ -85,6 +102,7 @@ export function logTime(
 				});
 			}
 
+			// handle synchronous decorated methods
 			log(logOptions, this.logService);
 			return result;
 		};
@@ -94,16 +112,28 @@ export function logTime(
 }
 
 /**
- * TODO: @legomushroom
+ * Options of the {@link log} function.
  */
 interface ILogOptions {
+	/**
+	 * Method execution time, milliseconds.
+	 */
 	timeMs: number;
+
+	/**
+	 * Name of the decorated method.
+	 */
 	methodName: string;
+
+	/**
+	 * Log level to use for the timing message.
+	 */
 	logLevel: TLogLevel;
 }
 
 /**
- * TODO: @legomushroom
+ * Internal helper to log the timing message with
+ * provided details and log level.
  */
 const log = (
 	options: ILogOptions,
