@@ -343,8 +343,7 @@ export class GettingStartedPage extends EditorPane {
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
-		this.editorInput.showNewExperience = (options as GettingStartedEditorOptions)?.showNewExperience ?? false;
-		this.editorInput.showTelemetryNotice = (options as GettingStartedEditorOptions)?.showTelemetryNotice ?? false;
+		this.editorInput.showTelemetryNotice = (options as GettingStartedEditorOptions)?.showTelemetryNotice ?? true;
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
@@ -921,13 +920,14 @@ export class GettingStartedPage extends EditorPane {
 		this.registerDispatchListeners();
 
 		if (this.editorInput.selectedCategory) {
+			const showNewExperience = this.editorInput.selectedCategory === 'NewWelcomeExperience';
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-				this.currentWalkthrough = this.editorInput.showNewExperience ? this.gettingStartedService.getWalkthrough(this.editorInput.selectedCategory) : this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
+				this.currentWalkthrough = showNewExperience ? this.gettingStartedService.getWalkthrough(this.editorInput.selectedCategory) : this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 				if (this.currentWalkthrough) {
-					if (this.editorInput.showNewExperience === true) {
+					if (showNewExperience) {
 						this.buildNewCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
 					} else {
 						this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
@@ -937,7 +937,7 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}
 			else {
-				if (this.editorInput.showNewExperience === true) {
+				if (showNewExperience) {
 					this.buildNewCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
 				} else {
 					this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
@@ -1366,7 +1366,7 @@ export class GettingStartedPage extends EditorPane {
 
 				if (isCommand) {
 					const keybinding = this.getKeyBinding(command);
-					if (keybinding && !this.editorInput.showNewExperience) {
+					if (keybinding && this.editorInput.selectedCategory !== 'NewWelcomeExperience') {
 						const shortcutMessage = $('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '));
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
@@ -1604,7 +1604,11 @@ export class GettingStartedPage extends EditorPane {
 			dotsContainer.appendChild(dot);
 
 			this.detailsPageDisposables.add(addDisposableListener(dot, 'click', () => {
-				this.selectStepByIndex(index, allSlides.map(s => s.steps[0]), index > this.getCurrentSlideIndex(allSlides) ? 1 : -1);
+				const currentIndex = this.getCurrentSlideIndex(allSlides);
+				if (currentIndex === index) {
+					return;
+				}
+				this.selectStepByIndex(index, allSlides.map(s => s.steps[0]), index > currentIndex ? 1 : -1);
 			}));
 		});
 
@@ -1758,7 +1762,10 @@ export class GettingStartedPage extends EditorPane {
 		const step = this.currentWalkthrough?.steps.find(step => step.id === stepId);
 		if (!step) { return; }
 
-		const selectedSlide = this.stepsContent.querySelector(`.step-slide[data-step="${stepId}"]`);
+
+		const effectiveStepId = stepId.match(/^([^.]+)\./)?.[1] ?? stepId;
+		const selectedSlide = this.stepsContent.querySelector(`.step-slide[data-step="${effectiveStepId}"]`);
+
 		if (selectedSlide) {
 			const selectedSlideContent = selectedSlide.querySelector('.step-slide-content');
 			this.mediaDisposables.clear();
@@ -1766,7 +1773,6 @@ export class GettingStartedPage extends EditorPane {
 			this.buildMediaComponent(this.editorInput.selectedStep);
 			selectedSlideContent?.appendChild(this.stepMediaComponent);
 			setTimeout(() => (selectedSlideContent as HTMLElement).focus(), 0);
-
 		}
 
 		this.gettingStartedService.progressByEvent('stepSelected:' + stepId);
@@ -2009,7 +2015,7 @@ export class GettingStartedPage extends EditorPane {
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
 			prevButton!.style.display = this.editorInput.showWelcome || this.prevWalkthrough ? 'block' : 'none';
 
-			if (this.editorInput.showNewExperience) {
+			if (this.editorInput.selectedCategory === 'NewWelcomeExperience') {
 				prevButton!.style.display = 'none';
 			} else {
 				const moreTextElement = prevButton!.querySelector('.moreText');

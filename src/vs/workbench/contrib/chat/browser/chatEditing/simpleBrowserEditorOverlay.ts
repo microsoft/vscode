@@ -32,6 +32,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+
 class SimpleBrowserOverlayWidget {
 
 	private readonly _domNode: HTMLElement;

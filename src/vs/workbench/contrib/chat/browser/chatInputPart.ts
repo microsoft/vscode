@@ -201,7 +201,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Check if the chat input part has any prompt file attachments.
 	 */
-	public get hasPromptFileAttachments(): boolean {
+	get hasPromptFileAttachments(): boolean {
 		// if prompt attached explicitly as a "prompt" attachment
 		if (this.promptInstructionsAttachmentsPart.hasInstructions) {
 			return true;
@@ -1165,7 +1165,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || this.hasPromptFileAttachments;
+		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.promptInstructionsAttachmentsPart.empty;
 		dom.setVisibility(Boolean(hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
