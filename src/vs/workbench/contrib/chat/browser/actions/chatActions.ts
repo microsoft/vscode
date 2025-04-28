@@ -746,7 +746,10 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
-		ChatContextKeys.Setup.hidden.negate(),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled')
 	),
 	order: 10001 // to the right of command center
@@ -760,7 +763,10 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
-		ChatContextKeys.Setup.hidden.negate(),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
@@ -774,7 +780,10 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControl', 'Copilot Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 5,
 			ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabled.negate()
+				),
 				IsCompactTitleBarContext.negate(),
 				ChatContextKeys.supported
 			)
