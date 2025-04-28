@@ -158,7 +158,7 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Find all instruction files which have a glob pattern in their
-	 * 'include' metadata record that match the provided list of files.
+	 * 'applyTo' metadata record that match the provided list of files.
 	 */
 	findInstructionFilesFor(
 		fileUris: readonly URI[],

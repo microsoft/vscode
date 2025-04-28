@@ -410,7 +410,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(detector.extension), this.getToolsForRequest(detector.extension, request), detector.extension);
+		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(detector.extension), this.getToolsForRequest(detector.extension, request), this.getTools2ForRequest(detector.extension, request), detector.extension);
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -500,6 +500,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
 				this.getToolsForRequest(agent.extension, request),
+				this.getTools2ForRequest(agent.extension, request),
 				agent.extension
 			);
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
@@ -558,6 +559,19 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return [];
 		}
 		return this._diagnostics.getDiagnostics();
+	}
+
+	private getTools2ForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
+		if (!request.userSelectedTools2) {
+			return new Map();
+		}
+		const result = new Map<string, boolean>();
+		for (const tool of this._tools.getTools(extension)) {
+			if (typeof request.userSelectedTools2[tool.name] === 'boolean') {
+				result.set(tool.name, request.userSelectedTools2[tool.name]);
+			}
+		}
+		return result;
 	}
 
 	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): vscode.ChatRequestToolSelection | undefined {

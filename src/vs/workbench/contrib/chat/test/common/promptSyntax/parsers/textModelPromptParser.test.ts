@@ -70,7 +70,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			initService.createInstance(TextModelPromptParser, this.model, []),
+			initService.createInstance(TextModelPromptParser, this.model, {}),
 		).start();
 	}
 
@@ -302,7 +302,7 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
-					/* 07 */"	include: 'frontend/**/*spec.ts'",
+					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
 					/* 08 */"---",
 					/* 09 */"The cactus on my desk has a thriving Instagram account.",
 					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
@@ -330,7 +330,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo } = metadata;
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
@@ -350,9 +350,9 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					undefined,
-					`Prompt header must have no 'include' metadata.`,
+					`Prompt header must have no 'applyTo' metadata.`,
 				);
 			});
 
@@ -367,7 +367,7 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
-					/* 07 */"	include: 'frontend/**/*spec.ts'",
+					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
 					/* 08 */"---",
 					/* 09 */"The cactus on my desk has a thriving Instagram account.",
 					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
@@ -396,7 +396,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo } = metadata;
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
@@ -416,9 +416,9 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					'frontend/**/*spec.ts',
-					`Prompt header must have no 'include' metadata.`,
+					`Prompt header must have no 'applyTo' metadata.`,
 				);
 			});
 		});
@@ -512,14 +512,14 @@ suite('TextModelPromptParser', () => {
 				]);
 			});
 
-			suite('• include metadata', () => {
+			suite('• applyTo metadata', () => {
 				suite('• language', () => {
 					test('• prompt', async () => {
 						const test = createTest(
 							createURI('/absolute/folder/and/a/my.prompt.md'),
 							[
 					/* 01 */"---",
-					/* 02 */"include: '**/*'",
+					/* 02 */"applyTo: '**/*'",
 					/* 03 */"mode: \"ask\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
@@ -535,7 +535,7 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						const { include, mode } = metadata;
+						const { applyTo, mode } = metadata;
 						assert.strictEqual(
 							mode,
 							ChatMode.Ask,
@@ -543,14 +543,14 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							include === undefined,
-							'Include metadata must not be defined.',
+							applyTo === undefined,
+							'ApplyTo metadata must not be defined.',
 						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 1, 2, 1 + 15),
-								'The \'include\' metadata record is only valid in instruction files.',
+								'The \'applyTo\' metadata record is only valid in instruction files.',
 							),
 						]);
 					});
@@ -560,7 +560,7 @@ suite('TextModelPromptParser', () => {
 							createURI('/absolute/folder/and/a/my.prompt.md'),
 							[
 					/* 01 */"---",
-					/* 02 */"include: '**/*'",
+					/* 02 */"applyTo: '**/*'",
 					/* 03 */"mode: \"edit\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
@@ -576,7 +576,7 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						const { include, mode } = metadata;
+						const { applyTo, mode } = metadata;
 						assert.strictEqual(
 							mode,
 							ChatMode.Edit,
@@ -584,9 +584,9 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert.strictEqual(
-							include,
+							applyTo,
 							'**/*',
-							'Include metadata must have correct value.',
+							'ApplyTo metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([]);
@@ -600,7 +600,7 @@ suite('TextModelPromptParser', () => {
 					[
 					/* 01 */"---",
 					/* 02 */"mode: \"agent\"",
-					/* 03 */"include: ''",
+					/* 03 */"applyTo: ''",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 					],
@@ -615,7 +615,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { include, mode } = metadata;
+				const { applyTo, mode } = metadata;
 				assert.strictEqual(
 					mode,
 					ChatMode.Agent,
@@ -623,9 +623,9 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					undefined,
-					'Include metadata must not be defined.',
+					'ApplyTo metadata must not be defined.',
 				);
 
 				await test.validateHeaderDiagnostics([

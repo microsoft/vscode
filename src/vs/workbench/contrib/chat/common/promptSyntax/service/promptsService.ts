@@ -7,13 +7,13 @@ import { ChatMode } from '../../constants.js';
 import { localize } from '../../../../../../nls.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { flatten, forEach } from '../utils/treeUtils.js';
+import { PromptParser } from '../parsers/promptParser.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPromptFileReference } from '../parsers/types.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { pick } from '../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
-import { FilePromptParser } from '../parsers/filePromptParser.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -56,6 +56,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// for the provided model, if no active non-disposed parser exists
 		this.cache = this._register(
 			new ObjectCache((model) => {
+				assert(
+					model.isDisposed() === false,
+					'Text model must not be disposed.',
+				);
+
 				/**
 				 * Note! When/if shared with "file" prompts, the `seenReferences` array below must be taken into account.
 				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
@@ -64,10 +69,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parser: TextModelPromptParser = initService.createInstance(
 					TextModelPromptParser,
 					model,
-					[],
-				);
-
-				parser.start();
+					{ seenReferences: [] },
+				).start();
 
 				// this is a sanity check and the contract of the object cache,
 				// we must return a non-disposed object from this factory function
@@ -181,15 +184,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		for (const instruction of instructions.flatMap(flatten)) {
 			const { metadata, uri } = instruction;
-			const { include } = metadata;
+			const { applyTo } = metadata;
 
-			if (include === undefined) {
+			if (applyTo === undefined) {
 				continue;
 			}
 
 			// if glob pattern is one of the special wildcard values,
 			// add the instructions file event if no files are attached
-			if ((include === '**') || (include === '**/*')) {
+			if ((applyTo === '**') || (applyTo === '**/*')) {
 				result.push(uri);
 
 				continue;
@@ -198,7 +201,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// match each attached file with each glob pattern and
 			// add the instructions file its rule matches the file
 			for (const file of files) {
-				if (match(include, file.fsPath)) {
+				if (match(applyTo, file.fsPath)) {
 					result.push(uri);
 
 					continue;
@@ -214,10 +217,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	): Promise<IMetadata[]> {
 		const metadata = await Promise.all(
 			promptUris.map(async (uri) => {
-				let parser: FilePromptParser | undefined;
+				let parser: PromptParser | undefined;
 				try {
 					parser = this.initService.createInstance(
-						FilePromptParser,
+						PromptParser,
 						uri,
 						{ allowNonPromptFiles: true },
 					).start();

@@ -37,7 +37,6 @@ export interface IToolData {
 	 * on the host, undefined if known.
 	 */
 	runsInWorkspace?: boolean;
-	requiresConfirmation?: boolean;
 	alwaysDisplayInputOutput?: boolean;
 	supportsToolPicker?: boolean;
 }
@@ -102,6 +101,7 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
 	readonly output: string;
+	readonly isError?: boolean;
 }
 
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
@@ -112,6 +112,7 @@ export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+	toolResultError?: string;
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -149,6 +150,7 @@ export interface IToolConfirmationMessages {
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
+	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
 	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.

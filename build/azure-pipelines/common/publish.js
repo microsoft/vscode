@@ -230,11 +230,11 @@ class ESRPReleaseService {
     }
     async getReleaseStatus(releaseId) {
         const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
-        const res = await fetch(url, {
+        const res = await (0, retry_1.retry)(() => fetch(url, {
             headers: {
                 'Authorization': `Bearer ${this.accessToken}`
             }
-        });
+        }));
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Failed to get release status: ${res.statusText}\n${text}`);
@@ -243,11 +243,11 @@ class ESRPReleaseService {
     }
     async getReleaseDetails(releaseId) {
         const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
-        const res = await fetch(url, {
+        const res = await (0, retry_1.retry)(() => fetch(url, {
             headers: {
                 'Authorization': `Bearer ${this.accessToken}`
             }
-        });
+        }));
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Failed to get release status: ${res.statusText}\n${text}`);
@@ -319,7 +319,7 @@ async function requestAZDOAPI(path) {
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
     try {
-        const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+        const res = await (0, retry_1.retry)(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
         if (!res.ok) {
             throw new Error(`Unexpected status code: ${res.status}`);
         }

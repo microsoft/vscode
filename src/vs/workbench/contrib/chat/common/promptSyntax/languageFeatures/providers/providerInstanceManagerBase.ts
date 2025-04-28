@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProviderInstanceBase } from './providerInstanceBase.js';
+import { assert } from '../../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
@@ -49,6 +50,11 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 		// cache of managed instances
 		this.instances = this._register(
 			new ObjectCache((model: ITextModel) => {
+				assert(
+					model.isDisposed() === false,
+					'Text model must not be disposed.',
+				);
+
 				// sanity check - the new TS/JS discrepancies regarding fields initialization
 				// logic mean that this can be `undefined` during runtime while defined in TS
 				assertDefined(

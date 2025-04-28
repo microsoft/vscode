@@ -9,7 +9,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -321,6 +320,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolSourceKind: tool.data.source.type,
 				});
 			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
+
+			toolResult ??= { content: [] };
+			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
+			if (tool.data.alwaysDisplayInputOutput) {
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: String(err), isError: true };
+			}
+
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
@@ -332,27 +338,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		let prepared = tool.impl!.prepareToolInvocation ?
+		const prepared = tool.impl!.prepareToolInvocation ?
 			await tool.impl!.prepareToolInvocation(dto.parameters, token)
 			: undefined;
-
-		if (!prepared?.confirmationMessages && tool.data.requiresConfirmation && tool.data.source.type === 'extension') {
-			if (!prepared) {
-				prepared = {};
-			}
-
-			const toolWarning = localize(
-				'tool.warning',
-				"{0} This tool is from the extension `{1}`. Please carefully review any requested actions.",
-				'$(info)',
-				tool.data.source.extensionId.value,
-			);
-			prepared.confirmationMessages = {
-				title: localize('msg.title', "Run {0}", `"${tool.data.displayName}"`),
-				message: new MarkdownString((tool.data.userDescription ?? tool.data.modelDescription) + '\n\n' + toolWarning, { supportThemeIcons: true }),
-				allowAutoConfirm: true,
-			};
-		}
 
 		if (prepared?.confirmationMessages) {
 			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
@@ -373,10 +361,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
 		if (!toolResult.toolResultDetails && toolData.alwaysDisplayInputOutput) {
 			toolResult.toolResultDetails = {
-				input: JSON.stringify(dto.parameters, undefined, 2),
+				input: this.formatToolInput(dto),
 				output: this.toolResultToString(toolResult),
 			};
 		}
+	}
+
+	private formatToolInput(dto: IToolInvocation): string {
+		return JSON.stringify(dto.parameters, undefined, 2);
 	}
 
 	private toolResultToString(toolResult: IToolResult): string {

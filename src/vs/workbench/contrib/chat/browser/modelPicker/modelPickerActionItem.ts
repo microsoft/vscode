@@ -18,6 +18,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -90,7 +91,8 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -105,7 +107,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			actionBarActions: getModelPickerActionBarActions(menuService, contextKeyService, commandService, chatEntitlementService)
 		};
 
-		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService);
+		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		// Listen for model changes from the delegate
 		this._register(delegate.onDidChangeModel(model => {

@@ -97,11 +97,13 @@ function isIAttachmentQuickPickItem(obj: unknown): obj is IAttachmentQuickPickIt
 const attachmentsOrdinals: (IAttachmentQuickPickItem['kind'])[] = [
 	// bottom-most
 	'tools',
+	'command',
 	'screenshot',
 	'image',
 	'workspaceSymbol',
 	'diagnostic',
 	'instructions',
+	'related-files',
 	'folder',
 	'open-editors',
 	// top-most
@@ -486,7 +488,6 @@ export class AttachContextAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
 		const quickInputService = accessor.get(IQuickInputService);
-
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 
@@ -556,13 +557,13 @@ export class AttachContextAction extends Action2 {
 							}
 							return acc;
 						}, []));
-					const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
-					for (const file of selectedFiles ?? []) {
+					const selectedFile = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set') });
+					if (selectedFile) {
 						toAttach.push({
 							kind: 'file',
-							id: this._getFileContextId({ resource: file.value }),
-							value: file.value,
-							name: file.label,
+							id: this._getFileContextId({ resource: selectedFile.value }),
+							value: selectedFile.value,
+							name: selectedFile.label,
 							omittedState: OmittedState.NotOmitted
 						});
 					}
@@ -628,6 +629,7 @@ export class AttachContextAction extends Action2 {
 							fullName: pick.label,
 							value: resizedImage,
 							kind: 'image',
+							references: [{ reference: pick.resource, kind: 'reference' }]
 						});
 					}
 				} else {

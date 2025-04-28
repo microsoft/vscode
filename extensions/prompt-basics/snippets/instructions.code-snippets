@@ -2,9 +2,12 @@
 	"fileTemplate": {
 		"prefix": "New Chat Instructions",
 		"body": [
-			"${1:instructions}",
+			"---",
+			"applyTo: '${1|**,**/*.ts|}'",
+			"---",
+			"${2:Instructions here...}",
 		],
-		"description": "Template for chat instructions",
+		"description": "Instructions",
 		"isFileTemplate": true,
 	}
 }
