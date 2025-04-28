@@ -11,11 +11,29 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatTreeItem } from './chat.js';
 import { isRequestVM, isResponseVM, IChatResponseViewModel } from '../common/chatViewModel.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
+import { CancelChatActionId } from './actions/chatExecuteActions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+
+export const getToolConfirmationAlert = (accessor: ServicesAccessor, title: string) => {
+	const keybindingService = accessor.get(IKeybindingService);
+	const contextKeyService = accessor.get(IContextKeyService);
+
+	const acceptKb = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId, contextKeyService)?.getAriaLabel();
+	const cancelKb = keybindingService.lookupKeybinding(CancelChatActionId, contextKeyService)?.getAriaLabel();
+
+	return acceptKb && cancelKb
+		? localize('toolInvocationsHintKb', "Action required to confirm tool action: {0}. Press {1} to accept or {2} to cancel.", title, acceptKb, cancelKb)
+		: localize('toolInvocationsHint', "Action required to confirm tool action: {0}", title);
+};
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
 	constructor(
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 	}
 	getWidgetRole(): AriaRole {
@@ -51,7 +69,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		if (toolInvocation.length) {
 			const titles = toolInvocation.map(v => v.confirmationMessages?.title).filter(v => !!v);
 			if (titles.length) {
-				toolInvocationHint = localize('toolInvocationsHint', "Action required: {0} ", titles.join(', '));
+				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, titles.join(', '));
 			}
 		}
 		const tableCount = marked.lexer(element.response.toString()).filter(token => token.type === 'table')?.length ?? 0;
