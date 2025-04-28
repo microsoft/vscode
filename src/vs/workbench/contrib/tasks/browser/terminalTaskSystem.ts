@@ -842,7 +842,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 							(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
-							this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
+							// this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 							const reveal = task.command.presentation!.reveal;
 							const revealProblems = task.command.presentation!.revealProblems;
 							if (revealProblems === RevealProblemKind.OnProblem) {
@@ -852,7 +852,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 								this._terminalGroupService.showPanel(false);
 							}
 						} else {
-							this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+							// this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
 						}
 					}
 				}
@@ -881,7 +881,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values));
 			let onData: IDisposable | undefined;
 			if (problemMatchers.length) {
-				this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal.instanceId));
+				// this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal.instanceId));
 				// prevent https://github.com/microsoft/vscode/issues/174511 from happening
 				onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);

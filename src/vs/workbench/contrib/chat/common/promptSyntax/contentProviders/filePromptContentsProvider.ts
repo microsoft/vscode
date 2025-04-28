@@ -3,27 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
 /**
- * Prompt contents provider for a file on the disk referenced by the provided {@linkcode URI}.
+ * Prompt contents provider for a file on the disk referenced by
+ * a provided {@link URI}.
  */
 export class FilePromptContentProvider extends PromptContentsProviderBase<FileChangesEvent> implements IPromptContentsProvider {
+	public override get sourceName(): string {
+		return 'file';
+	}
+
+	public override get languageId(): string {
+		const model = this.modelService.getModel(this.uri);
+
+		if (model !== null) {
+			return model.getLanguageId();
+		}
+
+		const inferredId = this.languageService
+			.guessLanguageIdByFilepathOrFirstLine(this.uri);
+
+		if (inferredId !== null) {
+			return inferredId;
+		}
+
+		// fallback to the default prompt language ID
+		return PROMPT_LANGUAGE_ID;
+	}
+
 	constructor(
 		public readonly uri: URI,
+		options: Partial<IPromptContentsProviderOptions> = {},
 		@IFileService private readonly fileService: IFileService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
-		super();
+		super(options);
 
 		// make sure the object is updated on file changes
 		this._register(
@@ -80,42 +108,44 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 				new FolderReference(this.uri),
 			);
 
+			const { allowNonPromptFiles } = this.options;
+
+			// if URI doesn't point to a prompt file, don't try to resolve it,
+			// unless the `allowNonPromptFiles` option is set to `true`
+			if ((allowNonPromptFiles !== true) && (isPromptOrInstructionsFile(this.uri) === false)) {
+				throw new NotPromptFile(this.uri);
+			}
+
 			fileStream = await this.fileService.readFileStream(this.uri);
+
+			// after the promise above complete, this object can be already disposed or
+			// the cancellation could be requested, in that case destroy the stream and
+			// throw cancellation error
+			if (this.disposed || cancellationToken?.isCancellationRequested) {
+				fileStream.value.destroy();
+				throw new CancellationError();
+			}
+
+			return fileStream.value;
 		} catch (error) {
-			if (error instanceof ResolveError) {
+			if ((error instanceof ResolveError) || (error instanceof CancellationError)) {
 				throw error;
 			}
 
 			throw new OpenFailed(this.uri, error);
 		}
-
-		assertDefined(
-			fileStream,
-			new OpenFailed(this.uri, 'Failed to open file stream.'),
-		);
-
-		// after the promise above complete, this object can be already disposed or
-		// the cancellation could be requested, in that case destroy the stream and
-		// throw cancellation error
-		if (this.disposed || cancellationToken?.isCancellationRequested) {
-			fileStream.value.destroy();
-			throw new CancellationError();
-		}
-
-		// if URI doesn't point to a prompt snippet file, don't try to resolve it
-		if (isPromptFile(this.uri) === false) {
-			throw new NotPromptFile(this.uri);
-		}
-
-		return fileStream.value;
 	}
 
 	public override createNew(
 		promptContentsSource: { uri: URI },
+		options: Partial<IPromptContentsProviderOptions> = {},
 	): IPromptContentsProvider {
 		return new FilePromptContentProvider(
 			promptContentsSource.uri,
+			options,
 			this.fileService,
+			this.modelService,
+			this.languageService,
 		);
 	}
 

@@ -12,6 +12,7 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
+	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
@@ -91,7 +92,6 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	unifiedViewEnabled = false;
 	isEditingLocation(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}

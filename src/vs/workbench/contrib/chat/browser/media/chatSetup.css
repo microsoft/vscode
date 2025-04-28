@@ -3,25 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-welcome-view .chat-setup-view {
-
-	text-align: center;
-
-	.chat-features-container {
-		display: flex;
-		justify-content: center;
-		text-align: initial;
-		border-radius: 2px;
-		border: 1px solid var(--vscode-chat-requestBorder);
-		background-color: var(--vscode-chat-requestBackground);
-	}
-}
-
-.dialog-message-body .chat-setup-view {
+.chat-setup-dialog {
 
 	p {
 		margin-top: 0;
 		margin-bottom: 0;
+		width: 100%;
 	}
 
 	p.setup-legal {
@@ -34,14 +21,6 @@
 		font-size: 12px;
 		color: var(--vscode-descriptionForeground);
 		margin-top: 1em;
-	}
-}
-
-.dialog-message-body .chat-setup-view,
-.chat-welcome-view .chat-setup-view {
-
-	p {
-		width: 100%;
 	}
 
 	.chat-feature-container {

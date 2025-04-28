@@ -188,6 +188,9 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	public dispose(): void {
+		if (this._disposed) {
+			return;
+		}
 		this._disposed = true;
 		for (const o of this._dependencies) {
 			o.removeObserver(this); // Warning: external call!

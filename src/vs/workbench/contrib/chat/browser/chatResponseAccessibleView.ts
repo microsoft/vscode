@@ -32,7 +32,6 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 
 		const verifiedWidget: IChatWidget = widget;
 		const focusedItem = verifiedWidget.getFocus();
-
 		if (!focusedItem) {
 			return;
 		}
@@ -64,6 +63,19 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
+		}
+		if (isResponseVM(item)) {
+			const toolInvocation = item.response.value.find(item => item.kind === 'toolInvocation');
+			if (toolInvocation?.confirmationMessages) {
+				const title = toolInvocation.confirmationMessages.title;
+				const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : toolInvocation.confirmationMessages.message.value;
+				const terminalCommand = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
+				responseContent += `${title}`;
+				if (terminalCommand) {
+					responseContent += `: ${terminalCommand}`;
+				}
+				responseContent += `\n${message}`;
+			}
 		}
 		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
 	}

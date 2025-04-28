@@ -13,14 +13,12 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../serv
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { waitForChatSessionCleared } from './chatClearActions.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -99,12 +97,11 @@ export function registerMoveActions() {
 async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, _sessionId?: string) {
 	const widgetService = accessor.get(IChatWidgetService);
 	const editorService = accessor.get(IEditorService);
-	const chatService = accessor.get(IChatService);
 
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
 	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, compact: moveTo === MoveToNewLocation.Window } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
@@ -112,9 +109,9 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const viewState = widget.getViewState();
 
 	widget.clear();
-	await waitForChatSessionCleared(sessionId, chatService);
+	await widget.waitForReady();
 
-	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState: viewState };
+	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState, compact: moveTo === MoveToNewLocation.Window };
 	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 

@@ -160,6 +160,7 @@ stages:
         steps:
           - template: darwin/product-build-darwin.yml@self
             parameters:
+              VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
               VSCODE_TEST_ARTIFACT_NAME: electron
@@ -176,6 +177,7 @@ stages:
         steps:
           - template: darwin/product-build-darwin.yml@self
             parameters:
+              VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
               VSCODE_TEST_ARTIFACT_NAME: browser
@@ -192,6 +194,7 @@ stages:
         steps:
           - template: darwin/product-build-darwin.yml@self
             parameters:
+              VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
               VSCODE_TEST_ARTIFACT_NAME: remote

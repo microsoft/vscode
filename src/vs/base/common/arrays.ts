@@ -193,6 +193,10 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	}
 }
 
+export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
+	return ([] as any[]).concat(...arrays);
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
 	readonly toInsert: T[];
 	deleteCount: number;

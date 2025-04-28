@@ -70,7 +70,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-        const version = '20240129-253798';
+        const version = '20250407-330404';
         try {
             const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
                 headers: ghApiHeaders,
@@ -119,18 +119,24 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
         throw e;
     }
 }
-async function getVSCodeSysroot(arch) {
+async function getVSCodeSysroot(arch, isMusl = false) {
     let expectedName;
     let triple;
-    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28';
+    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-8.5.0';
     switch (arch) {
         case 'amd64':
             expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
             triple = 'x86_64-linux-gnu';
             break;
         case 'arm64':
-            expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
-            triple = 'aarch64-linux-gnu';
+            if (isMusl) {
+                expectedName = 'aarch64-linux-musl-gcc-10.3.0.tar.gz';
+                triple = 'aarch64-linux-musl';
+            }
+            else {
+                expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
+                triple = 'aarch64-linux-gnu';
+            }
             break;
         case 'armhf':
             expectedName = `arm-rpi-linux-gnueabihf${prefix}.tar.gz`;
@@ -144,7 +150,10 @@ async function getVSCodeSysroot(arch) {
     }
     const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path_1.default.join((0, os_1.tmpdir)(), `vscode-${arch}-sysroot`);
     const stamp = path_1.default.join(sysroot, '.stamp');
-    const result = `${sysroot}/${triple}/${triple}/sysroot`;
+    let result = `${sysroot}/${triple}/${triple}/sysroot`;
+    if (isMusl) {
+        result = `${sysroot}/output/${triple}`;
+    }
     if (fs_1.default.existsSync(stamp) && fs_1.default.readFileSync(stamp).toString() === expectedName) {
         return result;
     }

@@ -544,13 +544,13 @@ const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 	return [
 		{
 			id: MenuId.ChatInput,
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
 			group: 'navigation',
 			order: 3
 		},
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate(), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
 			group: 'navigation',
 			order: 2
 		}

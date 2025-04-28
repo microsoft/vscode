@@ -28,6 +28,7 @@ import { CodeActionController } from '../../../../editor/contrib/codeAction/brow
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, ExtensionContentProvider, IAccessibleViewService, IAccessibleViewSymbol, isIAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -61,6 +62,7 @@ interface ICodeBlock {
 	endLine: number;
 	code: string;
 	languageId?: string;
+	chatSessionId: string | undefined;
 }
 
 export class AccessibleView extends Disposable implements ITextModelContentProvider {
@@ -109,7 +111,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -185,15 +188,29 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._register(this._editorWidget.onDidDispose(() => this._resetContextKeys()));
 		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
 			this._onLastLine.set(this._editorWidget.getPosition()?.lineNumber === this._editorWidget.getModel()?.getLineCount());
-		}));
-		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
 			const cursorPosition = this._editorWidget.getPosition()?.lineNumber;
 			if (this._codeBlocks && cursorPosition !== undefined) {
 				const inCodeBlock = this._codeBlocks.find(c => c.startLine <= cursorPosition && c.endLine >= cursorPosition) !== undefined;
 				this._accessibleViewInCodeBlock.set(inCodeBlock);
 			}
+			this._playDiffSignals();
 		}));
 	}
+
+	private _playDiffSignals(): void {
+		const position = this._editorWidget.getPosition();
+		const model = this._editorWidget.getModel();
+		if (!position || !model) {
+			return undefined;
+		}
+		const lineContent = model.getLineContent(position.lineNumber);
+		if (lineContent?.startsWith('+')) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted);
+		} else if (lineContent?.startsWith('-')) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted);
+		}
+	}
+
 	provideTextContent(resource: URI): Promise<ITextModel | null> | null {
 		return this._getTextModel(resource);
 	}
@@ -239,7 +256,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!codeBlock || codeBlockIndex === undefined) {
 			return;
 		}
-		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined };
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionId: codeBlock.chatSessionId };
 	}
 
 	navigateToCodeBlock(type: 'next' | 'previous'): void {
@@ -383,7 +400,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
-				this._codeBlocks?.push({ startLine, endLine, code, languageId });
+				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionId: undefined });
 			}
 		});
 		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);

@@ -15,17 +15,35 @@ import { FailedToResolveContentsStream, ResolveError } from '../../promptFileRef
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
 
 /**
+ * Options of the {@link PromptContentsProviderBase} class.
+ */
+export interface IPromptContentsProviderOptions {
+	/**
+	 * Whether to allow files that don't have usual prompt
+	 * file extension to be treated as a prompt file.
+	 */
+	readonly allowNonPromptFiles: boolean;
+}
+
+/**
+ * Default {@link IPromptContentsProviderOptions} options.
+ */
+export const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
+	allowNonPromptFiles: false,
+};
+
+/**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
  *
- * - implement the {@linkcode getContentsStream} method to provide the contents stream
+ * - implement the {@link getContentsStream} method to provide the contents stream
  *   of a prompt; this method should throw a `ResolveError` or its derivative if the contents
  *   cannot be parsed for any reason
- * - fire a {@linkcode TChangeEvent} event on the {@linkcode onChangeEmitter} event when
+ * - fire a {@link TChangeEvent} event on the {@link onChangeEmitter} event when
  * 	 prompt contents change
  * - misc:
- *   - provide the {@linkcode uri} property that represents the URI of a prompt that
+ *   - provide the {@link uri} property that represents the URI of a prompt that
  *     the contents are for
- *   - implement the {@linkcode toString} method to return a string representation of this
+ *   - implement the {@link toString} method to return a string representation of this
  *     provider type to aid with debugging/tracing
  */
 export abstract class PromptContentsProviderBase<
@@ -34,6 +52,8 @@ export abstract class PromptContentsProviderBase<
 	public abstract readonly uri: URI;
 	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
 	public abstract override toString(): string;
+	public abstract get languageId(): string;
+	public abstract get sourceName(): string;
 
 	/**
 	 * Function to get contents stream for the provider. This function should
@@ -55,17 +75,29 @@ export abstract class PromptContentsProviderBase<
 	 */
 	protected readonly onChangeEmitter = this._register(new Emitter<TChangeEvent | 'full'>());
 
-	constructor() {
+	/**
+	 * Options passed to the constructor, extended with
+	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 */
+	protected readonly options: IPromptContentsProviderOptions;
+
+	constructor(
+		options: Partial<IPromptContentsProviderOptions>,
+	) {
 		super();
+
+		this.options = {
+			...DEFAULT_OPTIONS,
+			...options,
+		};
+
 		// ensure that the `onChangeEmitter` always fires with the correct context
 		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
-		// subscribe to the change event emitted by an extending class
-		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 	}
 
 	/**
 	 * Event emitter for the prompt contents change event.
-	 * See {@linkcode onContentChanged} for more details.
+	 * See {@link onContentChanged} for more details.
 	 */
 	private readonly onContentChangedEmitter = this._register(new Emitter<VSBufferReadableStream | ResolveError>());
 
@@ -76,7 +108,7 @@ export abstract class PromptContentsProviderBase<
 	 *
 	 * `Note!` this field is meant to be used by the external consumers of the prompt
 	 *         contents provider that the classes that extend this abstract class.
-	 *         Please use the {@linkcode onChangeEmitter} event to provide a change
+	 *         Please use the {@link onChangeEmitter} event to provide a change
 	 *         event in your prompt contents implementation instead.
 	 */
 	public readonly onContentChanged = this.onContentChangedEmitter.event;
@@ -129,6 +161,9 @@ export abstract class PromptContentsProviderBase<
 
 		// `'full'` means "everything has changed"
 		this.onContentsChanged('full');
+
+		// subscribe to the change event emitted by a child class
+		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 
 		return this;
 	}

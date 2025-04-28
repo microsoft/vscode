@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePromptParser } from './basePromptParser.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { BasePromptParser, IPromptParserOptions } from './basePromptParser.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -16,12 +17,13 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 export class FilePromptParser extends BasePromptParser<FilePromptContentProvider> {
 	constructor(
 		uri: URI,
-		seenReferences: string[] = [],
+		options: Partial<IPromptParserOptions> = {},
 		@IInstantiationService initService: IInstantiationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
-		const contentsProvider = initService.createInstance(FilePromptContentProvider, uri);
-		super(contentsProvider, seenReferences, initService, logService);
+		const contentsProvider = initService.createInstance(FilePromptContentProvider, uri, options);
+		super(contentsProvider, options, initService, workspaceService, logService);
 
 		this._register(contentsProvider);
 	}

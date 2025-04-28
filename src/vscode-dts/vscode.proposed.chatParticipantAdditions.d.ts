@@ -79,7 +79,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -159,6 +159,13 @@ declare module 'vscode' {
 		resolve?(token: CancellationToken): Thenable<void>;
 	}
 
+	export class ChatResponseExtensionsPart {
+
+		readonly extensions: string[];
+
+		constructor(extensions: string[]);
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -220,19 +227,6 @@ declare module 'vscode' {
 	}
 
 
-	export interface ChatRequest {
-
-		/**
-		 * A list of tools that the user selected for this request, when `undefined` any tool
-		 * from {@link lm.tools} should be used.
-		 *
-		 * Tools can be called with {@link lm.invokeTool} with input that match their
-		 * declared `inputSchema`.
-		 */
-		readonly tools: readonly LanguageModelToolInformation[] | undefined;
-	}
-
-
 	/**
 	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
 	 * Does it show up in history?
@@ -249,6 +243,14 @@ declare module 'vscode' {
 		rejectedConfirmationData?: any[];
 	}
 
+	export interface ChatRequest {
+
+		/**
+		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
+		 */
+		readonly tools: Map<string, boolean>;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -262,7 +264,7 @@ declare module 'vscode' {
 
 		/**
 		 * Event that fires when a request is paused or unpaused.
-		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
 		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
@@ -405,7 +407,7 @@ declare module 'vscode' {
 	}
 
 	export namespace lm {
-		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
+		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
 
 	export interface ChatVariableValue {

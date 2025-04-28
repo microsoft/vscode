@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -1020,18 +1020,37 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.continueInLocalClone')
-	async continueInLocalClone(): Promise<Uri | void> {
-		if (this.model.repositories.length === 0) { return; }
-
-		// Pick a single repository to continue working on in a local clone if there's more than one
-		const items = this.model.repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
+	private getRepositoriesWithRemote(repositories: Repository[]) {
+		return repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
 			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
 			if (remote?.pushUrl) {
 				items.push({ repository: repository, label: remote.pushUrl });
 			}
 			return items;
 		}, []);
+	}
+
+	@command('git.continueInLocalClone')
+	async continueInLocalClone(): Promise<Uri | void> {
+		if (this.model.repositories.length === 0) { return; }
+
+		// Pick a single repository to continue working on in a local clone if there's more than one
+		let items = this.getRepositoriesWithRemote(this.model.repositories);
+
+		// We have a repository but there is no remote URL (e.g. git init)
+		if (items.length === 0) {
+			const pick = this.model.repositories.length === 1
+				? { repository: this.model.repositories[0] }
+				: await window.showQuickPick(this.model.repositories.map((i) => ({ repository: i, label: i.root })), { canPickMany: false, placeHolder: l10n.t('Choose which repository to publish') });
+			if (!pick) { return; }
+
+			await this.publish(pick.repository);
+
+			items = this.getRepositoriesWithRemote([pick.repository]);
+			if (items.length === 0) {
+				return;
+			}
+		}
 
 		let selection = items[0];
 		if (items.length > 1) {
@@ -1955,16 +1974,6 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (!isGitUri(modifiedUri)) {
-			return;
-		}
-
-		const { ref } = fromGitUri(modifiedUri);
-
-		if (ref !== '') {
-			return;
-		}
-
 		const repository = this.model.getRepository(modifiedUri);
 		if (!repository) {
 			return;
@@ -1989,6 +1998,7 @@ export class CommandCenter {
 		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+
 		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];
@@ -1998,13 +2008,25 @@ export class CommandCenter {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(invertLineChange);
-
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
-		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
+		if (modifiedUri.scheme === 'file') {
+			// Editor
+			const changes = indexLineChanges
+				.filter(c => !selectedDiffs.some(d =>
+					d.originalStartLineNumber === c.originalStartLineNumber &&
+					d.originalEndLineNumber === c.originalEndLineNumber &&
+					d.modifiedStartLineNumber === c.modifiedStartLineNumber &&
+					d.modifiedEndLineNumber === c.modifiedEndLineNumber));
+			await this._unstageChanges(textEditor, changes);
+			return;
+		}
+
+		const selectedDiffsInverted = selectedDiffs.map(invertLineChange);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffsInverted: ${JSON.stringify(selectedDiffsInverted)}`);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, selectedDiffsInverted);
+		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
 	}
 
 	@command('git.unstageFile')
@@ -2029,6 +2051,38 @@ export class CommandCenter {
 		await repository.revert(resources);
 	}
 
+	@command('git.unstageChange')
+	async unstageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
+		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+		if (!textEditor) {
+			return;
+		}
+
+		changes.splice(index, 1);
+		await this._unstageChanges(textEditor, changes);
+	}
+
+	private async _unstageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
+		const originalDocument = await workspace.openTextDocument(originalUri);
+
+		const invertedChanges = changes.map(invertLineChange);
+		const result = applyLineChanges(originalDocument, modifiedDocument, invertedChanges);
+
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
+	}
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
@@ -4544,8 +4598,11 @@ export class CommandCenter {
 		}
 
 		const rootUri = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', rootUri);
+		const commitShortHashLength = config.get<number>('commitShortHashLength', 7);
+
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
+		const title = `${truncate(historyItemId, commitShortHashLength, false)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
