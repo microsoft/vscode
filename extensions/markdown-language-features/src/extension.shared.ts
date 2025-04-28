@@ -21,6 +21,7 @@ import { ExtensionContentSecurityPolicyArbiter } from './preview/security';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { MdLinkOpener } from './util/openDocumentLink';
 import { registerUpdatePastedLinks } from './languageFeatures/updateLinksOnPaste';
+import { MarkdownDecorationManager } from './client/decorations';
 
 export function activateShared(
 	context: vscode.ExtensionContext,
@@ -40,6 +41,9 @@ export function activateShared(
 	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, opener);
 	context.subscriptions.push(previewManager);
+
+	const decorationManager = new MarkdownDecorationManager(engine);
+	context.subscriptions.push(decorationManager);
 
 	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));

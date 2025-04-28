@@ -4,39 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import { IMdParser } from '../markdownEngine';
+import { Disposable } from '../util/dispose';
 
 
-export class MarkdownDecorationManager {
+export class MarkdownDecorationManager extends Disposable {
 	// Heading decorations for levels 1-6
 	private readonly _headingDecorationTypes: vscode.TextEditorDecorationType[] = [
-		vscode.window.createTextEditorDecorationType({ lineHeight: 80 }), // h1
-		vscode.window.createTextEditorDecorationType({ lineHeight: 70 }), // h2
-		vscode.window.createTextEditorDecorationType({ lineHeight: 60 }), // h3
-		vscode.window.createTextEditorDecorationType({ lineHeight: 50 }), // h4
-		vscode.window.createTextEditorDecorationType({ lineHeight: 40 }), // h5
-		vscode.window.createTextEditorDecorationType({ lineHeight: 30 }), // h6
+		this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 80 })), // h1
+		this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 70 })), // h2
+		this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 60 })), // h3
+		this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 50 })), // h4
+		this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 40 })), // h5
+		this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 30 })), // h6
 	];
-	private readonly _listDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
-	private readonly _codeBlockDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
+	private readonly _listDecorationType: vscode.TextEditorDecorationType = this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 30 }));
+	private readonly _codeBlockDecorationType: vscode.TextEditorDecorationType = this._register(vscode.window.createTextEditorDecorationType({ lineHeight: 30 }));
 
-	constructor(
-		private readonly _parser: IMdParser
-	) {
-		vscode.window.onDidChangeVisibleTextEditors(e => {
+	constructor(private readonly _parser: IMdParser) {
+		super();
+		this._register(vscode.window.onDidChangeVisibleTextEditors(e => {
 			e.forEach(async editor => {
 				this.setDecorations(editor);
 			});
-		});
+		}));
 		vscode.window.visibleTextEditors.forEach(async editor => {
 			this.setDecorations(editor);
 		});
-		vscode.workspace.onDidChangeTextDocument(_ => {
+		this._register(vscode.workspace.onDidChangeTextDocument(_ => {
 			const activeTextEditor = vscode.window.activeTextEditor;
 			if (!activeTextEditor) {
 				return;
 			}
 			this.setDecorations(activeTextEditor);
-		});
+		}));
 	}
 
 	async setDecorations(editor: vscode.TextEditor): Promise<void> {

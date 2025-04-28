@@ -12,7 +12,6 @@ import { FileWatcherManager } from './fileWatchingManager';
 import { InMemoryDocument } from './inMemoryDocument';
 import * as proto from './protocol';
 import { VsCodeMdWorkspace } from './workspace';
-import { MarkdownDecorationManager } from './decorations';
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
@@ -170,9 +169,6 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 	});
 
 	await client.start();
-
-	// leaked disposable
-	new MarkdownDecorationManager(parser);
 
 	return new MdLanguageClient(client, workspace);
 }
