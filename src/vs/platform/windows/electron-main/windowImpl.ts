@@ -601,7 +601,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		this.jsCallStackMap = new Map<string, number>();
-		this.jsCallStackEffectiveSampleCount = Math.round(sampleInterval / samplePeriod);
+		this.jsCallStackEffectiveSampleCount = Math.round(samplePeriod / sampleInterval);
 		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
 		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
 			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
