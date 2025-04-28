@@ -13,14 +13,13 @@ import { ILogger, logTime, TLogLevel } from '../../common/decorators/logTime.js'
 suite('logTime decorator', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// TODO: @legomushroom - add separators?
-	suite('async method', () => {
+	suite('• async method', () => {
 		const logLevels: TLogLevel[] = [
 			'trace', 'debug', 'info', 'warn', 'error',
 		];
 
 		for (const logLevel of logLevels) {
-			test(`'${logLevel}' log level`, async () => {
+			test(`• '${logLevel}' log level`, async () => {
 				const logSpy = sinon.spy();
 
 				const mockLogService = mockObject<ILogger>({
@@ -78,13 +77,13 @@ suite('logTime decorator', () => {
 		}
 	});
 
-	suite('sync method', () => {
+	suite('• sync method', () => {
 		const logLevels: TLogLevel[] = [
 			'trace', 'debug', 'info', 'warn', 'error',
 		];
 
 		for (const logLevel of logLevels) {
-			test(`'${logLevel}' log level`, async () => {
+			test(`• '${logLevel}' log level`, async () => {
 				const logSpy = sinon.spy();
 
 				const mockLogService = mockObject<ILogger>({
@@ -133,7 +132,7 @@ suite('logTime decorator', () => {
 		}
 	});
 
-	test('uses \'trace\' level by default', async () => {
+	test('• uses \'trace\' level by default', async () => {
 		const logSpy = sinon.spy();
 
 		const mockLogService = mockObject<ILogger>({
