@@ -31,6 +31,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 class SimpleBrowserOverlayWidget {
 
 	private readonly _domNode: HTMLElement;
@@ -50,6 +51,7 @@ class SimpleBrowserOverlayWidget {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 
 		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
@@ -172,30 +174,36 @@ class SimpleBrowserOverlayWidget {
 		// Wait 1 extra frame to make sure overlay is gone
 		await new Promise(resolve => setTimeout(resolve, 100));
 
-		const screenshot = await this._hostService.getScreenshot(bounds);
-		if (!screenshot) {
-			throw new Error('Screenshot failed');
-		}
-		this._domNode.style.display = '';
+		const toAttach: IChatRequestVariableEntry[] = [];
+
 		const widget = this._chatWidgetService.lastFocusedWidget ?? await showChatView(this._viewService);
-
-		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, screenshot.buffer, 'image/png');
-
-		widget?.attachmentModel?.addContext({
+		toAttach.push({
 			id: 'element-' + Date.now(),
 			name: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
 			fullName: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
 			value: elementData.outerHTML + elementData.computedStyle,
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.layout.id),
-		}, {
-			id: 'element-screenshot-' + Date.now(),
-			name: 'Element Screenshot',
-			fullName: 'Element Screenshot',
-			kind: 'image',
-			value: screenshot.buffer,
-			references: fileReference ? [{ reference: fileReference, kind: 'reference' }] : [],
 		});
+
+		if (this.configurationService.getValue('chat.sendElementsToChat.attachImages')) {
+			const screenshot = await this._hostService.getScreenshot(bounds);
+			if (!screenshot) {
+				throw new Error('Screenshot failed');
+			}
+			const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, screenshot.buffer, 'image/png');
+			toAttach.push({
+				id: 'element-screenshot-' + Date.now(),
+				name: 'Element Screenshot',
+				fullName: 'Element Screenshot',
+				kind: 'image',
+				value: screenshot.buffer,
+				references: fileReference ? [{ reference: fileReference, kind: 'reference' }] : [],
+			});
+		}
+
+		widget?.attachmentModel?.addContext(...toAttach);
+		this._domNode.style.display = '';
 	}
 
 

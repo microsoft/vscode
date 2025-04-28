@@ -218,6 +218,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['preview']
 		},
+		'chat.sendElementsToChat.attachImages': {
+			default: true,
+			description: nls.localize('chat.sendElementsToChat.attachImages', "Controls whether a screenshot of the attached element will be added to the chat."),
+			type: 'boolean',
+			tags: ['preview']
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
