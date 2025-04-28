@@ -12,6 +12,7 @@ import { Disposable, DisposableStore, IDisposable, thenIfNotDisposed, toDisposab
 import { autorunWithStore } from '../../../../../base/common/observable.js';
 import { count } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isEmptyObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -236,7 +237,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				dom.h('.editor@editor'),
 			]);
 
-			if (toolInvocation.toolSpecificData?.kind === 'input') {
+			if (toolInvocation.toolSpecificData?.kind === 'input' && toolInvocation.toolSpecificData.rawInput && !isEmptyObject(toolInvocation.toolSpecificData.rawInput)) {
 
 				const inputData = toolInvocation.toolSpecificData;
 
