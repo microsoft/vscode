@@ -491,7 +491,7 @@ class ChatStatusDashboard extends Disposable {
 					usedPercentage = 1; // indicate minimal usage as 1%
 				}
 
-				quotaValue.textContent = quota.overageCount ? localize('quotaDisplayWithOverage', "{0}% +{1}", usedPercentage, quota.overageCount) : localize('quotaDisplay', "{0}%", usedPercentage);
+				quotaValue.textContent = quota.overageCount ? localize('quotaDisplayWithOverage', "+{0} paid", quota.overageCount) : localize('quotaDisplay', "{0}%", usedPercentage);
 				quotaBit.style.width = `${usedPercentage}%`;
 
 				if (usedPercentage >= 90 && !quota.overageEnabled) {
