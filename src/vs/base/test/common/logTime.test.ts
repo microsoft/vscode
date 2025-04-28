@@ -13,6 +13,27 @@ import { ILogger, logExecutionTime, logTime, TLogLevel } from '../../common/deco
 suite('logTime', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	/**
+	 * Helper that replaces the timing part of a message to
+	 * a predictable constant value so the message can be
+	 * consistently compared in the tests
+	 */
+	const cleanupTimingMessage = (
+		message: string,
+	): string => {
+		// sanity check on the message type since this function
+		// can be called with `any` inside these tests
+		assert(
+			typeof message === 'string',
+			`Message must be a string, got '${message}'.`,
+		);
+
+		// regex: targets the ' 123.75 ms' part at the end
+		//        of the provided 'message' string
+		return message
+			.replaceAll(/\s\d+.\d{2}\sms$/gi, ' 100.50 ms');
+	};
+
 	suite('• decorator', () => {
 		suite('• async method', () => {
 			const logLevels: TLogLevel[] = [
@@ -34,7 +55,7 @@ suite('logTime', () => {
 						) { }
 
 						@logTime(logLevel)
-						public async myMethod(): Promise<number> {
+						public async myAsyncMethod(): Promise<number> {
 							await waitRandom(10);
 
 							return this.returnValue;
@@ -44,7 +65,7 @@ suite('logTime', () => {
 					const expectedReturnValue = randomInt(1000);
 					const testObject = new TestClass(expectedReturnValue);
 
-					const resultPromise = testObject.myMethod();
+					const resultPromise = testObject.myAsyncMethod();
 
 					assert(
 						resultPromise instanceof Promise,
@@ -70,8 +91,9 @@ suite('logTime', () => {
 						'Logger method must be called with correct number of arguments.',
 					);
 
-					assert(
-						callArgs[0].startsWith('[⏱][TestClass.myMethod] took '),
+					assert.strictEqual(
+						cleanupTimingMessage(callArgs[0]),
+						'[⏱][TestClass.myAsyncMethod] took 100.50 ms',
 						'Logger method must be called with correct message.',
 					);
 				});
@@ -98,7 +120,7 @@ suite('logTime', () => {
 						) { }
 
 						@logTime(logLevel)
-						public myMethod(): number {
+						public mySyncMethod(): number {
 							return this.returnValue;
 						}
 					}
@@ -106,7 +128,7 @@ suite('logTime', () => {
 					const expectedReturnValue = randomInt(1000);
 					const testObject = new TestClass(expectedReturnValue);
 
-					const result = testObject.myMethod();
+					const result = testObject.mySyncMethod();
 					assert.strictEqual(
 						result,
 						expectedReturnValue,
@@ -125,8 +147,9 @@ suite('logTime', () => {
 						'Logger method must be called with correct number of arguments.',
 					);
 
-					assert(
-						callArgs[0].startsWith('[⏱][TestClass.myMethod] took '),
+					assert.strictEqual(
+						cleanupTimingMessage(callArgs[0]),
+						'[⏱][TestClass.mySyncMethod] took 100.50 ms',
 						'Logger method must be called with correct message.',
 					);
 				});
@@ -147,7 +170,7 @@ suite('logTime', () => {
 				) { }
 
 				@logTime()
-				public async myMethod(): Promise<number> {
+				public async myAsyncMethod(): Promise<number> {
 					await waitRandom(10);
 
 					return this.returnValue;
@@ -157,7 +180,7 @@ suite('logTime', () => {
 			const expectedReturnValue = randomInt(1000);
 			const testObject = new TestClass(expectedReturnValue);
 
-			const resultPromise = testObject.myMethod();
+			const resultPromise = testObject.myAsyncMethod();
 
 			assert(
 				resultPromise instanceof Promise,
@@ -183,8 +206,9 @@ suite('logTime', () => {
 				'Logger method must be called with correct number of arguments.',
 			);
 
-			assert(
-				callArgs[0].startsWith('[⏱][TestClass.myMethod] took '),
+			assert.strictEqual(
+				cleanupTimingMessage(callArgs[0]),
+				'[⏱][TestClass.myAsyncMethod] took 100.50 ms',
 				'Logger method must be called with correct message.',
 			);
 		});
@@ -239,12 +263,9 @@ suite('logTime', () => {
 						'Logger method must be called with correct number of arguments.',
 					);
 
-					// TODO: @legomushroom - add regex description
-					const message = callArgs[0].replaceAll(/\s\d+.\d{2}\sms$/gi, ' 0.00 ms');
-					// TODO: @legomushroom - port to all otehr places
 					assert.strictEqual(
-						message,
-						'[⏱][my-async-function] took 0.00 ms',
+						cleanupTimingMessage(callArgs[0]),
+						'[⏱][my-async-function] took 100.50 ms',
 						'Logger message must start with the correct value.',
 					);
 				});
@@ -291,10 +312,9 @@ suite('logTime', () => {
 						'Logger method must be called with correct number of arguments.',
 					);
 
-					const message = callArgs[0].replaceAll(/\s\d+.\d{2}\sms$/gi, ' 0.00 ms');
 					assert.strictEqual(
-						message,
-						'[⏱][my-sync-function] took 0.00 ms',
+						cleanupTimingMessage(callArgs[0]),
+						'[⏱][my-sync-function] took 100.50 ms',
 						'Logger message must start with the correct value.',
 					);
 				});

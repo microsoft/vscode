@@ -34,7 +34,7 @@ type TObjectWithLogger<T extends object> = T & { logService: ILogger };
  * logging methods that the decorator can call.
  *
  * The decorated method can be asynchronous or synchronous, but
- * the timing message is logged only it finishes *successfully*.
+ * the timing message is logged only if it finishes *successfully*.
  *
  * @param logLevel Log level to use for the time message.
  *
@@ -62,7 +62,13 @@ type TObjectWithLogger<T extends object> = T & { logService: ILogger };
  *
  * // once the method completes successfully, the information
  * // message '[MyClass.myMethod] took 10.00 ms' is logged
- * await myObject.myMethod();
+ * const result = await myObject.myMethod();
+ *
+ * assert.strictEqual(
+ *     result,
+ *     'haalou!',
+ *     'Must yield original return value',
+ * );
  * ```
  */
 export function logTime(
@@ -99,13 +105,40 @@ export function logTime(
 	};
 }
 
+
 /**
- * TODO: @legomushroom
+ * Helper allows to log execution time of code block or function.
+ *
+ * The code block or function can be asynchronous or synchronous, but
+ * the timing message is logged only if it finishes *successfully*.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * const result = logExecutionTime(
+ *     'my asynchronous block',
+ *     async () => {
+ *         // some artificial delay
+ *         await new Promise((resolve) => setTimeout(resolve, 10));
+ *
+ *         return 'haalou!';
+ *     },
+ *     this.logService.info,
+ * }
+ *
+ * // once the callback completes successfully, the information
+ * // message '[MyClass.myMethod] took 10.00 ms' is logged
+ * assert.strictEqual(
+ *     result,
+ *     'haalou!',
+ *     'Must yield original return value',
+ * );
+ * ```
  */
 export const logExecutionTime = <T>(
 	blockName: string,
 	callback: () => T | Promise<T>,
-	logger: (message: string, ...args: any[]) => void,
+	logger: ILogger[keyof ILogger],
 ): ReturnType<typeof callback> => {
 	const startTime = performance.now();
 	const result = callback();
@@ -175,7 +208,7 @@ const getLogFunction = <T extends TLogLevel>(
 const log = (
 	methodName: string,
 	timeMs: number,
-	logger: (message: string, ...args: any[]) => void,
+	logger: ILogger[keyof ILogger],
 ): void => {
 	return logger(
 		// allow-any-unicode-next-line
