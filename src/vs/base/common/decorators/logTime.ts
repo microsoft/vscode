@@ -5,7 +5,6 @@
 
 import { assertNever } from '../assert.js';
 import { assertDefined } from '../types.js';
-import { Disposable } from '../lifecycle.js';
 
 /**
  * TODO: @legomushroom
@@ -15,7 +14,7 @@ type TLogLevel = 'trace' | 'debug' | 'info' | 'warning' | 'error';
 /**
  * TODO: @legomushroom
  */
-interface ILogger {
+export interface ILogger {
 	trace(message: string, ...args: any[]): void;
 	debug(message: string, ...args: any[]): void;
 	info(message: string, ...args: any[]): void;
@@ -51,7 +50,7 @@ export function logTime(
 	logLevel: TLogLevel = 'trace',
 ) {
 	return function logExecutionTimeDecorator<
-		TObject extends TObjectWithLogger<Disposable>,
+		TObject extends TObjectWithLogger<object>,
 	>(
 		_proto: TObject,
 		methodName: string,
