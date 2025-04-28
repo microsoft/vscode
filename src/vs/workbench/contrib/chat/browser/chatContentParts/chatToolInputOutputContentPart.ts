@@ -114,10 +114,16 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			this._onDidChangeHeight.fire();
 		}));
 
-		this._register(dom.addDisposableGenericMouseDownListener(elements.title, () => {
-			const value = expanded.get();
-			expanded.set(!value, undefined);
-		}));
+		const toggle = (e: Event) => {
+			if (!e.defaultPrevented) {
+				const value = expanded.get();
+				expanded.set(!value, undefined);
+				e.preventDefault();
+			}
+		};
+
+		this._register(btn.onDidClick(toggle));
+		this._register(dom.addDisposableListener(elements.title, dom.EventType.CLICK, toggle));
 
 		elements.message.appendChild(this.createMessageContents());
 	}
