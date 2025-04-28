@@ -68,7 +68,10 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
 	when: ContextKeyExpr.or(
 		ChatContextKeys.Setup.hidden.negate(),
-		ChatContextKeys.Setup.installed,
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.installed,
+			ChatContextKeys.Setup.disabled.negate()
+		),
 		ChatContextKeys.panelParticipantRegistered,
 		ChatContextKeys.extensionInvalid
 	)
