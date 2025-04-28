@@ -89,24 +89,28 @@ export function logTime(
 		): ReturnType<typeof originalMethod> {
 			const startTime = performance.now();
 			const result = originalMethod.call(this, ...args);
-			const timeMs = performance.now() - startTime;
-
-			const logOptions: ILogOptions = {
-				methodName: `${this.constructor.name}.${methodName}`,
-				logLevel,
-				timeMs,
-			};
+			const syncTimeMs = performance.now() - startTime;
 
 			// handle asynchronous decorated methods
 			if (result instanceof Promise) {
 				return result.then((resolved) => {
-					log(logOptions, this.logService);
+					const asyncTimeMs = performance.now() - startTime;
+
+					log({
+						methodName: `${this.constructor.name}.${methodName}`,
+						logLevel,
+						timeMs: asyncTimeMs,
+					}, this.logService);
 					return resolved;
 				});
 			}
 
 			// handle synchronous decorated methods
-			log(logOptions, this.logService);
+			log({
+				methodName: `${this.constructor.name}.${methodName}`,
+				logLevel,
+				timeMs: syncTimeMs,
+			}, this.logService);
 			return result;
 		};
 
