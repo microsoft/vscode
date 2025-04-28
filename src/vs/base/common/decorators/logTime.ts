@@ -43,7 +43,10 @@ type TObjectWithLogger<T extends object> = T & { logService: ILogger };
  * ```typescript
  * class MyClass {
  *     constructor(
- *         @LogService public readonly logService: ILogService,
+ *         // because we have the interface restrictions on the class
+ *         // which does not support 'private'/'protected' fields, we are
+ *         // forced to use the 'public' modifier here
+ *         \@ILogService public readonly logService: ILogService,
  *     ) {}
  *
  *     @logTime('info')
