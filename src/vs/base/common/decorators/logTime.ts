@@ -9,7 +9,7 @@ import { assertDefined } from '../types.js';
 /**
  * TODO: @legomushroom
  */
-type TLogLevel = 'trace' | 'debug' | 'info' | 'warning' | 'error';
+export type TLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 /**
  * TODO: @legomushroom
@@ -126,7 +126,7 @@ const log = (
 		return logger.info(message);
 	}
 
-	if (logLevel === 'warning') {
+	if (logLevel === 'warn') {
 		return logger.warn(message);
 	}
 
