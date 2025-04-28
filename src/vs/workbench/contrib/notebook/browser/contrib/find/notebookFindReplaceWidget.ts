@@ -427,18 +427,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			}
 		));
 
-		// Find/Replace History with update delayer
+		// Find History with update delayer
 		this._updateFindHistoryDelayer = new Delayer<void>(500);
-		this._updateReplaceHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this.onInputChanged();
 			this.updateButtons(this.foundMatch);
 			this._delayedUpdateFindHistory();
-		});
-
-		this.oninput(this._replaceInput.domNode, (e) => {
-			this._delayedUpdateReplaceHistory();
 		});
 
 		this._register(this._findInput.inputBox.onDidChange(() => {
@@ -590,6 +585,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
 		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
 		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
+
+		// Replace History with update delayer
+		this._updateReplaceHistoryDelayer = new Delayer<void>(500);
+
+		this.oninput(this._replaceInput.domNode, (e) => {
+			this._delayedUpdateReplaceHistory();
+		});
 
 		this._register(this._replaceInput.inputBox.onDidChange(() => {
 			this._state.change({ replaceString: this._replaceInput.getValue() }, true);
