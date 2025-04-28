@@ -48,7 +48,7 @@ type TObjectWithLogger<T extends object> = T & { logService: ILogger };
  */
 export function logTime(
 	// TODO: @legomushroom
-	logLevel: TLogLevel = 'info',
+	logLevel: TLogLevel = 'trace',
 ) {
 	return function logExecutionTimeDecorator<
 		TObject extends TObjectWithLogger<Disposable>,

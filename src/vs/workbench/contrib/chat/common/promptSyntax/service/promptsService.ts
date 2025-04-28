@@ -19,7 +19,9 @@ import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
+import { logTime } from '../../../../../../base/common/decorators/logTime.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
@@ -48,6 +50,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		// TODO: @legomushroom - make protected?
+		@ILogService public readonly logService: ILogService,
 	) {
 		super();
 
@@ -211,6 +215,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return [...new ResourceSet(result)];
 	}
 
+	@logTime()
 	public async getAllMetadata(
 		promptUris: readonly URI[],
 	): Promise<IMetadata[]> {
