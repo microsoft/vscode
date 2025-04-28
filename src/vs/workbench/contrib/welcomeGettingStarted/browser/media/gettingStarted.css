@@ -272,7 +272,7 @@
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
-	margin: 8px 8px 8px 0;
+	margin: 8px 8px 8px 1px;
 	padding: 3px 6px 6px;
 	text-align: left;
 }
@@ -694,7 +694,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline-offset: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
