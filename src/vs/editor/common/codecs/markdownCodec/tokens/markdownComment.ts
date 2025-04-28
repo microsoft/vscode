@@ -51,6 +51,6 @@ export class MarkdownComment extends MarkdownToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-comment("${this.text}")${this.range}`;
+		return `md-comment("${this.shortText()}")${this.range}`;
 	}
 }

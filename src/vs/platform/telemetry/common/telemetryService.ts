@@ -227,12 +227,12 @@ configurationRegistry.registerConfiguration({
 				description: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
 			}
 		},
-		'telemetry.disableFeedback': {
+		'telemetry.feedback.enabled': {
 			type: 'boolean',
-			default: false,
-			description: localize('telemetry.disableFeedback', "Disable feedback options."),
+			default: true,
+			description: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and feedback options in features like Copilot Chat."),
 			policy: {
-				name: 'DisableFeedback',
+				name: 'EnableFeedback',
 				minimumVersion: '1.99',
 			}
 		},

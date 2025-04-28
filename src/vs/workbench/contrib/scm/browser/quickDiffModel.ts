@@ -26,7 +26,7 @@ import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js
 import { IDiffEditorModel } from '../../../../editor/common/editorCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
 
@@ -178,15 +178,14 @@ export class QuickDiffModel extends Disposable {
 	public getQuickDiffResults(): QuickDiffResult[] {
 		return this._quickDiffs.map(quickDiff => {
 			const changes = this.changes
-				.filter(change => change.label === quickDiff.label);
+				.filter(change => change.providerId === quickDiff.id);
 
 			return {
-				label: quickDiff.label,
 				original: quickDiff.originalResource,
 				modified: this._model.resource,
 				changes: changes.map(change => change.change),
 				changes2: changes.map(change => change.change2)
-			};
+			} satisfies QuickDiffResult;
 		});
 	}
 
@@ -245,10 +244,13 @@ export class QuickDiffModel extends Disposable {
 				return Promise.resolve({ changes: [], mapChanges: new Map() }); // disposed
 			}
 
-			const filteredToDiffable = originalURIs.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource));
-			if (filteredToDiffable.length === 0) {
+			const quickDiffs = originalURIs
+				.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource));
+			if (quickDiffs.length === 0) {
 				return Promise.resolve({ changes: [], mapChanges: new Map() }); // All files are too large
 			}
+
+			const quickDiffPrimary = quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
 
 			const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
 			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
@@ -256,11 +258,38 @@ export class QuickDiffModel extends Disposable {
 				: ignoreTrimWhitespaceSetting !== 'false';
 
 			const allDiffs: QuickDiffChange[] = [];
-			for (const quickDiff of filteredToDiffable) {
+			for (const quickDiff of quickDiffs) {
 				const diff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
 				if (diff.changes && diff.changes2 && diff.changes.length === diff.changes2.length) {
 					for (let index = 0; index < diff.changes.length; index++) {
+						const change2 = diff.changes2[index];
+
+						// The secondary diffs are complimentary to the primary diffs, and
+						// they overlap. We need to remove the secondary quick diffs that
+						// overlap with primary quick diffs that are already in the array.
+						if (quickDiffPrimary && quickDiff.kind === 'secondary') {
+							// Check whether the:
+							// 1. the modified line range is equal
+							// 2. the original line range length is equal
+							const primaryQuickDiffChange = allDiffs
+								.find(d => d.change2.modified.equals(change2.modified) &&
+									d.change2.original.length === change2.original.length);
+
+							if (primaryQuickDiffChange) {
+								// Check whether the original content matches
+								const primaryModel = this._originalEditorModels.get(quickDiffPrimary.originalResource)?.textEditorModel;
+								const primaryContent = primaryModel?.getValueInRange(primaryQuickDiffChange.change2.toRangeMapping().originalRange);
+
+								const secondaryModel = this._originalEditorModels.get(quickDiff.originalResource)?.textEditorModel;
+								const secondaryContent = secondaryModel?.getValueInRange(change2.toRangeMapping().originalRange);
+								if (primaryContent === secondaryContent) {
+									continue;
+								}
+							}
+						}
+
 						allDiffs.push({
+							providerId: quickDiff.id,
 							label: quickDiff.label,
 							original: quickDiff.originalResource,
 							modified: this._model.resource,
@@ -270,6 +299,7 @@ export class QuickDiffModel extends Disposable {
 					}
 				}
 			}
+
 			const sorted = allDiffs.sort((a, b) => compareChanges(a.change, b.change));
 			const map: Map<string, number[]> = new Map();
 			for (let i = 0; i < sorted.length; i++) {
@@ -309,7 +339,11 @@ export class QuickDiffModel extends Disposable {
 				return [];
 			}
 
-			if (equals(this._quickDiffs, quickDiffs, (a, b) => a.originalResource.toString() === b.originalResource.toString() && a.label === b.label)) {
+			if (equals(this._quickDiffs, quickDiffs, (a, b) =>
+				a.id === b.id &&
+				a.originalResource.toString() === b.originalResource.toString() &&
+				this.quickDiffService.isQuickDiffProviderVisible(a.id) === this.quickDiffService.isQuickDiffProviderVisible(b.id))
+			) {
 				return quickDiffs;
 			}
 
@@ -358,7 +392,7 @@ export class QuickDiffModel extends Disposable {
 
 		// disable dirty diff when doing chat edits
 		const isBeingModifiedByChatEdits = this._chatEditingService.editingSessionsObs.get()
-			.some(session => session.getEntry(uri)?.state.get() === WorkingSetEntryState.Modified);
+			.some(session => session.getEntry(uri)?.state.get() === ModifiedFileEntryState.Modified);
 		if (isBeingModifiedByChatEdits) {
 			return Promise.resolve([]);
 		}
@@ -368,44 +402,38 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
-		let preferredProvider: string | undefined;
-		if (!provider && inclusive) {
-			preferredProvider = this.quickDiffs.find(value => value.isSCM)?.label;
+		const visibleQuickDiffLabels = this.quickDiffs
+			.filter(quickDiff => (!provider || quickDiff.label === provider) &&
+				this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
+			.map(quickDiff => quickDiff.label);
+
+		if (!inclusive) {
+			// Next visible change
+			const nextChange = this.changes
+				.findIndex(change => visibleQuickDiffLabels.includes(change.label) &&
+					change.change.modifiedStartLineNumber > lineNumber);
+
+			return nextChange !== -1 ? nextChange : 0;
 		}
 
-		const possibleChanges: number[] = [];
-		for (let i = 0; i < this.changes.length; i++) {
-			if (provider && this.changes[i].label !== provider) {
-				continue;
-			}
+		const primaryQuickDiffId = this.quickDiffs
+			.find(quickDiff => quickDiff.kind === 'primary')?.id;
 
-			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
-				continue;
-			}
+		const primaryInclusiveChangeIndex = this.changes
+			.findIndex(change => change.providerId === primaryQuickDiffId &&
+				change.change.modifiedStartLineNumber <= lineNumber &&
+				getModifiedEndLineNumber(change.change) >= lineNumber);
 
-			const change = this.changes[i];
-			const possibleChangesLength = possibleChanges.length;
-
-			if (inclusive) {
-				if (getModifiedEndLineNumber(change.change) >= lineNumber) {
-					if (preferredProvider && change.label !== preferredProvider) {
-						possibleChanges.push(i);
-					} else {
-						return i;
-					}
-				}
-			} else {
-				if (change.change.modifiedStartLineNumber > lineNumber) {
-					return i;
-				}
-			}
-			if ((possibleChanges.length > 0) && (possibleChanges.length === possibleChangesLength)) {
-				return possibleChanges[0];
-			}
+		if (primaryInclusiveChangeIndex !== -1) {
+			return primaryInclusiveChangeIndex;
 		}
 
-		return possibleChanges.length > 0 ? possibleChanges[0] : 0;
+		const inclusiveChangeIndex = this.changes
+			.findIndex(change => visibleQuickDiffLabels.includes(change.label) &&
+				change.change.modifiedStartLineNumber <= lineNumber &&
+				getModifiedEndLineNumber(change.change) >= lineNumber);
+
+		return inclusiveChangeIndex !== -1 ? inclusiveChangeIndex : 0;
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
@@ -415,7 +443,8 @@ export class QuickDiffModel extends Disposable {
 			}
 
 			// Skip quick diffs that are not visible
-			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
+			const quickDiff = this.quickDiffs.find(quickDiff => quickDiff.id === this.changes[i].providerId);
+			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
 				continue;
 			}
 

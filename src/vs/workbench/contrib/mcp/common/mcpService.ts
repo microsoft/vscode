@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -14,15 +16,15 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
-	toolDispose: IDisposable;
-	implDispose: IDisposable;
+	store: DisposableStore;
 }
 
 type IMcpServerRec = IReference<IMcpServer>;
@@ -43,7 +45,6 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -95,38 +96,49 @@ export class McpService extends Disposable implements IMcpService {
 			const toDelete = new Set(tools.keys());
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
+				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
-					displayName: tool.definition.name,
+					source: { type: 'mcp', label: server.definition.label, collectionId: server.collection.id, definitionId: server.definition.id },
+					icon: Codicon.tools,
+					displayName: tool.definition.annotations?.title || tool.definition.name,
 					toolReferenceName: tool.definition.name,
 					modelDescription: tool.definition.description ?? '',
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
-					tags: ['mcp', 'vscode_editing'], // TODO@jrieken remove this tag
+					supportsToolPicker: true,
+					alwaysDisplayInputOutput: true,
+					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
+					tags: ['mcp'],
 				};
+
+				const registerTool = (store: DisposableStore) => {
+					store.add(this._toolsService.registerToolData(toolData));
+					store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
+				};
+
 
 				if (existing) {
 					if (!equals(existing.toolData, toolData)) {
 						existing.toolData = toolData;
-						existing.toolDispose.dispose();
-						existing.toolDispose = this._toolsService.registerToolData(toolData);
+						existing.store.clear();
+						// We need to re-register both the data and implementation, as the
+						// implementation is discarded when the data is removed (#245921)
+						registerTool(store);
 					}
 					toDelete.delete(tool.id);
 				} else {
-					tools.set(tool.id, {
-						toolData,
-						toolDispose: this._toolsService.registerToolData(toolData),
-						implDispose: this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)),
-					});
+					const store = new DisposableStore();
+					registerTool(store);
+					tools.set(tool.id, { toolData, store });
 				}
 			}
 
 			for (const id of toDelete) {
 				const tool = tools.get(id);
 				if (tool) {
-					tool.toolDispose.dispose();
-					tool.implDispose.dispose();
+					tool.store.dispose();
 					tools.delete(id);
 				}
 			}
@@ -134,8 +146,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		store.add(toDisposable(() => {
 			for (const tool of tools.values()) {
-				tool.toolDispose.dispose();
-				tool.implDispose.dispose();
+				tool.store.dispose();
 			}
 		}));
 	}
@@ -175,7 +186,14 @@ export class McpService extends Disposable implements IMcpService {
 		// Create any new servers that are needed.
 		for (const def of nextDefinitions) {
 			const store = new DisposableStore();
-			const object = this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache);
+			const object = this._instantiationService.createInstance(
+				McpServer,
+				def.collectionDefinition,
+				def.serverDefinition,
+				def.serverDefinition.roots,
+				!!def.collectionDefinition.lazy,
+				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
+			);
 			store.add(object);
 			this._syncTools(object, store);
 
@@ -204,45 +222,72 @@ class McpToolImplementation implements IToolImpl {
 		@IProductService private readonly _productService: IProductService,
 	) { }
 
-	async prepareToolInvocation(parameters: any, token: CancellationToken) {
+	async prepareToolInvocation(parameters: any): Promise<IPreparedToolInvocation> {
 		const tool = this._tool;
 		const server = this._server;
 
 		const mcpToolWarning = localize(
 			'mcp.tool.warning',
-			"MCP servers or malicious conversation content may attempt to misuse '{0}' through the installed tools. Please carefully review any requested actions.",
+			"{0} Note that MCP servers or malicious conversation content may attempt to misuse '{1}' through tools.",
+			'$(info)',
 			this._productService.nameShort
 		);
 
+		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
+		const title = tool.definition.annotations?.title || ('`' + tool.definition.name + '`');
+		const subtitle = localize('msg.subtitle', "{0} (MCP Server)", server.definition.label);
+
 		return {
-			confirmationMessages: {
-				title: localize('msg.title', "Run `{0}` from $(server) `{1}` (MCP server)", tool.definition.name, server.definition.label),
-				message: new MarkdownString(localize('msg.msg', "{0}\n\nInput:\n\n```json\n{1}\n```\n\n$(warning) {2}", tool.definition.description, JSON.stringify(parameters, undefined, 2), mcpToolWarning), { supportThemeIcons: true })
-			},
-			invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
-			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label))
+			confirmationMessages: needsConfirmation ? {
+				title: localize('msg.title', "Run {0}", title),
+				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
+				allowAutoConfirm: true,
+			} : undefined,
+			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
+			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
+			originMessage: new MarkdownString(markdownCommandLink({
+				id: McpCommandIds.ShowConfiguration,
+				title: subtitle,
+				arguments: [server.collection.id, server.definition.id],
+			}), { isTrusted: true }),
+			toolSpecificData: {
+				kind: 'input',
+				rawInput: parameters
+			}
 		};
 	}
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, token: CancellationToken) {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken) {
 
 		const result: IToolResult = {
 			content: []
 		};
 
-		const callResult = await this._tool.call(invocation.parameters as Record<string, any>, token);
+		const outputParts: string[] = [];
+
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, token);
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
 				result.content.push({
 					kind: 'text',
 					value: item.text
 				});
+
+				outputParts.push(item.text);
+			} else if (item.type === 'image' || item.type === 'audio') {
+				result.content.push({
+					kind: 'data',
+					value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
+				});
 			} else {
-				// TODO@jrieken handle different item types
+				// unsupported for now.
 			}
 		}
 
-		// result.toolResultMessage = new MarkdownString(localize('reuslt.pattern', "```json\n{0}\n```", JSON.stringify(callResult, undefined, 2)));
+		result.toolResultDetails = {
+			input: JSON.stringify(invocation.parameters, undefined, 2),
+			output: outputParts.join('\n')
+		};
 
 		return result;
 	}

@@ -4,25 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
+import { TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
+import { getPromptFileExtension } from '../../../../../../../../platform/prompts/common/constants.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
- * Asks the user for a prompt name.
+ * Asks the user for a file name.
  */
-export const askForPromptName = async (
-	_type: 'local' | 'user',
+export const askForPromptFileName = async (
+	type: TPromptsType,
 	quickInputService: IQuickInputService,
 ): Promise<string | undefined> => {
-	const result = await quickInputService.input(
-		{
-			placeHolder: localize(
-				'commands.prompts.create.ask-name.placeholder',
-				"Provide a prompt name",
-				PROMPT_FILE_EXTENSION,
-			),
-		});
+	const placeHolder = (type === 'instructions')
+		? localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file")
+		: localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
 
+	const result = await quickInputService.input({ placeHolder });
 	if (!result) {
 		return undefined;
 	}
@@ -32,9 +29,10 @@ export const askForPromptName = async (
 		return undefined;
 	}
 
-	const cleanName = (trimmedName.endsWith(PROMPT_FILE_EXTENSION))
+	const fileExtension = getPromptFileExtension(type);
+	const cleanName = (trimmedName.endsWith(fileExtension))
 		? trimmedName
-		: `${trimmedName}${PROMPT_FILE_EXTENSION}`;
+		: `${trimmedName}${fileExtension}`;
 
 	return cleanName;
 };

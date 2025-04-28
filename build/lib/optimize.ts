@@ -62,13 +62,6 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		return entryPoint;
 	});
 
-	const allMentionedModules = new Set<string>();
-	for (const entryPoint of entryPoints) {
-		allMentionedModules.add(entryPoint.name);
-		entryPoint.include?.forEach(allMentionedModules.add, allMentionedModules);
-		entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
-	}
-
 	const bundleAsync = async () => {
 		const files: VinylFile[] = [];
 		const tasks: Promise<any>[] = [];
@@ -129,7 +122,6 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 
 			const task = esbuild.build({
 				bundle: true,
-				external: entryPoint.exclude,
 				packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 				platform: 'neutral', // makes esm
 				format: 'esm',

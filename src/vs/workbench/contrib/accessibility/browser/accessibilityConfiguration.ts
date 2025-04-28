@@ -290,6 +290,20 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.nextEditSuggestion': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.nextEditSuggestion', "Plays a signal - sound / audio cue and/or announcement (alert) when there is a next edit suggestion."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.nextEditSuggestion.sound', "Plays a sound when there is a next edit suggestion."),
+					...soundFeatureBase,
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.nextEditSuggestion.announcement', "Announces when there is a next edit suggestion."),
+					...announcementFeatureBase,
+				},
+			}
+		},
 		'accessibility.signals.lineHasError': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.lineHasError', "Plays a signal - sound (audio cue) and/or announcement (alert) - when the active line has an error."),
@@ -637,6 +651,34 @@ const configuration: IConfigurationNode = {
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.clear.announcement', "Announces when a feature is cleared."),
+					...announcementFeatureBase
+				},
+			},
+		},
+		'accessibility.signals.editsUndone': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.editsUndone', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits have been undone."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.editsUndone.sound', "Plays a sound when edits have been undone."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.editsUndone.announcement', "Announces when edits have been undone."),
+					...announcementFeatureBase
+				},
+			},
+		},
+		'accessibility.signals.editsKept': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.editsKept', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits are kept."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.editsKept.sound', "Plays a sound when edits are kept."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.editsKept.announcement', "Announces when edits are kept."),
 					...announcementFeatureBase
 				},
 			},

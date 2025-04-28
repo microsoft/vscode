@@ -4,23 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorunWithStore } from '../../../../../base/common/observable.js';
+import { count } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { Location } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { IToolResult } from '../../common/languageModelToolsService.js';
+import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
@@ -30,6 +38,7 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { ChatMarkdownContentPart, EditorPool } from './chatMarkdownContentPart.js';
 import { ChatCustomProgressPart, ChatProgressContentPart } from './chatProgressContentPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from './chatReferencesContentPart.js';
+import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart } from './chatToolInputOutputContentPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -48,7 +57,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	private subPart!: ChatToolInvocationSubPart;
 
 	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		listPool: CollapsibleListPool,
@@ -85,7 +94,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized';
+		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;
 	}
 
 	addDisposable(disposable: IDisposable): void {
@@ -95,6 +104,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 class ChatToolInvocationSubPart extends Disposable {
 	private static idPool = 0;
+	/** Remembers expanded tool parts on re-render */
+	private static readonly _expandedByDefault = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
+
 	private readonly _codeblocksPartId = 'tool-' + (ChatToolInvocationSubPart.idPool++);
 
 	public readonly domNode: HTMLElement;
@@ -130,6 +142,9 @@ class ChatToolInvocationSubPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IMarkerService private readonly markerService: IMarkerService,
 	) {
 		super();
 
@@ -141,8 +156,12 @@ class ChatToolInvocationSubPart extends Disposable {
 			}
 		} else if (toolInvocation.toolSpecificData?.kind === 'terminal') {
 			this.domNode = this.createTerminalMarkdownProgressPart(toolInvocation, toolInvocation.toolSpecificData);
-		} else if (toolInvocation.resultDetails?.length) {
+		} else if (Array.isArray(toolInvocation.resultDetails) && toolInvocation.resultDetails?.length) {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
+		} else if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
+			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output, !!toolInvocation.resultDetails.isError);
+		} else if (toolInvocation.kind === 'toolInvocation' && toolInvocation.toolSpecificData?.kind === 'input' && !toolInvocation.isComplete) {
+			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2), undefined, false);
 		} else {
 			this.domNode = this.createProgressPart();
 		}
@@ -156,8 +175,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
-		const title = toolInvocation.confirmationMessages.title;
-		const message = toolInvocation.confirmationMessages.message;
+		const { title, message, allowAutoConfirm } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -165,15 +183,28 @@ class ChatToolInvocationSubPart extends Disposable {
 		const cancelKeybinding = this.keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
+		const enum ConfirmationOutcome {
+			Allow,
+			Disallow,
+			AllowWorkspace,
+			AllowGlobally,
+			AllowSession,
+		}
+
 		const buttons: IChatConfirmationButton[] = [
 			{
 				label: continueLabel,
-				data: true,
-				tooltip: continueTooltip
+				data: ConfirmationOutcome.Allow,
+				tooltip: continueTooltip,
+				moreActions: !allowAutoConfirm ? undefined : [
+					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
+					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
+					{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
+				],
 			},
 			{
-				label: cancelLabel,
-				data: false,
+				label: localize('cancel', "Cancel"),
+				data: ConfirmationOutcome.Disallow,
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
@@ -182,6 +213,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
 				title,
+				toolInvocation.originMessage,
 				message,
 				buttons
 			));
@@ -198,21 +230,159 @@ class ChatToolInvocationSubPart extends Disposable {
 					wordWrap: 'on'
 				}
 			};
+
+			const elements = dom.h('div', [
+				dom.h('.message@message'),
+				dom.h('.editor@editor'),
+			]);
+
+			if (toolInvocation.toolSpecificData?.kind === 'input') {
+
+				const inputData = toolInvocation.toolSpecificData;
+
+				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
+					hideToolbar: true,
+					reserveWidth: 19,
+					maxHeightInLines: 13,
+					verticalPadding: 5,
+					editorOptions: {
+						wordWrap: 'on',
+						readOnly: false
+					}
+				};
+
+				const langId = this.languageService.getLanguageIdByLanguageName('json');
+				const rawJsonInput = JSON.stringify(inputData.rawInput ?? {}, null, 1);
+				const canSeeMore = count(rawJsonInput, '\n') > 2; // if more than one key:value
+				const model = this._register(this.modelService.createModel(
+					// View a single JSON line by default until they 'see more'
+					rawJsonInput.replace(/\n */g, ' '),
+					this.languageService.createById(langId),
+					createToolInputUri(toolInvocation.toolId)
+				));
+
+				const markerOwner = generateUuid();
+				const schemaUri = createToolSchemaUri(toolInvocation.toolId);
+				const validator = new RunOnceScheduler(async () => {
+
+					const newMarker: IMarkerData[] = [];
+
+					const result = await this.commandService.executeCommand('json.validate', schemaUri, model.getValue());
+					for (const item of result) {
+						if (item.range && item.message) {
+							newMarker.push({
+								severity: item.severity === 'Error' ? MarkerSeverity.Error : MarkerSeverity.Warning,
+								message: item.message,
+								startLineNumber: item.range[0].line + 1,
+								startColumn: item.range[0].character + 1,
+								endLineNumber: item.range[1].line + 1,
+								endColumn: item.range[1].character + 1,
+								code: item.code ? String(item.code) : undefined
+							});
+						}
+					}
+
+					this.markerService.changeOne(markerOwner, model.uri, newMarker);
+				}, 500);
+
+				validator.schedule();
+				this._register(model.onDidChangeContent(() => validator.schedule()));
+				this._register(toDisposable(() => this.markerService.remove(markerOwner, [model.uri])));
+				this._register(validator);
+
+				const editor = this._register(this.editorPool.get());
+				editor.object.render({
+					codeBlockIndex: this.codeBlockStartIndex,
+					codeBlockPartIndex: 0,
+					element: this.context.element,
+					languageId: langId ?? 'json',
+					renderOptions: codeBlockRenderOptions,
+					textModel: Promise.resolve(model),
+					chatSessionId: this.context.element.sessionId
+				}, this.currentWidthDelegate());
+				this._codeblocks.push({
+					codeBlockIndex: this.codeBlockStartIndex,
+					codemapperUri: undefined,
+					elementId: this.context.element.id,
+					focus: () => editor.object.focus(),
+					isStreaming: false,
+					ownerMarkdownPartId: this.codeblocksPartId,
+					uri: model.uri,
+					uriPromise: Promise.resolve(model.uri),
+					chatSessionId: this.context.element.sessionId
+				});
+				this._register(editor.object.onDidChangeContentHeight(() => {
+					editor.object.layout(this.currentWidthDelegate());
+					this._onDidChangeHeight.fire();
+				}));
+				this._register(model.onDidChangeContent(e => {
+					try {
+						inputData.rawInput = JSON.parse(model.getValue());
+					} catch {
+						// ignore
+					}
+				}));
+
+				elements.editor.append(editor.object.element);
+
+				if (canSeeMore) {
+					const seeMore = dom.h('div.see-more', [dom.h('a@link')]);
+					seeMore.link.textContent = localize('seeMore', "See more");
+					this._register(dom.addDisposableGenericMouseDownListener(seeMore.link, () => {
+						try {
+							const parsed = JSON.parse(model.getValue());
+							model.setValue(JSON.stringify(parsed, null, 2));
+						} catch {
+							// ignored
+						}
+						seeMore.root.remove();
+					}));
+					elements.editor.append(seeMore.root);
+				}
+			}
+
 			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
+			elements.message.append(this.markdownPart.domNode);
+
 			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
 				title,
-				this.markdownPart.domNode,
+				toolInvocation.originMessage,
+				elements.root,
 				buttons
 			));
 		}
 
+		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
+		hasToolConfirmation.set(true);
+
 		this._register(confirmWidget.onDidClick(button => {
-			toolInvocation.confirmed.complete(button.data);
+			switch (button.data as ConfirmationOutcome) {
+				case ConfirmationOutcome.AllowGlobally:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'profile', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.AllowWorkspace:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'workspace', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.AllowSession:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'memory', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.Allow:
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.Disallow:
+					toolInvocation.confirmed.complete(false);
+					break;
+			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(toDisposable(() => hasToolConfirmation.reset()));
 		toolInvocation.confirmed.p.then(() => {
+			hasToolConfirmation.reset();
 			this._onNeedsRerender.fire();
 		});
 		return confirmWidget.domNode;
@@ -259,14 +429,16 @@ class ChatToolInvocationSubPart extends Disposable {
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId));
 		const editor = this._register(this.editorPool.get());
-		editor.object.render({
+		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			languageId: langId,
 			renderOptions: codeBlockRenderOptions,
-			textModel: Promise.resolve(model)
+			textModel: Promise.resolve(model),
+			chatSessionId: this.context.element.sessionId
 		}, this.currentWidthDelegate());
+		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
 		this._codeblocks.push({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codemapperUri: undefined,
@@ -275,7 +447,8 @@ class ChatToolInvocationSubPart extends Disposable {
 			isStreaming: false,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			uri: model.uri,
-			uriPromise: Promise.resolve(model.uri)
+			uriPromise: Promise.resolve(model.uri),
+			chatSessionId: this.context.element.sessionId
 		});
 		this._register(editor.object.onDidChangeContentHeight(() => {
 			editor.object.layout(this.currentWidthDelegate());
@@ -290,6 +463,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget,
 			title,
+			undefined,
 			element,
 			buttons
 		));
@@ -307,27 +481,37 @@ class ChatToolInvocationSubPart extends Disposable {
 	}
 
 	private createProgressPart(): HTMLElement {
-		let content: IMarkdownString;
 		if (this.toolInvocation.isComplete && this.toolInvocation.isConfirmed !== false && this.toolInvocation.pastTenseMessage) {
-			content = typeof this.toolInvocation.pastTenseMessage === 'string' ?
-				new MarkdownString().appendText(this.toolInvocation.pastTenseMessage) :
-				this.toolInvocation.pastTenseMessage;
+			const part = this.renderProgressContent(this.toolInvocation.pastTenseMessage);
+			this._register(part);
+			return part.domNode;
 		} else {
-			content = typeof this.toolInvocation.invocationMessage === 'string' ?
-				new MarkdownString().appendText(this.toolInvocation.invocationMessage + '…') :
-				MarkdownString.lift(this.toolInvocation.invocationMessage).appendText('…');
+			const container = document.createElement('div');
+			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
+			this._register(autorunWithStore((reader, store) => {
+				const progress = progressObservable?.read(reader);
+				const part = store.add(this.renderProgressContent(progress?.message || this.toolInvocation.invocationMessage));
+				dom.reset(container, part.domNode);
+			}));
+			return container;
+		}
+	}
+
+	private renderProgressContent(content: IMarkdownString | string) {
+		if (typeof content === 'string') {
+			content = new MarkdownString().appendText(content);
 		}
 
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
 			content
 		};
+
 		const iconOverride = !this.toolInvocation.isConfirmed ?
 			Codicon.error :
 			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;
-		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride));
-		return progressPart.domNode;
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride);
 	}
 
 	private createTerminalMarkdownProgressPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, terminalData: IChatTerminalToolInvocationData): HTMLElement {
@@ -355,9 +539,71 @@ class ChatToolInvocationSubPart extends Disposable {
 		return progressPart.domNode;
 	}
 
+	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output: string | undefined, isError: boolean): HTMLElement {
+		let codeBlockIndex = this.codeBlockStartIndex;
+		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
+			const model = this._register(this.modelService.createModel(
+				data,
+				this.languageService.createById('json')
+			));
+
+			return {
+				textModel: model,
+				languageId: model.getLanguageId(),
+				options: {
+					hideToolbar: true,
+					reserveWidth: 19,
+					maxHeightInLines: 13,
+					verticalPadding: 5,
+					editorOptions: {
+						wordWrap: 'on'
+					}
+				},
+				codeBlockInfo: {
+					codeBlockIndex: codeBlockIndex++,
+					codemapperUri: undefined,
+					elementId: this.context.element.id,
+					focus: () => { },
+					isStreaming: false,
+					ownerMarkdownPartId: this.codeblocksPartId,
+					uri: model.uri,
+					chatSessionId: this.context.element.sessionId,
+					uriPromise: Promise.resolve(model.uri)
+				}
+			};
+		};
+
+		const collapsibleListPart = this._register(this.instantiationService.createInstance(
+			ChatCollapsibleInputOutputContentPart,
+			message,
+			subtitle,
+			this.context,
+			this.editorPool,
+			toCodePart(input),
+			output ? { parts: [toCodePart(output)] } : undefined,
+			isError,
+			ChatToolInvocationSubPart._expandedByDefault.get(this.toolInvocation) ?? false,
+		));
+		this._codeblocks.push(...collapsibleListPart.codeblocks);
+		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(toDisposable(() => ChatToolInvocationSubPart._expandedByDefault.set(this.toolInvocation, collapsibleListPart.expanded)));
+
+		const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
+		if (progressObservable) {
+			this._register(autorunWithStore((reader, store) => {
+				const progress = progressObservable?.read(reader);
+				if (progress.message) {
+					collapsibleListPart.title = progress.message;
+				}
+			}));
+		}
+
+		return collapsibleListPart.domNode;
+	}
+
 	private createResultList(
 		message: string | IMarkdownString,
-		toolDetails: NonNullable<IToolResult['toolResultDetails']>,
+		toolDetails: Array<URI | Location>,
 	): HTMLElement {
 		const collapsibleListPart = this._register(this.instantiationService.createInstance(
 			ChatCollapsibleListContentPart,

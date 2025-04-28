@@ -7,20 +7,21 @@ export interface IMcpConfiguration {
 	inputs?: unknown[];
 	/** @deprecated Only for rough cross-compat with other formats */
 	mcpServers?: Record<string, IMcpConfigurationStdio>;
-	servers?: Record<string, IMcpConfigurationStdio | IMcpConfigurationSSE>;
+	servers?: Record<string, IMcpConfigurationStdio | IMcpConfigurationHTTP>;
 }
 
-export type McpConfigurationServer = IMcpConfigurationStdio | IMcpConfigurationSSE;
+export type McpConfigurationServer = IMcpConfigurationStdio | IMcpConfigurationHTTP;
 
 export interface IMcpConfigurationStdio {
 	type?: 'stdio';
 	command: string;
 	args?: readonly string[];
 	env?: Record<string, string | number | null>;
+	envFile?: string;
 }
 
-export interface IMcpConfigurationSSE {
-	type: 'sse';
+export interface IMcpConfigurationHTTP {
+	type?: 'http';
 	url: string;
 	headers?: Record<string, string>;
 }

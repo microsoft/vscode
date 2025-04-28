@@ -25,6 +25,7 @@ import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDeta
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 const $ = dom.$;
 
@@ -121,7 +122,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		private readonly _onDidFontConfigurationChange: Event<void>,
 		private readonly _getAdvancedExplainModeDetails: () => string | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService _contextKeyService: IContextKeyService
@@ -184,7 +185,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !_configurationService.getValue('editor.suggest.showIcons'));
 		applyIconStyle();
 
-		const renderer = new SimpleSuggestWidgetItemRenderer(this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this));
+		const renderer = this._instantiationService.createInstance(SimpleSuggestWidgetItemRenderer, this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this));
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List<TItem>('SuggestWidget', this._listElement, {
@@ -196,7 +197,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'option',
+				getRole: () => isWindows ? 'listitem' : 'option',
 				getWidgetAriaLabel: () => localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: SimpleCompletionItem) => {
@@ -231,13 +232,13 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		}));
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 
-		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this), this._getAdvancedExplainModeDetails.bind(this)));
+		const details: SimpleSuggestDetailsWidget = this._register(_instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this), this._getAdvancedExplainModeDetails.bind(this)));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
 
 		if (_options.statusBarMenuId && _options.showStatusBarSettingId && _configurationService.getValue(_options.showStatusBarSettingId)) {
-			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
+			this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
 		}
 
@@ -257,7 +258,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
 				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
 				if (showStatusBar && !this._status) {
-					this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
+					this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
 					this._status.show();
 				} else if (showStatusBar && this._status) {
 					this._status.show();

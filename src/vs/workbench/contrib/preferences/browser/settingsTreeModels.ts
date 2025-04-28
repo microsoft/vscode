@@ -9,8 +9,8 @@ import { isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { SettingsTarget } from './preferencesWidgets.js';
-import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from './settingsLayout.js';
-import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers } from '../common/preferences.js';
+import { ITOCEntry, tocData } from './settingsLayout.js';
+import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from '../../../services/configuration/common/configuration.js';
@@ -342,7 +342,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// so we reset the default value source to the non-language-specific default value source for now.
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
-		if (inspected.policyValue) {
+		if (inspected.policyValue !== undefined) {
 			this.hasPolicyValue = true;
 			isConfigured = false; // The user did not manually configure the setting themselves.
 			displayValue = inspected.policyValue;
@@ -639,7 +639,7 @@ export class SettingsTreeModel implements IDisposable {
 			this._userDataProfileService,
 			this._configurationService);
 
-		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
+		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
 		this._treeElementsBySettingName.set(setting.key, nameElements);
 		return element;
@@ -725,24 +725,6 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 
 	const label = wordifyKey(key);
 	return { category, label };
-}
-
-function wordifyKey(key: string): string {
-	key = key
-		.replace(/\.([a-z0-9])/g, (_, p1) => ` \u203A ${p1.toUpperCase()}`) // Replace dot with spaced '>'
-		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
-		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
-			return knownAcronyms.has(match.toLowerCase()) ?
-				match.toUpperCase() :
-				match;
-		});
-
-	for (const [k, v] of knownTermMappings) {
-		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
-	}
-
-	return key;
 }
 
 /**
@@ -1026,28 +1008,24 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		this.cachedUniqueSearchResults = {
 			filterMatches: combinedFilterMatches,
-			exactMatch: localResult?.exactMatch || remoteResult?.exactMatch
+			exactMatch: localResult.exactMatch // remote results should never have an exact match
 		};
 
 		return this.cachedUniqueSearchResults;
 	}
 
 	getRawResults(): ISearchResult[] {
-		return this.rawSearchResults || [];
+		return this.rawSearchResults ?? [];
 	}
 
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults = null;
 		this.newExtensionSearchResults = null;
 
-		this.rawSearchResults = this.rawSearchResults || [];
+		this.rawSearchResults ??= [];
 		if (!result) {
 			delete this.rawSearchResults[order];
 			return;
-		}
-
-		if (result.exactMatch) {
-			this.rawSearchResults = [];
 		}
 
 		this.rawSearchResults[order] = result;

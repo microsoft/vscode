@@ -35,6 +35,7 @@ import { ICodeBlockActionContext } from '../codeBlockPart.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 
 export class InsertCodeBlockOperation {
 	constructor(
@@ -117,6 +118,7 @@ export class ApplyCodeBlockOperation {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotebookService private readonly notebookService: INotebookService,
 	) {
 	}
 
@@ -128,7 +130,7 @@ export class ApplyCodeBlockOperation {
 			return;
 		}
 
-		if (codemapperUri && !isEqual(activeEditorControl?.getModel().uri, codemapperUri)) {
+		if (codemapperUri && !isEqual(activeEditorControl?.getModel().uri, codemapperUri) && !this.notebookService.hasSupportedNotebooks(codemapperUri)) {
 			// reveal the target file
 			try {
 				const editorPane = await this.editorService.openEditor({ resource: codemapperUri });
@@ -148,8 +150,8 @@ export class ApplyCodeBlockOperation {
 
 		let result: IComputeEditsResult | undefined = undefined;
 
-		if (activeEditorControl) {
-			result = await this.handleTextEditor(activeEditorControl, context.code);
+		if (activeEditorControl && !this.notebookService.hasSupportedNotebooks(codemapperUri)) {
+			result = await this.handleTextEditor(activeEditorControl, context.chatSessionId, context.code);
 		} else {
 			const activeNotebookEditor = getActiveNotebookEditor(this.editorService);
 			if (activeNotebookEditor) {
@@ -224,14 +226,14 @@ export class ApplyCodeBlockOperation {
 		return undefined;
 	}
 
-	private async handleTextEditor(codeEditor: IActiveCodeEditor, code: string): Promise<IComputeEditsResult | undefined> {
+	private async handleTextEditor(codeEditor: IActiveCodeEditor, chatSessionId: string | undefined, code: string): Promise<IComputeEditsResult | undefined> {
 		const activeModel = codeEditor.getModel();
 		if (isReadOnly(activeModel, this.textFileService)) {
 			this.notify(localize('applyCodeBlock.readonly', "Cannot apply code block to read-only file."));
 			return undefined;
 		}
 
-		const codeBlock = { code, resource: activeModel.uri, markdownBeforeBlock: undefined };
+		const codeBlock = { code, resource: activeModel.uri, chatSessionId, markdownBeforeBlock: undefined };
 
 		const codeMapper = this.codeMapperService.providers[0]?.displayName;
 		if (!codeMapper) {
@@ -245,7 +247,7 @@ export class ApplyCodeBlockOperation {
 				{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 				async progress => {
 					progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
-					const editsIterable = this.getEdits(codeBlock, cancellationTokenSource.token);
+					const editsIterable = this.getEdits(codeBlock, chatSessionId, cancellationTokenSource.token);
 					return await this.waitForFirstElement(editsIterable);
 				},
 				() => cancellationTokenSource.cancel()
@@ -265,10 +267,11 @@ export class ApplyCodeBlockOperation {
 		};
 	}
 
-	private getEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<TextEdit[]> {
+	private getEdits(codeBlock: ICodeMapperCodeBlock, chatSessionId: string | undefined, token: CancellationToken): AsyncIterable<TextEdit[]> {
 		return new AsyncIterableObject<TextEdit[]>(async executor => {
 			const request: ICodeMapperRequest = {
-				codeBlocks: [codeBlock]
+				codeBlocks: [codeBlock],
+				chatSessionId
 			};
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edit: TextEdit[]) => {

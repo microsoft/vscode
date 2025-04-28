@@ -218,6 +218,18 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		});
 		this._sessionDisposables.add(viewModel);
 
+		// Track focus changes to update the editor name
+		this._sessionDisposables.add(autorun(reader => {
+			/** @description Update focused editor name based on focus */
+			const focusedType = viewModel.focusedEditorType.read(reader);
+
+			if (!(input instanceof MergeEditorInput)) {
+				return;
+			}
+
+			input.updateFocusedEditor(focusedType || 'result');
+		}));
+
 		// Set/unset context keys based on input
 		this._ctxResultUri.set(inputModel.resultUri.toString());
 		this._ctxBaseUri.set(model.base.uri.toString());
@@ -226,11 +238,18 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 			this._ctxResultUri.reset();
 		}));
 
+		const viewZoneRegistrationStore = new DisposableStore();
+		this._sessionDisposables.add(viewZoneRegistrationStore);
 		// Set the view zones before restoring view state!
 		// Otherwise scrolling will be off
-		this._sessionDisposables.add(autorunWithStore((reader, store) => {
+		this._sessionDisposables.add(autorunWithStore((reader) => {
 			/** @description update alignment view zones */
 			const baseView = this.baseView.read(reader);
+
+			const resultScrollTop = this.inputResultView.editor.getScrollTop();
+			this.scrollSynchronizer.stopSync();
+
+			viewZoneRegistrationStore.clear();
 
 			this.inputResultView.editor.changeViewZones(resultViewZoneAccessor => {
 				const layout = this._layoutModeObs.read(reader);
@@ -241,7 +260,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 					this.input2View.editor.changeViewZones(input2ViewZoneAccessor => {
 						if (baseView) {
 							baseView.editor.changeViewZones(baseViewZoneAccessor => {
-								store.add(this.setViewZones(reader,
+								viewZoneRegistrationStore.add(this.setViewZones(reader,
 									viewModel,
 									this.input1View.editor,
 									input1ViewZoneAccessor,
@@ -256,7 +275,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 								));
 							});
 						} else {
-							store.add(this.setViewZones(reader,
+							viewZoneRegistrationStore.add(this.setViewZones(reader,
 								viewModel,
 								this.input1View.editor,
 								input1ViewZoneAccessor,
@@ -274,6 +293,9 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				});
 			});
 
+			this.inputResultView.editor.setScrollTop(resultScrollTop, ScrollType.Smooth);
+
+			this.scrollSynchronizer.startSync();
 			this.scrollSynchronizer.updateScrolling();
 		}));
 

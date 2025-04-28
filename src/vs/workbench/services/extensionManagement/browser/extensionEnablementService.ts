@@ -348,7 +348,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		enablementState = this._getUserEnablementState(extension.identifier);
 		const isEnabled = this.isEnabledEnablementState(enablementState);
 
-		if (isMalicious(extension.identifier, this.getMaliciousExtensions())) {
+		if (isMalicious(extension.identifier, this.getMaliciousExtensions().map(e => ({ extensionOrPublisher: e })))) {
 			enablementState = EnablementState.DisabledByMalicious;
 		}
 
@@ -716,7 +716,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private async checkForMaliciousExtensions(): Promise<void> {
 		try {
 			const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
-			const changed = this.storeMaliciousExtensions(extensionsControlManifest.malicious);
+			const changed = this.storeMaliciousExtensions(extensionsControlManifest.malicious.map(({ extensionOrPublisher }) => extensionOrPublisher));
 			if (changed) {
 				this._onDidChangeExtensions([], [], false);
 			}

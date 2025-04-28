@@ -6,8 +6,13 @@
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpConnectionState, IMcpServerConnection, McpCollectionReference, McpDefinitionReference, LazyCollectionState } from './mcpTypes.js';
+import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
+import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
@@ -15,19 +20,22 @@ export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
 /** Message transport to a single MCP server. */
 export interface IMcpMessageTransport extends IDisposable {
 	readonly state: IObservable<McpConnectionState>;
-	readonly onDidLog: Event<string>;
+	readonly onDidLog: Event<{ level: LogLevel; message: string }>;
 	readonly onDidReceiveMessage: Event<MCP.JSONRPCMessage>;
 	send(message: MCP.JSONRPCMessage): void;
 	stop(): void;
 }
 
 export interface IMcpHostDelegate {
+	/** Priority for this delegate, delegates are tested in descending priority order */
+	readonly priority: number;
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;
 }
 
 export interface IMcpResolveConnectionOptions {
+	logger: ILogger;
 	collectionRef: McpCollectionReference;
 	definitionRef: McpDefinitionReference;
 	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
@@ -37,14 +45,17 @@ export interface IMcpResolveConnectionOptions {
 export interface IMcpRegistry {
 	readonly _serviceBrand: undefined;
 
+	/** Fired when the user provides more inputs when creating a connection. */
+	readonly onDidChangeInputs: Event<void>;
+
 	readonly collections: IObservable<readonly McpCollectionDefinition[]>;
 	readonly delegates: readonly IMcpHostDelegate[];
+	/** Whether there are new collections that can be resolved with a discover() call */
+	readonly lazyCollectionState: IObservable<LazyCollectionState>;
 
 	/** Gets the prefix that should be applied to a collection's tools in order to avoid ID conflicts */
 	collectionToolPrefix(collection: McpCollectionReference): IObservable<string>;
 
-	/** Whether there are new collections that can be resolved with a discover() call */
-	readonly lazyCollectionState: IObservable<LazyCollectionState>;
 	/** Discover new collections, returning newly-discovered ones. */
 	discoverCollections(): Promise<McpCollectionDefinition[]>;
 
@@ -57,8 +68,14 @@ export interface IMcpRegistry {
 	/** Gets whether the collection is trusted. */
 	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined>;
 
-	/** Resets any saved inputs for the connection. */
-	clearSavedInputs(collection: McpCollectionReference, definition: McpServerDefinition): void;
+	/** Resets any saved inputs for the input, or globally. */
+	clearSavedInputs(scope: StorageScope, inputId?: string): Promise<void>;
+	/** Edits a previously-saved input. */
+	editSavedInput(inputId: string, folderData: IWorkspaceFolderData | undefined, configSection: string, target: ConfigurationTarget): Promise<void>;
+	/** Updates a saved input. */
+	setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void>;
+	/** Gets saved inputs from storage. */
+	getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }>;
 	/** Creates a connection for the collection and definition. */
 	resolveConnection(options: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined>;
 }

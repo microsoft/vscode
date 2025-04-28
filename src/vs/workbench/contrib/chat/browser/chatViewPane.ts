@@ -26,7 +26,6 @@ import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
@@ -36,11 +35,11 @@ import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
+	hasMigratedCurrentSession?: boolean;
 }
 
 export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
-export const CHAT_EDITING_SIDEBAR_PANEL_ID = 'workbench.panel.chatEditing';
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -54,7 +53,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _restoringSession: Promise<void> | undefined;
 
 	constructor(
-		private readonly chatOptions: { location: ChatAgentLocation.Panel | ChatAgentLocation.EditingSession },
+		private readonly chatOptions: { location: ChatAgentLocation.Panel },
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -74,14 +73,38 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
+		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+
+		if (this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
+			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
+			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+			if (lastEditsState.sessionId) {
+				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
+				if (!this.chatService.isPersistedSessionEmpty(lastEditsState.sessionId)) {
+					this.logService.info(`ChatViewPane: migrating ${lastEditsState.sessionId} to unified view`);
+					this.viewState.sessionId = lastEditsState.sessionId;
+					this.viewState.inputValue = lastEditsState.inputValue;
+					this.viewState.inputState = {
+						...lastEditsState.inputState,
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Edit
+					};
+					this.viewState.hasMigratedCurrentSession = true;
+				}
+			}
+		}
+
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
 				if (!this._widget?.viewModel && !this._restoringSession) {
 					const info = this.getTransferredOrPersistedSessionInfo();
 					this._restoringSession =
 						(info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : Promise.resolve(undefined)).then(async model => {
+							if (!this._widget) {
+								// renderBody has not been called yet
+								return;
+							}
+
 							// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
 							// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
 							// so it should fire onDidChangeViewWelcomeState.
@@ -104,12 +127,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			this._onDidChangeViewWelcomeState.fire();
-		}));
-
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(ChatContextKeys.SetupViewKeys)) {
-				this._onDidChangeViewWelcomeState.fire();
-			}
 		}));
 	}
 
@@ -142,10 +159,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override shouldShowWelcome(): boolean {
-		const showSetup = this.contextKeyService.contextMatchesRules(ChatContextKeys.SetupViewCondition);
 		const noPersistedSessions = !this.chatService.hasSessions();
-		const shouldShow = this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup;
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
+		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
+		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed}`);
 		return !!shouldShow;
 	}
 
@@ -181,19 +198,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					autoScroll: mode => mode !== ChatMode.Ask,
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
-					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
-						renderCodeBlockPills: mode => mode !== ChatMode.Ask,
 						renderTextEditsAsSummary: (uri) => {
-							return this.chatService.isEditingLocation(this.chatOptions.location);
+							return true;
 						},
-						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(this.chatOptions.location),
-						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(this.chatOptions.location),
+						referencesExpandedWhenEmptyResponse: false,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),
-					enableWorkingSet: this.chatService.isEditingLocation(this.chatOptions.location) ? 'explicit' : undefined,
-					supportsChangingModes: this.chatService.isEditingLocation(this.chatOptions.location),
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+					enableWorkingSet: 'explicit',
+					supportsChangingModes: true,
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,

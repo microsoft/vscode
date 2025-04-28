@@ -294,7 +294,7 @@ export class TokenStore implements IDisposable {
 				}
 				postcedingNodes.push(node.node);
 				continue;
-			} else if (isLeaf(node.node) && (currentOffset + node.node.length >= firstUnchangedOffsetAfterUpdate)) {
+			} else if (isLeaf(node.node) && (currentOffset + node.node.length > firstUnchangedOffsetAfterUpdate)) {
 				// we have a partial postceeding node
 				postcedingNodes.push({ length: currentOffset + node.node.length - firstUnchangedOffsetAfterUpdate, token: node.node.token, height: 0, tokenQuality: node.node.tokenQuality });
 				continue;

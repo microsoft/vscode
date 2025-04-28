@@ -4,44 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-setup-dialog {
-	overflow: hidden;
-}
-
-.chat-welcome-view .chat-setup-view {
-
-	text-align: center;
-
-	.chat-features-container {
-		display: flex;
-		justify-content: center;
-		text-align: initial;
-		border-radius: 2px;
-		border: 1px solid var(--vscode-chat-requestBorder);
-		background-color: var(--vscode-chat-requestBackground);
-	}
-}
-
-.dialog-message-body .chat-setup-view {
-
-	p.legal {
-		font-size: 12px;
-		color: var(--vscode-descriptionForeground);
-	}
-
-	.chat-setup-dialog-icon-background {
-		position: absolute;
-		right: -50px;
-		top: -20px;
-		font-size: 240px !important;
-		opacity: 0.2;
-	}
-}
-
-.dialog-message-body .chat-setup-view,
-.chat-welcome-view .chat-setup-view {
 
 	p {
+		margin-top: 0;
+		margin-bottom: 0;
 		width: 100%;
+	}
+
+	p.setup-legal {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+		margin-top: 2em;
+	}
+
+	p.setup-settings {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+		margin-top: 1em;
 	}
 
 	.chat-feature-container {

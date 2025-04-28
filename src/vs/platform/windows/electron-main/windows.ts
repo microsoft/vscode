@@ -122,6 +122,7 @@ export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
+	alwaysOnTop?: boolean;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -210,6 +211,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 				};
 			}
 		}
+	}
+
+	if (overrides?.alwaysOnTop) {
+		options.alwaysOnTop = true;
 	}
 
 	return options;
@@ -378,4 +383,15 @@ export namespace WindowStateValidator {
 
 		return undefined;
 	}
+}
+
+/**
+ * We have some components like `NativeWebContentExtractorService` that create offscreen windows
+ * to extract content from web pages. These windows are not visible to the user and are not
+ * considered part of the main application window. This function filters out those offscreen
+ * windows from the list of all windows.
+ * @returns An array of all BrowserWindow instances that are not offscreen.
+ */
+export function getAllWindowsExcludingOffscreen() {
+	return electron.BrowserWindow.getAllWindows().filter(win => !win.webContents.isOffscreen());
 }

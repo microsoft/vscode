@@ -6,7 +6,7 @@
 import { BrowserWindow } from 'electron';
 import { IWebContentExtractorService } from '../common/webContentExtractor.js';
 import { URI } from '../../../base/common/uri.js';
-import { AXNode, convertToReadibleFormat } from './cdpAccessibilityDomain.js';
+import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 import { Limiter } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 
@@ -60,7 +60,7 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			await win.loadURL(uri.toString(true));
 			win.webContents.debugger.attach('1.1');
 			const result: { nodes: AXNode[] } = await win.webContents.debugger.sendCommand('Accessibility.getFullAXTree');
-			const str = convertToReadibleFormat(result.nodes);
+			const str = convertAXTreeToMarkdown(uri, result.nodes);
 			this._webContentsCache.set(uri, { content: str, timestamp: Date.now() });
 			return str;
 		} catch (err) {

@@ -117,6 +117,24 @@ declare module 'vscode' {
 		readonly languageId: string;
 
 		/**
+		 * The file encoding of this document that will be used when the document is saved.
+		 *
+		 * Use the {@link workspace.onDidChangeTextDocument onDidChangeTextDocument}-event to
+		 * get notified when the document encoding changes.
+		 *
+		 * Note that the possible encoding values are currently defined as any of the following:
+		 * 'utf8', 'utf8bom', 'utf16le', 'utf16be', 'windows1252', 'iso88591', 'iso88593',
+		 * 'iso885915', 'macroman', 'cp437', 'windows1256', 'iso88596', 'windows1257',
+		 * 'iso88594', 'iso885914', 'windows1250', 'iso88592', 'cp852', 'windows1251',
+		 * 'cp866', 'cp1125', 'iso88595', 'koi8r', 'koi8u', 'iso885913', 'windows1253',
+		 * 'iso88597', 'windows1255', 'iso88598', 'iso885910', 'iso885916', 'windows1254',
+		 * 'iso88599', 'windows1258', 'gbk', 'gb18030', 'cp950', 'big5hkscs', 'shiftjis',
+		 * 'eucjp', 'euckr', 'windows874', 'iso885911', 'koi8ru', 'koi8t', 'gb2312',
+		 * 'cp865', 'cp850'.
+		 */
+		readonly encoding: string;
+
+		/**
 		 * The version number of this document (it will strictly increase after each
 		 * change, including undo/redo).
 		 */
@@ -11997,6 +12015,8 @@ declare module 'vscode' {
 		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
 		 * Extensions can use `handleDrag` to add their {@link DataTransferItem `DataTransferItem`} items to the drag and drop.
 		 *
+		 * Mime types added in `handleDrag` won't be available outside the application.
+		 *
 		 * When the items are dropped on **another tree item** in **the same tree**, your `DataTransferItem` objects
 		 * will be preserved. Use the recommended mime type for the tree (`application/vnd.code.tree.<treeidlowercase>`) to add
 		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.
@@ -13990,7 +14010,29 @@ declare module 'vscode' {
 		 * @param uri Identifies the resource to open.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(uri: Uri): Thenable<TextDocument>;
+		export function openTextDocument(uri: Uri, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
+			 *
+			 * Opening a text document that was already opened with a different encoding
+			 * has the potential of changing the text contents of the text document.
+			 * Specifically, when the encoding results in a different set of characters
+			 * than the previous encoding. As such, an error is thrown for dirty documents
+			 * when the specified encoding is different from the encoding of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
+			 */
+			readonly encoding?: string;
+		}): Thenable<TextDocument>;
 
 		/**
 		 * A short-hand for `openTextDocument(Uri.file(path))`.
@@ -13999,7 +14041,29 @@ declare module 'vscode' {
 		 * @param path A path of a file on disk.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(path: string): Thenable<TextDocument>;
+		export function openTextDocument(path: string, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
+			 *
+			 * Opening a text document that was already opened with a different encoding
+			 * has the potential of changing the text contents of the text document.
+			 * Specifically, when the encoding results in a different set of characters
+			 * than the previous encoding. As such, an error is thrown for dirty documents
+			 * when the specified encoding is different from the encoding of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
+			 */
+			readonly encoding?: string;
+		}): Thenable<TextDocument>;
 
 		/**
 		 * Opens an untitled text document. The editor will prompt the user for a file
@@ -14018,6 +14082,14 @@ declare module 'vscode' {
 			 * The initial contents of the document.
 			 */
 			content?: string;
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding. Using an unsupported encoding will fallback to the
+			 * default encoding for the document.
+			 */
+			readonly encoding?: string;
 		}): Thenable<TextDocument>;
 
 		/**
@@ -14301,6 +14373,129 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
+		 *
+		 * Will pick an encoding based on settings and the content of the
+		 * buffer (for example byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The text content to decode as a `Uint8Array`.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array): Thenable<string>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string` using the
+		 * provided encoding. You MUST provide the entire content at once
+		 * to ensure that the encoding can properly apply. Do not use this
+		 * method to decode content in chunks, as that may lead to incorrect
+		 * results.
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The text content to decode as a `Uint8Array`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array, options: {
+			/**
+			 * Allows to explicitly pick the encoding to use.
+			 * See {@link TextDocument.encoding} for more information
+			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
+			 */
+			readonly encoding: string;
+		}): Thenable<string>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
+		 *
+		 * The encoding is picked based on settings and the content
+		 * of the buffer (for example byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The content to decode as a `Uint8Array`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array, options: {
+			/**
+			 * The URI that represents the file if known. This information
+			 * is used to figure out the encoding related configuration
+			 * for the file if any.
+			 */
+			readonly uri: Uri;
+		}): Thenable<string>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array`.
+		 *
+		 * Will pick an encoding based on settings.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string): Thenable<Uint8Array>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array` using the
+		 * provided encoding.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string, options: {
+			/**
+			 * Allows to explicitly pick the encoding to use.
+			 * See {@link TextDocument.encoding} for more information
+			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
+			 */
+			readonly encoding: string;
+		}): Thenable<Uint8Array>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array`.
+		 *
+		 * The encoding is picked based on settings.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @param options Additional context for picking the encoding.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string, options: {
+			/**
+			 * The URI that represents the file if known. This information
+			 * is used to figure out the encoding related configuration
+			 * for the file if any.
+			 */
+			readonly uri: Uri;
+		}): Thenable<Uint8Array>;
 	}
 
 	/**
@@ -16295,7 +16490,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for source control mangement.
+	 * Namespace for source control management.
 	 */
 	export namespace scm {
 
@@ -16609,7 +16804,7 @@ declare module 'vscode' {
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
+	 * A debug adapter factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
 	 */
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -16663,7 +16858,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterTracker debug adapter trackers}.
+	 * A debug adapter factory that creates {@link DebugAdapterTracker debug adapter trackers}.
 	 */
 	export interface DebugAdapterTrackerFactory {
 		/**
@@ -17200,7 +17395,7 @@ declare module 'vscode' {
 		 * Whether the thread supports reply.
 		 * Defaults to true.
 		 */
-		canReply: boolean;
+		canReply: boolean | CommentAuthorInformation;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.
@@ -19062,7 +19257,7 @@ declare module 'vscode' {
 		readonly value: T;
 
 		/**
-		 * Creates a new telementry trusted value.
+		 * Creates a new telemetry trusted value.
 		 *
 		 * @param value A value to trust
 		 */
@@ -19070,7 +19265,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A telemetry logger which can be used by extensions to log usage and error telementry.
+	 * A telemetry logger which can be used by extensions to log usage and error telemetry.
 	 *
 	 * A logger wraps around an {@link TelemetrySender sender} but it guarantees that
 	 * - user settings to disable or tweak telemetry are respected, and that
@@ -20249,7 +20444,7 @@ declare module 'vscode' {
 	 */
 	export class LanguageModelToolResult {
 		/**
-		 * A list of tool result content parts. Includes `unknown` becauses this list may be extended with new content types in
+		 * A list of tool result content parts. Includes `unknown` because this list may be extended with new content types in
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */

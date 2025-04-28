@@ -157,6 +157,7 @@ export class InlineChatWidget {
 					}
 					return true;
 				},
+				dndContainer: this._elements.root,
 				..._options.chatWidgetViewOptions
 			},
 			{
@@ -471,7 +472,7 @@ export class InlineChatWidget {
 	}
 
 	reset() {
-		this._chatWidget.attachmentModel.clear();
+		this._chatWidget.attachmentModel.clear(true);
 		this._chatWidget.saveState();
 
 		reset(this._elements.statusLabel);

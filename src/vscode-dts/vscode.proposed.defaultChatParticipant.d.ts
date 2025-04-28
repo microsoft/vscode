@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 
 declare module 'vscode' {
 
@@ -35,12 +35,6 @@ declare module 'vscode' {
 
 	export interface ChatParticipant {
 		/**
-		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter
-		 * TODO@API name
-		 */
-		isSecondary?: boolean;
-
-		/**
 		 * A string that will be added before the listing of chat participants in `/help`.
 		 */
 		helpTextPrefix?: string | MarkdownString;
@@ -56,7 +50,7 @@ declare module 'vscode' {
 		helpTextPostfix?: string | MarkdownString;
 
 		welcomeMessageProvider?: ChatWelcomeMessageProvider;
-		welcomeMessageContent?: ChatWelcomeMessageContent;
+		additionalWelcomeMessage?: string | MarkdownString;
 		titleProvider?: ChatTitleProvider;
 		requester?: ChatRequesterInformation;
 	}
