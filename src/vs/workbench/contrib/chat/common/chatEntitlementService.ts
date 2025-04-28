@@ -868,9 +868,11 @@ export class ChatEntitlementContext extends Disposable {
 			}
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-			const installed = !!defaultChatExtension?.local;
-			const disabled = installed && !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
-			this.update({ installed, disabled });
+			this.update({
+				// TODO@bpasero considering enablement state here as well for historic reasons, should revisit when Copilot can be enabled/disabled more generally
+				installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local),
+				disabled: !!defaultChatExtension?.local && !this.extensionEnablementService.isEnabled(defaultChatExtension.local)
+			});
 		}));
 	}
 
@@ -881,7 +883,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
-			this._state.installed = context.installed && !context.disabled; // TODO@bpasero considering enablement state here as well for historic reasons, should revisit when Copilot can be enabled/disabled more generally
+			this._state.installed = context.installed;
 			this._state.disabled = context.disabled;
 
 			if (context.installed) {
