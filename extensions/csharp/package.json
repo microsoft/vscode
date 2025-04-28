@@ -40,7 +40,14 @@
         "path": "./syntaxes/csharp.tmLanguage.json",
         "tokenTypes": {
           "meta.interpolation": "other"
-        }
+        },
+        "unbalancedBracketScopes": [
+          "keyword.operator.relational.cs",
+          "keyword.operator.arrow.cs",
+          "punctuation.accessor.pointer.cs",
+          "keyword.operator.bitwise.shift.cs",
+          "keyword.operator.assignment.compound.bitwise.cs"
+        ]
       }
     ],
     "snippets": [
