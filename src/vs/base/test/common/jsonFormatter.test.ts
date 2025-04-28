@@ -470,4 +470,76 @@ suite('JSON - formatter', () => {
 		actual = Formatter.toFormattedString(obj, { insertSpaces: false, eol: '\r\n' });
 		assert.strictEqual(actual, getExpected('\t', '\r\n'));
 	});
+
+	test('object - trailing comma', () => {
+		const content = [
+			'{',
+			'  "a": 1,',
+			'  "b": 2,',
+			'}'
+		].join('\n');
+
+		const expected = [
+			'{',
+			'  "a": 1,',
+			'  "b": 2',
+			'}'
+		].join('\n');
+
+		format(content, expected);
+	});
+
+	test('array - trailing comma', () => {
+		const content = [
+			'[',
+			'  1,',
+			'  2,',
+			']'
+		].join('\n');
+
+		const expected = [
+			'[',
+			'  1,',
+			'  2',
+			']'
+		].join('\n');
+
+		format(content, expected);
+	});
+
+	test('object - trailing comma with comment', () => {
+		const content = [
+			'{',
+			'  "a": 1,',
+			'  "b": 2, // trailing comma',
+			'}'
+		].join('\n');
+
+		const expected = [
+			'{',
+			'  "a": 1,',
+			'  "b": 2 // trailing comma',
+			'}'
+		].join('\n');
+
+		format(content, expected);
+	});
+
+	test('array - trailing comma with block comment and whitespace', () => {
+		const content = [
+			'[',
+			'  1,',
+			'  2, /* trailing comma */   ',
+			']'
+		].join('\n');
+
+		const expected = [
+			'[',
+			'  1,',
+			'  2 /* trailing comma */',
+			']'
+		].join('\n');
+
+		format(content, expected);
+	});
 });

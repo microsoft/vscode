@@ -122,6 +122,9 @@ export function format(documentText: string, range: Range | undefined, options: 
 		addEdit(initialIndent, formatTextStart, firstTokenStart);
 	}
 
+	// Track tokens for trailing comma removal
+	const tokens: { kind: SyntaxKind; offset: number; length: number }[] = [];
+
 	while (firstToken !== SyntaxKind.EOF) {
 		let firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + formatTextStart;
 		let secondToken = scanNext();
@@ -136,15 +139,25 @@ export function format(documentText: string, range: Range | undefined, options: 
 			secondToken = scanNext();
 		}
 
-		if (secondToken === SyntaxKind.CloseBraceToken) {
-			if (firstToken !== SyntaxKind.OpenBraceToken) {
+		// Track token for trailing comma logic
+		tokens.push({ kind: firstToken, offset: firstTokenEnd - (scanner.getTokenLength()), length: scanner.getTokenLength() });
+
+		if (secondToken === SyntaxKind.CloseBraceToken || secondToken === SyntaxKind.CloseBracketToken) {
+			if (firstToken !== SyntaxKind.OpenBraceToken && secondToken === SyntaxKind.CloseBraceToken
+				|| firstToken !== SyntaxKind.OpenBracketToken && secondToken === SyntaxKind.CloseBracketToken) {
 				indentLevel--;
 				replaceContent = newLineAndIndent();
 			}
-		} else if (secondToken === SyntaxKind.CloseBracketToken) {
-			if (firstToken !== SyntaxKind.OpenBracketToken) {
-				indentLevel--;
-				replaceContent = newLineAndIndent();
+			// Remove trailing comma before close brace/bracket
+			// Look back for a comma, skipping comments/trivia
+			let i = tokens.length - 1;
+			while (i >= 0 && (tokens[i].kind === SyntaxKind.Trivia || tokens[i].kind === SyntaxKind.LineBreakTrivia || tokens[i].kind === SyntaxKind.LineCommentTrivia || tokens[i].kind === SyntaxKind.BlockCommentTrivia)) {
+				i--;
+			}
+			if (i >= 0 && tokens[i].kind === SyntaxKind.CommaToken) {
+				const commaToken = tokens[i];
+				// Remove the comma
+				editOperations.push({ offset: commaToken.offset + formatTextStart, length: commaToken.length, content: '' });
 			}
 		} else {
 			switch (firstToken) {
