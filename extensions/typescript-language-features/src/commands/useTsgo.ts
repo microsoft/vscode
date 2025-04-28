@@ -30,17 +30,17 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 	const tsgoExtension = vscode.extensions.getExtension('typescript.typescript-lsp');
 	// Error if the TypeScript Go extension is not installed with a button to open the GitHub repo
 	if (!tsgoExtension) {
-		return vscode.window.showErrorMessage(
+		const selection = await vscode.window.showErrorMessage(
 			vscode.l10n.t('The TypeScript Go extension is not installed.'),
 			{
-				title: 'Open on GitHub',
+				title: vscode.l10n.t('Open on GitHub'),
 				isCloseAffordance: true,
 			}
-		).then(async (selection) => {
-			if (selection) {
-				await vscode.env.openExternal(vscode.Uri.parse('https://github.com/microsoft/typescript-go'));
-			}
-		});
+		);
+
+		if (selection) {
+			await vscode.env.openExternal(vscode.Uri.parse('https://github.com/microsoft/typescript-go'));
+		}
 	}
 
 	const tsConfig = vscode.workspace.getConfiguration('typescript');
