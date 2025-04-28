@@ -31,7 +31,6 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-
 class SimpleBrowserOverlayWidget {
 
 	private readonly _domNode: HTMLElement;
@@ -39,6 +38,8 @@ class SimpleBrowserOverlayWidget {
 	private readonly imagesFolder: URI;
 
 	private readonly _showStore = new DisposableStore();
+
+	private _timeout: any | undefined = undefined;
 
 	constructor(
 		private readonly _editor: IEditorGroup,
@@ -58,20 +59,52 @@ class SimpleBrowserOverlayWidget {
 		this._domNode.className = 'element-selection-message';
 
 		const message = document.createElement('span');
-		const startSelectionMessage = localize('elementSelectionMessage', 'Add UI element to chat.');
+		const startSelectionMessage = localize('elementSelectionMessage', 'Add element to chat');
 		message.textContent = startSelectionMessage;
 		this._domNode.appendChild(message);
 
 		let cts: CancellationTokenSource;
-		const selectButton = new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('selectAnElement', 'Click to select an element.') });
-		const cancelButton = new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') });
-
+		const selectButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('selectAnElement', 'Click to select an element.') }));
 		selectButton.element.className = 'element-selection-start';
 		selectButton.label = localize('startSelection', 'Start Selection');
-		cancelButton.element.className = 'element-selection-cancel';
+
+		const cancelButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
+		cancelButton.element.className = 'element-selection-cancel hidden';
 		cancelButton.label = localize('cancel', 'Cancel');
 
-		this.hideElement(cancelButton.element);
+		const collapseOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.hideOverlay', "Collapse Overlay") }));
+		collapseOverlay.icon = Codicon.chevronRight;
+
+		const nextSelection = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.nextSelection', "Select Again") }));
+		nextSelection.icon = Codicon.close;
+		nextSelection.element.classList.add('hidden');
+
+		// shown if the overlay is collapsed
+		const expandOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.expandOverlay', "Expand Overlay") }));
+		expandOverlay.icon = Codicon.layout;
+		const expandContainer = document.createElement('div');
+		expandContainer.className = 'element-expand-container hidden';
+		expandContainer.appendChild(expandOverlay.element);
+		this._container.appendChild(expandContainer);
+
+		const resetButtons = () => {
+			this.hideElement(nextSelection.element);
+			this.showElement(selectButton.element);
+			this.showElement(collapseOverlay.element);
+		};
+
+		const finishedSelecting = () => {
+			// stop selection
+			this.hideElement(cancelButton.element);
+			this.hideElement(collapseOverlay.element);
+			this.showElement(nextSelection.element);
+
+			// wait 3 seconds before showing the start button again unless cancelled out.
+			this._timeout = setTimeout(() => {
+				message.textContent = startSelectionMessage;
+				resetButtons();
+			}, 3000);
+		};
 
 		this._showStore.add(addDisposableListener(selectButton.element, 'click', async () => {
 			cts = new CancellationTokenSource();
@@ -81,35 +114,47 @@ class SimpleBrowserOverlayWidget {
 			message.textContent = localize('elementSelectionInProgress', 'Selection in progress...');
 			this.hideElement(selectButton.element);
 			this.showElement(cancelButton.element);
-
 			await this.addElementToChat(cts);
-			// stop selection
-			this.hideElement(cancelButton.element);
-			message.textContent = localize('elementSelectionComplete', 'Element added to chat.');
 
-			// wait 3 seconds before showing the start selection button again
-			setTimeout(() => {
-				message.textContent = startSelectionMessage;
-				this.showElement(selectButton.element);
-			}, 3000);
+			// stop selection
+			message.textContent = localize('elementSelectionComplete', 'Element added to chat');
+			finishedSelecting();
 		}));
 
 		this._showStore.add(addDisposableListener(cancelButton.element, 'click', () => {
 			cts.cancel();
-			this.hideElement(cancelButton.element);
 			message.textContent = localize('elementCancelMessage', 'Selection canceled');
-			setTimeout(() => {
-				message.textContent = startSelectionMessage;
-				this.showElement(selectButton.element);
-			}, 3000);
+			finishedSelecting();
+		}));
+
+		this._showStore.add(addDisposableListener(collapseOverlay.element, 'click', () => {
+			this.hideElement(this._domNode);
+			this.showElement(expandContainer);
+		}));
+
+		this._showStore.add(addDisposableListener(expandOverlay.element, 'click', () => {
+			this.showElement(this._domNode);
+			this.hideElement(expandContainer);
+		}));
+
+		this._showStore.add(addDisposableListener(nextSelection.element, 'click', () => {
+			clearTimeout(this._timeout);
+			message.textContent = startSelectionMessage;
+			resetButtons();
 		}));
 	}
 
 	hideElement(element: HTMLElement) {
+		if (element.classList.contains('hidden')) {
+			return;
+		}
 		element.classList.add('hidden');
 	}
 
 	showElement(element: HTMLElement) {
+		if (!element.classList.contains('hidden')) {
+			return;
+		}
 		element.classList.remove('hidden');
 	}
 
@@ -190,7 +235,7 @@ class SimpleBrowserOverlayController {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 
-		this._domNode.classList.add('chat-editing-editor-overlay');
+		this._domNode.classList.add('chat-simple-browser-overlay');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.bottom = `5px`;
 		this._domNode.style.right = `5px`;
