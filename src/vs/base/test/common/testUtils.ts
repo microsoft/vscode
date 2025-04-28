@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { randomInt } from '../../common/numbers.js';
+import { assertOneOf } from '../../common/types.js';
 
 export function flakySuite(title: string, fn: () => void) /* Suite */ {
 	return suite(title, function () {
@@ -50,3 +51,39 @@ export const waitRandom = (maxMs: number, minMs: number = 0): Promise<void> => {
 export const randomBoolean = (): boolean => {
 	return Math.random() > 0.5;
 };
+
+/**
+ * Mocks an `TObject` with the provided `overrides`.
+ *
+ * If you need to mock an `Service`, please use {@link mockService}
+ * instead which provides better type safety guarantees for the case.
+ *
+ * @throws Reading non-overridden property or function
+ * 		   on `TObject` throws an error.
+ */
+export function mockObject<TObject extends Object>(
+	overrides: Partial<TObject>,
+): TObject {
+	// ensure that the overrides object cannot be modified afterward
+	overrides = Object.freeze(overrides);
+
+	const keys = Object.keys(overrides) as (keyof (typeof overrides))[];
+	const service = new Proxy(
+		{},
+		{
+			get: (_target, key: string | number | Symbol) => {
+				// sanity check for the provided `key`
+				assertOneOf(
+					key,
+					keys,
+					`The '${key}' is not mocked.`,
+				);
+
+				return overrides[key];
+			},
+		});
+
+	// note! it's ok to `as TObject` here, because of
+	// 		 the runtime checks in the `Proxy` getter
+	return service as (typeof overrides) as TObject;
+}
