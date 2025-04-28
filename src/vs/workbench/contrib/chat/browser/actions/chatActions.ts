@@ -640,7 +640,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
 				title: localize2('configureCompletions', "Configure Code Completions..."),
-				precondition: ChatContextKeys.Setup.installed,
+				precondition: ContextKeyExpr.and(ChatContextKeys.Setup.installed, ChatContextKeys.Setup.disabled.negate()),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
@@ -819,7 +819,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				run() { }
 			});
 
-			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
+			const chatEnabled = chatEntitlementService.sentiment === ChatSentiment.Enabled;
 			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
@@ -827,7 +827,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
 			let primaryActionIcon = Codicon.copilot;
-			if (chatExtensionInstalled) {
+			if (chatEnabled) {
 				if (signedOut) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");

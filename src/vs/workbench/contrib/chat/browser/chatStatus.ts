@@ -227,7 +227,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 }
 
 function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.sentiment !== ChatSentiment.Installed ||	// copilot not installed
+	return chatEntitlementService.sentiment === ChatSentiment.Undecided ||	// copilot not yet installed
 		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to copilot
 }
 
@@ -371,7 +371,7 @@ class ChatStatusDashboard extends Disposable {
 
 		// Settings
 		{
-			addSeparator(localize('settingsTitle', "Settings"), this.chatEntitlementService.sentiment === ChatSentiment.Installed ? toAction({
+			addSeparator(localize('settingsTitle', "Settings"), this.chatEntitlementService.sentiment === ChatSentiment.Enabled ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
