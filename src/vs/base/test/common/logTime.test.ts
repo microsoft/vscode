@@ -5,12 +5,10 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { wait } from './testUtils.js';
 import { randomInt } from '../../common/numbers.js';
+import { mockObject, waitRandom } from './testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { ILogger, logTime } from '../../common/decorators/logTime.js';
-// TODO: @legomushroom
-import { mockObject } from '../../../platform/prompts/test/common/utils/mock.js';
 
 suite('logTime decorator', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,8 +30,7 @@ suite('logTime decorator', () => {
 
 			@logTime()
 			public async myMethod(): Promise<number> {
-				// TODO: @legomushroom - test the timeout
-				await wait(10);
+				await waitRandom(10);
 
 				return this.returnValue;
 			}
