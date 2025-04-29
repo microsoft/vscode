@@ -1182,8 +1182,8 @@ export class BaseIssueReporterService extends Disposable {
 
 	public addTemplateToUrl(owner?: string, repositoryName?: string): string {
 		const isVscode = this.issueReporterModel.getData().fileOnProduct;
-		const isCopilot = owner === 'microsoft' && repositoryName === 'vscode-copilot-release';
-		const isPython = owner === 'microsoft' && repositoryName === 'vscode-python';
+		const isCopilot = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-copilot-release';
+		const isPython = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-python';
 
 		if (isVscode) {
 			return `&template=bug_report.md`;
@@ -1194,7 +1194,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		if (isPython) {
-			return `&template=3_feature_request.md`;
+			return `&template=bug_report.md`;
 		}
 
 		return '';
