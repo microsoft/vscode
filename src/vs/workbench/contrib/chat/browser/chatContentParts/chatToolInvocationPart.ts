@@ -589,8 +589,8 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.context,
 			this.editorPool,
 			toCodePart(input),
-			{
-				parts: (output || [])?.map((o): IChatCollapsibleIODataPart | IChatCollapsibleIOCodePart => {
+			output && {
+				parts: output.map((o): IChatCollapsibleIODataPart | IChatCollapsibleIOCodePart => {
 					if (o.type === 'data') {
 						const decoded = decodeBase64(o.value64).buffer;
 						if (getAttachableImageExtension(o.mimeType)) {
