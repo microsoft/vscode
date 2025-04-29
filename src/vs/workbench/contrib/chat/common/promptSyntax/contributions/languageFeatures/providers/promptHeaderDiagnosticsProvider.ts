@@ -32,7 +32,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override async onPromptParserUpdate(): Promise<this> {
+	protected override async onPromptSettled(): Promise<this> {
 		// ensure that parsing process is settled
 		await this.parser.allSettled();
 

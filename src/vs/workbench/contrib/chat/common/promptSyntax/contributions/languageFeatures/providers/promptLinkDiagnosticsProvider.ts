@@ -33,7 +33,7 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override async onPromptParserUpdate() {
+	protected override async onPromptSettled() {
 		// ensure that parsing process is settled
 		await this.parser.allSettled();
 
