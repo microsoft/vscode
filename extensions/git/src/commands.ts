@@ -2018,6 +2018,8 @@ export class CommandCenter {
 					d.originalEndLineNumber === c.originalEndLineNumber &&
 					d.modifiedStartLineNumber === c.modifiedStartLineNumber &&
 					d.modifiedEndLineNumber === c.modifiedEndLineNumber));
+
+			this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(changes)}`);
 			await this._unstageChanges(textEditor, changes);
 			return;
 		}
@@ -2076,9 +2078,7 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-
-		const invertedChanges = changes.map(invertLineChange);
-		const result = applyLineChanges(originalDocument, modifiedDocument, invertedChanges);
+		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
 		await this.runByRepository(modifiedUri, async (repository, resource) =>
 			await repository.stage(resource, result, modifiedDocument.encoding));
