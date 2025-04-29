@@ -65,22 +65,24 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	}
 }
 
-class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
+class RemoteExtensionHostEnvironmentUpdater extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
 		@IExtensionService extensionService: IExtensionService
 	) {
+		super();
+
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			connection.onDidStateChange(async e => {
+			this._register(connection.onDidStateChange(async e => {
 				if (e.type === PersistentConnectionEventType.ConnectionGain) {
 					const resolveResult = await remoteResolverService.resolveAuthority(connection.remoteAuthority);
 					if (resolveResult.options && resolveResult.options.extensionHostEnv) {
 						await extensionService.setRemoteEnvironment(resolveResult.options.extensionHostEnv);
 					}
 				}
-			});
+			}));
 		}
 	}
 }
