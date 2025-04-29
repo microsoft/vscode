@@ -311,19 +311,18 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const completionsQuotaIndicator = completionsQuota ? this.createQuotaIndicator(this.element, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
-			const chatQuotaIndicator = chatQuota ? this.createQuotaIndicator(this.element, chatQuota, premiumChatQuota ? localize('basicChatsLabel', "Basic chat requests") : localize('chatsLabel', "Chat requests"), false) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, premiumChatQuota, localize('premiumChatsLabel', "Premium chat requests"), true) : undefined;
+			const completionsQuotaIndicator = completionsQuota ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
+			const chatQuotaIndicator = chatQuota ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
 
 			if (resetDate) {
-				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance renews on {0}.", this.dateFormatter.value.format(new Date(resetDate)))));
+				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", this.dateFormatter.value.format(new Date(resetDate)))));
 			}
 
-			const limited = this.chatEntitlementService.entitlement === ChatEntitlement.Limited;
-			if ((limited && (chatQuota?.percentRemaining === 0 || completionsQuota?.percentRemaining === 0)) || (!limited && typeof premiumChatQuota?.percentRemaining === 'number' && premiumChatQuota.percentRemaining <= 25 && !premiumChatQuota.overageEnabled)) {
-				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				button.label = limited ? localize('upgradeToCopilotPro', "Upgrade to Copilot Pro") : localize('enableAdditionalUsage', "Enable Additional Premium Requests");
-				disposables.add(button.onDidClick(() => this.runCommandAndClose(limited ? 'workbench.action.chat.upgradePlan' : () => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
+			if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
+				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
+				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
+				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 
 			(async () => {
@@ -420,7 +419,7 @@ class ChatStatusDashboard extends Disposable {
 			id: 'workbench.action.openChatStatusItemLink',
 			label: localize('learnMore', "Learn More"),
 			tooltip: localize('learnMore', "Learn More"),
-			class: ThemeIcon.asClassName(Codicon.question),
+			class: ThemeIcon.asClassName(Codicon.linkExternal),
 			run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(headerLink))),
 		}) : undefined);
 
@@ -459,7 +458,7 @@ class ChatStatusDashboard extends Disposable {
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
+	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
 		const quotaValue = $('span.quota-value');
 		const quotaBit = $('div.quota-bit');
 		const overageLabel = $('span.overage-label');
@@ -472,40 +471,49 @@ class ChatStatusDashboard extends Disposable {
 			$('div.quota-bar', undefined,
 				quotaBit
 			),
-			$('div.overage', undefined,
+			$('div.description', undefined,
 				overageLabel
 			)
 		));
 
+		if (supportsOverage) {
+			const manageOverageButton = disposables.add(new Button(quotaIndicator, { ...defaultButtonStyles, secondary: true }));
+			manageOverageButton.label = localize('enableAdditionalUsage', "Manage paid premium requests");
+			disposables.add(manageOverageButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
+		}
+
 		const update = (quota: IQuotaSnapshot) => {
 			quotaIndicator.classList.remove('error');
 			quotaIndicator.classList.remove('warning');
-			quotaIndicator.classList.remove('unlimited');
+
+			let usedPercentage: number;
+			if (quota.unlimited) {
+				usedPercentage = 0;
+			} else {
+				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
+			}
 
 			if (quota.unlimited) {
-				quotaIndicator.classList.add('unlimited');
 				quotaValue.textContent = localize('quotaUnlimited', "Included");
+			} else if (quota.overageCount) {
+				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", quota.overageCount);
 			} else {
-				let usedPercentage = Math.max(0, 100 - quota.percentRemaining);
-				if (usedPercentage === 0) {
-					usedPercentage = 1; // indicate minimal usage as 1%
-				}
+				quotaValue.textContent = localize('quotaDisplay', "{0}%", usedPercentage);
+			}
 
-				quotaValue.textContent = quota.overageCount ? localize('quotaDisplayWithOverage', "+{0} paid", quota.overageCount) : localize('quotaDisplay', "{0}%", usedPercentage);
-				quotaBit.style.width = `${usedPercentage}%`;
+			quotaBit.style.width = `${usedPercentage}%`;
 
-				if (usedPercentage >= 90 && !quota.overageEnabled) {
-					quotaIndicator.classList.add('error');
-				} else if (usedPercentage >= 75) {
-					quotaIndicator.classList.add('warning');
-				}
+			if (usedPercentage >= 90) {
+				quotaIndicator.classList.add('error');
+			} else if (usedPercentage >= 75) {
+				quotaIndicator.classList.add('warning');
 			}
 
 			if (supportsOverage) {
 				if (quota.overageEnabled) {
-					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests are enabled.");
+					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests enabled.");
 				} else {
-					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests are disabled.");
+					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests disabled.");
 				}
 			} else {
 				overageLabel.textContent = '';

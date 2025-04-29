@@ -5,6 +5,7 @@
 
 import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -68,7 +69,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			const toolInvocation = item.response.value.find(item => item.kind === 'toolInvocation');
 			if (toolInvocation?.confirmationMessages) {
 				const title = toolInvocation.confirmationMessages.title;
-				const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : toolInvocation.confirmationMessages.message.value;
+				const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
 				const terminalCommand = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
 				responseContent += `${title}`;
 				if (terminalCommand) {

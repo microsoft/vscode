@@ -299,9 +299,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelWidget: ModelPickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
 	private _onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
+
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	get currentLanguageModel() {
 		return this._currentLanguageModel?.identifier;
+	}
+
+	get selectedLanguageModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return this._currentLanguageModel;
 	}
 
 	private _onDidChangeCurrentChatMode = this._register(new Emitter<void>());

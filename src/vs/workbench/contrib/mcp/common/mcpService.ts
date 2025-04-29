@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
@@ -263,18 +263,22 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
-		const outputParts: string[] = [];
-
 		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, token);
+		const details: IToolResultInputOutputDetails = {
+			input: JSON.stringify(invocation.parameters, undefined, 2),
+			output: [],
+			isError: callResult.isError === true,
+		};
+
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
+				details.output.push({ type: 'text', value: item.text });
 				result.content.push({
 					kind: 'text',
 					value: item.text
 				});
-
-				outputParts.push(item.text);
 			} else if (item.type === 'image' || item.type === 'audio') {
+				details.output.push({ type: 'data', mimeType: item.mimeType, value64: item.data });
 				result.content.push({
 					kind: 'data',
 					value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
@@ -284,11 +288,7 @@ class McpToolImplementation implements IToolImpl {
 			}
 		}
 
-		result.toolResultDetails = {
-			input: JSON.stringify(invocation.parameters, undefined, 2),
-			output: outputParts.join('\n')
-		};
-
+		result.toolResultDetails = details;
 		return result;
 	}
 }

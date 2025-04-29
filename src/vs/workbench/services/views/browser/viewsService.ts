@@ -491,7 +491,25 @@ export class ViewsService extends Disposable implements IViewsService {
 					category: Categories.View,
 					precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 					keybinding: viewDescriptor.openCommandActionDescriptor?.keybindings ? { ...viewDescriptor.openCommandActionDescriptor.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
-					f1: viewDescriptor.openCommandActionDescriptor ? true : undefined
+					f1: viewDescriptor.openCommandActionDescriptor ? true : undefined,
+					metadata: {
+						description: localize('open view', "Opens view {0}", viewDescriptor.name.value),
+						args: [
+							{
+								name: 'options',
+								schema: {
+									type: 'object',
+									properties: {
+										'preserveFocus': {
+											type: 'boolean',
+											default: false,
+											description: localize('preserveFocus', "Whether to preserve the existing focus when opening the view.")
+										}
+									},
+								}
+							}
+						]
+					}
 				});
 			}
 			public async run(serviceAccessor: ServicesAccessor, options?: { preserveFocus?: boolean }): Promise<any> {

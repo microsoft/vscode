@@ -55,7 +55,7 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -1499,16 +1499,15 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	}
 
 	const chatService = accessor.get(IChatService);
-	const chatEditingService = accessor.get(IChatEditingService);
-
 	const uri = editor.getModel().uri;
 	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
 
-	const editSession = await chatEditingService.createEditingSession(chatModel);
+	chatModel.startEditingSession(true);
+
+	const editSession = await chatModel.editingSessionObs?.promise;
 
 	const store = new DisposableStore();
 	store.add(chatModel);
-	store.add(editSession);
 
 	// STREAM
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
@@ -1526,11 +1525,11 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
 
 	if (!token.isCancellationRequested) {
-		chatRequest.response.complete();
+		chatModel.completeResponse(chatRequest);
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession.readEntry(uri, r);
+		const entry = editSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}
