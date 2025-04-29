@@ -7,7 +7,6 @@ import assert from 'assert';
 import { ChatMode } from '../../../common/constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -216,6 +215,7 @@ const createTestFileReference = (
 	return new FileReference(range, filePath);
 };
 
+// TODO: @legomushroom - remove 'unix' labels
 suite('PromptFileReference (Unix)', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -252,10 +252,6 @@ suite('PromptFileReference (Unix)', function () {
 	});
 
 	test('• resolves nested file references', async function () {
-		if (isWindows) {
-			this.skip();
-		}
-
 		const rootFolderName = 'resolves-nested-file-references';
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
@@ -406,10 +402,6 @@ suite('PromptFileReference (Unix)', function () {
 	});
 
 	test('• does not fall into infinite reference recursion', async function () {
-		if (isWindows) {
-			this.skip();
-		}
-
 		const rootFolderName = 'infinite-recursion';
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
@@ -560,10 +552,6 @@ suite('PromptFileReference (Unix)', function () {
 
 	suite('• options', () => {
 		test('• allowNonPromptFiles', async function () {
-			if (isWindows) {
-				this.skip();
-			}
-
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 			const rootUri = URI.file(rootFolder);
@@ -716,10 +704,6 @@ suite('PromptFileReference (Unix)', function () {
 
 	suite('• metadata', () => {
 		test('• tools', async function () {
-			if (isWindows) {
-				this.skip();
-			}
-
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 			const rootUri = URI.file(rootFolder);
@@ -934,10 +918,6 @@ suite('PromptFileReference (Unix)', function () {
 
 		suite('• applyTo', () => {
 			test('• prompt language', async function () {
-				if (isWindows) {
-					this.skip();
-				}
-
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1070,10 +1050,6 @@ suite('PromptFileReference (Unix)', function () {
 
 
 			test('• instructions language', async function () {
-				if (isWindows) {
-					this.skip();
-				}
-
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1207,10 +1183,6 @@ suite('PromptFileReference (Unix)', function () {
 
 		suite('• tools and mode compatibility', () => {
 			test('• tools are ignored if root prompt in the ask mode', async function () {
-				if (isWindows) {
-					this.skip();
-				}
-
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1331,10 +1303,6 @@ suite('PromptFileReference (Unix)', function () {
 			});
 
 			test('• tools are ignored if root prompt in the edit mode', async function () {
-				if (isWindows) {
-					this.skip();
-				}
-
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1454,10 +1422,6 @@ suite('PromptFileReference (Unix)', function () {
 			});
 
 			test('• tools are not ignored if root prompt in the agent mode', async function () {
-				if (isWindows) {
-					this.skip();
-				}
-
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1581,10 +1545,6 @@ suite('PromptFileReference (Unix)', function () {
 			});
 
 			test('• tools are not ignored if root prompt implicitly in the agent mode', async function () {
-				if (isWindows) {
-					this.skip();
-				}
-
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
