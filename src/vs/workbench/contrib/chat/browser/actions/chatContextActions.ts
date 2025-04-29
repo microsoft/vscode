@@ -38,7 +38,6 @@ import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../..
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
@@ -674,7 +673,6 @@ export class AttachContextAction extends Action2 {
 		const clipboardService = accessor.get(IClipboardService);
 		const editorService = accessor.get(IEditorService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		const extensionService = accessor.get(IExtensionService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
 		const chatEditingService = accessor.get(IChatEditingService);
@@ -686,7 +684,7 @@ export class AttachContextAction extends Action2 {
 		}
 
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
-		if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
+		if (widget.input.selectedLanguageModel?.metadata.capabilities?.vision) {
 			const imageData = await clipboardService.readImage();
 			if (isImage(imageData)) {
 				quickPickItems.push({
