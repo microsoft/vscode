@@ -22,7 +22,6 @@ import { PromptsService } from '../../../../common/promptSyntax/service/promptsS
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { randomBoolean, waitRandom } from '../../../../../../../base/test/common/testUtils.js';
-import { isWindows, isNative, isElectron } from '../../../../../../../base/common/platform.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -547,11 +546,6 @@ suite('PromptsService', () => {
 	suite('• getCombinedToolsMetadata', () => {
 		suite('• agent mode', () => {
 			test('• explicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -681,11 +675,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -814,11 +803,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1074,11 +1058,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1202,11 +1181,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1452,11 +1426,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1579,11 +1548,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1708,11 +1672,6 @@ suite('PromptsService', () => {
 
 	suite('• getAllMetadata', () => {
 		test('• explicit', async function () {
-			// temporary disable the tests on for electron/nodejs on windows
-			if (isWindows && (isNative || isElectron)) {
-				this.skip();
-			}
-
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 
