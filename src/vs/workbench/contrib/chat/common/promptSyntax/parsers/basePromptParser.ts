@@ -8,6 +8,7 @@ import { ChatMode } from '../../constants.js';
 import { PromptHeader } from './promptHeader/header.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
+import * as path from '../../../../../../base/common/path.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
@@ -19,9 +20,9 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { IPromptMetadata, IPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -360,8 +361,8 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	): this {
 		const { parentFolder } = this;
 
-		const referenceUri = (parentFolder !== null)
-			? extUri.resolvePath(parentFolder, token.path)
+		const referenceUri = ((parentFolder !== null) && (path.isAbsolute(token.path) === false))
+			? URI.joinPath(parentFolder, token.path)
 			: URI.file(token.path);
 
 		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
