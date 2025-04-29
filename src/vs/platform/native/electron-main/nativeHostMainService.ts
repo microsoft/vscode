@@ -945,11 +945,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							throw new Error('Failed to get box model.');
 						}
 
+						const content = model.content;
 						const margin = model.margin;
-						const x = margin[0];
-						const y = margin[1] + 32.4 + 35; // 32.4 is height of the title bar, 35 is height of the tab bar
-						const width = margin[2] - margin[0];
-						const height = margin[5] - margin[1];
+						const x = Math.min(margin[0], content[0]);
+						const y = Math.min(margin[1], content[1]) + 32.4 + 35; // 32.4 is height of the title bar, 35 is height of the tab bar
+						const width = Math.max(margin[2] - margin[0], content[2] - content[0]);
+						const height = Math.max(margin[5] - margin[1], content[5] - content[1]);
 
 						const matched = await debuggers.sendCommand('CSS.getMatchedStylesForNode', { nodeId }, sessionId);
 						if (!matched) {
