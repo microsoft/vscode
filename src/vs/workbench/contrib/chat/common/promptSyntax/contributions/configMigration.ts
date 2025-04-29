@@ -7,16 +7,19 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { asBoolean } from '../../../../../../platform/prompts/common/config.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY } from '../../../../../../platform/prompts/common/constants.js';
 
 /**
- * TODO: @legomushroom
+ * Contribution that migrates the old config setting value to a new one.
+ *
+ * Note! This is a temporary logic and can be removed on ~ 2026-04-29.
  */
 export class ConfigMigration implements IWorkbenchContribution {
 	constructor(
 		@IConfigurationService configService: IConfigurationService,
 	) {
-		const value = configService.getValue('chat.promptFiles');
-		const locationsValue = configService.getValue('chat.promptFilesLocations');
+		const value = configService.getValue(CONFIG_KEY);
+		const locationsValue = configService.getValue(PROMPT_LOCATIONS_CONFIG_KEY);
 
 		// the setting split happened at the same time as the 'location'
 		// setting was added, hence if the 'location' setting is present,
@@ -39,6 +42,8 @@ export class ConfigMigration implements IWorkbenchContribution {
 		// in the old setting logic an array of strings was treated
 		// as a list of locations, so we need to migrate that
 		if (Array.isArray(value)) {
+
+			// copy array values into a map of paths
 			const locationsValue: Record<string, boolean> = {};
 			for (const filePath of value) {
 				if (typeof filePath !== 'string') {
@@ -60,13 +65,15 @@ export class ConfigMigration implements IWorkbenchContribution {
 		// in the old setting logic an object was treated as a map
 		// of `location -> boolean`, so we need to migrate that
 		if (typeof value === 'object') {
-			// TODO: @legomushroom
+			// sanity check on the contents of value variable - while
+			// we've handled the 'null' case above this assertion is
+			// here to prevent churn when this block is moved around
 			assert(
 				value !== null,
 				'Object value must not be a null.',
 			);
 
-
+			// copy object values into a map of paths
 			const locationsValue: Record<string, boolean> = {};
 			for (const [location, enabled] of Object.entries(value)) {
 				// if the old location enabled value wasn't a boolean
@@ -92,7 +99,9 @@ export class ConfigMigration implements IWorkbenchContribution {
 		// in the old setting logic a string was treated as a single
 		// location path, so we need to migrate that
 		if (typeof value === 'string') {
-			// TODO: @legomushroom
+			// sanity check on the contents of value variable - while
+			// we've handled the 'boolean' case above this assertion is
+			// here to prevent churn when this block is moved around
 			assert(
 				asBoolean(value) === undefined,
 				`String value must not be a boolean, got '${value}'.`,
