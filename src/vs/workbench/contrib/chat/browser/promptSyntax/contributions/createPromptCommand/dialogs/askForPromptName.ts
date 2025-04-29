@@ -10,6 +10,7 @@ import { IQuickInputService } from '../../../../../../../../platform/quickinput/
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import Severity from '../../../../../../../../base/common/severity.js';
+import { isValidBasename } from '../../../../../../../../base/common/extpath.js';
 
 /**
  * Asks the user for a file name.
@@ -43,6 +44,13 @@ export const askForPromptFileName = async (
 			return {
 				content: localize('askForPromptFileName.error.empty', "Please enter a name."),
 				severity: Severity.Warning
+			};
+		}
+
+		if (!isValidBasename(fileName)) {
+			return {
+				content: localize('askForPromptFileName.error.invalid', "The name contains invalid characters."),
+				severity: Severity.Error
 			};
 		}
 
