@@ -1831,7 +1831,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	async checkForUpdates(reason?: string, onlyBuiltin?: boolean): Promise<void> {
 		if (reason) {
-			this.logService.info(`[Extensions]: Checking for updates. Reason: ${reason}`);
+			this.logService.trace(`[Extensions]: Checking for updates. Reason: ${reason}`);
 		} else {
 			this.logService.trace(`[Extensions]: Checking for updates`);
 		}
@@ -2025,16 +2025,26 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async autoUpdateExtensions(): Promise<void> {
 		const toUpdate: IExtension[] = [];
+		const disabledAutoUpdate = [];
+		const consentRequired = [];
 		for (const extension of this.outdated) {
 			if (!this.shouldAutoUpdateExtension(extension)) {
-				this.logService.info('Auto update disabled for extension', extension.identifier.id);
+				disabledAutoUpdate.push(extension.identifier.id);
 				continue;
 			}
 			if (await this.shouldRequireConsentToUpdate(extension)) {
-				this.logService.info('Auto update consent required for extension', extension.identifier.id);
+				consentRequired.push(extension.identifier.id);
 				continue;
 			}
 			toUpdate.push(extension);
+		}
+
+		if (disabledAutoUpdate.length) {
+			this.logService.trace('Auto update disabled for extensions', disabledAutoUpdate.join(', '));
+		}
+
+		if (consentRequired.length) {
+			this.logService.info('Auto update consent required for extensions', consentRequired.join(', '));
 		}
 
 		if (!toUpdate.length) {
@@ -2042,10 +2052,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const productVersion = this.getProductVersion();
-		await Promises.settled(toUpdate.map(e => {
-			this.logService.info('Auto updating extension', e.identifier.id);
-			return this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true, productVersion } : { productVersion });
-		}));
+		await Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true, productVersion } : { productVersion })));
 	}
 
 	private getProductVersion(): IProductVersion {
