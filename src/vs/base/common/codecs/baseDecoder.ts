@@ -366,6 +366,7 @@ export abstract class BaseDecoder<
 		if (this.disposed) {
 			return;
 		}
+		this.disposed = true;
 
 		this.onStreamEnd();
 

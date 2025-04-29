@@ -106,6 +106,16 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	private readonly _onUpdate = this._register(new Emitter<void>());
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	private readonly _onSettled = this._register(new Emitter<Error | undefined>());
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public readonly onSettled = this._onSettled.event;
+
+	/**
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
 	 * @param callback The callback function to be called on updates.
 	 */
@@ -296,6 +306,9 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			this._errorCondition = streamOrError;
 			this._onUpdate.fire();
 
+			// TODO: @legomushroom
+			this._onSettled.fire(streamOrError);
+
 			return;
 		}
 
@@ -391,9 +404,14 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * @param error Optional error object if stream ended with an error.
 	 */
 	private onStreamEnd(
-		_stream: ChatPromptDecoder,
+		stream: ChatPromptDecoder,
 		error?: Error,
 	): this {
+		// TODO: @legomushroom
+		if (stream.disposed === true) {
+			return this;
+		}
+
 		if (error) {
 			this.logService.warn(
 				`[prompt parser][${basename(this.uri)}] received an error on the chat prompt decoder stream: ${error}`,
@@ -401,6 +419,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		this._onUpdate.fire();
+		this._onSettled.fire(error);
 
 		return this;
 	}
