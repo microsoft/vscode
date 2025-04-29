@@ -216,19 +216,19 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['experimental']
 		},
 		'chat.sendElementsToChat.attachCSS': {
 			default: true,
 			markdownDescription: nls.localize('chat.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat. {0} must be enabled.", '`#chat.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['experimental']
 		},
 		'chat.sendElementsToChat.attachImages': {
 			default: true,
 			markdownDescription: nls.localize('chat.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat. {0} must be enabled.", '`#chat.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['experimental']
 		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
