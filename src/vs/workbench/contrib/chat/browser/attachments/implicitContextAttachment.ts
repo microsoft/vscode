@@ -10,6 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -52,6 +53,10 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		dom.clearNode(this.domNode);
 		this.renderDisposables.clear();
 
+		const attachmentTypeName = (this.attachment.isPromptFile === false)
+			? localize('file.lowercase', "file")
+			: localize('prompt.lowercase', "prompt");
+
 		this.domNode.classList.toggle('disabled', !this.attachment.enabled);
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value!.uri;
@@ -60,25 +65,33 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
+		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached {0}, {1}, line {2} to line {3}", attachmentTypeName, friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached {0}, {1}", attachmentTypeName, friendlyName);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
-		const currentFile = localize('openEditor', "Current file context");
+		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
 		const inactive = localize('enableHint', "disabled");
 		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
 		const title = `${currentFileHint}\n${uriLabel}`;
+
+		const icon = this.attachment.isPromptFile
+			? ThemeIcon.fromId(Codicon.bookmark.id)
+			: undefined;
+
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range,
-			title
+			title,
+			icon,
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, 'Current file'));
+
+		const hintLabel = localize('hint.label.current', "Current {0}", attachmentTypeName);
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, hintLabel));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
-		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");
+		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
 		const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
 		toggleButton.icon = this.attachment.enabled ? Codicon.eye : Codicon.eyeClosed;
 		this.renderDisposables.add(toggleButton.onDidClick((e) => {

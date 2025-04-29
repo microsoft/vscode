@@ -42,7 +42,7 @@ import { IKeybindingItem, KeybindingsRegistry } from '../../../platform/keybindi
 import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent, Verbosity } from '../../../platform/label/common/label.js';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from '../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter, IStatusHandle } from '../../../platform/notification/common/notification.js';
 import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from '../../../platform/progress/common/progress.js';
 import { ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder, STANDALONE_EDITOR_WORKSPACE_ID } from '../../../platform/workspace/common/workspace.js';
@@ -350,10 +350,9 @@ export class StandaloneNotificationService implements INotificationService {
 		return StandaloneNotificationService.NO_OP;
 	}
 
-	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	public status(message: string | Error, options?: IStatusMessageOptions): IStatusHandle {
+		return { close: () => { } };
 	}
-
 
 	public setFilter(filter: NotificationsFilter | INotificationSourceFilter): void { }
 

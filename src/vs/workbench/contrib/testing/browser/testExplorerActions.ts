@@ -1246,10 +1246,33 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		});
 	}
 
+	private async _runByUris(accessor: ServicesAccessor, files: URI[]): Promise<{ completedAt: number | undefined }> {
+		const uriIdentity = accessor.get(IUriIdentityService);
+		const testService = accessor.get(ITestService);
+		const discovered: InternalTestItem[] = [];
+		for (const uri of files) {
+			for await (const file of testsInFile(testService, uriIdentity, uri, undefined, true)) {
+				discovered.push(file);
+			}
+		}
+
+		if (discovered.length) {
+			const r = await testService.runTests({ tests: discovered, group: this.group });
+			return { completedAt: r.completedAt };
+		}
+
+		return { completedAt: undefined };
+	}
+
 	/**
 	 * @override
 	 */
-	public run(accessor: ServicesAccessor) {
+	public run(accessor: ServicesAccessor, files?: URI[]) {
+		if (files?.length) {
+			return this._runByUris(accessor, files);
+		}
+
+		const uriIdentity = accessor.get(IUriIdentityService);
 		let editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (!editor) {
 			return;
@@ -1264,7 +1287,6 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		const demandedUri = model.uri.toString();
 
 		// Iterate through the entire collection and run any tests that are in the
 		// uri. See #138007.
@@ -1273,7 +1295,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		while (queue.length) {
 			for (const id of queue.pop()!) {
 				const node = testService.collection.getNodeById(id)!;
-				if (node.item.uri?.toString() === demandedUri) {
+				if (uriIdentity.extUri.isEqual(node.item.uri, model.uri)) {
 					discovered.push(node);
 				} else {
 					queue.push(node.children);

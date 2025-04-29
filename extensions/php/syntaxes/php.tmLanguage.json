@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/KapitanOczywisty/language-php/commit/5e8f000cb5a20f44f7a7a89d07ad0774031c53f3",
+	"version": "https://github.com/KapitanOczywisty/language-php/commit/26cf1ebee89d4b55bf5823eb47eaa6a6dfda9336",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -2402,23 +2402,68 @@
 			]
 		},
 		"instantiation": {
-			"begin": "(?i)(new)\\s+(?!class\\b)",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.other.new.php"
-				}
-			},
-			"end": "(?i)(?=[^a-z0-9_\\x{7f}-\\x{10ffff}\\\\])",
 			"patterns": [
 				{
-					"match": "(?i)(parent|static|self)(?![a-z0-9_\\x{7f}-\\x{10ffff}])",
-					"name": "storage.type.php"
+					"match": "(?i)(new)\\s+(?!class\\b)([$a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)(?![a-z0-9_\\x{7f}-\\x{10ffff}\\\\(])",
+					"captures": {
+						"1": {
+							"name": "keyword.other.new.php"
+						},
+						"2": {
+							"patterns": [
+								{
+									"match": "(?i)(parent|static|self)(?![a-z0-9_\\x{7f}-\\x{10ffff}])",
+									"name": "storage.type.php"
+								},
+								{
+									"include": "#class-name"
+								},
+								{
+									"include": "#variable-name"
+								}
+							]
+						}
+					}
 				},
 				{
-					"include": "#class-name"
-				},
-				{
-					"include": "#variable-name"
+					"begin": "(?i)(new)\\s+(?!class\\b)([$a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.new.php"
+						},
+						"2": {
+							"patterns": [
+								{
+									"match": "(?i)(parent|static|self)(?![a-z0-9_\\x{7f}-\\x{10ffff}])",
+									"name": "storage.type.php"
+								},
+								{
+									"include": "#class-name"
+								},
+								{
+									"include": "#variable-name"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.begin.bracket.round.php"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.arguments.end.bracket.round.php"
+						}
+					},
+					"contentName": "meta.function-call.php",
+					"patterns": [
+						{
+							"include": "#named-arguments"
+						},
+						{
+							"include": "$self"
+						}
+					]
 				}
 			]
 		},
@@ -2784,6 +2829,10 @@
 						},
 						{
 							"include": "#php_doc_types"
+						},
+						{
+							"match": "[|&]",
+							"name": "punctuation.separator.delimiter.php"
 						}
 					]
 				},
@@ -2803,7 +2852,7 @@
 			]
 		},
 		"php_doc_types": {
-			"match": "(?i)\\??[a-z_\\x{7f}-\\x{10ffff}\\\\][a-z0-9_\\x{7f}-\\x{10ffff}\\\\]*([|&]\\??[a-z_\\x{7f}-\\x{10ffff}\\\\][a-z0-9_\\x{7f}-\\x{10ffff}\\\\]*)*",
+			"match": "(?i)\\??[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+([|&]\\??[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)*",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -2821,14 +2870,6 @@
 						{
 							"match": "[|&]",
 							"name": "punctuation.separator.delimiter.php"
-						},
-						{
-							"match": "\\(",
-							"name": "punctuation.definition.type.begin.bracket.round.php"
-						},
-						{
-							"match": "\\)",
-							"name": "punctuation.definition.type.end.bracket.round.php"
 						}
 					]
 				}
@@ -2841,7 +2882,7 @@
 					"name": "punctuation.definition.type.begin.bracket.round.phpdoc.php"
 				}
 			},
-			"end": "(\\))(\\[\\])|(?=\\*/)",
+			"end": "(\\))(\\[\\])?|(?=\\*/)",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.type.end.bracket.round.phpdoc.php"
@@ -2867,7 +2908,7 @@
 			]
 		},
 		"php_doc_types_array_single": {
-			"match": "(?i)([a-z_\\x{7f}-\\x{10ffff}\\\\][a-z0-9_\\x{7f}-\\x{10ffff}\\\\]*)(\\[\\])",
+			"match": "(?i)([a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)(\\[\\])",
 			"captures": {
 				"1": {
 					"patterns": [

@@ -7,14 +7,15 @@ import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { FilePromptContentProvider } from './filePromptContentsProvider.js';
-import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
+import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
+import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.
@@ -23,13 +24,25 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	/**
 	 * URI component of the prompt associated with this contents provider.
 	 */
-	public readonly uri = this.model.uri;
+	public get uri(): URI {
+		return this.model.uri;
+	}
+
+	public override get sourceName(): string {
+		return 'text-model';
+	}
+
+	public override get languageId(): string {
+		return this.model.getLanguageId();
+	}
 
 	constructor(
 		private readonly model: ITextModel,
+		options: Partial<IPromptContentsProviderOptions> = {},
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
 	) {
-		super();
+		super(options);
 
 		this._register(this.model.onWillDispose(this.dispose.bind(this)));
 		this._register(this.model.onDidChangeContent(this.onChangeEmitter.fire));
@@ -51,11 +64,21 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		cancellationToken?: CancellationToken,
 	): Promise<ReadableStream<VSBuffer>> {
 		const stream = newWriteableStream<VSBuffer>(null);
-		const linesCount = this.model.getLineCount();
+
+		// the `getLineCount`method throws is model is already disposed
+		// hence to be extra safe, we check the model state before getting
+		// the number of available lines in the text model
+		if (this.model.isDisposed()) {
+			stream.end();
+			stream.destroy();
+
+			return stream;
+		}
 
 		// provide the changed lines to the stream incrementally and asynchronously
 		// to avoid blocking the main thread and save system resources used
 		let i = 1;
+		const linesCount = this.model.getLineCount();
 		const interval = setInterval(() => {
 			// if we have written all lines or lines count is zero,
 			// end the stream and stop the interval timer
@@ -88,7 +111,13 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 					);
 				}
 			} catch (error) {
-				console.log(this.uri, i, error);
+				this.logService.error(
+					[
+						'[text model contents provider]: ',
+						`Failed to write line #${i} of text model '${this.uri.path}' to stream: `,
+					].join(''),
+					error,
+				);
 			}
 
 			// use the next line in the next iteration
@@ -100,17 +129,20 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 	public override createNew(
 		promptContentsSource: TextModel | { uri: URI },
+		options: Partial<IPromptContentsProviderOptions> = {},
 	): IPromptContentsProvider {
 		if (promptContentsSource instanceof TextModel) {
 			return this.initService.createInstance(
 				TextModelContentsProvider,
 				promptContentsSource,
+				options,
 			);
 		}
 
 		return this.initService.createInstance(
 			FilePromptContentProvider,
 			promptContentsSource.uri,
+			options,
 		);
 	}
 

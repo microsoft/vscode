@@ -20,7 +20,7 @@ import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, Contai
 import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
-function e(name: string): string {
+export function e(name: string): string {
 	const result = process.env[name];
 
 	if (typeof result !== 'string') {
@@ -480,11 +480,11 @@ class ESRPReleaseService {
 	private async getReleaseStatus(releaseId: string): Promise<ReleaseResultMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -497,11 +497,11 @@ class ESRPReleaseService {
 	private async getReleaseDetails(releaseId: string): Promise<ReleaseDetailsMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -583,12 +583,12 @@ const azdoFetchOptions = {
 	}
 };
 
-async function requestAZDOAPI<T>(path: string): Promise<T> {
+export async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
 
 	try {
-		const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+		const res = await retry(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
 
 		if (!res.ok) {
 			throw new Error(`Unexpected status code: ${res.status}`);
@@ -600,7 +600,7 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 	}
 }
 
-interface Artifact {
+export interface Artifact {
 	readonly name: string;
 	readonly resource: {
 		readonly downloadUrl: string;
@@ -620,6 +620,7 @@ interface Timeline {
 		readonly name: string;
 		readonly type: string;
 		readonly state: string;
+		readonly result: string;
 	}[];
 }
 
@@ -959,11 +960,13 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
+	let timeline: Timeline;
+	let artifacts: Artifact[];
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
-		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
@@ -1044,8 +1047,25 @@ async function main() {
 		}
 	}
 
+	// Fail the job if any of the artifacts failed to publish
 	if (results.some(r => r.status === 'rejected')) {
 		throw new Error('Some artifacts failed to publish');
+	}
+
+	// Also fail the job if any of the stages did not succeed
+	let shouldFail = false;
+
+	for (const stage of stages) {
+		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+
+		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+			shouldFail = true;
+			console.error(`Stage ${stage} did not succeed: ${record.result}`);
+		}
+	}
+
+	if (shouldFail) {
+		throw new Error('Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);

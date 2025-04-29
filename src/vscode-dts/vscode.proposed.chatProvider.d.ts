@@ -5,11 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface ChatResponseFragment {
-		index: number;
-		part: string;
-	}
-
 	export interface ChatResponseFragment2 {
 		index: number;
 		part: LanguageModelTextPart | LanguageModelToolCallPart;
@@ -25,9 +20,6 @@ declare module 'vscode' {
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
 		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
-
-		/** @deprecated */
-		provideLanguageModelResponse2?(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
 		provideTokenCount(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
@@ -47,6 +39,16 @@ declare module 'vscode' {
 		 * but they are defined by extensions contributing languages and subject to change.
 		 */
 		readonly family: string;
+
+		/**
+		 * An optional, human-readable description of the language model.
+		 */
+		readonly description?: string;
+
+		/**
+		 * An optional, human-readable string representing the cost of using the language model.
+		 */
+		readonly cost?: string;
 
 		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
@@ -73,19 +75,19 @@ declare module 'vscode' {
 			readonly toolCalling?: boolean;
 			readonly agentMode?: boolean;
 		};
+
+		/**
+		 * Optional category to group models by in the model picker.
+		 * The lower the order, the higher the category appears in the list.
+		 * Has no effect if `isUserSelectable` is `false`.
+		 * If not specified, the model will appear in the "Other Models" category.
+		 */
+		readonly category?: { label: string; order: number };
 	}
 
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
 		extensions?: string[];
-	}
-
-	export namespace chat {
-
-		/**
-		 * @deprecated use `lm.registerChatResponseProvider` instead
-		*/
-		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 
 	export namespace lm {

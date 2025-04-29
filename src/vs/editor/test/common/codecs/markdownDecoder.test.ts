@@ -12,6 +12,7 @@ import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
 import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
 import { Dash } from '../../../common/codecs/simpleCodec/tokens/dash.js';
 import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
+import { Slash } from '../../../common/codecs/simpleCodec/tokens/slash.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../common/codecs/simpleCodec/tokens/formFeed.js';
 import { VerticalTab } from '../../../common/codecs/simpleCodec/tokens/verticalTab.js';
@@ -195,9 +196,15 @@ suite('MarkdownDecoder', () => {
 						new Space(new Range(1, 2, 1, 3)),
 						new RightBracket(new Range(1, 3, 1, 4)),
 						new LeftParenthesis(new Range(1, 4, 1, 5)),
-						new Word(new Range(1, 5, 1, 5 + 11), './real/file'),
+						new Word(new Range(1, 5, 1, 5 + 1), '.'),
+						new Slash(new Range(1, 6, 1, 7)),
+						new Word(new Range(1, 7, 1, 7 + 4), 'real'),
+						new Slash(new Range(1, 11, 1, 12)),
+						new Word(new Range(1, 12, 1, 12 + 4), 'file'),
 						new Space(new Range(1, 16, 1, 17)),
-						new Word(new Range(1, 17, 1, 17 + 17), 'path/file⇧name.md'),
+						new Word(new Range(1, 17, 1, 17 + 4), 'path'),
+						new Slash(new Range(1, 21, 1, 22)),
+						new Word(new Range(1, 22, 1, 22 + 12), 'file⇧name.md'),
 						new NewLine(new Range(1, 34, 1, 35)),
 						// `2nd` line
 						new LeftBracket(new Range(2, 1, 2, 2)),
@@ -207,22 +214,26 @@ suite('MarkdownDecoder', () => {
 						new RightBracket(new Range(2, 11, 2, 12)),
 						new Space(new Range(2, 12, 2, 13)),
 						new LeftParenthesis(new Range(2, 13, 2, 14)),
-						new Word(new Range(2, 14, 2, 14 + 6), './file'),
+						new Word(new Range(2, 14, 2, 14 + 1), '.'),
+						new Slash(new Range(2, 15, 2, 16)),
+						new Word(new Range(2, 16, 2, 16 + 4), 'file'),
 						new Space(new Range(2, 20, 2, 21)),
-						new Word(new Range(2, 21, 2, 21 + 13), 'path/name.txt'),
+						new Word(new Range(2, 21, 2, 21 + 4), 'path'),
+						new Slash(new Range(2, 25, 2, 26)),
+						new Word(new Range(2, 26, 2, 26 + 8), 'name.txt'),
 						new RightParenthesis(new Range(2, 34, 2, 35)),
 					],
 				);
 			});
 
 			suite('• stop characters inside caption/reference (new lines)', () => {
-				for (const stopCharacter of [CarriageReturn, NewLine]) {
+				for (const StopCharacter of [CarriageReturn, NewLine]) {
 					let characterName = '';
 
-					if (stopCharacter === CarriageReturn) {
+					if (StopCharacter === CarriageReturn) {
 						characterName = '\\r';
 					}
-					if (stopCharacter === NewLine) {
+					if (StopCharacter === NewLine) {
 						characterName = '\\n';
 					}
 
@@ -238,11 +249,11 @@ suite('MarkdownDecoder', () => {
 
 						const inputLines = [
 							// stop character inside link caption
-							`[haa${stopCharacter.symbol}loů](./real/💁/name.txt)`,
+							`[haa${StopCharacter.symbol}loů](./real/💁/name.txt)`,
 							// stop character inside link reference
-							`[ref text](/etc/pat${stopCharacter.symbol}h/to/file.md)`,
+							`[ref text](/etc/pat${StopCharacter.symbol}h/to/file.md)`,
 							// stop character between line caption and link reference is disallowed
-							`[text]${stopCharacter.symbol}(/etc/ path/file.md)`,
+							`[text]${StopCharacter.symbol}(/etc/ path/main.mdc)`,
 						];
 
 
@@ -252,11 +263,17 @@ suite('MarkdownDecoder', () => {
 								// `1st` input line
 								new LeftBracket(new Range(1, 1, 1, 2)),
 								new Word(new Range(1, 2, 1, 2 + 3), 'haa'),
-								new stopCharacter(new Range(1, 5, 1, 6)), // <- stop character
+								new NewLine(new Range(1, 5, 1, 6)), // a single CR token is treated as a `new line`
 								new Word(new Range(2, 1, 2, 1 + 3), 'loů'),
 								new RightBracket(new Range(2, 4, 2, 5)),
 								new LeftParenthesis(new Range(2, 5, 2, 6)),
-								new Word(new Range(2, 6, 2, 6 + 18), './real/💁/name.txt'),
+								new Word(new Range(2, 6, 2, 6 + 1), '.'),
+								new Slash(new Range(2, 7, 2, 8)),
+								new Word(new Range(2, 8, 2, 8 + 4), 'real'),
+								new Slash(new Range(2, 12, 2, 13)),
+								new Word(new Range(2, 13, 2, 13 + 2), '💁'),
+								new Slash(new Range(2, 15, 2, 16)),
+								new Word(new Range(2, 16, 2, 16 + 8), 'name.txt'),
 								new RightParenthesis(new Range(2, 24, 2, 25)),
 								new NewLine(new Range(2, 25, 2, 26)),
 								// `2nd` input line
@@ -266,21 +283,32 @@ suite('MarkdownDecoder', () => {
 								new Word(new Range(3, 6, 3, 6 + 4), 'text'),
 								new RightBracket(new Range(3, 10, 3, 11)),
 								new LeftParenthesis(new Range(3, 11, 3, 12)),
-								new Word(new Range(3, 12, 3, 12 + 8), '/etc/pat'),
-								new stopCharacter(new Range(3, 20, 3, 21)), // <- stop character
-								new Word(new Range(4, 1, 4, 1 + 12), 'h/to/file.md'),
+								new Slash(new Range(3, 12, 3, 13)),
+								new Word(new Range(3, 13, 3, 13 + 3), 'etc'),
+								new Slash(new Range(3, 16, 3, 17)),
+								new Word(new Range(3, 17, 3, 17 + 3), 'pat'),
+								new NewLine(new Range(3, 20, 3, 21)), // a single CR token is treated as a `new line`
+								new Word(new Range(4, 1, 4, 1 + 1), 'h'),
+								new Slash(new Range(4, 2, 4, 3)),
+								new Word(new Range(4, 3, 4, 3 + 2), 'to'),
+								new Slash(new Range(4, 5, 4, 6)),
+								new Word(new Range(4, 6, 4, 6 + 7), 'file.md'),
 								new RightParenthesis(new Range(4, 13, 4, 14)),
 								new NewLine(new Range(4, 14, 4, 15)),
 								// `3nd` input line
 								new LeftBracket(new Range(5, 1, 5, 2)),
 								new Word(new Range(5, 2, 5, 2 + 4), 'text'),
 								new RightBracket(new Range(5, 6, 5, 7)),
-								new stopCharacter(new Range(5, 7, 5, 8)), // <- stop character
+								new NewLine(new Range(5, 7, 5, 8)), // a single CR token is treated as a `new line`
 								new LeftParenthesis(new Range(6, 1, 6, 2)),
-								new Word(new Range(6, 2, 6, 2 + 5), '/etc/'),
+								new Slash(new Range(6, 2, 6, 3)),
+								new Word(new Range(6, 3, 6, 3 + 3), 'etc'),
+								new Slash(new Range(6, 6, 6, 7)),
 								new Space(new Range(6, 7, 6, 8)),
-								new Word(new Range(6, 8, 6, 8 + 12), 'path/file.md'),
-								new RightParenthesis(new Range(6, 20, 6, 21)),
+								new Word(new Range(6, 8, 6, 8 + 4), 'path'),
+								new Slash(new Range(6, 12, 6, 13)),
+								new Word(new Range(6, 13, 6, 13 + 8), 'main.mdc'),
+								new RightParenthesis(new Range(6, 21, 6, 22)),
 							],
 						);
 					});
@@ -291,13 +319,13 @@ suite('MarkdownDecoder', () => {
 			 * Same as above but these stop characters do not move the caret to the next line.
 			 */
 			suite('• stop characters inside caption/reference (same line)', () => {
-				for (const stopCharacter of [VerticalTab, FormFeed]) {
+				for (const StopCharacter of [VerticalTab, FormFeed]) {
 					let characterName = '';
 
-					if (stopCharacter === VerticalTab) {
+					if (StopCharacter === VerticalTab) {
 						characterName = '\\v';
 					}
-					if (stopCharacter === FormFeed) {
+					if (StopCharacter === FormFeed) {
 						characterName = '\\f';
 					}
 
@@ -313,11 +341,11 @@ suite('MarkdownDecoder', () => {
 
 						const inputLines = [
 							// stop character inside link caption
-							`[haa${stopCharacter.symbol}loů](./real/💁/name.txt)`,
+							`[haa${StopCharacter.symbol}loů](./real/💁/name.txt)`,
 							// stop character inside link reference
-							`[ref text](/etc/pat${stopCharacter.symbol}h/to/file.md)`,
+							`[ref text](/etc/pat${StopCharacter.symbol}h/to/file.md)`,
 							// stop character between line caption and link reference is disallowed
-							`[text]${stopCharacter.symbol}(/etc/ path/file.md)`,
+							`[text]${StopCharacter.symbol}(/etc/ path/file.md)`,
 						];
 
 
@@ -327,11 +355,17 @@ suite('MarkdownDecoder', () => {
 								// `1st` input line
 								new LeftBracket(new Range(1, 1, 1, 2)),
 								new Word(new Range(1, 2, 1, 2 + 3), 'haa'),
-								new stopCharacter(new Range(1, 5, 1, 6)), // <- stop character
+								new StopCharacter(new Range(1, 5, 1, 6)), // <- stop character
 								new Word(new Range(1, 6, 1, 6 + 3), 'loů'),
 								new RightBracket(new Range(1, 9, 1, 10)),
 								new LeftParenthesis(new Range(1, 10, 1, 11)),
-								new Word(new Range(1, 11, 1, 11 + 18), './real/💁/name.txt'),
+								new Word(new Range(1, 11, 1, 11 + 1), '.'),
+								new Slash(new Range(1, 12, 1, 13)),
+								new Word(new Range(1, 13, 1, 13 + 4), 'real'),
+								new Slash(new Range(1, 17, 1, 18)),
+								new Word(new Range(1, 18, 1, 18 + 2), '💁'),
+								new Slash(new Range(1, 20, 1, 21)),
+								new Word(new Range(1, 21, 1, 21 + 8), 'name.txt'),
 								new RightParenthesis(new Range(1, 29, 1, 30)),
 								new NewLine(new Range(1, 30, 1, 31)),
 								// `2nd` input line
@@ -341,20 +375,31 @@ suite('MarkdownDecoder', () => {
 								new Word(new Range(2, 6, 2, 6 + 4), 'text'),
 								new RightBracket(new Range(2, 10, 2, 11)),
 								new LeftParenthesis(new Range(2, 11, 2, 12)),
-								new Word(new Range(2, 12, 2, 12 + 8), '/etc/pat'),
-								new stopCharacter(new Range(2, 20, 2, 21)), // <- stop character
-								new Word(new Range(2, 21, 2, 21 + 12), 'h/to/file.md'),
+								new Slash(new Range(2, 12, 2, 13)),
+								new Word(new Range(2, 13, 2, 13 + 3), 'etc'),
+								new Slash(new Range(2, 16, 2, 17)),
+								new Word(new Range(2, 17, 2, 17 + 3), 'pat'),
+								new StopCharacter(new Range(2, 20, 2, 21)), // <- stop character
+								new Word(new Range(2, 21, 2, 21 + 1), 'h'),
+								new Slash(new Range(2, 22, 2, 23)),
+								new Word(new Range(2, 23, 2, 23 + 2), 'to'),
+								new Slash(new Range(2, 25, 2, 26)),
+								new Word(new Range(2, 26, 2, 26 + 7), 'file.md'),
 								new RightParenthesis(new Range(2, 33, 2, 34)),
 								new NewLine(new Range(2, 34, 2, 35)),
 								// `3nd` input line
 								new LeftBracket(new Range(3, 1, 3, 2)),
 								new Word(new Range(3, 2, 3, 2 + 4), 'text'),
 								new RightBracket(new Range(3, 6, 3, 7)),
-								new stopCharacter(new Range(3, 7, 3, 8)), // <- stop character
+								new StopCharacter(new Range(3, 7, 3, 8)), // <- stop character
 								new LeftParenthesis(new Range(3, 8, 3, 9)),
-								new Word(new Range(3, 9, 3, 9 + 5), '/etc/'),
+								new Slash(new Range(3, 9, 3, 10)),
+								new Word(new Range(3, 10, 3, 10 + 3), 'etc'),
+								new Slash(new Range(3, 13, 3, 14)),
 								new Space(new Range(3, 14, 3, 15)),
-								new Word(new Range(3, 15, 3, 15 + 12), 'path/file.md'),
+								new Word(new Range(3, 15, 3, 15 + 4), 'path'),
+								new Slash(new Range(3, 19, 3, 20)),
+								new Word(new Range(3, 20, 3, 20 + 7), 'file.md'),
 								new RightParenthesis(new Range(3, 27, 3, 28)),
 							],
 						);
@@ -461,7 +506,7 @@ suite('MarkdownDecoder', () => {
 					// space between caption and reference is disallowed
 					'\f![link text] (./file path/name.jpg)',
 					// new line inside the link reference
-					'\v![ ](./file\npath/name.jpg )',
+					'\v![ ](./file\npath/name.jpeg )',
 				];
 
 				await test.run(
@@ -473,9 +518,15 @@ suite('MarkdownDecoder', () => {
 						new Space(new Range(1, 3, 1, 4)),
 						new RightBracket(new Range(1, 4, 1, 5)),
 						new LeftParenthesis(new Range(1, 5, 1, 6)),
-						new Word(new Range(1, 6, 1, 6 + 11), './real/file'),
+						new Word(new Range(1, 6, 1, 6 + 1), '.'),
+						new Slash(new Range(1, 7, 1, 8)),
+						new Word(new Range(1, 8, 1, 8 + 4), 'real'),
+						new Slash(new Range(1, 12, 1, 13)),
+						new Word(new Range(1, 13, 1, 13 + 4), 'file'),
 						new Space(new Range(1, 17, 1, 18)),
-						new Word(new Range(1, 18, 1, 18 + 19), 'path/file★name.webp'),
+						new Word(new Range(1, 18, 1, 18 + 4), 'path'),
+						new Slash(new Range(1, 22, 1, 23)),
+						new Word(new Range(1, 23, 1, 23 + 14), 'file★name.webp'),
 						new NewLine(new Range(1, 37, 1, 38)),
 						// `2nd` line
 						new FormFeed(new Range(2, 1, 2, 2)),
@@ -487,9 +538,13 @@ suite('MarkdownDecoder', () => {
 						new RightBracket(new Range(2, 13, 2, 14)),
 						new Space(new Range(2, 14, 2, 15)),
 						new LeftParenthesis(new Range(2, 15, 2, 16)),
-						new Word(new Range(2, 16, 2, 16 + 6), './file'),
+						new Word(new Range(2, 16, 2, 16 + 1), '.'),
+						new Slash(new Range(2, 17, 2, 18)),
+						new Word(new Range(2, 18, 2, 18 + 4), 'file'),
 						new Space(new Range(2, 22, 2, 23)),
-						new Word(new Range(2, 23, 2, 23 + 13), 'path/name.jpg'),
+						new Word(new Range(2, 23, 2, 23 + 4), 'path'),
+						new Slash(new Range(2, 27, 2, 28)),
+						new Word(new Range(2, 28, 2, 28 + 8), 'name.jpg'),
 						new RightParenthesis(new Range(2, 36, 2, 37)),
 						new NewLine(new Range(2, 37, 2, 38)),
 						// `3rd` line
@@ -499,23 +554,27 @@ suite('MarkdownDecoder', () => {
 						new Space(new Range(3, 4, 3, 5)),
 						new RightBracket(new Range(3, 5, 3, 6)),
 						new LeftParenthesis(new Range(3, 6, 3, 7)),
-						new Word(new Range(3, 7, 3, 7 + 6), './file'),
+						new Word(new Range(3, 7, 3, 7 + 1), '.'),
+						new Slash(new Range(3, 8, 3, 9)),
+						new Word(new Range(3, 9, 3, 9 + 4), 'file'),
 						new NewLine(new Range(3, 13, 3, 14)),
-						new Word(new Range(4, 1, 4, 1 + 13), 'path/name.jpg'),
-						new Space(new Range(4, 14, 4, 15)),
-						new RightParenthesis(new Range(4, 15, 4, 16)),
+						new Word(new Range(4, 1, 4, 1 + 4), 'path'),
+						new Slash(new Range(4, 5, 4, 6)),
+						new Word(new Range(4, 6, 4, 6 + 9), 'name.jpeg'),
+						new Space(new Range(4, 15, 4, 16)),
+						new RightParenthesis(new Range(4, 16, 4, 17)),
 					],
 				);
 			});
 
 			suite('• stop characters inside caption/reference (new lines)', () => {
-				for (const stopCharacter of [CarriageReturn, NewLine]) {
+				for (const StopCharacter of [CarriageReturn, NewLine]) {
 					let characterName = '';
 
-					if (stopCharacter === CarriageReturn) {
+					if (StopCharacter === CarriageReturn) {
 						characterName = '\\r';
 					}
-					if (stopCharacter === NewLine) {
+					if (StopCharacter === NewLine) {
 						characterName = '\\n';
 					}
 
@@ -531,11 +590,11 @@ suite('MarkdownDecoder', () => {
 
 						const inputLines = [
 							// stop character inside link caption
-							`![haa${stopCharacter.symbol}loů](./real/💁/name.png)`,
+							`![haa${StopCharacter.symbol}loů](./real/💁/name.png)`,
 							// stop character inside link reference
-							`![ref text](/etc/pat${stopCharacter.symbol}h/to/file.webp)`,
+							`![ref text](/etc/pat${StopCharacter.symbol}h/to/file.webp)`,
 							// stop character between line caption and link reference is disallowed
-							`![text]${stopCharacter.symbol}(/etc/ path/file.jpeg)`,
+							`![text]${StopCharacter.symbol}(/etc/ path/file.jpeg)`,
 						];
 
 
@@ -546,11 +605,17 @@ suite('MarkdownDecoder', () => {
 								new ExclamationMark(new Range(1, 1, 1, 2)),
 								new LeftBracket(new Range(1, 2, 1, 3)),
 								new Word(new Range(1, 3, 1, 3 + 3), 'haa'),
-								new stopCharacter(new Range(1, 6, 1, 7)), // <- stop character
+								new NewLine(new Range(1, 6, 1, 7)), // a single CR token is treated as a `new line`
 								new Word(new Range(2, 1, 2, 1 + 3), 'loů'),
 								new RightBracket(new Range(2, 4, 2, 5)),
 								new LeftParenthesis(new Range(2, 5, 2, 6)),
-								new Word(new Range(2, 6, 2, 6 + 18), './real/💁/name.png'),
+								new Word(new Range(2, 6, 2, 6 + 1), '.'),
+								new Slash(new Range(2, 7, 2, 8)),
+								new Word(new Range(2, 8, 2, 8 + 4), 'real'),
+								new Slash(new Range(2, 12, 2, 13)),
+								new Word(new Range(2, 13, 2, 13 + 2), '💁'),
+								new Slash(new Range(2, 15, 2, 16)),
+								new Word(new Range(2, 16, 2, 16 + 8), 'name.png'),
 								new RightParenthesis(new Range(2, 24, 2, 25)),
 								new NewLine(new Range(2, 25, 2, 26)),
 								// `2nd` input line
@@ -561,9 +626,16 @@ suite('MarkdownDecoder', () => {
 								new Word(new Range(3, 7, 3, 7 + 4), 'text'),
 								new RightBracket(new Range(3, 11, 3, 12)),
 								new LeftParenthesis(new Range(3, 12, 3, 13)),
-								new Word(new Range(3, 13, 3, 13 + 8), '/etc/pat'),
-								new stopCharacter(new Range(3, 21, 3, 22)), // <- stop character
-								new Word(new Range(4, 1, 4, 1 + 14), 'h/to/file.webp'),
+								new Slash(new Range(3, 13, 3, 14)),
+								new Word(new Range(3, 14, 3, 14 + 3), 'etc'),
+								new Slash(new Range(3, 17, 3, 18)),
+								new Word(new Range(3, 18, 3, 18 + 3), 'pat'),
+								new NewLine(new Range(3, 21, 3, 22)), // a single CR token is treated as a `new line`
+								new Word(new Range(4, 1, 4, 1 + 1), 'h'),
+								new Slash(new Range(4, 2, 4, 3)),
+								new Word(new Range(4, 3, 4, 3 + 2), 'to'),
+								new Slash(new Range(4, 5, 4, 6)),
+								new Word(new Range(4, 6, 4, 6 + 9), 'file.webp'),
 								new RightParenthesis(new Range(4, 15, 4, 16)),
 								new NewLine(new Range(4, 16, 4, 17)),
 								// `3nd` input line
@@ -571,11 +643,15 @@ suite('MarkdownDecoder', () => {
 								new LeftBracket(new Range(5, 2, 5, 3)),
 								new Word(new Range(5, 3, 5, 3 + 4), 'text'),
 								new RightBracket(new Range(5, 7, 5, 8)),
-								new stopCharacter(new Range(5, 8, 5, 9)), // <- stop character
+								new NewLine(new Range(5, 8, 5, 9)), // a single CR token is treated as a `new line`
 								new LeftParenthesis(new Range(6, 1, 6, 2)),
-								new Word(new Range(6, 2, 6, 2 + 5), '/etc/'),
+								new Slash(new Range(6, 2, 6, 3)),
+								new Word(new Range(6, 3, 6, 3 + 3), 'etc'),
+								new Slash(new Range(6, 6, 6, 7)),
 								new Space(new Range(6, 7, 6, 8)),
-								new Word(new Range(6, 8, 6, 8 + 14), 'path/file.jpeg'),
+								new Word(new Range(6, 8, 6, 8 + 4), 'path'),
+								new Slash(new Range(6, 12, 6, 13)),
+								new Word(new Range(6, 13, 6, 13 + 9), 'file.jpeg'),
 								new RightParenthesis(new Range(6, 22, 6, 23)),
 							],
 						);
@@ -628,7 +704,13 @@ suite('MarkdownDecoder', () => {
 								new Word(new Range(1, 7, 1, 7 + 3), 'loů'),
 								new RightBracket(new Range(1, 10, 1, 11)),
 								new LeftParenthesis(new Range(1, 11, 1, 12)),
-								new Word(new Range(1, 12, 1, 12 + 14), './real/💁/name'),
+								new Word(new Range(1, 12, 1, 12 + 1), '.'),
+								new Slash(new Range(1, 13, 1, 14)),
+								new Word(new Range(1, 14, 1, 14 + 4), 'real'),
+								new Slash(new Range(1, 18, 1, 19)),
+								new Word(new Range(1, 19, 1, 19 + 2), '💁'),
+								new Slash(new Range(1, 21, 1, 22)),
+								new Word(new Range(1, 22, 1, 22 + 4), 'name'),
 								new RightParenthesis(new Range(1, 26, 1, 27)),
 								new NewLine(new Range(1, 27, 1, 28)),
 								// `2nd` input line
@@ -639,9 +721,16 @@ suite('MarkdownDecoder', () => {
 								new Word(new Range(2, 7, 2, 7 + 4), 'text'),
 								new RightBracket(new Range(2, 11, 2, 12)),
 								new LeftParenthesis(new Range(2, 12, 2, 13)),
-								new Word(new Range(2, 13, 2, 13 + 8), '/etc/pat'),
+								new Slash(new Range(2, 13, 2, 14)),
+								new Word(new Range(2, 14, 2, 14 + 3), 'etc'),
+								new Slash(new Range(2, 17, 2, 18)),
+								new Word(new Range(2, 18, 2, 18 + 3), 'pat'),
 								new stopCharacter(new Range(2, 21, 2, 22)), // <- stop character
-								new Word(new Range(2, 22, 2, 22 + 14), 'h/to/file.webp'),
+								new Word(new Range(2, 22, 2, 22 + 1), 'h'),
+								new Slash(new Range(2, 23, 2, 24)),
+								new Word(new Range(2, 24, 2, 24 + 2), 'to'),
+								new Slash(new Range(2, 26, 2, 27)),
+								new Word(new Range(2, 27, 2, 27 + 9), 'file.webp'),
 								new RightParenthesis(new Range(2, 36, 2, 37)),
 								new NewLine(new Range(2, 37, 2, 38)),
 								// `3nd` input line
@@ -651,9 +740,13 @@ suite('MarkdownDecoder', () => {
 								new RightBracket(new Range(3, 7, 3, 8)),
 								new stopCharacter(new Range(3, 8, 3, 9)), // <- stop character
 								new LeftParenthesis(new Range(3, 9, 3, 10)),
-								new Word(new Range(3, 10, 3, 10 + 5), '/etc/'),
+								new Slash(new Range(3, 10, 3, 11)),
+								new Word(new Range(3, 11, 3, 11 + 3), 'etc'),
+								new Slash(new Range(3, 14, 3, 15)),
 								new Space(new Range(3, 15, 3, 16)),
-								new Word(new Range(3, 16, 3, 16 + 14), 'path/image.gif'),
+								new Word(new Range(3, 16, 3, 16 + 4), 'path'),
+								new Slash(new Range(3, 20, 3, 21)),
+								new Word(new Range(3, 21, 3, 21 + 9), 'image.gif'),
 								new RightParenthesis(new Range(3, 30, 3, 31)),
 							],
 						);

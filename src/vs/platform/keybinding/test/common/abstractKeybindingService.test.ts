@@ -184,7 +184,7 @@ suite('AbstractKeybindingService', () => {
 				status(message: string, options?: IStatusMessageOptions) {
 					statusMessageCalls!.push(message);
 					return {
-						dispose: () => {
+						close: () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};

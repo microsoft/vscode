@@ -19,37 +19,26 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
 import { ChatInputPart } from '../../../../chat/browser/chatInputPart.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
-import { IBaseChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
-import { getNotebookEditorFromEditorPane, ICellOutputViewModel, INotebookEditor, ICellViewModel } from '../../notebookBrowser.js';
+import { getNotebookEditorFromEditorPane, ICellOutputViewModel, INotebookEditor } from '../../notebookBrowser.js';
 import * as icons from '../../notebookIcons.js';
 import { getOutputViewModelFromId } from '../cellOutputActions.js';
 import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from '../coreActions.js';
-import { CellUri } from '../../../common/notebookCommon.js';
 import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../contrib/chat/notebookChatUtils.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
-const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/html',
-	'application/vnd.code.notebook.error',
-	'application/vnd.code.notebook.stdout',
-	'application/x.notebook.stdout',
-	'application/x.notebook.stream',
-	'application/vnd.code.notebook.stderr',
-	'application/x.notebook.stderr',
-	'image/png',
-	'image/jpeg',
-	'image/svg',
-];
 
 class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.notebookChatContribution';
@@ -245,6 +234,7 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 				name: variableName,
 				value: variableName,
 				icon: codiconsLibrary.variable,
+				kind: 'generic'
 			});
 		}
 	}
@@ -259,7 +249,8 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, ContextKeyExpr.in(NOTEBOOK_CELL_OUTPUT_MIMETYPE.key, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.key)),
-				order: 10
+				order: 10,
+				group: 'notebook_chat_actions'
 			},
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			icon: icons.copyIcon,
@@ -276,6 +267,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
+		const viewService = accessor.get(IViewsService);
 
 		if (!notebookEditor) {
 			return;
@@ -321,49 +313,13 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		}
 		if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
 
-			// get the cell index
-			const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;
-			const cell: ICellViewModel | undefined = notebookEditor.getCellByHandle(cellFromViewModelHandle);
-			if (!cell) {
+			const entry = createNotebookOutputVariableEntry(outputViewModel, mimeType, notebookEditor);
+			if (!entry) {
 				return;
 			}
-			// uri of the cell
-			const cellUri = cell.uri;
 
-			// get the output index
-			const outputId = outputViewModel?.model.outputId;
-			let outputIndex: number = 0;
-			if (outputId !== undefined) {
-				// find the output index
-
-				outputIndex = cell.outputsViewModels.findIndex(output => {
-					return output.model.outputId === outputId;
-				});
-
-
-			}
-			// get URI of notebook
-			let notebookUri = notebookEditor.textModel?.uri;
-			if (!notebookUri) {
-				// if the notebook is not found, try to parse the cell uri
-				const parsedCellUri = CellUri.parse(cellUri);
-				notebookUri = parsedCellUri?.notebook;
-				if (!notebookUri) {
-					return;
-				}
-			}
-			// construct the URI using the cell uri and output index
-			const outputCellUri = CellUri.generateCellOutputUriWithIndex(notebookUri, cellUri, outputIndex);
-
-
-
-			const l: IBaseChatRequestVariableEntry = {
-				value: outputCellUri,
-				id: outputCellUri.toString(),
-				name: outputCellUri.toString(),
-				isFile: true,
-			};
-			widget.attachmentModel.addContext(l);
+			widget.attachmentModel.addContext(entry);
+			(await showChatView(viewService))?.focusInput();
 		}
 	}
 

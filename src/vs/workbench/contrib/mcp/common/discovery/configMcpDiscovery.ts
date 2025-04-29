@@ -118,8 +118,8 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
 				id: `${collectionId}.${name}`,
 				label: name,
-				launch: 'type' in value && value.type === 'sse' ? {
-					type: McpServerTransportType.SSE,
+				launch: 'url' in value ? {
+					type: McpServerTransportType.HTTP,
 					uri: URI.parse(value.url),
 					headers: Object.entries(value.headers || {}),
 				} : {

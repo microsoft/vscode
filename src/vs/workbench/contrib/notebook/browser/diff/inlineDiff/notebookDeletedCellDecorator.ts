@@ -220,7 +220,7 @@ export class NotebookDeletedCellWidget extends Disposable {
 
 		if (this._toolbarOptions) {
 			const toolbar = document.createElement('div');
-			toolbar.className = this._toolbarOptions?.className;
+			toolbar.className = this._toolbarOptions.className;
 			rootContainer.appendChild(toolbar);
 
 			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));

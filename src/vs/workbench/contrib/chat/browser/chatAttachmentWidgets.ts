@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { $, addDisposableListener } from '../../../../base/browser/dom.js';
+import * as event from '../../../../base/common/event.js';
+import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -25,7 +25,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, OmittedState } from '../common/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -33,13 +33,17 @@ import { basename, dirname } from '../../../../base/common/path.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INotebookService } from '../../notebook/common/notebookService.js';
+import { CellUri } from '../../notebook/common/notebookCommon.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
 	public readonly label: IResourceLabel;
 
-	private readonly _onDidDelete: Emitter<globalThis.Event> = this._register(new Emitter<globalThis.Event>());
-	get onDidDelete(): Event<globalThis.Event> {
+	private readonly _onDidDelete: event.Emitter<Event> = this._register(new event.Emitter<Event>());
+	get onDidDelete(): event.Event<Event> {
 		return this._onDidDelete.event;
 	}
 
@@ -61,10 +65,17 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 
 	protected modelSupportsVision() {
-		return this.currentLanguageModel?.metadata.capabilities?.vision ?? false;
+		return modelSupportsVision(this.currentLanguageModel);
 	}
 
 	protected attachClearButton() {
+
+		if (this.attachment.range) {
+			// no clear button for attachments with ranges because range means
+			// referenced from prompt
+			return;
+		}
+
 		const clearButton = new Button(this.element, {
 			supportIcons: true,
 			hoverDelegate: this.hoverDelegate,
@@ -72,8 +83,13 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		});
 		clearButton.icon = Codicon.close;
 		this._register(clearButton);
-		this._register(Event.once(clearButton.onDidClick)((e) => {
+		this._register(event.Event.once(clearButton.onDidClick)((e) => {
 			this._onDidDelete.fire(e);
+		}));
+		this._register(dom.addStandardDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
+			if (e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Delete) {
+				this._onDidDelete.fire(e.browserEvent);
+			}
 		}));
 		if (this.shouldFocusClearButton) {
 			clearButton.focus();
@@ -84,7 +100,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		this.element.style.cursor = 'pointer';
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
-			if (this.attachment.isDirectory) {
+			if (this.attachment.kind === 'directory') {
 				this.openResource(resource, true);
 			} else {
 				this.openResource(resource, false, range);
@@ -95,7 +111,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				dom.EventHelper.stop(e, true);
-				if (this.attachment.isDirectory) {
+				if (this.attachment.kind === 'directory') {
 					this.openResource(resource, true);
 				} else {
 					this.openResource(resource, false, range);
@@ -123,6 +139,10 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 }
 
+function modelSupportsVision(currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined) {
+	return currentLanguageModel?.metadata.capabilities?.vision ?? false;
+}
+
 export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	constructor(
@@ -146,14 +166,14 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		const fileBasename = basename(resource.path);
 		const fileDirname = dirname(resource.path);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
-		this.element.ariaLabel = ariaLabel;
+		let ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-		if (attachment.isOmitted) {
+		if (attachment.omittedState === OmittedState.Full) {
+			ariaLabel = localize('chat.omittedFileAttachment', "Omitted this file: {0}", attachment.name);
 			this.renderOmittedWarning(friendlyName, ariaLabel, hoverDelegate);
 		} else {
 			const fileOptions: IFileLabelOptions = { hidePath: true };
-			this.label.setFile(resource, attachment.isFile ? {
+			this.label.setFile(resource, attachment.kind === 'file' ? {
 				...fileOptions,
 				fileKind: FileKind.FILE,
 				range,
@@ -163,6 +183,8 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 				icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 			});
 		}
+
+		this.element.ariaLabel = ariaLabel;
 
 		this.instantiationService.invokeFunction(accessor => {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
@@ -184,7 +206,6 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel, 'file');
 		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
-
 	}
 }
 
@@ -206,28 +227,22 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 	) {
 		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
-		const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-		this.element.ariaLabel = ariaLabel;
-		this.element.style.position = 'relative';
-
-		if (attachment.references) {
-			this.element.style.cursor = 'pointer';
-			const clickHandler = () => {
-				if (attachment.references && URI.isUri(attachment.references[0].reference)) {
-					this.openResource(attachment.references[0].reference, false, undefined);
-				}
-			};
-			this._register(addDisposableListener(this.element, 'click', clickHandler));
+		let ariaLabel: string;
+		if (attachment.omittedState === OmittedState.Full) {
+			ariaLabel = localize('chat.omittedImageAttachment', "Omitted this image: {0}", attachment.name);
+		} else if (attachment.omittedState === OmittedState.Partial) {
+			ariaLabel = localize('chat.partiallyOmittedImageAttachment', "Partially omitted this image: {0}", attachment.name);
+		} else {
+			ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 		}
 
-		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(this.modelSupportsVision() ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
-		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-		this.element.appendChild(pillIcon);
-		this.element.appendChild(textLabel);
-
-		const hoverElement = dom.$('div.chat-attached-context-hover');
-		hoverElement.setAttribute('aria-label', ariaLabel);
-
+		const ref = attachment.references?.[0]?.reference;
+		resource = ref && URI.isUri(ref) ? ref : undefined;
+		const clickHandler = () => {
+			if (resource) {
+				this.openResource(resource, false, undefined);
+			}
+		};
 		type AttachImageEvent = {
 			currentModel: string;
 			supportsVision: boolean;
@@ -247,15 +262,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			supportsVision: supportsVision
 		});
 
-		if (!supportsVision && this.currentLanguageModel) {
-			this.element.classList.add('warning');
-			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
-		} else {
-			const buffer = attachment.value as Uint8Array;
-			this.createImageElements(buffer, this.element, hoverElement);
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: false }));
-		}
+		const fullName = resource?.toString() || attachment.fullName || attachment.name;
+		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
 
 		if (resource) {
 			this.addResourceOpenHandlers(resource, undefined);
@@ -263,37 +271,79 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		this.attachClearButton();
 	}
+}
 
-	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
+function createImageElements(resource: URI | undefined, name: string, fullName: string,
+	element: HTMLElement,
+	buffer: ArrayBuffer | Uint8Array,
+	hoverService: IHoverService, ariaLabel: string,
+	currentLanguageModelName: string,
+	clickHandler: () => void,
+	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
+	omittedState?: OmittedState): IDisposable {
+
+	const disposable = new DisposableStore();
+	if (omittedState === OmittedState.Partial) {
+		element.classList.add('partial-warning');
+	}
+
+	element.ariaLabel = ariaLabel;
+	element.style.position = 'relative';
+
+	if (resource) {
+		element.style.cursor = 'pointer';
+		disposable.add(dom.addDisposableListener(element, 'click', clickHandler));
+	}
+	const supportsVision = modelSupportsVision(currentLanguageModel);
+	const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
+	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, name);
+	element.appendChild(pillIcon);
+	element.appendChild(textLabel);
+
+	const hoverElement = dom.$('div.chat-attached-context-hover');
+	hoverElement.setAttribute('aria-label', ariaLabel);
+
+	if (!supportsVision && currentLanguageModel) {
+		element.classList.add('warning');
+		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
+		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
+	} else {
+		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
+
+
 		const blob = new Blob([buffer], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
-		const existingPill = widget.querySelector('.chat-attached-context-pill');
+		const existingPill = element.querySelector('.chat-attached-context-pill');
 		if (existingPill) {
 			existingPill.replaceWith(pill);
 		}
 
 		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
+		hoverElement.appendChild(imageContainer);
 
-		// Update hover image
-		hoverElement.appendChild(hoverImage);
+		if (resource) {
+			const urlContainer = dom.$('a.chat-attached-context-url', {}, omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName);
+			const separator = dom.$('div.chat-attached-context-url-separator');
+			disposable.add(dom.addDisposableListener(urlContainer, 'click', () => clickHandler()));
+			hoverElement.append(separator, urlContainer);
+		}
 
-		hoverImage.onload = () => {
-			URL.revokeObjectURL(url);
-		};
-
+		hoverImage.onload = () => { URL.revokeObjectURL(url); };
 		hoverImage.onerror = () => {
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
-			const existingPill = widget.querySelector('.chat-attached-context-pill');
+			const existingPill = element.querySelector('.chat-attached-context-pill');
 			if (existingPill) {
 				existingPill.replaceWith(pill);
 			}
 		};
 	}
+	return disposable;
 }
 
 export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
@@ -342,7 +392,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const copiedFromResource = attachment.copiedFrom?.uri;
 		if (copiedFromResource) {
-			this._register(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, copiedFromResource)));
+			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
 		}
 
@@ -368,7 +418,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
-		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
 		this.label.setLabel(withIcon, undefined);
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
@@ -386,12 +436,148 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		if (attachment.kind === 'symbol') {
 			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
-			this._register(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, this.element, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext)));
+			this._register(this.instantiationService.invokeFunction(hookUpSymbolAttachmentDragAndContextMenu, this.element, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext));
 		}
 
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
+
+		this.attachClearButton();
+	}
+}
+
+export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		resource: URI,
+		attachment: INotebookOutputVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		shouldFocusClearButton: boolean,
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@INotebookService private readonly notebookService: INotebookService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		switch (attachment.mimeType) {
+			case 'application/vnd.code.notebook.error': {
+				this.renderErrorOutput(resource, attachment);
+				break;
+			}
+			case 'image/png':
+			case 'image/jpeg':
+			case 'image/svg': {
+				this.renderImageOutput(resource, attachment);
+				break;
+			}
+			default: {
+				this.renderGenericOutput(resource, attachment);
+			}
+		}
+
+		this.instantiationService.invokeFunction(accessor => {
+			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
+		});
+		this.addResourceOpenHandlers(resource, undefined);
+		this.attachClearButton();
+	}
+	getAriaLabel(attachment: INotebookOutputVariableEntry): string {
+		return localize('chat.NotebookImageAttachment', "Attached Notebook output, {0}", attachment.name);
+	}
+	private renderErrorOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
+		const attachmentLabel = attachment.name;
+		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
+		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
+		let title: string | undefined = undefined;
+		try {
+			const error = JSON.parse(new TextDecoder().decode(buffer)) as Error;
+			if (error.name && error.message) {
+				title = `${error.name}: ${error.message}`;
+			}
+		} catch {
+			//
+		}
+		this.label.setLabel(withIcon, undefined, { title });
+		this.element.ariaLabel = this.getAriaLabel(attachment);
+	}
+	private renderGenericOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
+		this.element.ariaLabel = this.getAriaLabel(attachment);
+		this.label.setFile(resource, { hidePath: true, icon: ThemeIcon.fromId('output') });
+	}
+	private renderImageOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
+		let ariaLabel: string;
+		if (attachment.omittedState === OmittedState.Full) {
+			ariaLabel = localize('chat.omittedNotebookImageAttachment', "Omitted this Notebook ouput: {0}", attachment.name);
+		} else if (attachment.omittedState === OmittedState.Partial) {
+			ariaLabel = localize('chat.partiallyOmittedNotebookImageAttachment', "Partially omitted this Notebook output: {0}", attachment.name);
+		} else {
+			ariaLabel = this.getAriaLabel(attachment);
+		}
+
+		const clickHandler = () => this.openResource(resource, false, undefined);
+		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
+		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
+		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
+	}
+
+	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
+		const parsedInfo = CellUri.parseCellOutputUri(resource);
+		if (!parsedInfo || typeof parsedInfo.cellHandle !== 'number' || typeof parsedInfo.outputIndex !== 'number') {
+			return undefined;
+		}
+		const notebook = this.notebookService.getNotebookTextModel(parsedInfo.notebook);
+		if (!notebook) {
+			return undefined;
+		}
+		const cell = notebook.cells.find(c => c.handle === parsedInfo.cellHandle);
+		if (!cell) {
+			return undefined;
+		}
+		const output = cell.outputs.length > parsedInfo.outputIndex ? cell.outputs[parsedInfo.outputIndex] : undefined;
+		return output?.outputs.find(o => o.mime === attachment.mimeType);
+	}
+
+}
+
+export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: IElementVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		shouldFocusClearButton: boolean,
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IEditorService editorService: IEditorService,
+	) {
+		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		const ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
+		this.element.ariaLabel = ariaLabel;
+
+		this.element.style.position = 'relative';
+		this.element.style.cursor = 'pointer';
+		const attachmentLabel = attachment.name;
+		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
+		this.label.setLabel(withIcon, undefined, { title: localize('chat.clickToViewContents', "Click to view the contents of: {0}", attachmentLabel) });
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
+			const content = attachment.value?.toString() || '';
+			await editorService.openEditor({
+				resource: undefined,
+				contents: content,
+				options: {
+					pinned: true
+				}
+			});
+		}));
 
 		this.attachClearButton();
 	}

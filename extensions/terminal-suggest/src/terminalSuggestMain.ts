@@ -34,7 +34,8 @@ export const enum TerminalShellType {
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
-	Python = 'python'
+	Python = 'python',
+	GitBash = 'gitbash',
 }
 
 const isWindows = osIsWindows();
@@ -275,16 +276,15 @@ export async function getCompletionItemsFromSpecs(
 					vscode.TerminalCompletionItemKind.Method
 				));
 				labels.add(commandTextLabel);
-			} else {
+			}
+			else {
 				const existingItem = items.find(i => (typeof i.label === 'string' ? i.label : i.label.label) === commandTextLabel);
 				if (!existingItem) {
 					continue;
 				}
-				const preferredItem = compareItems(existingItem, command);
-				if (preferredItem) {
-					preferredItem.kind = vscode.TerminalCompletionItemKind.Method;
-					items.splice(items.indexOf(existingItem), 1, preferredItem);
-				}
+
+				existingItem.documentation ??= command.documentation;
+				existingItem.detail ??= command.detail;
 			}
 		}
 		filesRequested = true;
@@ -306,20 +306,6 @@ export async function getCompletionItemsFromSpecs(
 	return { items, filesRequested, foldersRequested, fileExtensions, cwd };
 }
 
-function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICompletionResource): vscode.TerminalCompletionItem | undefined {
-	let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 1 : 0) : 0;
-	score += typeof command.label === 'object' ? (command.label.description !== undefined ? 2 : 0) : 0;
-	score += command.documentation ? typeof command.documentation === 'string' ? 2 : 3 : 0;
-	if (score > 0) {
-		score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 1 : 0) : 0;
-		score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 2 : 0) : 0;
-		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 2 : 3 : 0;
-		if (score >= 0) {
-			return { ...command, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength };
-		}
-	}
-}
-
 function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
@@ -337,6 +323,8 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 	switch (shellType) {
 		case 'bash':
 			return TerminalShellType.Bash;
+		case 'gitbash':
+			return TerminalShellType.GitBash;
 		case 'zsh':
 			return TerminalShellType.Zsh;
 		case 'pwsh':

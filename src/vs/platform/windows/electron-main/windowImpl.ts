@@ -105,6 +105,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidLeaveFullScreen = this._register(new Emitter<void>());
 	readonly onDidLeaveFullScreen = this._onDidLeaveFullScreen.event;
 
+	private readonly _onDidChangeAlwaysOnTop = this._register(new Emitter<boolean>());
+	readonly onDidChangeAlwaysOnTop = this._onDidChangeAlwaysOnTop.event;
+
 	//#endregion
 
 	abstract readonly id: number;
@@ -130,6 +133,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}));
 		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
 		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
+		this._register(Event.fromNodeEventEmitter(this._win, 'always-on-top-changed', (_, alwaysOnTop) => alwaysOnTop)(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire(alwaysOnTop)));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
@@ -147,23 +151,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 
-		// Windows Custom System Context Menu
-		// See https://github.com/electron/electron/issues/24893
-		//
-		// The purpose of this is to allow for the context menu in the Windows Title Bar
-		//
-		// Currently, all mouse events in the title bar are captured by the OS
-		// thus we need to capture them here with a window hook specific to Windows
-		// and then forward them to the correct window.
+		// Setup windows system context menu so it only is allowed in certain cases
 		if (isWindows && useCustomTitleStyle) {
-			const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
-
-			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
-			win.hookWindowMessage(WM_INITMENU, () => {
+			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))((e) => {
 				const [x, y] = win.getPosition();
-				const cursorPos = electron.screen.getCursorScreenPoint();
-				const cx = cursorPos.x - x;
-				const cy = cursorPos.y - y;
+				const cursorPos = electron.screen.screenToDipPoint(e.point);
+				const cx = Math.floor(cursorPos.x) - x;
+				const cy = Math.floor(cursorPos.y) - y;
 
 				// In some cases, show the default system context menu
 				// 1) The mouse position is not within the title bar
@@ -181,16 +175,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				};
 
 				if (!shouldTriggerDefaultSystemContextMenu()) {
-
-					// This is necessary to make sure the native system context menu does not show up.
-					win.setEnabled(false);
-					win.setEnabled(true);
+					e.event.preventDefault();
 
 					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
 				}
-
-				return 0;
-			});
+			}));
 		}
 
 		// Open devtools if instructed from command line args
@@ -612,7 +601,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		this.jsCallStackMap = new Map<string, number>();
-		this.jsCallStackEffectiveSampleCount = Math.round(sampleInterval / samplePeriod);
+		this.jsCallStackEffectiveSampleCount = Math.round(samplePeriod / sampleInterval);
 		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
 		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
 			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
@@ -731,7 +720,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
 
 		// Inject headers when requests are incoming
-		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+		const urls = ['https://*.vsassets.io/*'];
+		if (this.productService.extensionsGallery?.serviceUrl) {
+			const serviceUrl = URI.parse(this.productService.extensionsGallery.serviceUrl);
+			urls.push(`${serviceUrl.scheme}://${serviceUrl.authority}/*`);
+		}
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
 			const headers = await this.getMarketplaceHeaders();
 

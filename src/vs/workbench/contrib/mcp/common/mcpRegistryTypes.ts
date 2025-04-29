@@ -27,6 +27,8 @@ export interface IMcpMessageTransport extends IDisposable {
 }
 
 export interface IMcpHostDelegate {
+	/** Priority for this delegate, delegates are tested in descending priority order */
+	readonly priority: number;
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;
@@ -70,6 +72,8 @@ export interface IMcpRegistry {
 	clearSavedInputs(scope: StorageScope, inputId?: string): Promise<void>;
 	/** Edits a previously-saved input. */
 	editSavedInput(inputId: string, folderData: IWorkspaceFolderData | undefined, configSection: string, target: ConfigurationTarget): Promise<void>;
+	/** Updates a saved input. */
+	setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void>;
 	/** Gets saved inputs from storage. */
 	getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }>;
 	/** Creates a connection for the collection and definition. */

@@ -16,7 +16,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpConfiguration, IMcpConfigurationHTTP, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -26,13 +26,14 @@ import { IJSONEditingService } from '../../../services/configuration/common/json
 import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { McpServerOptionsCommand } from './mcpCommands.js';
+import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 
 const enum AddConfigurationType {
 	Stdio,
-	SSE,
+	HTTP,
 
 	NpmPackage,
 	PipPackage,
@@ -110,12 +111,13 @@ export class McpAddConfigurationCommand {
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
 		const items: QuickPickInput<{ kind: AddConfigurationType } & IQuickPickItem>[] = [
 			{ kind: AddConfigurationType.Stdio, label: localize('mcp.serverType.command', "Command (stdio)"), description: localize('mcp.serverType.command.description', "Run a local command that implements the MCP protocol") },
-			{ kind: AddConfigurationType.SSE, label: localize('mcp.serverType.http', "HTTP (server-sent events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
+			{ kind: AddConfigurationType.HTTP, label: localize('mcp.serverType.http', "HTTP (HTTP or Server-Sent Events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
 		];
 
 		let aiSupported: boolean | undefined;
@@ -169,7 +171,7 @@ export class McpAddConfigurationCommand {
 		};
 	}
 
-	private async getSSEConfig(): Promise<IMcpConfigurationSSE | undefined> {
+	private async getSSEConfig(): Promise<IMcpConfigurationHTTP | undefined> {
 		const url = await this._quickInputService.input({
 			title: localize('mcp.url.title', "Enter Server URL"),
 			placeHolder: localize('mcp.url.placeholder', "URL of the MCP server (e.g., http://localhost:3000)"),
@@ -184,10 +186,7 @@ export class McpAddConfigurationCommand {
 			packageType: 'sse'
 		});
 
-		return {
-			type: 'sse',
-			url
-		};
+		return { url };
 	}
 
 	private async getServerId(suggestion = `my-mcp-server-${generateUuid().split('-')[0]}`): Promise<string | undefined> {
@@ -226,7 +225,7 @@ export class McpAddConfigurationCommand {
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
+	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; server: McpConfigurationServer; inputs?: ConfiguredInput[]; inputValues?: Record<string, string> } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
 			title: assistedTypes[type].title,
@@ -302,20 +301,13 @@ export class McpAddConfigurationCommand {
 				return undefined;
 		}
 
-		const configWithName = await this._commandService.executeCommand<McpConfigurationServer & { name: string }>(
+		return await this._commandService.executeCommand<{ name: string; server: McpConfigurationServer; inputs?: ConfiguredInput[]; inputValues?: Record<string, string> }>(
 			AddConfigurationCopilotCommand.StartFlow,
 			{
 				name: packageName,
 				type: packageType
 			}
 		);
-
-		if (!configWithName) {
-			return undefined;
-		}
-
-		const { name, ...config } = configWithName;
-		return { name, config };
 	}
 
 	/** Shows the location of a server config once it's discovered. */
@@ -323,9 +315,11 @@ export class McpAddConfigurationCommand {
 		const store = new DisposableStore();
 		store.add(autorun(reader => {
 			const colls = this._mcpRegistry.collections.read(reader);
+			const servers = this._mcpService.servers.read(reader);
 			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
 				server => server.label === name ? { server, collection } : undefined));
-			if (match) {
+			const server = match && servers.find(s => s.definition.id === match.server.id);
+			if (match && server) {
 				if (match.collection.presentation?.origin) {
 					this._openerService.openEditor({
 						resource: match.collection.presentation.origin,
@@ -335,8 +329,14 @@ export class McpAddConfigurationCommand {
 						}
 					});
 				} else {
-					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
+					this._commandService.executeCommand(McpCommandIds.ServerOptions, name);
 				}
+
+				server.start(true).then(state => {
+					if (state.state === McpConnectionState.Kind.Error) {
+						server.showOutput();
+					}
+				});
 
 				store.dispose();
 			}
@@ -364,19 +364,23 @@ export class McpAddConfigurationCommand {
 		// Step 2: Get server details based on type
 		let serverConfig: McpConfigurationServer | undefined;
 		let suggestedName: string | undefined;
+		let inputs: ConfiguredInput[] | undefined;
+		let inputValues: Record<string, string> | undefined;
 		switch (serverType) {
 			case AddConfigurationType.Stdio:
 				serverConfig = await this.getStdioConfig();
 				break;
-			case AddConfigurationType.SSE:
+			case AddConfigurationType.HTTP:
 				serverConfig = await this.getSSEConfig();
 				break;
 			case AddConfigurationType.NpmPackage:
 			case AddConfigurationType.PipPackage:
 			case AddConfigurationType.DockerImage: {
 				const r = await this.getAssistedConfig(serverType);
-				serverConfig = r?.config;
+				serverConfig = r?.server;
 				suggestedName = r?.name;
+				inputs = r?.inputs;
+				inputValues = r?.inputValues;
 				break;
 			}
 			default:
@@ -411,12 +415,24 @@ export class McpAddConfigurationCommand {
 				: undefined;
 
 		if (writeToUriDirect) {
-			await this._jsonEditingService.write(writeToUriDirect, [{
-				path: ['servers', serverId],
-				value: serverConfig
-			}], true);
+			await this._jsonEditingService.write(writeToUriDirect, [
+				{
+					path: ['servers', serverId],
+					value: serverConfig
+				},
+				...(inputs || []).map(i => ({
+					path: ['inputs', -1],
+					value: i,
+				})),
+			], true);
 		} else {
-			await this.writeToUserSetting(serverId, serverConfig, target!);
+			await this.writeToUserSetting(serverId, serverConfig, target!, inputs);
+		}
+
+		if (inputValues) {
+			for (const [key, value] of Object.entries(inputValues)) {
+				await this._mcpRegistry.setSavedInput(key, target ?? ConfigurationTarget.WORKSPACE, value);
+			}
 		}
 
 		const packageType = this.getPackageType(serverType);
@@ -489,7 +505,7 @@ export class McpAddConfigurationCommand {
 				return 'docker';
 			case AddConfigurationType.Stdio:
 				return 'stdio';
-			case AddConfigurationType.SSE:
+			case AddConfigurationType.HTTP:
 				return 'sse';
 			default:
 				return undefined;
