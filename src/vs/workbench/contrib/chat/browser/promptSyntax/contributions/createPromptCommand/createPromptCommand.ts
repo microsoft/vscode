@@ -40,6 +40,7 @@ const command = async (
 	accessor: ServicesAccessor,
 	type: TPromptsType,
 ): Promise<void> => {
+
 	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
@@ -78,7 +79,7 @@ const command = async (
 		return;
 	}
 
-	const fileName = await askForPromptFileName(type, quickInputService);
+	const fileName = await askForPromptFileName(type, selectedFolder.uri, quickInputService, fileService);
 	if (!fileName) {
 		return;
 	}
