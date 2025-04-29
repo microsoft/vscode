@@ -94,6 +94,68 @@ suite('PromptsConfig', () => {
 				'Must read correct enablement value.',
 			);
 		});
+
+		test('• number', () => {
+			const configService = createMock(randomInt(100));
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• NaN', () => {
+			const configService = createMock(NaN);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• bigint', () => {
+			const configService = createMock(BigInt(randomInt(100)));
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• symbol', () => {
+			const configService = createMock(Symbol('test'));
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• object', () => {
+			const configService = createMock({
+				'.github/prompts': false,
+			});
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• array', () => {
+			const configService = createMock(['.github/prompts']);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
 	});
 
 
