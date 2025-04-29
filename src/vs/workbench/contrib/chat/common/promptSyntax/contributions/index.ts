@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ConfigMigration } from './configMigration.js';
 import { LANGUAGE_FEATURE_CONTRIBUTIONS } from './languageFeatures/index.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } from '../../../../../common/contributions.js';
 
 /**
@@ -17,19 +16,8 @@ export const registerPromptFileContributions = () => {
 	registerContributions(LANGUAGE_FEATURE_CONTRIBUTIONS);
 
 	// TODO: @legomushroom
-	registerContribution(ConfigMigrationContribution);
+	registerContribution(ConfigMigration);
 };
-
-/**
- * TODO: @legomushroom
- */
-class ConfigMigrationContribution implements IWorkbenchContribution {
-	constructor(
-		@IConfigurationService private readonly configService: IConfigurationService,
-	) {
-		PromptsConfig.migrateOldSetting(this.configService);
-	}
-}
 
 /**
  * TODO: @legomushroom
