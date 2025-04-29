@@ -285,6 +285,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private titleBarStyle: TitlebarStyle;
 
 	private isInactive: boolean = false;
+	private initialFocusChecked: boolean = false;
 
 	private readonly isAuxiliary: boolean;
 	private isCompact = false;
@@ -345,15 +346,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private onBlur(): void {
-		this.isInactive = true;
-
-		this.updateStyles();
+		// Only update if initial focus check is complete
+		if (this.initialFocusChecked) {
+			this.isInactive = true;
+			this.updateStyles();
+		}
 	}
 
 	private onFocus(): void {
-		this.isInactive = false;
-
-		this.updateStyles();
+		// Only update if initial focus check is complete
+		if (this.initialFocusChecked) {
+			this.isInactive = false;
+			this.updateStyles();
+		}
 	}
 
 	private onEditorPartConfigurationChange({ oldPartOptions, newPartOptions }: IEditorPartOptionsChangeEvent): void {
@@ -496,6 +501,38 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
+		}
+
+		// During startup, assume all windows are inactive until focus is properly determined
+		if (!this.initialFocusChecked) {
+			this.isInactive = true;
+
+			// Create a disposable store for initial focus detection
+			const initialFocusDisposables = new DisposableStore();
+
+			// Function to handle initial focus determination
+			const determineInitialFocus = () => {
+				if (!this.initialFocusChecked) {
+					this.initialFocusChecked = true;
+					this.isInactive = !getActiveDocument().hasFocus();
+					this.updateStyles();
+					initialFocusDisposables.dispose(); // Clean up event listeners
+				}
+			};
+
+			// Listen for focus events on the window
+			initialFocusDisposables.add(addDisposableListener(getWindow(this.element), 'focus', determineInitialFocus, true));
+			initialFocusDisposables.add(addDisposableListener(getWindow(this.element), 'blur', determineInitialFocus, true));
+
+			// Also listen for mouse clicks which might indicate user interaction with a window
+			initialFocusDisposables.add(addDisposableListener(getWindow(this.element).document, 'mousedown', determineInitialFocus, true));
+
+			// Fallback timeout as a safety net (longer duration to ensure we catch slower systems)
+			const fallbackTimer = setTimeout(() => determineInitialFocus(), 2000);
+			initialFocusDisposables.add({ dispose: () => clearTimeout(fallbackTimer) });
+
+			// Add to our disposables so it gets cleaned up properly
+			this._register(initialFocusDisposables);
 		}
 
 		// Window Controls Container
