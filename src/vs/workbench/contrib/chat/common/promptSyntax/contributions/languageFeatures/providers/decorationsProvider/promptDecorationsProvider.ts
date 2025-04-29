@@ -126,11 +126,12 @@ export class PromptDecorator extends ProviderInstanceBase {
 		this.model.changeDecorations((accessor) => {
 			const { tokens } = this.parser;
 
-			// TODO: @legomushroom
+			// remove all existing decorations
 			for (const decoration of this.decorations.splice(0)) {
 				decoration.remove(accessor);
 			}
 
+			// then add new decorations based on the current tokens
 			for (const token of tokens) {
 				for (const Decoration of SUPPORTED_DECORATIONS) {
 					if (Decoration.handles(token) === false) {
