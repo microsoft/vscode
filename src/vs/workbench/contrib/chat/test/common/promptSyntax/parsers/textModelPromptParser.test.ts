@@ -198,31 +198,31 @@ suite('TextModelPromptParser', () => {
 
 		await test.validateReferences([
 			new ExpectedReference({
-				uri: createURI('/abs/path/to/file.md'),
+				uri: URI.file('/abs/path/to/file.md'),
 				text: '#file:/abs/path/to/file.md',
 				path: '/abs/path/to/file.md',
 				startLine: 1,
 				startColumn: 27,
 				pathStartColumn: 33,
-				childrenOrError: new OpenFailed(createURI('/abs/path/to/file.md'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/abs/path/to/file.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
-				uri: createURI('/foo/folder/binary.file'),
+				uri: URI.file('/foo/folder/binary.file'),
 				text: '#file:./folder/binary.file',
 				path: './folder/binary.file',
 				startLine: 7,
 				startColumn: 10,
 				pathStartColumn: 16,
-				childrenOrError: new OpenFailed(createURI('/foo/folder/binary.file'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/foo/folder/binary.file'), 'File not found.'),
 			}),
 			new ExpectedReference({
-				uri: createURI('/etc/hosts/random-file.txt'),
+				uri: URI.file('/etc/hosts/random-file.txt'),
 				text: '[md link](/etc/hosts/random-file.txt)',
 				path: '/etc/hosts/random-file.txt',
 				startLine: 7,
 				startColumn: 81,
 				pathStartColumn: 91,
-				childrenOrError: new OpenFailed(createURI('/etc/hosts/random-file.txt'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/etc/hosts/random-file.txt'), 'File not found.'),
 			}),
 		]);
 	});

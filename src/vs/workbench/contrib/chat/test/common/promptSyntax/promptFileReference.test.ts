@@ -7,7 +7,6 @@ import assert from 'assert';
 import { ChatMode } from '../../../common/constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { extUri } from '../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
@@ -50,7 +49,9 @@ class ExpectedReference {
 		public readonly linkToken: FileReference | MarkdownLink,
 		public readonly errorCondition?: TErrorCondition,
 	) {
-		this.uri = extUri.resolvePath(dirname, linkToken.path);
+		this.uri = (linkToken.path.startsWith('/'))
+			? URI.file(linkToken.path)
+			: URI.joinPath(dirname, linkToken.path);
 	}
 
 	/**
@@ -388,14 +389,13 @@ suite('PromptFileReference (Unix)', function () {
 					),
 				),
 				new ExpectedReference(
-					URI.joinPath(rootUri, './some-other-folder/folder1'),
-					// createTestFileReference('../../folder1', 5, 48),
+					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					new MarkdownLink(
 						5, 48,
 						'[]', '(../../folder1/)',
 					),
 					new FolderReference(
-						URI.joinPath(rootUri, './folder1'),
+						URI.joinPath(rootUri, './folder1/'),
 						'Uggh ohh!',
 					),
 				),
@@ -689,7 +689,7 @@ suite('PromptFileReference (Unix)', function () {
 						),
 					),
 					new ExpectedReference(
-						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						URI.joinPath(rootUri, './folder1/some-other-folder/'),
 						createTestFileReference('./some-non-prompt-file.md', 5, 13),
 						new OpenFailed(
 							URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
@@ -697,7 +697,7 @@ suite('PromptFileReference (Unix)', function () {
 						),
 					),
 					new ExpectedReference(
-						URI.joinPath(rootUri, './some-other-folder/folder1'),
+						URI.joinPath(rootUri, './some-other-folder/folder1/'),
 						new MarkdownLink(
 							5, 48,
 							'[]', '(../../folder1/)',
