@@ -62,10 +62,6 @@ import { GroupIdentifier } from '../../../common/editor.js';
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
 
-	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
-
-	private _detachedXterms = new Set<IDetachedTerminalInstance>();
-	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
 	private _isShuttingDown: boolean = false;
