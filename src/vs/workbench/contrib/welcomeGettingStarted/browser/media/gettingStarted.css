@@ -10,7 +10,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer {
 	box-sizing: border-box;
-	line-height: 22px;
+	line-height: 16px;
 	position: relative;
 	overflow: hidden;
 	height: inherit;
@@ -1166,7 +1166,7 @@
 /* Center dots between navigation buttons */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .dots-centered {
 	display: flex;
-	gap: 48px;
+	gap: 32px;
 	justify-content: center;
 	align-items: center;
 	width: max-content;
@@ -1220,9 +1220,9 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot {
-	width: 19px;
+	width: 12px;
 	/* Increased from 13px */
-	height: 19px;
+	height: 12px;
 	/* Increased from 13px */
 	background-color: var(--vscode-button-secondaryBackground);
 	border: none;
@@ -1239,9 +1239,9 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot.active {
 	background-color: var(--vscode-button-background);
-	width: 18px;
+	width: 16px;
 	/* Increased from 14px */
-	height: 18px;
+	height: 16px;
 	/* Increased from 14px */
 }
 
@@ -1290,7 +1290,7 @@
 	/* Increased from 24px */
 	padding: 0 16px;
 	/* Increased from 0 11px */
-	font-size: 15px;
+	font-size: 16px;
 	/* Increased from default */
 }
 
@@ -1351,7 +1351,7 @@
 	display: flex;
 	padding: 0 10%;
 	align-items: center;
-	font-size: 24px;
+	font-size: 16px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container {
@@ -1375,7 +1375,8 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step-title {
-	font-size: 24px;
+	font-size: 20px;
+	line-height: 24px;;
 	margin: 0;
 	padding: 16px 0 4px 16px;
 }
@@ -1401,5 +1402,5 @@
 	padding: 0 10%;
 	align-items: center;
 	min-width: max-content;
-	font-size: 24px;
+	font-size: 16px;
 }

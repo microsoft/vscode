@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isEqual } from '../../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
 import { SnippetController2 } from '../../../../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { localize } from '../../../../../../../nls.js';
@@ -39,6 +40,7 @@ const command = async (
 	accessor: ServicesAccessor,
 	type: TPromptsType,
 ): Promise<void> => {
+
 	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
@@ -77,7 +79,7 @@ const command = async (
 		return;
 	}
 
-	const fileName = await askForPromptFileName(type, quickInputService);
+	const fileName = await askForPromptFileName(type, selectedFolder.uri, quickInputService, fileService);
 	if (!fileName) {
 		return;
 	}
@@ -130,7 +132,7 @@ const command = async (
 		Severity.Info,
 		localize(
 			'workbench.command.prompts.create.user.enable-sync-notification',
-			"User prompts and instructions are not currently synchronized. Do you want to enable synchronization of the user prompts and instructions?",
+			"Do you want to backup and sync your user prompt and instruction files with Setting Sync?'",
 		),
 		[
 			{
@@ -141,7 +143,13 @@ const command = async (
 							logService.error(`Failed to run '${CONFIGURE_SYNC_COMMAND_ID}' command: ${error}.`);
 						});
 				},
-			}
+			},
+			{
+				label: localize('learnMore.capitalized', "Learn More"),
+				run: () => {
+					openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help'));
+				},
+			},
 		],
 		{
 			neverShowAgain: {

@@ -35,7 +35,9 @@ export class ChatRequestParser {
 	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
-		const toolsByName = new Map<string, IToolData>((this.variableService.getSelectedTools(sessionId)).filter(t => t.toolReferenceName).map(t => [t.toolReferenceName!, t]));
+		const toolsByName = new Map<string, IToolData>((this.variableService.getSelectedTools(sessionId))
+			.filter(t => t.canBeReferencedInPrompt && t.toolReferenceName)
+			.map(t => [t.toolReferenceName!, t]));
 
 		let lineNumber = 1;
 		let column = 1;
@@ -154,7 +156,7 @@ export class ChatRequestParser {
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
 		const tool = toolsByName.get(name);
-		if (tool && tool.canBeReferencedInPrompt) {
+		if (tool) {
 			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id, tool.displayName, tool.icon);
 		}
 
