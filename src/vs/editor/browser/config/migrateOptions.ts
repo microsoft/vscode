@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asBoolean } from '../../../platform/prompts/common/config.js';
 import { IEditorOptions } from '../../common/config/editorOptions.js';
 
 export interface ISettingsReader {
@@ -104,6 +105,50 @@ registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 		if (typeof read('autoSurround') === 'undefined') {
 			write('autoSurround', 'never');
 		}
+	}
+});
+
+registerEditorSettingMigration('chat.promptFiles', (value, _read, write) => {
+	if ((value === undefined) || (value === null)) {
+		return;
+	}
+
+	if (Array.isArray(value)) {
+		write('chat.promptFiles', true);
+
+		const locationsValue: Record<string, boolean> = {};
+		for (const filePath of value) {
+			if (typeof filePath !== 'string') {
+				continue;
+			}
+			const trimmedValue = filePath.trim();
+			if (!trimmedValue) {
+				continue;
+			}
+
+			locationsValue[trimmedValue] = true;
+		}
+
+		write('chat.promptFilesLocations', locationsValue);
+		return;
+	}
+
+	if (typeof value === 'object') {
+		write('chat.promptFiles', true);
+		write('chat.promptFilesLocations', value);
+
+		return;
+	}
+
+	if (typeof value === 'string') {
+		const booleanValue = asBoolean(value);
+		if (booleanValue !== undefined) {
+			return;
+		}
+
+		write('chat.promptFiles', true);
+		write('chat.promptFilesLocations', { [value]: true });
+		return;
 	}
 });
 
