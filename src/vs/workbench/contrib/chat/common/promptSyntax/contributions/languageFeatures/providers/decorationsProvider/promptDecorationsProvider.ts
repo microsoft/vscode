@@ -170,7 +170,6 @@ export class PromptDecorator extends ProviderInstanceBase {
 		if (this.disposed) {
 			return;
 		}
-		this.disposed = true;
 
 		this.removeAllDecorations();
 		super.dispose();

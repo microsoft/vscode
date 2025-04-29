@@ -49,13 +49,6 @@ export abstract class ObservableDisposable extends Disposable {
 	}
 
 	/**
-	 * Sets 'disposed' state of this object.
-	 */
-	protected set disposed(value: boolean) {
-		this._disposed = value;
-	}
-
-	/**
 	 * Dispose current object if not already disposed.
 	 * @returns
 	 */
@@ -63,8 +56,8 @@ export abstract class ObservableDisposable extends Disposable {
 		if (this.disposed) {
 			return;
 		}
-
 		this._disposed = true;
+
 		this._onDispose.fire();
 		super.dispose();
 	}
