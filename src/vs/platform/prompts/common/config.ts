@@ -137,11 +137,6 @@ export namespace PromptsConfig {
 			return;
 		}
 
-		// // TODO: @legomushroom
-		// if (2 + 2 === 4) {
-		// 	return;
-		// }
-
 		if (Array.isArray(value)) {
 			configService.updateValue('chat.promptFiles', true);
 

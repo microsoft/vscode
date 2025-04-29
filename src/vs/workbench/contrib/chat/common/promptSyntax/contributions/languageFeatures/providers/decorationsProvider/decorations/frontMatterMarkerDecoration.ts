@@ -5,7 +5,7 @@
 
 import { CssClassModifiers } from '../types.js';
 import { TDecorationStyles, ReactiveDecorationBase } from './utils/index.js';
-import { FrontMatterMarker } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
+import { FrontMatterMarker } from '../../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
 /**
  * Decoration CSS class names.
