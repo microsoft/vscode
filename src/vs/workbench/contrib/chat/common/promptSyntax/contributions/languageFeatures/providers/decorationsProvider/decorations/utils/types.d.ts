@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from '../../../../../../../../../../editor/common/model.js';
+import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from '../../../../../../../../../../../editor/common/model.ts';
 
 /**
  * CSS class names of a `reactive` decoration.

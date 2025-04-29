@@ -129,7 +129,6 @@ export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IExtension | undefined>;
 	readonly onReset: Event<void>;
-	readonly preferPreReleases: boolean;
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
 	readonly outdated: IExtension[];

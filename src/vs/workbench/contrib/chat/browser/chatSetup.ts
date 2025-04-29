@@ -762,7 +762,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 
 		const updateRegistration = () => {
-			const disabled = context.state.hidden;
+			const disabled = context.state.hidden /* via "Hide Copilot" */ || context.state.disabled /* via extension enablement */;
 			if (!disabled) {
 
 				// Default Agents (always, even if installed to allow for speedy requests right on startup)

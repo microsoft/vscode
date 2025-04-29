@@ -757,7 +757,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
-	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token: CancellationToken): Promise<IElementData | undefined> {
+	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId, windowId);
 		if (!window?.win) {
 			return undefined;
@@ -901,7 +901,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			throw new Error('No target session id found');
 		}
 
-		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win);
+		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win, cancellationId);
 		debuggers.detach();
 
 		const zoomFactor = simpleBrowserWebview.getZoomFactor();
@@ -915,11 +915,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
 	}
 
-	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow): Promise<NodeDataResponse> {
+	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
 		return new Promise((resolve, reject) => {
 			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
-
+					debuggers.off('message', onMessage);
 					await debuggers.sendCommand('Runtime.evaluate', {
 						expression: `(() => {
 								const style = document.getElementById('__pseudoBlocker__');
@@ -927,8 +927,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							})();`,
 					}, sessionId);
 
-
-					this._register(debuggers.off('message', onMessage));
 					const backendNodeId = params?.backendNodeId;
 					if (!backendNodeId) {
 						throw new Error('Missing backendNodeId in inspectNodeRequested event');
@@ -947,11 +945,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							throw new Error('Failed to get box model.');
 						}
 
+						const content = model.content;
 						const margin = model.margin;
-						const x = margin[0];
-						const y = margin[1] + 32.4 + 35; // 32.4 is height of the title bar, 35 is height of the tab bar
-						const width = margin[2] - margin[0];
-						const height = margin[5] - margin[1];
+						const x = Math.min(margin[0], content[0]);
+						const y = Math.min(margin[1], content[1]) + 32.4 + 35; // 32.4 is height of the title bar, 35 is height of the tab bar
+						const width = Math.max(margin[2] - margin[0], content[2] - content[0]);
+						const height = Math.max(margin[5] - margin[1], content[5] - content[1]);
 
 						const matched = await debuggers.sendCommand('CSS.getMatchedStylesForNode', { nodeId }, sessionId);
 						if (!matched) {
@@ -970,6 +969,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							bounds: { x, y, width, height }
 						});
 					} catch (err) {
+						debuggers.off('message', onMessage);
 						debuggers.detach();
 						reject(err);
 
@@ -977,16 +977,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			};
 
-			window.webContents.on('ipc-message', async (event, channel) => {
-				if (channel === 'vscode:cancelElementSelection') {
-					this._register(debuggers.off('message', onMessage));
+			window.webContents.on('ipc-message', async (event, channel, closedCancellationId) => {
+				if (channel === `vscode:cancelElementSelection${cancellationId}`) {
+					if (cancellationId !== closedCancellationId) {
+						return;
+					}
+					debuggers.off('message', onMessage);
 					if (debuggers.isAttached()) {
 						debuggers.detach();
 					}
+					window.webContents.removeAllListeners('ipc-message');
 				}
 			});
 
-			this._register(debuggers.on('message', onMessage));
+			debuggers.on('message', onMessage);
 		});
 	}
 

@@ -7,7 +7,6 @@ import { Range } from '../../../core/range.js';
 import { BaseToken } from '../../baseToken.js';
 import { Dash } from '../../simpleCodec/tokens/dash.js';
 import { NewLine } from '../../linesCodec/tokens/newLine.js';
-import { assert } from '../../../../../base/common/assert.js';
 import { MarkdownExtensionsToken } from './markdownExtensionsToken.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
 
@@ -39,13 +38,6 @@ export class FrontMatterMarker extends MarkdownExtensionsToken {
 		range: Range,
 		public readonly tokens: readonly TMarkerToken[],
 	) {
-		const lastToken = tokens[tokens.length - 1];
-
-		assert(
-			lastToken instanceof NewLine,
-			`Front Matter marker must end with a new line token, got '${lastToken}'.`,
-		);
-
 		super(range);
 	}
 

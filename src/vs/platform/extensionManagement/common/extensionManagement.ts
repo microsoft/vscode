@@ -596,6 +596,8 @@ export const IExtensionManagementService = createDecorator<IExtensionManagementS
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
+	readonly preferPreReleases: boolean;
+
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;

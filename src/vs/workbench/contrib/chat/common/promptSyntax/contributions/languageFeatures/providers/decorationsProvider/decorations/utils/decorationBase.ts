@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from '../../../../../../../../../../editor/common/core/range.js';
-import { IMarkdownString } from '../../../../../../../../../../base/common/htmlContent.js';
-import { BaseToken } from '../../../../../../../../../../editor/common/codecs/baseToken.js';
-import { TrackedRangeStickiness } from '../../../../../../../../../../editor/common/model.js';
+import { Range } from '../../../../../../../../../../../editor/common/core/range.js';
+import { IMarkdownString } from '../../../../../../../../../../../base/common/htmlContent.js';
+import { BaseToken } from '../../../../../../../../../../../editor/common/codecs/baseToken.js';
+import { TrackedRangeStickiness } from '../../../../../../../../../../../editor/common/model.js';
 import type { TAddAccessor, TChangeAccessor, TDecorationStyles, TRemoveAccessor } from './types.js';
-import { ModelDecorationOptions } from '../../../../../../../../../../editor/common/model/textModel.js';
+import { ModelDecorationOptions } from '../../../../../../../../../../../editor/common/model/textModel.js';
 
 /**
  * Base class for all editor decorations.

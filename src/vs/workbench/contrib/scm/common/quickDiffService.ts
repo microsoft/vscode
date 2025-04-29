@@ -54,9 +54,9 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 	declare readonly _serviceBrand: undefined;
 	private static readonly STORAGE_KEY = 'workbench.scm.quickDiffProviders.hidden';
 
-	private quickDiffProviders: Map<string, QuickDiffProvider> = new Map();
+	private quickDiffProviders: Set<QuickDiffProvider> = new Set();
 	get providers(): readonly QuickDiffProvider[] {
-		return Array.from(this.quickDiffProviders.values()).sort(providerComparer);
+		return Array.from(this.quickDiffProviders).sort(providerComparer);
 	}
 
 	private readonly _onDidChangeQuickDiffProviders = this._register(new Emitter<void>());
@@ -74,35 +74,30 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 	}
 
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable {
-		this.quickDiffProviders.set(quickDiff.id, quickDiff);
+		this.quickDiffProviders.add(quickDiff);
 		this._onDidChangeQuickDiffProviders.fire();
 		return {
 			dispose: () => {
-				this.quickDiffProviders.delete(quickDiff.id);
+				this.quickDiffProviders.delete(quickDiff);
 				this._onDidChangeQuickDiffProviders.fire();
 			}
 		};
 	}
 
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
-		const providers = Array.from(this.quickDiffProviders.values())
+		const providers = Array.from(this.quickDiffProviders)
 			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
 			.sort(createProviderComparer(uri));
 
 		const quickDiffOriginalResources = await Promise.all(providers.map(async provider => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
 			const originalResource = scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined;
-			return { id: provider.id, originalResource };
+			return { provider, originalResource };
 		}));
 
 		const quickDiffs: QuickDiff[] = [];
-		for (const { id, originalResource } of quickDiffOriginalResources) {
+		for (const { provider, originalResource } of quickDiffOriginalResources) {
 			if (!originalResource) {
-				continue;
-			}
-
-			const provider = this.quickDiffProviders.get(id);
-			if (!provider) {
 				continue;
 			}
 
@@ -118,10 +113,6 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 	}
 
 	toggleQuickDiffProviderVisibility(id: string): void {
-		if (!this.quickDiffProviders.has(id)) {
-			return;
-		}
-
 		if (this.isQuickDiffProviderVisible(id)) {
 			this.hiddenQuickDiffProviders.add(id);
 		} else {

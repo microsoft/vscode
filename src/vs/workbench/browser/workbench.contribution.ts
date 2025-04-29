@@ -619,10 +619,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
 			},
-			'workbench.settings.showExperimentalSuggestions': {
+			'workbench.settings.showSuggestions': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('settings.showExperimentalSuggestions', "Controls whether experimental suggestions are shown in the Settings editor. This setting requires a reload to take effect."),
+				'description': localize('settings.showSuggestions', "Controls whether setting suggestions are shown below the search bar in the Settings editor."),
 				'tags': ['experimental']
 			},
 			'workbench.hover.delay': {

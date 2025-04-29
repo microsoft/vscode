@@ -31,6 +31,8 @@ class WorkbenchNativeHostService extends NativeHostService {
 	}
 }
 
+let cancelSelectionIdPool = 0;
+
 class WorkbenchHostService extends Disposable implements IHostService {
 
 	declare readonly _serviceBrand: undefined;
@@ -200,12 +202,20 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	}
 
 	async getElementData(offsetX: number, offsetY: number, token: CancellationToken): Promise<IElementData | undefined> {
+		const cancelSelectionId = cancelSelectionIdPool++;
+		const onCancelChannel = `vscode:cancelElementSelection${cancelSelectionId}`;
 		const disposable = token.onCancellationRequested(() => {
-			ipcRenderer.send('vscode:cancelElementSelection');
+			ipcRenderer.send(onCancelChannel, cancelSelectionId);
 		});
-		const elementData = this.nativeHostService.getElementData(offsetX, offsetY, token);
-		elementData.finally(() => disposable.dispose());
-		return elementData;
+		try {
+			const elementData = await this.nativeHostService.getElementData(offsetX, offsetY, token, cancelSelectionId);
+			return elementData;
+		} catch (error) {
+			disposable.dispose();
+			throw new Error(`Native Host: Error getting element data: ${error}`);
+		} finally {
+			disposable.dispose();
+		}
 	}
 
 	//#endregion
