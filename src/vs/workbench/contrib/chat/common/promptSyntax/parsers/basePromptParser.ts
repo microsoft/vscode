@@ -106,12 +106,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	private readonly _onUpdate = this._register(new Emitter<void>());
 
 	/**
-	 * TODO: @legomushroom
+	 * Event that is fired when the current prompt parser is settled.
 	 */
 	private readonly _onSettled = this._register(new Emitter<Error | undefined>());
 
 	/**
-	 * TODO: @legomushroom
+	 * Event that is fired when the current prompt parser is settled.
 	 */
 	public readonly onSettled = this._onSettled.event;
 
@@ -306,7 +306,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			this._errorCondition = streamOrError;
 			this._onUpdate.fire();
 
-			// TODO: @legomushroom
+			// fire the 'onSettled' event immediately
 			this._onSettled.fire(streamOrError);
 
 			return;
@@ -407,7 +407,9 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		stream: ChatPromptDecoder,
 		error?: Error,
 	): this {
-		// TODO: @legomushroom
+		// decoders can fire the 'end' event also when they are get disposed,
+		// but because we dispose them when a new stream is received, we can
+		// safely ignore the event in this case
 		if (stream.disposed === true) {
 			return this;
 		}

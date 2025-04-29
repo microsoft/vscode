@@ -37,24 +37,22 @@ export abstract class ObservableDisposable extends Disposable {
 	}
 
 	/**
-	 * Tracks disposed state of this object.
+	 * Tracks 'disposed' state of this object.
 	 */
-	// TODO: @legomushroom
 	private _disposed = false;
 
 	/**
-	 * Tracks disposed state of this object.
-	 */
-	// TODO: @legomushroom
-	protected set disposed(value: boolean) {
-		this._disposed = value;
-	}
-
-	/**
-	 * Check if the current object was already disposed.
+	 * Gets current 'disposed' state of this object.
 	 */
 	public get disposed(): boolean {
 		return this._disposed;
+	}
+
+	/**
+	 * Sets 'disposed' state of this object.
+	 */
+	protected set disposed(value: boolean) {
+		this._disposed = value;
 	}
 
 	/**
