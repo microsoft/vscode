@@ -10,17 +10,16 @@ import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecyc
 import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } from '../../../../../common/contributions.js';
 
 /**
- * TODO: @legomushroom
+ * Function that registers all prompt-file related contributions.
  */
 export const registerPromptFileContributions = () => {
 	registerContributions(LANGUAGE_FEATURE_CONTRIBUTIONS);
 
-	// TODO: @legomushroom
 	registerContribution(ConfigMigration);
 };
 
 /**
- * TODO: @legomushroom
+ * Type for a generic workbench contribution.
  */
 export type TContribution = new (...args: any[]) => IWorkbenchContribution;
 

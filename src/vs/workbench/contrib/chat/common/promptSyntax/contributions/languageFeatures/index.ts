@@ -12,7 +12,7 @@ import { PromptHeaderDiagnosticsInstanceManager } from './providers/promptHeader
 import { PromptDecorationsProviderInstanceManager } from './providers/decorationsProvider/promptDecorationsProvider.js';
 
 /**
- * TODO: @legomushroom
+ * Base list of language feature contributions.
  */
 const CONTRIBUTIONS: TContribution[] = [
 	PromptLinkProvider,
@@ -33,5 +33,7 @@ if (isWindows === false) {
 	CONTRIBUTIONS.push(PromptPathAutocompletion);
 }
 
-// TODO: @legomushroom
+/**
+ * List of language feature contributions for the prompt files.
+ */
 export const LANGUAGE_FEATURE_CONTRIBUTIONS = Object.freeze(CONTRIBUTIONS);
