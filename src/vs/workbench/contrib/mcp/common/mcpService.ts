@@ -263,12 +263,13 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, token);
 		const details: IToolResultInputOutputDetails = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],
+			isError: callResult.isError === true,
 		};
 
-		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, token);
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
 				details.output.push({ type: 'text', value: item.text });
@@ -287,6 +288,7 @@ class McpToolImplementation implements IToolImpl {
 			}
 		}
 
+		result.toolResultDetails = details;
 		return result;
 	}
 }
