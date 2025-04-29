@@ -34,6 +34,69 @@ const createMock = <T>(value: T): IConfigurationService => {
 suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('• enabled', () => {
+		test('• true', () => {
+			const configService = createMock(true);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				true,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• false', () => {
+			const configService = createMock(false);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• null', () => {
+			const configService = createMock(null);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• string', () => {
+			const configService = createMock('');
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• true string', () => {
+			const configService = createMock('TRUE');
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				true,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• false string', () => {
+			const configService = createMock('FaLsE');
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+	});
+
+
 	suite('• getLocationsValue', () => {
 		test('• undefined', () => {
 			const configService = createMock(undefined);
