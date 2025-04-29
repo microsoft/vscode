@@ -55,6 +55,16 @@ class SimpleBrowserOverlayWidget {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 
+		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
+				if (this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
+					this.showElement(this._domNode);
+				} else {
+					this.hideElement(this._domNode);
+				}
+			}
+		}));
+
 		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
 		cleanupOldImages(this.fileService, this.logService, this.imagesFolder);
 
@@ -244,6 +254,10 @@ class SimpleBrowserOverlayController {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 
+		if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
+			return;
+		}
+
 		this._domNode.classList.add('chat-simple-browser-overlay');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.bottom = `5px`;
@@ -275,9 +289,6 @@ class SimpleBrowserOverlayController {
 
 			const editor = group.activeEditorPane;
 			if (editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view') {
-				if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
-					return undefined;
-				}
 				const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 				return uri;
 			}
