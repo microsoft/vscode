@@ -129,7 +129,7 @@ class SimpleBrowserOverlayWidget {
 			this._editor.focus();
 
 			// start selection
-			message.textContent = localize('elementSelectionInProgress', 'Selection in progress...');
+			message.textContent = localize('elementSelectionInProgress', 'Selecting element...');
 			this.hideElement(selectButton.element);
 			this.showElement(cancelButton.element);
 			await this.addElementToChat(cts);
