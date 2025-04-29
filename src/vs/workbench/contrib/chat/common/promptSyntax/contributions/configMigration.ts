@@ -12,21 +12,13 @@ import { CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY } from '../../../../../../platf
 /**
  * Contribution that migrates the old config setting value to a new one.
  *
- * Note! This is a temporary logic and can be removed on ~ 2026-04-29.
+ * Note! This is a temporary logic and can be removed on ~2026-04-29.
  */
 export class ConfigMigration implements IWorkbenchContribution {
 	constructor(
 		@IConfigurationService configService: IConfigurationService,
 	) {
 		const value = configService.getValue(CONFIG_KEY);
-		const locationsValue = configService.getValue(PROMPT_LOCATIONS_CONFIG_KEY);
-
-		// the setting split happened at the same time as the 'location'
-		// setting was added, hence if the 'location' setting is present,
-		// we don't need to do anything since user already has new settings
-		if ((locationsValue !== undefined) && (locationsValue !== null)) {
-			return;
-		}
 
 		// if setting is not set, nothing to do
 		if ((value === undefined) || (value === null)) {
@@ -57,8 +49,8 @@ export class ConfigMigration implements IWorkbenchContribution {
 				locationsValue[trimmedValue] = true;
 			}
 
-			configService.updateValue('chat.promptFiles', true);
-			configService.updateValue('chat.promptFilesLocations', locationsValue);
+			configService.updateValue(CONFIG_KEY, true);
+			configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, locationsValue);
 			return;
 		}
 
@@ -90,8 +82,8 @@ export class ConfigMigration implements IWorkbenchContribution {
 				locationsValue[trimmedValue] = enabled;
 			}
 
-			configService.updateValue('chat.promptFiles', true);
-			configService.updateValue('chat.promptFilesLocations', locationsValue);
+			configService.updateValue(CONFIG_KEY, true);
+			configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, locationsValue);
 
 			return;
 		}
@@ -107,8 +99,8 @@ export class ConfigMigration implements IWorkbenchContribution {
 				`String value must not be a boolean, got '${value}'.`,
 			);
 
-			configService.updateValue('chat.promptFiles', true);
-			configService.updateValue('chat.promptFilesLocations', { [value]: true });
+			configService.updateValue(CONFIG_KEY, true);
+			configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, { [value]: true });
 			return;
 		}
 	}
