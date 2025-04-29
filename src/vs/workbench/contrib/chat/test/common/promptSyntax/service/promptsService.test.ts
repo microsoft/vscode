@@ -2054,5 +2054,186 @@ suite('PromptsService', () => {
 				'Must find correct instruction files.',
 			);
 		});
+
+		test('• does not have duplicates', async () => {
+			const rootFolderName = 'finds-instruction-files-without-duplicates';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			const userPromptsFolderName = '/tmp/user-data/prompts';
+			const userPromptsFolderUri = URI.file(userPromptsFolderName);
+
+			sinon.stub(service, 'listPromptFiles')
+				.returns(Promise.resolve([
+					// local instructions
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					// user instructions
+					{
+						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+						storage: 'user',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
+						storage: 'user',
+						type: 'instructions',
+					},
+				]));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'file1.prompt.md',
+							contents: [
+								'## Some Header',
+								'some contents',
+								' ',
+							],
+						},
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'file1.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 1.\'',
+										'applyTo: "**/*.tsx"',
+										'---',
+										'Some instructions 1 contents.',
+									],
+								},
+								{
+									name: 'file2.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 2.\'',
+										'applyTo: "**/folder1/*.tsx"',
+										'---',
+										'Some instructions 2 contents.',
+									],
+								},
+								{
+									name: 'file3.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 3.\'',
+										'applyTo: "**/folder2/*.tsx"',
+										'---',
+										'Some instructions 3 contents.',
+									],
+								},
+								{
+									name: 'file4.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 4.\'',
+										'applyTo: "src/build/*.tsx"',
+										'---',
+										'Some instructions 4 contents.',
+									],
+								},
+								{
+									name: 'file5.prompt.md',
+									contents: [
+										'---',
+										'description: \'Prompt file 5.\'',
+										'---',
+										'Some prompt 5 contents.',
+									],
+								},
+							],
+						},
+						{
+							name: 'folder1',
+							children: [
+								{
+									name: 'main.tsx',
+									contents: 'console.log("Haalou!")',
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			// mock user data instructions
+			await (instaService.createInstance(MockFilesystem, [
+				{
+					name: userPromptsFolderName,
+					children: [
+						{
+							name: 'file10.instructions.md',
+							contents: [
+								'---',
+								'description: \'Instructions file 10.\'',
+								'applyTo: "**/folder1/*.tsx"',
+								'---',
+								'Some instructions 10 contents.',
+							],
+						},
+						{
+							name: 'file11.instructions.md',
+							contents: [
+								'---',
+								'description: \'Instructions file 11.\'',
+								'applyTo: "**/folder1/*.py"',
+								'---',
+								'Some instructions 11 contents.',
+							],
+						},
+						{
+							name: 'file12.prompt.md',
+							contents: [
+								'---',
+								'description: \'Prompt file 12.\'',
+								'---',
+								'Some prompt 12 contents.',
+							],
+						},
+					],
+				}
+			])).mock();
+
+			const instructions = await service
+				.findInstructionFilesFor([
+					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
+					URI.joinPath(rootFolderUri, 'folder1/index.tsx'),
+					URI.joinPath(rootFolderUri, 'folder1/constants.tsx'),
+				]);
+
+			assert.deepStrictEqual(
+				instructions,
+				[
+					// local instructions
+					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
+					URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+					// user instructions
+					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+				],
+				'Must find correct instruction files.',
+			);
+		});
 	});
 });
