@@ -99,9 +99,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get foregroundInstances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
-	get detachedInstances(): Iterable<IDetachedTerminalInstance> {
-		return this._detachedXterms;
-	}
+
 
 	private _reconnectedTerminalGroups: Promise<ITerminalGroup[]> | undefined;
 
