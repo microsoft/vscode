@@ -1500,7 +1500,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -1681,7 +1681,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
