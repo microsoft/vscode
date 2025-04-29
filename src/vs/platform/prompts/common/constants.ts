@@ -30,12 +30,22 @@ export const CONFIG_KEY: string = 'chat.promptFiles';
 /**
  * Configuration key for the locations of reusable prompt files.
  */
-export const LOCATIONS_CONFIG_KEY: string = 'chat.promptFilesLocations';
+export const PROMPT_LOCATIONS_CONFIG_KEY: string = 'chat.promptFilesLocations';
+
+/**
+ * Configuration key for the locations of instructions files.
+ */
+export const INSTRUCTIONS_LOCATIONS_CONFIG_KEY: string = 'chat.instructionsFilesLocations';
 
 /**
  * Default reusable prompt files source folder.
  */
-export const DEFAULT_SOURCE_FOLDER = '.github/prompts';
+export const PROMPT_DEFAULT_SOURCE_FOLDER = '.github/prompts';
+
+/**
+ * Default reusable prompt files source folder.
+ */
+export const INSTRUCTIONS_DEFAULT_SOURCE_FOLDER = '.github/instructions';
 
 /**
  * Gets the prompt file type from the provided path.

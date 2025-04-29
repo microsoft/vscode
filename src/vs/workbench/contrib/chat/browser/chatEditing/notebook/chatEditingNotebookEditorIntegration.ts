@@ -82,8 +82,8 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	rejectNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		return this.integration.rejectNearestChange(change);
 	}
-	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
-		return this.integration.toggleDiff(change);
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined, show?: boolean): Promise<void> {
+		return this.integration.toggleDiff(change, show);
 	}
 
 	public override dispose(): void {
@@ -643,7 +643,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		}
 
 	}
-	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined, _show?: boolean): Promise<void> {
 		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 		const diffInput: IResourceDiffEditorInput = {
 			original: { resource: this._entry.originalURI },
@@ -723,7 +723,7 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 		await change.reject();
 		this.next(true);
 	}
-	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined, _show?: boolean): Promise<void> {
 		//
 	}
 }

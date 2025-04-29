@@ -4806,6 +4806,19 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 	}
 }
 
+export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolResultPart2 {
+
+	callId: string;
+	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[];
+	isError: boolean;
+
+	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[], isError?: boolean) {
+		this.callId = callId;
+		this.content = content;
+		this.isError = isError ?? false;
+	}
+}
+
 export class PreparedTerminalToolInvocation {
 	constructor(
 		public readonly command: string,
@@ -4859,19 +4872,19 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -4881,12 +4894,12 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] {
 		return this._content;
 	}
 
 	// Temp to avoid breaking changes
-	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined) {
+	set content2(value: (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined) {
 		if (value) {
 			this.content = value.map(part => {
 				if (typeof part === 'string') {
@@ -4897,7 +4910,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] | undefined {
+	get content2(): (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[] | undefined {
 		return this.content.map(part => {
 			if (part instanceof LanguageModelTextPart) {
 				return part.value;
@@ -4908,7 +4921,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -4945,18 +4958,42 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 }
 
 export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
-	value: vscode.ChatImagePart;
+	mimeType: string;
+	data: Uint8Array<ArrayBufferLike>;
 
-	constructor(value: vscode.ChatImagePart) {
-		this.value = value;
+	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string) {
+		this.mimeType = mimeType;
+		this.data = data;
+	}
+
+	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
+		return new LanguageModelDataPart(data, mimeType as string);
+	}
+
+	static json(value: object): vscode.LanguageModelDataPart {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return new LanguageModelDataPart(VSBuffer.fromString(rawStr).buffer, 'json');
+	}
+
+	static text(value: string): vscode.LanguageModelDataPart {
+		return new LanguageModelDataPart(VSBuffer.fromString(value).buffer, 'text/plain');
 	}
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
-			value: this.value,
+			mimeType: this.mimeType,
+			data: this.data,
 		};
 	}
+}
+
+export enum ChatImageMimeType {
+	PNG = 'image/png',
+	JPEG = 'image/jpeg',
+	GIF = 'image/gif',
+	WEBP = 'image/webp',
+	BMP = 'image/bmp',
 }
 
 export class LanguageModelExtraDataPart implements vscode.LanguageModelExtraDataPart {
@@ -4977,21 +5014,6 @@ export class LanguageModelExtraDataPart implements vscode.LanguageModelExtraData
 	}
 }
 
-/**
- * Enum for supported image MIME types.
- */
-export enum ChatImageMimeType {
-	PNG = 'image/png',
-	JPEG = 'image/jpeg',
-	GIF = 'image/gif',
-	WEBP = 'image/webp',
-	BMP = 'image/bmp',
-}
-
-export interface ChatImagePart {
-	mimeType: ChatImageMimeType;
-	data: VSBuffer;
-}
 
 export class LanguageModelPromptTsxPart {
 	value: unknown;
@@ -5089,6 +5111,17 @@ export class LanguageModelToolResult {
 	}
 }
 
+export class LanguageModelToolResult2 {
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[]) { }
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelToolResult,
+			content: this.content,
+		};
+	}
+}
+
 export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 }
 
@@ -5106,6 +5139,12 @@ export enum RelatedInformationType {
 	CommandInformation = 2,
 	SearchInformation = 3,
 	SettingInformation = 4
+}
+
+export enum SettingsSearchResultKind {
+	EMBEDDED = 1,
+	LLM_RANKED = 2,
+	CANCELED = 3,
 }
 
 //#endregion

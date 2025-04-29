@@ -40,14 +40,13 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
 		const { header } = this.parser;
-
 		if (header === undefined) {
 			return this;
 		}
 
 		const markers: IMarkerData[] = [];
-		for (const link of header.diagnostics) {
-			markers.push(toMarker(link));
+		for (const diagnostic of header.diagnostics) {
+			markers.push(toMarker(diagnostic));
 		}
 
 		this.markerService.changeOne(

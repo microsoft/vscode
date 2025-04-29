@@ -16,7 +16,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../common/languageModelToolsService.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';
 export const InternalEditToolId = 'vscode_editFile_internal';
@@ -42,7 +42,7 @@ export class EditTool implements IToolImpl {
 		@INotebookService private readonly notebookService: INotebookService,
 	) { }
 
-	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		if (!invocation.context) {
 			throw new Error('toolInvocationToken is required for this tool');
 		}
@@ -75,7 +75,7 @@ export class EditTool implements IToolImpl {
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
-			content: new MarkdownString(parameters.code + '\n````\n')
+			content: new MarkdownString('\n````\n')
 		});
 		// Signal start.
 		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {

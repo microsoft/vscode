@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -231,9 +232,11 @@ export interface IChatToolInvocation {
 	confirmed: DeferredPromise<boolean>;
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
+	originMessage: string | IMarkdownString | undefined;
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
+	progress: IObservable<{ message?: string | IMarkdownString; progress: number }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
 
@@ -250,6 +253,7 @@ export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 	invocationMessage: string | IMarkdownString;
+	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
 	isConfirmed: boolean | undefined;
@@ -464,6 +468,8 @@ export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
 	userSelectedTools?: string[];
+	userSelectedTools2?: Record<string, boolean>;
+	toolSelectionIsExclusive?: boolean;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;

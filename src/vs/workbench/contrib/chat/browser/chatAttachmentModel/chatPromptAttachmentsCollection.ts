@@ -235,36 +235,35 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	/**
 	 * Add a prompt instruction attachment instance with the provided `URI`.
 	 * @param uri URI of the prompt instruction attachment to add.
-	 *
-	 * @returns `true` if the attachment already exists, `false` otherwise.
 	 */
-	public add(uri: URI): boolean {
-		// if already exists, nothing to do
-		if (this.attachments.has(uri.path)) {
-			return true;
+	public add(uris: URI | readonly URI[]) {
+		const uriList = Array.isArray(uris) ? uris : [uris];
+
+		// if no URIs provided, nothing to do
+		if (uriList.length === 0) {
+			return;
 		}
 
-		const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
-			.onUpdate(this._onUpdate.fire)
-			.onDispose(() => {
-				// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
-				//       alternative results in an infinite loop of calling this callback
-				this.attachments.deleteAndLeak(uri.path);
-				this._onUpdate.fire();
-				this._onRemove.fire(instruction);
-			});
+		for (const uri of uriList) {
+			// if already exists, nothing to do
+			if (this.attachments.has(uri.path)) {
+				continue;
+			}
 
-		// start resolving all references in the prompt
-		instruction.resolve();
-		this.attachments.set(uri.path, instruction);
+			const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
+				.onUpdate(this._onUpdate.fire)
+				.onDispose(() => {
+					// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
+					//       alternative results in an infinite loop of calling this callback
+					this.attachments.deleteAndLeak(uri.path);
+					this._onUpdate.fire();
+					this._onRemove.fire(instruction);
+				}).resolve();
 
-		this._onAdd.fire(instruction);
-		this._onUpdate.fire();
-
-		// start resolving all references in the prompt
-		instruction.resolve();
-
-		return false;
+			this.attachments.set(uri.path, instruction);
+			this._onAdd.fire(instruction);
+			this._onUpdate.fire();
+		}
 	}
 
 	/**
@@ -287,5 +286,17 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	 */
 	public get featureEnabled(): boolean {
 		return PromptsConfig.enabled(this.configService);
+	}
+
+	/**
+	 * Clear all prompt instruction attachments.
+	 */
+	public clear(): this {
+		for (const attachment of this.attachments.values()) {
+			this.remove(attachment.uri);
+		}
+
+		this._onUpdate.fire();
+		return this;
 	}
 }

@@ -17,8 +17,8 @@ import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensi
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -92,7 +92,7 @@ class AttachInstructionsAction extends Action2 {
 				'Resource must be defined when skipping prompt selection dialog.',
 			);
 
-			const { widget } = await attachInstructionsFiles(
+			const widget = await attachInstructionsFiles(
 				[resource],
 				attachOptions,
 			);
@@ -112,7 +112,7 @@ class AttachInstructionsAction extends Action2 {
 		const instructions = await pickers.selectInstructionsFiles({ promptFiles, placeholder });
 
 		if (instructions !== undefined) {
-			const { widget } = await attachInstructionsFiles(
+			const widget = await attachInstructionsFiles(
 				instructions,
 				attachOptions,
 			);

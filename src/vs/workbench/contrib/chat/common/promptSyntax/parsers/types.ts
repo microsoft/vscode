@@ -66,7 +66,12 @@ export interface IPromptMetadata {
 	/**
 	 * Chat mode metadata in the prompt header.
 	 */
-	mode: ChatMode;
+	mode?: ChatMode;
+
+	/**
+	 * Chat 'applyTo' metadata in the prompt header.
+	 */
+	applyTo?: string;
 }
 
 /**

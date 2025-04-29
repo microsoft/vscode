@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatSetup.css';
 import { $ } from '../../../../base/browser/dom.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -52,21 +54,19 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestModel, ChatRequestModel, ChatModel, IChatRequestVariableData, IChatRequestToolEntry } from '../common/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestToolEntry, IChatRequestVariableData } from '../common/chatModel.js';
+import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import './media/chatSetup.css';
-import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -89,17 +89,19 @@ const defaultChat = {
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
+const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+
 //#region Contribution
 
-const ToolsAgentWhen = ContextKeyExpr.and(
+const ToolsAgentContextKey = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${ChatConfiguration.AgentEnabled}`, true),
 	ChatContextKeys.Editing.agentModeDisallowed.negate(),
 	ContextKeyExpr.not(`previewFeaturesDisabled`) // Set by extension
 );
 
-class SetupChatAgent extends Disposable implements IChatAgentImplementation {
+class SetupAgent extends Disposable implements IChatAgentImplementation {
 
-	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
+	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -128,19 +130,39 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 					break;
 			}
 
-			return SetupChatAgent.registerAgents(instantiationService, chatAgentService, id, `${defaultChat.providerName} Copilot`, true, description, location, mode, context, controller);
+			return SetupAgent.doRegisterAgent(instantiationService, chatAgentService, id, `${defaultChat.providerName} Copilot`, true, description, location, mode, context, controller);
 		});
 	}
 
-	static registerOtherAgents(instantiationService: IInstantiationService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
+	static registerVSCodeAgent(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
-			return SetupChatAgent.registerAgents(instantiationService, chatAgentService, id, name, isDefault, description, location, mode, context, controller);
+
+			const disposables = new DisposableStore();
+
+			const { agent, disposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(disposable);
+
+			disposables.add(SetupTool.registerTool(instantiationService, {
+				id: 'setup.tools.createNewWorkspace',
+				source: {
+					type: 'internal',
+				},
+				icon: Codicon.newFolder,
+				displayName: localize('setupToolDisplayName', "New Workspace"),
+				modelDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+				userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+				canBeReferencedInPrompt: true,
+				toolReferenceName: 'new',
+				when: ContextKeyExpr.true(),
+				supportsToolPicker: true,
+			}).disposable);
+
+			return { agent, disposable: disposables };
 		});
 	}
 
-	static registerAgents(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable; agent: SetupChatAgent } {
-
+	private static doRegisterAgent(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatMode | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		const disposables = new DisposableStore();
 		disposables.add(chatAgentService.registerAgent(id, {
 			id,
@@ -148,18 +170,18 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 			isDefault,
 			isCore: true,
 			modes: mode ? [mode] : [ChatMode.Ask],
-			when: mode === ChatMode.Agent ? ToolsAgentWhen?.serialize() : undefined,
+			when: mode === ChatMode.Agent ? ToolsAgentContextKey?.serialize() : undefined,
 			slashCommands: [],
 			disambiguation: [],
 			locations: [location],
-			metadata: { helpTextPrefix: SetupChatAgent.SETUP_NEEDED_MESSAGE },
+			metadata: { helpTextPrefix: SetupAgent.SETUP_NEEDED_MESSAGE },
 			description,
 			extensionId: nullExtensionDescription.identifier,
 			extensionDisplayName: nullExtensionDescription.name,
 			extensionPublisherId: nullExtensionDescription.publisher
 		}));
 
-		const agent = disposables.add(instantiationService.createInstance(SetupChatAgent, context, controller, location));
+		const agent = disposables.add(instantiationService.createInstance(SetupAgent, context, controller, location));
 		disposables.add(chatAgentService.registerAgentImplementation(id, agent));
 
 		return { agent, disposable: disposables };
@@ -191,6 +213,7 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
 			const languageModelToolsService = accessor.get(ILanguageModelToolsService);
+
 			return this.doInvoke(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 		});
 	}
@@ -253,10 +276,10 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
-		// enough, we also need a language model to be available.
+		// enough, we also need a language/tools model to be available.
 
-		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, mode);
+		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService);
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
@@ -308,7 +331,6 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private whenToolsModelReady(languageModelToolsService: ILanguageModelToolsService, requestModel: IChatRequestModel): Promise<unknown> | void {
-
 		const needsToolsModel = requestModel.message.parts.some(part => part instanceof ChatRequestToolPart);
 		if (!needsToolsModel) {
 			return; // No tools in this request, no need to check
@@ -321,12 +343,13 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 			}
 		}
 
-		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, (_) => {
+		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, () => {
 			for (const tool of languageModelToolsService.getTools()) {
 				if (tool.source.type !== 'internal') {
 					return true; // we have tools!
 				}
 			}
+
 			return false; // no external tools found
 		}));
 	}
@@ -385,14 +408,13 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 			if (result.success) {
 				if (result.dialogSkipped) {
 					progress({
-						kind: 'progressMessage',
-						content: new MarkdownString(localize('copilotSetupSuccess', "Copilot setup finished successfully."))
+						kind: 'markdownContent',
+						content: new MarkdownString([localize('copilotSetupSuccess', "Copilot setup finished successfully."), copilotSettingsMessage].join('\n\n'))
 					});
 				} else if (requestModel) {
-					// Replace agent part with the actual Copilot agent
-					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService);
-					// Then replace any tool parts with the actual Copilot tools
-					newRequest = this.replaceToolInRequestModel(newRequest);
+					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Copilot agent...
+					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Copilot tools
+
 					await this.forwardRequestToCopilot(newRequest, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 				}
 			} else {
@@ -407,7 +429,7 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 		else {
 			progress({
 				kind: 'markdownContent',
-				content: SetupChatAgent.SETUP_NEEDED_MESSAGE,
+				content: SetupAgent.SETUP_NEEDED_MESSAGE,
 			});
 		}
 
@@ -502,23 +524,22 @@ class SetupChatAgent extends Disposable implements IChatAgentImplementation {
 
 class SetupTool extends Disposable implements IToolImpl {
 
-	static registerTools(instantiationService: IInstantiationService, toolData: IToolData): { disposable: IDisposable; tool: SetupTool } {
+	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): { tool: SetupTool; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
-			const disposables = new DisposableStore();
 			const toolService = accessor.get(ILanguageModelToolsService);
+
+			const disposables = new DisposableStore();
+
 			disposables.add(toolService.registerToolData(toolData));
+
 			const tool = instantiationService.createInstance(SetupTool);
 			disposables.add(toolService.registerToolImplementation(toolData.id, tool));
+
 			return { tool, disposable: disposables };
 		});
 	}
 
-	constructor(
-	) {
-		super();
-	}
-
-	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const result: IToolResult = {
 			content: [
 				{
@@ -527,11 +548,12 @@ class SetupTool extends Disposable implements IToolImpl {
 				}
 			]
 		};
-		return Promise.resolve(result);
+
+		return result;
 	}
 
-	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		return Promise.resolve(undefined);
+	async prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		return undefined;
 	}
 }
 
@@ -700,7 +722,7 @@ class ChatSetup {
 
 		// SKU Settings
 		if (this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
-			const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+			const settings = copilotSettingsMessage;
 			element.appendChild($('p.setup-settings', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 		}
 
@@ -737,18 +759,20 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
 		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
-		const otherAgentsAndToolsDisposable = markAsSingleton(new MutableDisposable());
+		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
+
 		const updateRegistration = () => {
-			const disabled = context.state.hidden;
+			const disabled = context.state.hidden /* via "Hide Copilot" */ || context.state.disabled /* via extension enablement */;
 			if (!disabled) {
 
+				// Default Agents (always, even if installed to allow for speedy requests right on startup)
 				if (!defaultAgentDisposables.value) {
 					const disposables = defaultAgentDisposables.value = new DisposableStore();
 
 					// Panel Agents
 					const panelAgentDisposables = disposables.add(new DisposableStore());
 					for (const mode of [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent]) {
-						const { agent, disposable } = SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
+						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
 						panelAgentDisposables.add(disposable);
 						panelAgentDisposables.add(agent.onUnresolvableError(() => {
 							// An unresolvable error from our agent registrations means that
@@ -762,44 +786,24 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					}
 
 					// Inline Agents
-					disposables.add(SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
-					disposables.add(SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-					disposables.add(SetupChatAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
+					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
+					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
+					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 				}
 
-				if (!context.state.installed && !otherAgentsAndToolsDisposable.value) {
-					const disposables = otherAgentsAndToolsDisposable.value = new DisposableStore();
-					// VSCode Agent
-					disposables.add(SetupChatAgent.registerOtherAgents(this.instantiationService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller).disposable);
+				// VSCode Agent + Tool (unless installed)
+				if (!context.state.installed && !vscodeAgentDisposables.value) {
+					const disposables = vscodeAgentDisposables.value = new DisposableStore();
 
-					// Tools
-					disposables.add(SetupTool.registerTools(this.instantiationService, {
-						id: 'setup.tools.createNewWorkspace',
-						source: {
-							type: 'internal',
-						},
-						icon: Codicon.newFolder,
-						displayName: localize('setupToolDisplayName', "New Workspace"),
-						modelDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
-						userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
-						canBeReferencedInPrompt: true,
-						toolReferenceName: 'new',
-						when: ContextKeyExpr.true(),
-						supportsToolPicker: true,
-					}).disposable);
+					disposables.add(SetupAgent.registerVSCodeAgent(this.instantiationService, context, controller).disposable);
 				}
-
 			} else {
-				if (defaultAgentDisposables.value) {
-					defaultAgentDisposables.clear();
-				}
-				if (otherAgentsAndToolsDisposable.value) {
-					otherAgentsAndToolsDisposable.clear();
-				}
+				defaultAgentDisposables.clear();
+				vscodeAgentDisposables.clear();
 			}
-			if (context.state.installed && otherAgentsAndToolsDisposable.value) {
-				// we need to do this to prevent showing duplicate agent/tool entries in the list
-				otherAgentsAndToolsDisposable.clear();
+
+			if (context.state.installed) {
+				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 			}
 		};
 

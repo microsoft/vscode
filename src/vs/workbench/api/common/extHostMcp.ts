@@ -20,7 +20,7 @@ import * as Convert from './extHostTypeConverters.js';
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
 export interface IExtHostMpcService extends ExtHostMcpShape {
-	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable;
+	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable;
 }
 
 export class ExtHostMcpService extends Disposable implements IExtHostMpcService {
@@ -28,7 +28,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	private readonly _initialProviderPromises = new Set<Promise<void>>();
 	private readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
 	private readonly _unresolvedMcpServers = new Map</* collectionId */ string, {
-		provider: vscode.McpConfigurationProvider;
+		provider: vscode.McpServerDefinitionProvider;
 		servers: vscode.McpServerDefinition[];
 	}>();
 
@@ -85,8 +85,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		return resolved ? Convert.McpServerDefinition.from(resolved) : undefined;
 	}
 
-	/** {@link vscode.lm.registerMcpConfigurationProvider} */
-	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable {
+	/** {@link vscode.lm.registerMcpServerDefinitionProvider} */
+	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable {
 		const store = new DisposableStore();
 
 		const metadata = extension.contributes?.modelContextServerCollections?.find(m => m.id === id);
@@ -125,8 +125,12 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			this._proxy.$deleteMcpCollection(mcp.id);
 		}));
 
-		if (provider.onDidChange) {
-			store.add(provider.onDidChange(update));
+		if (provider.onDidChangeServerDefinitions) {
+			store.add(provider.onDidChangeServerDefinitions(update));
+		}
+		// todo@connor4312: proposed API back-compat
+		if ((provider as any).onDidChange) {
+			store.add((provider as any).onDidChange(update));
 		}
 
 		const promise = new Promise<void>(resolve => {
@@ -214,7 +218,7 @@ class McpHTTPHandle extends Disposable {
 			headers['Mcp-Session-Id'] = sessionId;
 		}
 
-		const res = await fetch(this._launch.uri.toString(), {
+		const res = await fetch(this._launch.uri.toString(true), {
 			method: 'POST',
 			signal: this._abortCtrl.signal,
 			headers,
@@ -240,7 +244,16 @@ class McpHTTPHandle extends Disposable {
 		}
 
 		if (res.status >= 300) {
-			this._log(LogLevel.Warning, `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}`);
+			// "When a client receives HTTP 404 in response to a request containing an Mcp-Session-Id, it MUST start a new session by sending a new InitializeRequest without a session ID attached"
+			// Though this says only 404, some servers send 400s as well, including their example
+			// https://github.com/modelcontextprotocol/typescript-sdk/issues/389
+			const retryWithSessionId = this._mode.value === HttpMode.Http && !!this._mode.sessionId;
+
+			this._proxy.$onDidChangeState(this._id, {
+				state: McpConnectionState.Kind.Error,
+				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + retryWithSessionId ? `; will retry with new session ID` : '',
+				shouldRetry: retryWithSessionId,
+			});
 			return;
 		}
 
@@ -313,7 +326,7 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(), {
+				res = await fetch(this._launch.uri.toString(true), {
 					method: 'GET',
 					signal: this._abortCtrl.signal,
 					headers,
@@ -356,7 +369,7 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(), {
+			res = await fetch(this._launch.uri.toString(true), {
 				method: 'GET',
 				signal: this._abortCtrl.signal,
 				headers: {
@@ -377,7 +390,7 @@ class McpHTTPHandle extends Disposable {
 			if (event.type === 'message') {
 				this._proxy.$onDidReceiveMessage(this._id, event.data);
 			} else if (event.type === 'endpoint') {
-				postEndpoint.complete(new URL(event.data, this._launch.uri.toString()).toString());
+				postEndpoint.complete(new URL(event.data, this._launch.uri.toString(true)).toString());
 			}
 		});
 

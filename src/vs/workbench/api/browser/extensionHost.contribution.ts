@@ -88,6 +88,7 @@ import './mainThreadShare.js';
 import './mainThreadProfileContentHandlers.js';
 import './mainThreadAiRelatedInformation.js';
 import './mainThreadAiEmbeddingVector.js';
+import './mainThreadAiSettingsSearch.js';
 import './mainThreadMcp.js';
 import './mainThreadChatStatus.js';
 

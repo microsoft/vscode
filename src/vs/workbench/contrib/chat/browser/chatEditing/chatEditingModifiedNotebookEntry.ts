@@ -270,11 +270,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			return;
 		}
 
-		// If user executes a cell, then mark this notebook as modified by the user.
-		if (e.rawEvents.some(e => e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata && typeof e.internalMetadata.lastRunSuccess === 'boolean')) {
-			this._userEditScheduler.schedule();
-		}
-
 		if (currentState === ModifiedFileEntryState.Rejected) {
 			return;
 		}

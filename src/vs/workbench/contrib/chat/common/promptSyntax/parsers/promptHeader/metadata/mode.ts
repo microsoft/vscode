@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptMetadataRecord } from './record.js';
+import { PromptStringMetadata } from './record.js';
 import { ChatMode } from '../../../../constants.js';
 import { localize } from '../../../../../../../../nls.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
 import { PromptMetadataDiagnostic, PromptMetadataError } from '../diagnostics.js';
-import { FrontMatterRecord, FrontMatterString, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
  * Name of the metadata record in the prompt header.
@@ -27,22 +26,16 @@ const VALID_MODES = Object.freeze([
 /**
  * Prompt `mode` metadata record inside the prompt header.
  */
-export class PromptModeMetadata extends PromptMetadataRecord {
-	public override get recordName(): string {
-		return RECORD_NAME;
+export class PromptModeMetadata extends PromptStringMetadata {
+	constructor(
+		recordToken: FrontMatterRecord,
+		languageId: string,
+	) {
+		super(RECORD_NAME, recordToken, languageId);
 	}
 
-	/**
-	 * Private field for tracking all diagnostic issues
-	 * related to this metadata record.
-	 */
-	private readonly issues: PromptMetadataDiagnostic[];
-
-	/**
-	 * List of all diagnostic issues related to this metadata record.
-	 */
-	public get diagnostics(): readonly PromptMetadataDiagnostic[] {
-		return this.issues;
+	public override get recordName(): string {
+		return RECORD_NAME;
 	}
 
 	/**
@@ -56,60 +49,27 @@ export class PromptModeMetadata extends PromptMetadataRecord {
 		return this.value;
 	}
 
-	constructor(
-		private readonly recordToken: FrontMatterRecord,
-	) {
-		// sanity check on the name of the record
-		assert(
-			PromptModeMetadata.isModeRecord(recordToken),
-			`Record token must be 'mode', got '${recordToken.nameToken.text}'.`,
-		);
+	protected override validate(): readonly PromptMetadataDiagnostic[] {
+		const result: PromptMetadataDiagnostic[] = [
+			...super.validate(),
+		];
 
-		super(recordToken.range);
-
-		this.issues = [];
-		this.collectDiagnostics();
-	}
-
-	/**
-	 * Validate the metadata record and collect all issues
-	 * related to its content.
-	 */
-	private collectDiagnostics(): void {
-		const { valueToken } = this.recordToken;
-
-		// validate that the record value is a string
-		if ((valueToken instanceof FrontMatterString) === false) {
-			this.issues.push(
-				new PromptMetadataError(
-					valueToken.range,
-					localize(
-						'prompt.header.metadata.mode.diagnostics.invalid-value-type',
-						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
-						RECORD_NAME,
-						'string',
-						valueToken.valueTypeName,
-					),
-				),
-			);
-
-			return;
+		if (this.text === undefined) {
+			return result;
 		}
 
-		const { cleanText } = valueToken;
-
-		// validate that text value is one of the valid modes
+		// validate that the text value is one of the valid modes
 		const validModes: string[] = [...VALID_MODES];
-		const index = validModes.indexOf(cleanText);
+		const index = validModes.indexOf(this.text);
 		if (index !== -1) {
 			this.value = VALID_MODES[index];
-			return;
+			return result;
 		}
 
 		// if not valid mode value, add an appropriate diagnostic
-		this.issues.push(
+		result.push(
 			new PromptMetadataError(
-				valueToken.range,
+				this.range,
 				localize(
 					'prompt.header.metadata.mode.diagnostics.invalid-value',
 					"Value of the '{0}' metadata must be one of ({1}), got '{2}'.",
@@ -118,10 +78,12 @@ export class PromptModeMetadata extends PromptMetadataRecord {
 						.map((modeName) => {
 							return `'${modeName}'`;
 						}).join(', '),
-					cleanText,
+					this.text,
 				),
 			),
 		);
+
+		return result;
 	}
 
 	/**

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, Repository } from './typings/git.js';
-import { getOctokit } from './auth.js';
+import { API as GitAPI, Repository } from './typings/git';
+import { getOctokit } from './auth';
 import { TextEncoder } from 'util';
 import { basename } from 'path';
 import { Octokit } from '@octokit/rest';
-import { isInCodespaces } from './pushErrorHandler.js';
+import { isInCodespaces } from './pushErrorHandler';
 
 function sanitizeRepositoryName(value: string): string {
 	return value.trim().replace(/[^a-z0-9_.]/ig, '-');

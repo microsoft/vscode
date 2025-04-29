@@ -3,12 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, IPromptPath, IPromptsService, TPromptsType } from '../../common/promptSyntax/service/types.js';
+import { IChatPromptSlashCommand, IMetadata, IPromptPath, IPromptsService, TCombinedToolsMetadata, TPromptsType } from '../../common/promptSyntax/service/types.js';
 
 export class MockPromptsService implements IPromptsService {
+	getCombinedToolsMetadata(files: readonly URI[]): Promise<TCombinedToolsMetadata> {
+		throw new Error('Method not implemented.');
+	}
+	getAllMetadata(files: readonly URI[]): Promise<readonly IMetadata[]> {
+		throw new Error('Method not implemented.');
+	}
 	_serviceBrand: undefined;
 	getSyntaxParserFor(model: ITextModel): TextModelPromptParser & { disposed: false } {
 		throw new Error('Method not implemented.');
@@ -34,6 +41,8 @@ export class MockPromptsService implements IPromptsService {
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		throw new Error('Method not implemented.');
 	}
-	dispose(): void {
+	findInstructionFilesFor(files: readonly URI[]): Promise<readonly URI[]> {
+		throw new Error('Method not implemented.');
 	}
+	dispose(): void { }
 }

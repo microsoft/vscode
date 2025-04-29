@@ -106,12 +106,18 @@ export class InstructionsAttachmentWidget extends Disposable {
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = localize('chat.instructionsAttachment', "Instructions attachment, {0}", friendlyName);
+		const isPrompt = this.languageService.guessLanguageIdByFilepathOrFirstLine(file) === 'prompt';
+		const ariaLabel = isPrompt
+			? localize('chat.promptAttachment', "Prompt file, {0}", friendlyName)
+			: localize('chat.instructionsAttachment', "Instructions attachment, {0}", friendlyName);
+		const typeLabel = isPrompt
+			? localize('prompt', "Prompt")
+			: localize('instructions', "Instructions");
+
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
-		const instructionsLabel = localize('instructions', "Instructions");
 
-		let title = `${instructionsLabel} ${uriLabel}`;
+		let title = `${typeLabel} ${uriLabel}`;
 
 		// if there are some errors/warning during the process of resolving
 		// attachment references (including all the nested child references),
@@ -144,7 +150,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, instructionsLabel));
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, typeLabel));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		// create the `remove` button

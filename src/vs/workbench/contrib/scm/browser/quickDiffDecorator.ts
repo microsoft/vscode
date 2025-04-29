@@ -372,8 +372,13 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		this.transientDisposables.add(autorunWithStore((reader, store) => {
 			const providers = this.quickDiffProviders.read(reader);
 
+			const labels: string[] = [];
 			for (let index = 0; index < providers.length; index++) {
 				const provider = providers[index];
+				if (labels.includes(provider.label)) {
+					continue;
+				}
+
 				const visible = this.quickDiffService.isQuickDiffProviderVisible(provider.id);
 				const group = provider.kind !== 'contributed' ? '0_scm' : '1_contributed';
 				const order = index + 1;
@@ -395,6 +400,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 						quickDiffService.toggleQuickDiffProviderVisibility(provider.id);
 					}
 				}));
+				labels.push(provider.label);
 			}
 		}));
 	}
