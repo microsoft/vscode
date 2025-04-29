@@ -1674,7 +1674,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0 3px;
 }
 
-.interactive-item-container .chat-confirmation-widget .interactive-result-code-block {
+.interactive-item-container .chat-confirmation-widget .interactive-result-code-block,
+.interactive-item-container .chat-confirmation-widget .chat-attached-context {
 	margin-bottom: 8px;
 }
 
