@@ -104,11 +104,10 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 	private applyPlatformSpecificKeys() {
 		const config = this.root as any; // already cloned by ctor, safe to change
 		const key = isWindows ? 'windows' : isMacintosh ? 'osx' : isLinux ? 'linux' : undefined;
-		if (key === undefined || !config || typeof config !== 'object' || !config.hasOwnProperty(key)) {
-			return;
-		}
 
-		Object.keys(config[key]).forEach(k => config[k] = config[key][k]);
+		if (key && config && typeof config === 'object' && config.hasOwnProperty(key)) {
+			Object.keys(config[key]).forEach(k => config[k] = config[key][k]);
+		}
 
 		delete config.windows;
 		delete config.osx;

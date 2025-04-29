@@ -319,10 +319,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		private _canReply: boolean | vscode.CommentAuthorInformation = true;
 
 		set canReply(state: boolean | vscode.CommentAuthorInformation) {
-			if (typeof state !== 'boolean') {
-				checkProposedApiEnabled(this.extensionDescription, 'commentReplyAuthor');
-			}
-
 			if (this._canReply !== state) {
 				this._canReply = state;
 				this.modifications.canReply = state;

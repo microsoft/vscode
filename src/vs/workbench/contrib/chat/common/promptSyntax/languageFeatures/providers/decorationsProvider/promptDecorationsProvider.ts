@@ -30,7 +30,7 @@ const SUPPORTED_DECORATIONS: readonly TDecorationClass<TDecoratedToken>[] = Obje
 /**
  * Prompt syntax decorations provider for text models.
  */
-export class TextModelPromptDecorator extends ProviderInstanceBase {
+export class PromptDecorator extends ProviderInstanceBase {
 	/**
 	 * Currently active decorations.
 	 */
@@ -48,8 +48,14 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	protected override async onPromptParserUpdate(): Promise<this> {
 		await this.parser.allSettled();
 
+		// by the time the promise above completes, either this object
+		// or the text model might be already has been disposed
+		if (this.disposed || this.model.isDisposed()) {
+			return this;
+		}
+
 		this.removeAllDecorations();
-		this.addDecorations(this.parser.tokens);
+		this.addDecorations();
 
 		return this;
 	}
@@ -100,7 +106,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	}
 
 	/**
-	 *
+	 * Update existing decorations.
 	 */
 	private changeModelDecorations(
 		decorations: readonly TChangedDecorator[],
@@ -115,16 +121,16 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	}
 
 	/**
-	 * Add a decorations for all prompt tokens.
+	 * Add decorations for all prompt tokens.
 	 */
-	private addDecorations(
-		tokens: readonly BaseToken[],
-	): this {
-		if (tokens.length === 0) {
-			return this;
-		}
-
+	private addDecorations(): this {
 		this.model.changeDecorations((accessor) => {
+			const { tokens } = this.parser;
+
+			if (tokens.length === 0) {
+				return;
+			}
+
 			for (const token of tokens) {
 				for (const Decoration of SUPPORTED_DECORATIONS) {
 					if (Decoration.handles(token) === false) {
@@ -162,6 +168,10 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	}
 
 	public override dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+
 		this.removeAllDecorations();
 
 		super.dispose();
@@ -189,8 +199,8 @@ registerThemingParticipant((_theme, collector) => {
 /**
  * Provider for prompt syntax decorators on text models.
  */
-export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<TextModelPromptDecorator> {
+export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<PromptDecorator> {
 	protected override get InstanceClass() {
-		return TextModelPromptDecorator;
+		return PromptDecorator;
 	}
 }

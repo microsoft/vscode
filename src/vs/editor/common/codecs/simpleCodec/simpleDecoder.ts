@@ -19,8 +19,11 @@ import {
 	Colon,
 	Slash,
 	Space,
+	Quote,
+	Comma,
 	FormFeed,
 	DollarSign,
+	DoubleQuote,
 	VerticalTab,
 	type TBracket,
 	LeftBracket,
@@ -42,9 +45,9 @@ import { ISimpleTokenClass, SimpleToken } from './tokens/simpleToken.js';
 /**
  * Type for all simple tokens.
  */
-export type TSimpleToken = Space | Tab | VerticalTab | At
+export type TSimpleToken = Space | Tab | VerticalTab | At | Quote | DoubleQuote
 	| CarriageReturn | NewLine | FormFeed | TBracket | TAngleBracket | TCurlyBrace
-	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign
+	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign | Comma
 	| TLineBreakToken;
 
 /**
@@ -58,9 +61,9 @@ export type TSimpleDecoderToken = TSimpleToken | Word;
  * an arbitrary "text" sequence and is emitted as a single {@link Word} token.
  */
 export const WELL_KNOWN_TOKENS: readonly ISimpleTokenClass<TSimpleToken>[] = Object.freeze([
-	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket,
-	LeftCurlyBrace, RightCurlyBrace, LeftAngleBracket, RightAngleBracket,
-	Space, Tab, VerticalTab, FormFeed, Colon, Hash, Dash, ExclamationMark, At, Slash, DollarSign,
+	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket, LeftCurlyBrace, RightCurlyBrace,
+	LeftAngleBracket, RightAngleBracket, Space, Tab, VerticalTab, FormFeed, Colon, Hash, Dash,
+	ExclamationMark, At, Slash, DollarSign, Quote, DoubleQuote, Comma,
 ]);
 
 /**

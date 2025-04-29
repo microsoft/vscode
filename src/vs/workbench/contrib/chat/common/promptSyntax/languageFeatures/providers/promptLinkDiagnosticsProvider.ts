@@ -16,7 +16,7 @@ import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../.
 /**
  * Unique ID of the markers provider class.
  */
-const MARKERS_OWNER_ID = 'reusable-prompts-syntax';
+const MARKERS_OWNER_ID = 'prompt-link-diagnostics-provider';
 
 /**
  * Prompt links diagnostics provider for a single text model.

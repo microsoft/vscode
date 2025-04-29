@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CssClassModifiers } from '../types.js';
 import { localize } from '../../../../../../../../../nls.js';
-import { CssClassModifiers } from '../../../../service/types.js';
 import { FrontMatterMarkerDecoration } from './frontMatterMarkerDecoration.js';
 import { Position } from '../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
@@ -19,8 +19,8 @@ import { FrontMatterHeader } from '../../../../../../../../../editor/common/code
 export enum CssClassNames {
 	main = '.prompt-front-matter-decoration',
 	inline = '.prompt-front-matter-decoration-inline',
-	mainInactive = `${CssClassNames.main}${CssClassModifiers.Inactive}`,
-	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.Inactive}`,
+	mainInactive = `${CssClassNames.main}${CssClassModifiers.inactive}`,
+	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.inactive}`,
 }
 
 /**
@@ -28,7 +28,7 @@ export enum CssClassNames {
  */
 export const BACKGROUND_COLOR: ColorIdentifier = registerColor(
 	'prompt.frontMatter.background',
-	{ dark: darken(editorBackground, 0.2), light: darken(editorBackground, 0.2), hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: darken(editorBackground, 0.2), light: darken(editorBackground, 0.05), hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('chat.prompt.frontMatter.background.description', "Background color of a Front Matter header block."),
 );
 
@@ -37,7 +37,7 @@ export const BACKGROUND_COLOR: ColorIdentifier = registerColor(
  */
 export const INACTIVE_BACKGROUND_COLOR: ColorIdentifier = registerColor(
 	'prompt.frontMatter.inactiveBackground',
-	{ dark: darken(editorBackground, 0.1), light: darken(editorBackground, 0.1), hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: darken(editorBackground, 0.1), light: darken(editorBackground, 0.025), hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('chat.prompt.frontMatter.inactiveBackground.description', "Background color of an inactive Front Matter header block."),
 );
 

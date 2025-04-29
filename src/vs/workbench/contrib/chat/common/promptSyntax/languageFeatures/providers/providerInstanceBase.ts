@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptsService } from '../../service/types.js';
+import { IPromptsService, TSharedPrompt } from '../../service/types.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
-import { TextModelPromptParser } from '../../parsers/textModelPromptParser.js';
 import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
 
 /**
@@ -25,7 +24,7 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 	/**
 	 * The prompt parser instance.
 	 */
-	protected readonly parser: TextModelPromptParser;
+	protected readonly parser: TSharedPrompt;
 
 	constructor(
 		protected readonly model: ITextModel,

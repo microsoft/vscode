@@ -53,7 +53,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		dom.clearNode(this.domNode);
 		this.renderDisposables.clear();
 
-		const attachmentTypeName = (this.attachment.isPrompt === false)
+		const attachmentTypeName = (this.attachment.isPromptFile === false)
 			? localize('file.lowercase', "file")
 			: localize('prompt.lowercase', "prompt");
 
@@ -73,7 +73,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
 		const title = `${currentFileHint}\n${uriLabel}`;
 
-		const icon = (this.attachment.isPrompt)
+		const icon = this.attachment.isPromptFile
 			? ThemeIcon.fromId(Codicon.bookmark.id)
 			: undefined;
 

@@ -275,7 +275,7 @@ suite('Notifications', () => {
 		assert.strictEqual(model.statusMessage!.message, 'Hello World');
 		assert.strictEqual(lastStatusMessageEvent.item.message, model.statusMessage!.message);
 		assert.strictEqual(lastStatusMessageEvent.kind, StatusMessageChangeType.ADD);
-		disposable.dispose();
+		disposable.close();
 		assert.ok(!model.statusMessage);
 		assert.strictEqual(lastStatusMessageEvent.kind, StatusMessageChangeType.REMOVE);
 
@@ -284,10 +284,10 @@ suite('Notifications', () => {
 
 		assert.strictEqual(model.statusMessage!.message, 'Hello World 3');
 
-		disposable2.dispose();
+		disposable2.close();
 		assert.strictEqual(model.statusMessage!.message, 'Hello World 3');
 
-		disposable3.dispose();
+		disposable3.close();
 		assert.ok(!model.statusMessage);
 
 		item2DuplicateHandle.close();

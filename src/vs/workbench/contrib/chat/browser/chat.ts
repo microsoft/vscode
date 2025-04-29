@@ -101,6 +101,7 @@ export interface IChatCodeBlockInfo {
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
+	readonly chatSessionId: string;
 	focus(): void;
 }
 
@@ -168,6 +169,7 @@ export interface IChatAcceptInputOptions {
 }
 
 export interface IChatWidget {
+	readonly domNode: HTMLElement;
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
@@ -208,6 +210,11 @@ export interface IChatWidget {
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): void;
+	/**
+	 * Wait for this widget to have a VM with a fully initialized model and editing session.
+	 * Sort of a hack. See https://github.com/microsoft/vscode/issues/247484
+	 */
+	waitForReady(): Promise<void>;
 	getViewState(): IChatViewState;
 	togglePaused(): void;
 }

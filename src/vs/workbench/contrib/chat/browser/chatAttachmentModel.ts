@@ -17,35 +17,38 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { Schemas } from '../../../../base/common/network.js';
 import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { equals } from '../../../../base/common/objects.js';
+
+export interface IChatAttachmentChangeEvent {
+	readonly deleted: readonly string[];
+	readonly added: readonly IChatRequestVariableEntry[];
+	readonly updated: readonly IChatRequestVariableEntry[];
+}
 
 export class ChatAttachmentModel extends Disposable {
-	/**
-	 * Collection on prompt instruction attachments.
-	 */
-	public readonly promptInstructions: ChatPromptAttachmentsCollection;
+
+	readonly promptInstructions: ChatPromptAttachmentsCollection;
+	private readonly _attachments = new Map<string, IChatRequestVariableEntry>();
+
+	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService instaService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 
-		this.promptInstructions = this._register(
-			this.initService.createInstance(ChatPromptAttachmentsCollection),
-		).onUpdate(() => {
-			this._onDidChangeContext.fire();
-		});
+		this.promptInstructions = this._register(instaService.createInstance(ChatPromptAttachmentsCollection));
 	}
 
-	private _attachments = new Map<string, IChatRequestVariableEntry>();
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
 		return Array.from(this._attachments.values());
 	}
 
-	protected _onDidChangeContext = this._register(new Emitter<void>());
-	readonly onDidChangeContext = this._onDidChangeContext.event;
+
 
 	get size(): number {
 		return this._attachments.size;
@@ -60,16 +63,29 @@ export class ChatAttachmentModel extends Disposable {
 		return new Set(this._attachments.keys());
 	}
 
-	clear(): void {
+	clear(clearStickyAttachments: boolean = false): void {
+		const deleted = Array.from(this._attachments.keys());
 		this._attachments.clear();
-		this._onDidChangeContext.fire();
+
+		if (clearStickyAttachments) {
+			this.promptInstructions.clear();
+		}
+
+		this._onDidChange.fire({ deleted, added: [], updated: [] });
 	}
 
 	delete(...variableEntryIds: string[]) {
+		const deleted: string[] = [];
+
 		for (const variableEntryId of variableEntryIds) {
-			this._attachments.delete(variableEntryId);
+			if (this._attachments.delete(variableEntryId)) {
+				deleted.push(variableEntryId);
+			}
 		}
-		this._onDidChangeContext.fire();
+
+		if (deleted.length > 0) {
+			this._onDidChange.fire({ deleted, added: [], updated: [] });
+		}
 	}
 
 	async addFile(uri: URI, range?: IRange) {
@@ -90,7 +106,6 @@ export class ChatAttachmentModel extends Disposable {
 			value: uri,
 			id: uri.toString(),
 			name: basename(uri),
-
 		});
 	}
 
@@ -118,22 +133,59 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
-		let hasAdded = false;
+		const added: IChatRequestVariableEntry[] = [];
 
 		for (const attachment of attachments) {
 			if (!this._attachments.has(attachment.id)) {
 				this._attachments.set(attachment.id, attachment);
-				hasAdded = true;
+				added.push(attachment);
 			}
 		}
 
-		if (hasAdded) {
-			this._onDidChangeContext.fire();
+		if (added.length > 0) {
+			this._onDidChange.fire({ deleted: [], added, updated: [] });
 		}
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
-		this.clear();
-		this.addContext(...attachments);
+		const deleted = Array.from(this._attachments.keys());
+		this._attachments.clear();
+
+		const added: IChatRequestVariableEntry[] = [];
+		for (const attachment of attachments) {
+			this._attachments.set(attachment.id, attachment);
+			added.push(attachment);
+		}
+
+		if (deleted.length > 0 || added.length > 0) {
+			this._onDidChange.fire({ deleted, added, updated: [] });
+		}
+	}
+
+	updateContent(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
+		const deleted: string[] = [];
+		const added: IChatRequestVariableEntry[] = [];
+		const updated: IChatRequestVariableEntry[] = [];
+
+		for (const id of toDelete) {
+			if (this._attachments.delete(id)) {
+				deleted.push(id);
+			}
+		}
+
+		for (const item of upsert) {
+			const oldItem = this._attachments.get(item.id);
+			if (!oldItem) {
+				this._attachments.set(item.id, item);
+				added.push(item);
+			} else if (!equals(oldItem, item)) {
+				this._attachments.set(item.id, item);
+				updated.push(item);
+			}
+		}
+
+		if (deleted.length > 0 || added.length > 0 || updated.length > 0) {
+			this._onDidChange.fire({ deleted, added, updated });
+		}
 	}
 }
