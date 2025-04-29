@@ -264,10 +264,7 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/darwin/codesign.js }
+    - script: npx deemon --detach --wait node build/azure-pipelines/darwin/codesign.js
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
@@ -285,10 +282,7 @@ steps:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - pwsh: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        exec { npx deemon --attach -- npx zx build/azure-pipelines/darwin/codesign.js }
+    - script: npx deemon --attach node build/azure-pipelines/darwin/codesign.js
       condition: succeededOrFailed()
       displayName: "Post-job: ✍️ Codesign & Notarize"
 

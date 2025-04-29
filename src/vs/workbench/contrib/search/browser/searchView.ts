@@ -72,7 +72,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/edit
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
-import { TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
+import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -1820,7 +1820,11 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
-			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
+			if (complete.aiKeywords && complete.aiKeywords.length > 0) {
+				this.updateKeywordSuggestion(complete.aiKeywords);
+			} else {
+				this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
+			}
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
@@ -1946,6 +1950,38 @@ export class SearchView extends ViewPane {
 		} else if (!msgWasHidden) {
 			dom.hide(this.messagesElement);
 		}
+	}
+
+	private handleKeywordClick(keyword: string) {
+		this.searchWidget.searchInput?.setValue(keyword);
+		this.triggerQueryChange({ preserveFocus: false, triggeredOnType: false, shouldKeepAIResults: false });
+	}
+
+	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
+		const messageEl = this.clearMessage();
+		messageEl.classList.add('ai-keywords');
+
+		if (keywords.length === 0) {
+			// Do not display anything if there are no keywords
+			return;
+		}
+
+		// Add unclickable message
+		const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
+		dom.append(messageEl, resultMsg);
+
+		const topKeywords = keywords.slice(0, 3);
+		topKeywords.forEach((keyword, index) => {
+			if (index > 0 && index < topKeywords.length) {
+				dom.append(messageEl, ', ');
+			}
+			const button = this.messageDisposables.add(new SearchLinkButton(
+				keyword.keyword,
+				() => this.handleKeywordClick(keyword.keyword),
+				this.hoverService
+			));
+			dom.append(messageEl, button.element);
+		});
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {

@@ -252,6 +252,13 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.unstageChange",
+        "title": "%command.unstageChange%",
+        "category": "Git",
+        "icon": "$(remove)",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.unstageFile",
         "title": "%command.unstage%",
         "category": "Git",
@@ -970,7 +977,7 @@
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && resourceScheme == git"
+        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && (resourceScheme == file || resourceScheme == git)"
       },
       {
         "command": "git.revertSelectedRanges",
@@ -1075,7 +1082,11 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == git"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && (resourceScheme == file || resourceScheme == git)"
+        },
+        {
+          "command": "git.unstageChange",
+          "when": "false"
         },
         {
           "command": "git.clean",
@@ -2219,11 +2230,15 @@
       "scm/change/title": [
         {
           "command": "git.stageChange",
-          "when": "config.git.enabled && !git.missing && originalResourceScheme == git"
+          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22%22%7D$/"
         },
         {
           "command": "git.revertChange",
-          "when": "config.git.enabled && !git.missing && originalResourceScheme == git"
+          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22%22%7D$/"
+        },
+        {
+          "command": "git.unstageChange",
+          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22HEAD%22%7D$/"
         }
       ],
       "timeline/item/context": [

@@ -5,13 +5,43 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+
+/**
+ * Prefix for all prompt instruction variable IDs.
+ */
+const PROMPT_VARIABLE_ID_PREFIX = 'vscode.prompt.instructions';
+
+/**
+ * Prompt IDs start with a well-defined prefix that is used by
+ * the copilot extension to identify prompt references.
+ *
+ * @param uri The URI of the prompt file.
+ * @param isRoot Whether the prompt file is the root file, or a
+ *               child reference that is nested inside the root file.
+ */
+export const createPromptVariableId = (
+	uri: URI,
+	isRoot: boolean,
+): string => {
+	// the default prefix that is used for all prompt files
+	let prefix = PROMPT_VARIABLE_ID_PREFIX;
+	// if the reference is the root object, add the `.root` suffix
+	if (isRoot) {
+		prefix += '.root';
+	}
+
+	// final `id` for all `prompt files` starts with the well-defined
+	// part that the copilot extension(or other chatbot) can rely on
+	return `${prefix}__${uri}`;
+};
 
 /**
  * Utility to convert a {@link reference} to a chat variable entry.
@@ -28,39 +58,81 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
-): IChatRequestVariableEntry => {
+): IPromptVariableEntry => {
 	const { uri, isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
 
-	// for prompt files, we add a prefix to the `id`
+	// prompts have special `id`s that are used by the copilot extension
 	if (isPromptFile) {
-		// the default prefix that is used for all prompt files
-		let prefix = 'vscode.prompt.instructions';
-		// if the reference is the root object, add the `.root` suffix
-		if (isRoot) {
-			prefix += '.root';
-		}
-
-		// final `id` for all `prompt files` starts with the well-defined
-		// part that the copilot extension(or other chatbot) can rely on
-		id = `${prefix}__${id}`;
+		id = createPromptVariableId(uri, isRoot);
 	}
+
+	const name = (isPromptFile)
+		? `prompt:${basename(uri)}`
+		: `file:${basename(uri)}`;
+
+	const modelDescription = (isPromptFile)
+		? 'Prompt instructions file'
+		: 'File attachment';
 
 	return {
 		id,
-		name: uri.fsPath,
+		name,
 		value: uri,
 		kind: 'file',
+		modelDescription,
+		isRoot,
 	};
 };
+
+/**
+ * Checks of a provided chat variable is a `prompt file` variable.
+ */
+export function isPromptFileChatVariable(
+	variable: IChatRequestVariableEntry,
+): variable is IPromptVariableEntry {
+	return isChatRequestFileEntry(variable)
+		&& variable.id.startsWith(PROMPT_VARIABLE_ID_PREFIX);
+}
 
 /**
  * Model for a collection of prompt instruction attachments.
  * See {@linkcode ChatPromptAttachmentModel} for individual attachment.
  */
 export class ChatPromptAttachmentsCollection extends Disposable {
+	/**
+	 * Event that fires then this model is updated.
+	 *
+	 * See {@linkcode onUpdate}.
+	 */
+	protected _onUpdate = this._register(new Emitter<void>());
+	/**
+	 * Subscribe to the `onUpdate` event.
+	 */
+	public onUpdate = this._onUpdate.event;
+
+	/**
+	 * Event that fires when a new prompt instruction attachment is added.
+	 * See {@linkcode onAdd}.
+	 */
+	protected _onAdd = this._register(new Emitter<ChatPromptAttachmentModel>());
+	/**
+	 * The `onAdd` event fires when a new prompt instruction attachment is added.
+	 */
+	public onAdd = this._onAdd.event;
+
+	/**
+	 * Event that fires when a new prompt instruction attachment is removed.
+	 * See {@linkcode onRemove}.
+	 */
+	protected _onRemove = this._register(new Emitter<ChatPromptAttachmentModel>());
+	/**
+	 * The `onRemove` event fires when a new prompt instruction attachment is removed.
+	 */
+	public onRemove = this._onRemove.event;
+
 	/**
 	 * List of all prompt instruction attachments.
 	 */
@@ -79,6 +151,26 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Get list of tools associated with all attached prompt files.
+	 */
+	public get toolsMetadata(): readonly string[] | null {
+		const result = [];
+
+		for (const child of this.attachments.values()) {
+			const { toolsMetadata } = child;
+
+			if (toolsMetadata === null) {
+				continue;
+			}
+
+			result.push(...toolsMetadata);
+		}
+
+		// return unique list of all tools
+		return [...new Set(result)];
 	}
 
 	/**
@@ -119,7 +211,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	 * Promise that resolves when parsing of all attached prompt instruction
 	 * files completes, including parsing of all its possible child references.
 	 */
-	public async allSettled(): Promise<void> {
+	public async allSettled(): Promise<this> {
 		const attachments = [...this.attachments.values()];
 
 		await Promise.allSettled(
@@ -127,36 +219,6 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				return attachment.allSettled;
 			}),
 		);
-	}
-
-	/**
-	 * Event that fires then this model is updated.
-	 *
-	 * See {@linkcode onUpdate}.
-	 */
-	protected _onUpdate = this._register(new Emitter<void>());
-	/**
-	 * Subscribe to the `onUpdate` event.
-	 * @param callback Function to invoke on update.
-	 */
-	public onUpdate(callback: () => unknown): this {
-		this._register(this._onUpdate.event(callback));
-
-		return this;
-	}
-
-	/**
-	 * Event that fires when a new prompt instruction attachment is added.
-	 * See {@linkcode onAdd}.
-	 */
-	protected _onAdd = this._register(new Emitter<ChatPromptAttachmentModel>());
-	/**
-	 * The `onAdd` event fires when a new prompt instruction attachment is added.
-	 *
-	 * @param callback Function to invoke on add.
-	 */
-	public onAdd(callback: (attachment: ChatPromptAttachmentModel) => unknown): this {
-		this._register(this._onAdd.event(callback));
 
 		return this;
 	}
@@ -173,31 +235,35 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	/**
 	 * Add a prompt instruction attachment instance with the provided `URI`.
 	 * @param uri URI of the prompt instruction attachment to add.
-	 *
-	 * @returns `true` if the attachment already exists, `false` otherwise.
 	 */
-	public add(uri: URI): boolean {
-		// if already exists, nothing to do
-		if (this.attachments.has(uri.path)) {
-			return true;
+	public add(uris: URI | readonly URI[]) {
+		const uriList = Array.isArray(uris) ? uris : [uris];
+
+		// if no URIs provided, nothing to do
+		if (uriList.length === 0) {
+			return;
 		}
 
-		const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
-			.onUpdate(this._onUpdate.fire)
-			.onDispose(() => {
-				// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
-				//       alternative results in an infinite loop of calling this callback
-				this.attachments.deleteAndLeak(uri.path);
-				this._onUpdate.fire();
-			});
+		for (const uri of uriList) {
+			// if already exists, nothing to do
+			if (this.attachments.has(uri.path)) {
+				continue;
+			}
 
-		this.attachments.set(uri.path, instruction);
-		instruction.resolve();
+			const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
+				.onUpdate(this._onUpdate.fire)
+				.onDispose(() => {
+					// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
+					//       alternative results in an infinite loop of calling this callback
+					this.attachments.deleteAndLeak(uri.path);
+					this._onUpdate.fire();
+					this._onRemove.fire(instruction);
+				}).resolve();
 
-		this._onAdd.fire(instruction);
-		this._onUpdate.fire();
-
-		return false;
+			this.attachments.set(uri.path, instruction);
+			this._onAdd.fire(instruction);
+			this._onUpdate.fire();
+		}
 	}
 
 	/**
@@ -220,5 +286,17 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	 */
 	public get featureEnabled(): boolean {
 		return PromptsConfig.enabled(this.configService);
+	}
+
+	/**
+	 * Clear all prompt instruction attachments.
+	 */
+	public clear(): this {
+		for (const attachment of this.attachments.values()) {
+			this.remove(attachment.uri);
+		}
+
+		this._onUpdate.fire();
+		return this;
 	}
 }

@@ -7,6 +7,7 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Color } from '../../../base/common/color.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import * as platform from '../../registry/common/platform.js';
@@ -261,9 +262,9 @@ export interface ITokenClassificationRegistry {
 	getTokenStylingSchema(): IJSONSchema;
 }
 
-class TokenClassificationRegistry implements ITokenClassificationRegistry {
+class TokenClassificationRegistry extends Disposable implements ITokenClassificationRegistry {
 
-	private readonly _onDidChangeSchema = new Emitter<void>();
+	private readonly _onDidChangeSchema = this._register(new Emitter<void>());
 	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
 	private currentTypeNumber = 0;
@@ -347,6 +348,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	};
 
 	constructor() {
+		super();
 		this.tokenTypeById = Object.create(null);
 		this.tokenModifierById = Object.create(null);
 		this.typeHierarchy = Object.create(null);
@@ -471,7 +473,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	}
 
 
-	public toString() {
+	public override toString() {
 		const sorter = (a: string, b: string) => {
 			const cat1 = a.indexOf('.') === -1 ? 0 : 1;
 			const cat2 = b.indexOf('.') === -1 ? 0 : 1;

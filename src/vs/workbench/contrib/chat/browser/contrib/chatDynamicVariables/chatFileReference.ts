@@ -34,7 +34,7 @@ export class ChatFileReference extends FilePromptParser implements IDynamicVaria
 			`Variable data must be an URI, got '${data}'.`,
 		);
 
-		super(data, [], initService, workspaceService, logService);
+		super(data, {}, initService, workspaceService, logService);
 	}
 
 	/**

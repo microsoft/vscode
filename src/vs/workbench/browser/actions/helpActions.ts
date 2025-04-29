@@ -16,7 +16,6 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 class KeybindingsReferenceAction extends Action2 {
@@ -333,59 +332,22 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 	}
 }
 
-class GetStartedWithCopilot extends Action2 {
-
-	static readonly ID = 'workbench.action.getStartedWithCopilot';
-
-	constructor() {
-		super({
-			id: GetStartedWithCopilot.ID,
-			title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
-			category: Categories.Help,
-			f1: true,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, false), !!product.defaultChatAgent?.documentationUrl ? ContextKeyExpr.true() : ContextKeyExpr.false())
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		const openerService = accessor.get(IOpenerService);
-		openerService.open(URI.parse(product.defaultChatAgent!.documentationUrl));
-	}
-}
-
-MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-	command: {
-		id: GetStartedWithCopilot.ID,
-		title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
-	},
-	order: 7,
-	group: '1_welcome',
-	when: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, false), !!product.defaultChatAgent?.documentationUrl ? ContextKeyExpr.true() : ContextKeyExpr.false())
-});
-
 class AskVSCodeCopilot extends Action2 {
 	static readonly ID = 'workbench.action.askVScode';
 
-	//  add check for enablement
 	constructor() {
 		super({
 			id: AskVSCodeCopilot.ID,
 			title: localize2('askVScode', 'Ask @vscode'),
 			category: Categories.Help,
 			f1: true,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`chatIsEnabled`, true)),
+			precondition: ContextKeyExpr.equals('chatSetupHidden', false)
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
-		const input = await quickInputService.input({
-			title: localize('askVscodeTitle', "Ask @vscode"),
-			placeHolder: localize('askVscodePlaceholder', "@vscode can help you with settings, commands, or how to do something in VS Code.")
-		});
-		if (input) {
-			commandService.executeCommand('workbench.action.chat.open', { mode: 'ask', query: `@vscode ${input}` });
-		}
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'ask', query: '@vscode ', isPartialQuery: true });
 	}
 }
 
@@ -396,7 +358,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	},
 	order: 7,
 	group: '1_welcome',
-	when: ContextKeyExpr.equals(`chatIsEnabled`, true),
+	when: ContextKeyExpr.equals('chatSetupHidden', false)
 });
 
 // --- Actions Registration
@@ -438,7 +400,5 @@ if (OpenPrivacyStatementUrlAction.AVAILABLE) {
 }
 
 registerAction2(GetStartedWithAccessibilityFeatures);
-
-registerAction2(GetStartedWithCopilot);
 
 registerAction2(AskVSCodeCopilot);

@@ -13,7 +13,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -23,7 +25,10 @@ import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/types.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -55,7 +60,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						Event.any(
 							codeEditor.onDidChangeModel,
 							codeEditor.onDidChangeCursorSelection,
-							codeEditor.onDidScrollChange),
+							codeEditor.onDidScrollChange,
+							codeEditor.onDidChangeModelLanguage),
 						() => undefined,
 						500)(() => this.updateImplicitContext()));
 				}
@@ -104,7 +110,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				return;
 			}
 			if (this._implicitContextEnablement[widget.location] === 'first' && widget.viewModel?.getItems().length !== 0) {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}));
 		this._register(this.chatWidgetService.onDidAddWidget(async (widget) => {
@@ -153,7 +159,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const selection = codeEditor?.getSelection();
 		let newValue: Location | URI | undefined;
 		let isSelection = false;
+
+		let languageId: string | undefined;
 		if (model) {
+			languageId = model.getLanguageId();
 			if (selection && !selection.isEmpty()) {
 				newValue = { uri: model.uri, range: selection } satisfies Location;
 				isSelection = true;
@@ -201,7 +210,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}
 
 		const uri = newValue instanceof URI ? newValue : newValue?.uri;
-		if (uri && await this.ignoredFilesService.fileIsIgnored(uri, cancelTokenSource.token)) {
+		if (uri && (
+			await this.ignoredFilesService.fileIsIgnored(uri, cancelTokenSource.token) ||
+			uri.path.endsWith('.copilotmd'))
+		) {
 			newValue = undefined;
 		}
 
@@ -217,18 +229,30 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if (setting === 'first' && !isFirstInteraction) {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
-				widget.input.implicitContext.setValue(newValue, isSelection);
+				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
 			} else if (setting === 'never') {
-				widget.input.implicitContext.setValue(undefined, false);
+				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}
 	}
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
+	/**
+	 * If the implicit context references a prompt file, this field
+	 * holds a reference to an associated prompt parser instance.
+	 */
+	private prompt: TSharedPrompt | undefined;
+
 	get id() {
+		if (this.prompt !== undefined) {
+			const variable = toChatVariable(this.prompt, true);
+
+			return variable.id;
+		}
+
 		if (URI.isUri(this.value)) {
 			return 'vscode.implicit.file';
 		} else if (this.value) {
@@ -243,6 +267,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
+		if (this.prompt !== undefined) {
+			const variable = toChatVariable(this.prompt, true);
+
+			return variable.name;
+		}
+
 		if (URI.isUri(this.value)) {
 			return `file:${basename(this.value)}`;
 		} else if (this.value) {
@@ -255,6 +285,12 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
+		if (this.prompt !== undefined) {
+			const variable = toChatVariable(this.prompt, true);
+
+			return variable.modelDescription;
+		}
+
 		if (URI.isUri(this.value)) {
 			return `User's active file`;
 		} else if (this._isSelection) {
@@ -271,7 +307,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._isSelection;
 	}
 
-	private _onDidChangeValue = new Emitter<void>();
+	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
 	private _value: Location | URI | undefined;
@@ -289,24 +325,97 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	constructor(value?: Location | URI) {
+	constructor(
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IModelService private readonly modelService: IModelService,
+		@ILogService private readonly logService: ILogService,
+	) {
 		super();
-		this._value = value;
 	}
 
-	setValue(value: Location | URI | undefined, isSelection: boolean) {
+	setValue(value: Location | URI | undefined, isSelection: boolean, languageId?: string): void {
 		this._value = value;
 		this._isSelection = isSelection;
+
+		// remove and dispose existent prompt parser instance
+		this.removePrompt();
+		// if language ID is a 'prompt' language, create a prompt parser instance
+		if (value && (languageId === PROMPT_LANGUAGE_ID)) {
+			this.addPrompt(value);
+		}
+
 		this._onDidChangeValue.fire();
 	}
 
-	toBaseEntry(): IChatRequestFileEntry {
-		return {
-			kind: 'file',
-			id: this.id,
-			name: this.name,
-			value: this.value,
-			modelDescription: this.modelDescription
-		};
+	public async toBaseEntries(): Promise<readonly IChatRequestFileEntry[]> {
+		// chat variable for non-prompt file attachment
+		if (this.prompt === undefined) {
+			return [{
+				kind: 'file',
+				id: this.id,
+				name: this.name,
+				value: this.value,
+				modelDescription: this.modelDescription,
+			}];
+
+		}
+
+		// prompt can have any number of nested references, hence
+		// collect all of valid ones and return the entire list
+		await this.prompt.allSettled();
+		return [
+			// add all valid child references in the prompt
+			...this.prompt.allValidReferences.map((link) => {
+				return toChatVariable(link, false);
+			}),
+			// and then the root prompt reference itself
+			toChatVariable({
+				uri: this.prompt.uri,
+				// the attached file must have been a prompt file therefore
+				// we force that assumption here; this makes sure that prompts
+				// in untitled documents can be also attached to the chat input
+				isPromptFile: true,
+			}, true),
+		];
+	}
+
+	/**
+	 * Whether the implicit context references a prompt file.
+	 */
+	public get isPromptFile() {
+		return (this.prompt !== undefined);
+	}
+
+	/**
+	 * Add prompt parser instance for the provided value.
+	 */
+	private addPrompt(
+		value: URI | Location,
+	): void {
+		const uri = URI.isUri(value)
+			? value
+			: value.uri;
+
+		const model = this.modelService.getModel(uri);
+		const modelExists = (model !== null);
+		if ((modelExists === false) || model.isDisposed()) {
+			return this.logService.warn(
+				`cannot create prompt parser instance for ${uri.path} (model exists: ${modelExists})`,
+			);
+		}
+
+		this.prompt = this.promptsService.getSyntaxParserFor(model);
+	}
+
+	/**
+	 * Remove and dispose prompt parser instance.
+	 */
+	private removePrompt(): void {
+		delete this.prompt;
+	}
+
+	public override dispose(): void {
+		this.removePrompt();
+		super.dispose();
 	}
 }

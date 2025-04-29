@@ -6,7 +6,7 @@
 import { assert } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue, IObservable, ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
+import { observableValue, ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -34,7 +34,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason, IEditorPane } from '../../../../common/editor.js';
@@ -91,9 +90,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []); }, 500));
 	private _editDecorations: string[] = [];
-
-
-	private readonly _diffTrimWhitespace: IObservable<boolean>;
 
 	readonly originalURI: URI;
 
@@ -160,17 +156,12 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this._clearCurrentEditLineDecoration();
 		}));
 
-		this._diffTrimWhitespace = observableConfigValue('diffEditor.ignoreTrimWhitespace', true, configService);
-		this._register(autorun(r => {
-			this._diffTrimWhitespace.read(r);
-			this._updateDiffInfoSeq();
-		}));
-
 		const resourceFilter = this._register(new MutableDisposable());
 		this._register(autorun(r => {
-			const res = this.isCurrentlyBeingModifiedBy.read(r);
-			if (res) {
-				const req = res.session.getRequests().find(value => value.id === res.requestId);
+			const inProgress = this._lastModifyingResponseInProgressObs.read(r);
+			if (inProgress) {
+				const res = this._lastModifyingResponseObs.read(r);
+				const req = res && res.session.getRequests().find(value => value.id === res.requestId);
 				resourceFilter.value = markerService.installResourceFilter(this.modifiedURI, req?.message.text || localize('default', "Chat Edits"));
 			} else {
 				resourceFilter.clear();
@@ -236,7 +227,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const e_sum = this._edit;
 			const e_ai = edit;
 			this._edit = e_sum.compose(e_ai);
-
 		} else {
 
 			//           e_ai
@@ -269,6 +259,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			}
 
 			this._allEditsAreFromUs = false;
+			this._userEditScheduler.schedule();
 			this._updateDiffInfoSeq();
 
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
@@ -348,6 +339,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
+			this._notifyAction('accepted');
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		return true;
@@ -366,6 +358,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
+			this._notifyAction('rejected');
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		return true;
@@ -412,12 +405,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const docVersionNow = this.modifiedModel.getVersionId();
 		const snapshotVersionNow = this.originalModel.getVersionId();
 
-		const ignoreTrimWhitespace = this._diffTrimWhitespace.get();
-
 		const diff = await this._editorWorkerService.computeDiff(
 			this.originalModel.uri,
 			this.modifiedModel.uri,
-			{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
+			{
+				ignoreTrimWhitespace: false, // NEVER ignore whitespace so that undo/accept edits are correct and so that all changes (1 of 2) are spelled out
+				computeMoves: false,
+				maxComputationTimeMs: 3000
+			},
 			'advanced'
 		);
 
@@ -505,6 +500,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			} satisfies IDocumentDiff2;
 		});
 
-		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo);
+		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}
 }

@@ -14380,9 +14380,26 @@ declare module 'vscode' {
 		 * can properly apply. Do not use this method to decode content
 		 * in chunks, as that may lead to incorrect results.
 		 *
-		 * If no encoding is provided, will try to pick an encoding based
-		 * on settings and the content of the buffer (for example byte order
-		 * marks).
+		 * Will pick an encoding based on settings and the content of the
+		 * buffer (for example byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
+		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The text content to decode as a `Uint8Array`.
+		 * @returns A thenable that resolves to the decoded `string`.
+		 */
+		export function decode(content: Uint8Array): Thenable<string>;
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string` using the
+		 * provided encoding. You MUST provide the entire content at once
+		 * to ensure that the encoding can properly apply. Do not use this
+		 * method to decode content in chunks, as that may lead to incorrect
+		 * results.
 		 *
 		 * *Note* that if you decode content that is unsupported by the
 		 * encoding, the result may contain substitution characters as
@@ -14399,6 +14416,8 @@ declare module 'vscode' {
 			 * Allows to explicitly pick the encoding to use.
 			 * See {@link TextDocument.encoding} for more information
 			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
 			 */
 			readonly encoding: string;
 		}): Thenable<string>;
@@ -14428,14 +14447,22 @@ declare module 'vscode' {
 			 * is used to figure out the encoding related configuration
 			 * for the file if any.
 			 */
-			readonly uri: Uri | undefined;
+			readonly uri: Uri;
 		}): Thenable<string>;
 
 		/**
 		 * Encodes the content of a `string` to a `Uint8Array`.
 		 *
-		 * If no encoding is provided, will try to pick an encoding based
-		 * on settings.
+		 * Will pick an encoding based on settings.
+		 *
+		 * @param content The content to decode as a `string`.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		export function encode(content: string): Thenable<Uint8Array>;
+
+		/**
+		 * Encodes the content of a `string` to a `Uint8Array` using the
+		 * provided encoding.
 		 *
 		 * @param content The content to decode as a `string`.
 		 * @param options Additional context for picking the encoding.
@@ -14446,6 +14473,8 @@ declare module 'vscode' {
 			 * Allows to explicitly pick the encoding to use.
 			 * See {@link TextDocument.encoding} for more information
 			 * about valid values for encoding.
+			 * Using an unsupported encoding will fallback to the
+			 * default configured encoding.
 			 */
 			readonly encoding: string;
 		}): Thenable<Uint8Array>;
@@ -14465,7 +14494,7 @@ declare module 'vscode' {
 			 * is used to figure out the encoding related configuration
 			 * for the file if any.
 			 */
-			readonly uri: Uri | undefined;
+			readonly uri: Uri;
 		}): Thenable<Uint8Array>;
 	}
 
@@ -16461,7 +16490,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for source control mangement.
+	 * Namespace for source control management.
 	 */
 	export namespace scm {
 
@@ -16775,7 +16804,7 @@ declare module 'vscode' {
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
+	 * A debug adapter factory that creates {@link DebugAdapterDescriptor debug adapter descriptors}.
 	 */
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -16829,7 +16858,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug adaper factory that creates {@link DebugAdapterTracker debug adapter trackers}.
+	 * A debug adapter factory that creates {@link DebugAdapterTracker debug adapter trackers}.
 	 */
 	export interface DebugAdapterTrackerFactory {
 		/**
@@ -17366,7 +17395,7 @@ declare module 'vscode' {
 		 * Whether the thread supports reply.
 		 * Defaults to true.
 		 */
-		canReply: boolean;
+		canReply: boolean | CommentAuthorInformation;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.
@@ -19228,7 +19257,7 @@ declare module 'vscode' {
 		readonly value: T;
 
 		/**
-		 * Creates a new telementry trusted value.
+		 * Creates a new telemetry trusted value.
 		 *
 		 * @param value A value to trust
 		 */
@@ -19236,7 +19265,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A telemetry logger which can be used by extensions to log usage and error telementry.
+	 * A telemetry logger which can be used by extensions to log usage and error telemetry.
 	 *
 	 * A logger wraps around an {@link TelemetrySender sender} but it guarantees that
 	 * - user settings to disable or tweak telemetry are respected, and that
@@ -20415,7 +20444,7 @@ declare module 'vscode' {
 	 */
 	export class LanguageModelToolResult {
 		/**
-		 * A list of tool result content parts. Includes `unknown` becauses this list may be extended with new content types in
+		 * A list of tool result content parts. Includes `unknown` because this list may be extended with new content types in
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */

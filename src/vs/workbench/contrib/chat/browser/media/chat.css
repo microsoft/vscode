@@ -25,7 +25,7 @@
 	-webkit-user-select: text;
 }
 
-.interactive-item-container .header {
+.interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -201,7 +201,7 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .value .rendered-markdown {
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
 	.codicon {
 		font-size: inherit;
 	}
@@ -239,6 +239,10 @@
 .interactive-item-container .value .interactive-session-followups,
 .interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown .chat-extensions-content-part a {
+	color: inherit;
 }
 
 .interactive-item-container .value .rendered-markdown a {
@@ -313,13 +317,13 @@
 	font-weight: unset;
 }
 
-.interactive-item-container .value .rendered-markdown {
-	/* Codicons next to text need to be aligned with the text */
-	.codicon {
-		position: relative;
-		top: 2px;
-	}
+/* Codicons next to text need to be aligned with the text */
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) .codicon {
+	position: relative;
+	top: 2px;
+}
 
+.interactive-item-container .value .rendered-markdown {
 	.chat-codeblock-pill-widget .codicon {
 		top: -1px;
 	}
@@ -406,6 +410,10 @@
 
 	.tool-input-output-part.expanded .input-output {
 		display: inherit;
+	}
+
+	&:not(:last-child) {
+		margin-bottom: 8px;
 	}
 }
 
@@ -1709,6 +1717,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: block;
 	max-height: 350px;
 	max-width: 100%;
+	min-width: 200px;
+	min-height: 200px;
+
 }
 
 .chat-attached-context-hover .chat-attached-context-url {
@@ -1753,6 +1764,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 14px;
 	height: 14px;
 	border-radius: 2px;
+	object-fit: cover;
 }
 
 .chat-attached-context-attachment .chat-attached-context-custom-text {

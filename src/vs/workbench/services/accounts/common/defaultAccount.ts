@@ -12,7 +12,7 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -291,7 +291,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 					title: localize('sign in', "Sign in to {0}", authProviderLabel),
 					menu: {
 						id: MenuId.AccountsContext,
-						when: CONTEXT_DEFAULT_ACCOUNT_STATE.isEqualTo(DefaultAccountStatus.Unavailable),
+						when: ContextKeyExpr.and(CONTEXT_DEFAULT_ACCOUNT_STATE.isEqualTo(DefaultAccountStatus.Unavailable), ContextKeyExpr.has('config.extensions.gallery.serviceUrl')),
 						group: '0_signin',
 					}
 				});
