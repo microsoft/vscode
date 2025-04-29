@@ -12,7 +12,7 @@ import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
-import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformerBase } from '../../../../common/core/positionToOffset.js';
 import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
@@ -161,7 +161,7 @@ class InlineSuggestDisplayLocation implements IDisplayLocation {
 		public readonly label: string,
 	) { }
 
-	public withEdit(edit: OffsetEdit, positionOffsetTransformer: PositionOffsetTransformer): InlineSuggestDisplayLocation | undefined {
+	public withEdit(edit: OffsetEdit, positionOffsetTransformer: PositionOffsetTransformerBase): InlineSuggestDisplayLocation | undefined {
 		const newOffsetRange = applyEditsToRanges([this._offsetRange], edit)[0];
 		if (!newOffsetRange || newOffsetRange.length !== this._offsetRange.length) {
 			return undefined;
