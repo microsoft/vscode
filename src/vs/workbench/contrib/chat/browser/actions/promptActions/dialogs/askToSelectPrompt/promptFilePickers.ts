@@ -88,7 +88,7 @@ const NEW_INSTRUCTIONS_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze
 	type: 'item',
 	label: `$(plus) ${localize(
 		'commands.new-instructionsfile.select-dialog.label',
-		'New instructions file...',
+		'Create new instruction file...',
 	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
 	pickable: false,
@@ -427,4 +427,3 @@ export class PromptFilePickers {
 	}
 
 }
-
