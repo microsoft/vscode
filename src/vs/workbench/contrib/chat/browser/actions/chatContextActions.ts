@@ -984,7 +984,7 @@ async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAc
 	const store = new DisposableStore();
 	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
 	quickPick.canAcceptInBackground = !onBackgroundAccept;
-	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
+	quickPick.placeholder = localize('pickAProblem', 'Select a problem to attach');
 	quickPick.items = items;
 
 	return new Promise<IDiagnosticVariableEntryFilterData | undefined>(resolve => {

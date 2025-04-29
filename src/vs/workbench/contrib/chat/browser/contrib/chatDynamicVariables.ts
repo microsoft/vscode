@@ -260,7 +260,7 @@ export async function createFilesAndFolderQuickPick(accessor: ServicesAccessor):
 	defaultItems.sort((a, b) => extUri.compare(a.resource, b.resource));
 
 	const quickPick = quickInputService.createQuickPick<ResourcePick>();
-	quickPick.placeholder = 'Search folder by name';
+	quickPick.placeholder = 'Search file or folder by name';
 	quickPick.items = defaultItems;
 
 	return await new Promise<URI | undefined>(_resolve => {
