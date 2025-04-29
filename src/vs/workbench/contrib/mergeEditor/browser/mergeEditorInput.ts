@@ -25,6 +25,7 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { ILanguageSupport, ITextFileSaveOptions, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { MergeEditorType } from './view/viewModel.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class MergeEditorInputData {
 	constructor(
@@ -69,6 +70,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 	}
@@ -188,6 +190,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	public updateFocusedEditor(editor: MergeEditorType): void {
 		if (this._focusedEditor !== editor) {
 			this._focusedEditor = editor;
+			this.logService.trace('alertFocusedEditor', editor);
 			alertFocusedEditor(editor);
 		}
 	}
