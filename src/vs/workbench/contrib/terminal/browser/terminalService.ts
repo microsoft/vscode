@@ -92,7 +92,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _restoredGroupCount: number = 0;
 	get restoredGroupCount(): number { return this._restoredGroupCount; }
 
-	get instances(): ITerminalInstance[] | undefined {
+	get instances(): ITerminalInstance[] | undefined | string {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances).concat(this._backgroundedTerminalInstances);
 	}
 	/** Gets all non-background terminals. */
