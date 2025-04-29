@@ -65,6 +65,7 @@ import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -1303,8 +1304,9 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ICommandService private readonly _commandService: ICommandService,
+		// @ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -1635,6 +1637,24 @@ export class SCMHistoryViewPane extends ViewPane {
 		if (!e.element) {
 			return;
 		} else if (isSCMHistoryItemViewModelTreeElement(e.element)) {
+			return;
+
+			// const historyItem = e.element.historyItemViewModel.historyItem;
+			// const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+
+			// const historyProvider = e.element.repository.provider.historyProvider.get();
+			// const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+			// if (historyItemChanges) {
+			// 	const title = getHistoryItemEditorTitle(historyItem);
+			// 	const rootUri = e.element.repository.provider.rootUri;
+			// 	const path = rootUri ? rootUri.path : e.element.repository.provider.label;
+			// 	const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
+
+			// 	await this._commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+			// }
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(e.element)) {
+			// TODO@lszomoru - this information should be cached
+			const historyItemChange = e.element.historyItemChange;
 			const historyItem = e.element.historyItemViewModel.historyItem;
 			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 
@@ -1646,7 +1666,24 @@ export class SCMHistoryViewPane extends ViewPane {
 				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
 				const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
-				await this._commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+				await this._editorService.openEditor({
+					label: title,
+					multiDiffSource: multiDiffSourceUri,
+					resources: historyItemChanges.map(c => ({
+						original: { resource: c.originalUri },
+						modified: { resource: c.modifiedUri }
+					})),
+					options: {
+						viewState: {
+							revealData: {
+								resource: {
+									original: historyItemChange.originalUri,
+									modified: historyItemChange.modifiedUri
+								}
+							}
+						}
+					}
+				});
 			}
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
