@@ -21,6 +21,29 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 
+class Tool {
+	private _data: IToolDataDto;
+	private _apiObject: vscode.LanguageModelToolInformation;
+
+	constructor(data: IToolDataDto) {
+		this._data = data;
+		this._apiObject = typeConvert.LanguageModelToolDescription.to(this._data);
+	}
+
+	update(newData: IToolDataDto): void {
+		this._data = newData;
+		Object.assign(this._apiObject, typeConvert.LanguageModelToolDescription.to(this._data));
+	}
+
+	get data(): IToolDataDto {
+		return this._data;
+	}
+
+	get apiObject(): vscode.LanguageModelToolInformation {
+		return this._apiObject;
+	}
+}
+
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
 	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.LanguageModelTool<Object> }>();
@@ -28,7 +51,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	private readonly _tokenCountFuncs = new Map</* call ID */string, (text: string, token?: vscode.CancellationToken) => Thenable<number>>();
 
 	/** A map of all known tools, from other EHs or registered in vscode core */
-	private readonly _allTools = new Map<string, IToolDataDto>();
+	private readonly _allTools = new Map<string, Tool>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -38,7 +61,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		this._proxy.$getTools().then(tools => {
 			for (const tool of tools) {
-				this._allTools.set(tool.id, revive(tool));
+				this._allTools.set(tool.id, new Tool(revive(tool)));
 			}
 		});
 	}
@@ -88,13 +111,18 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	$onDidChangeTools(tools: IToolDataDto[]): void {
 		this._allTools.clear();
 		for (const tool of tools) {
-			this._allTools.set(tool.id, tool);
+			const existing = this._allTools.get(tool.id);
+			if (existing) {
+				existing.update(tool);
+			} else {
+				this._allTools.set(tool.id, new Tool(revive(tool)));
+			}
 		}
 	}
 
 	getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] {
 		return Array.from(this._allTools.values())
-			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
+			.map(tool => tool.apiObject)
 			.filter(tool => {
 				switch (tool.name) {
 					case InternalEditToolId:
