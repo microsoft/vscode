@@ -62,13 +62,14 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 
 	_serviceBrand: undefined;
 
-	readonly preferPreReleases = this.productService.quality !== 'stable';
+	readonly preferPreReleases: boolean;
 
 	constructor(
 		@IProductService protected readonly productService: IProductService,
 		@IAllowedExtensionsService protected readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super();
+		this.preferPreReleases = this.productService.quality !== 'stable';
 	}
 
 	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
