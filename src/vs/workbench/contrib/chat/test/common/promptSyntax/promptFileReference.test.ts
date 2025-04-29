@@ -215,8 +215,7 @@ const createTestFileReference = (
 	return new FileReference(range, filePath);
 };
 
-// TODO: @legomushroom - remove 'unix' labels
-suite('PromptFileReference (Unix)', function () {
+suite('PromptFileReference', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
