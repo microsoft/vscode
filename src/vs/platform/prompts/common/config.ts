@@ -122,6 +122,64 @@ export namespace PromptsConfig {
 		// `undefined`, `null`, and `false` cases
 		return [];
 	};
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - merge object with potentially existent `promptFilesLocations` config
+	export const migrateOldSetting = (
+		configService: IConfigurationService,
+	) => {
+		const value = configService.getValue('chat.promptFiles');
+		// const value2 = read('promptFiles');
+
+		if ((value === undefined) || (value === null)) {
+			return;
+		}
+
+		// // TODO: @legomushroom
+		// if (2 + 2 === 4) {
+		// 	return;
+		// }
+
+		if (Array.isArray(value)) {
+			configService.updateValue('chat.promptFiles', true);
+
+			const locationsValue: Record<string, boolean> = {};
+			for (const filePath of value) {
+				if (typeof filePath !== 'string') {
+					continue;
+				}
+				const trimmedValue = filePath.trim();
+				if (!trimmedValue) {
+					continue;
+				}
+
+				locationsValue[trimmedValue] = true;
+			}
+
+			configService.updateValue('chat.promptFilesLocations', locationsValue);
+			return;
+		}
+
+		if (typeof value === 'object') {
+			configService.updateValue('chat.promptFiles', true);
+			configService.updateValue('chat.promptFilesLocations', value);
+
+			return;
+		}
+
+		if (typeof value === 'string') {
+			const booleanValue = asBoolean(value);
+			if (booleanValue !== undefined) {
+				return;
+			}
+
+			configService.updateValue('chat.promptFiles', true);
+			configService.updateValue('chat.promptFilesLocations', { [value]: true });
+			return;
+		}
+	};
 }
 
 /**
@@ -132,7 +190,7 @@ export namespace PromptsConfig {
  * 			be clearly mapped to a boolean (e.g., `"true"`, `"TRUE"`, `"FaLSe"`, etc.),
  * 			`undefined` for rest of the values
  */
-export const asBoolean = (value: any): boolean | undefined => {
+const asBoolean = (value: any): boolean | undefined => {
 	if (typeof value === 'boolean') {
 		return value;
 	}
