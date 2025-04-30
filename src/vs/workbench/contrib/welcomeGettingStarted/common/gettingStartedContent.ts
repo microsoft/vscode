@@ -681,7 +681,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'copilotSetup.chat',
 					title: localize('gettingStarted.agentMode.title', "Agent mode"),
-					description: localize('gettingStarted.agentMode.description', "From idea to implementation, agent mode reasons through the problem, plans next steps, and applies changes"),
+					description: localize('gettingStarted.agentMode.description', "Analyzes the problem, plans next steps, and makes changes for you."),
 					media: {
 						type: 'svg', altText: 'VS Code Copilot multi file edits', path: 'multi-file-edits.svg'
 					},
