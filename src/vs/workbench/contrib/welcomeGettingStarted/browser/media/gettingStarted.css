@@ -1367,21 +1367,25 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step {
 	display: flex;
 	flex-direction: column;
-	padding: 8px 12px 8px 12px;
 	cursor: pointer;
-	transition: background-color 0.1s ease;
-	border-left: 3px solid transparent;
+	box-sizing: border-box;
+	border-left: 1px solid transparent;
 	width: 80%;
+	padding-left:8px;
+	border-width: 1px;
+	border-style:solid;
+	border-color: transparent;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step-title {
 	font-size: 20px;
 	line-height: 24px;
 	margin: 0;
+	padding-top: 8px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step.active {
-	border: 1px solid var(--vscode-welcomePage-tileBorder);
+	border-color: var(--vscode-welcomePage-tileBorder);
 	border-radius: 6px;
 }
 
