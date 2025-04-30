@@ -293,7 +293,7 @@ class OpenModelPickerAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
 		let widget = widgetService.lastFocusedWidget;
-		if (widget?.location !== ChatAgentLocation.Notebook && widget?.location !== ChatAgentLocation.Terminal) {
+		if (!widget || widget.location === ChatAgentLocation.Panel) {
 			widget = await showChatView(accessor.get(IViewsService));
 		}
 		if (widget) {
