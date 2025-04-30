@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO: @legomushroom
 import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { OS } from '../../../../../../../../base/common/platform.js';
@@ -18,11 +19,15 @@ import { ILabelService } from '../../../../../../../../platform/label/common/lab
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
 import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
 import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
+import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName } from '../../../../../../../../platform/prompts/common/constants.js';
 import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
-import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
-import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID } from '../../../../promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
+import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
+import { attachInstructionsFiles } from './utils/attachInstructions.js';
+import { IChatWidget } from '../../../../chat.js';
+import { IViewsService } from '../../../../../../../services/views/common/viewsService.js';
+import { pick } from '../../../../../../../../base/common/arrays.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -60,7 +65,7 @@ export interface ISelectPromptResult {
 }
 
 /**
- * Button that opems the documentation.
+ * Button that opens the documentation.
  */
 const HELP_BUTTON: IQuickInputButton = Object.freeze({
 	tooltip: localize('help', "help"),
@@ -121,12 +126,14 @@ const DELETE_BUTTON: IQuickInputButton = Object.freeze({
 
 export class PromptFilePickers {
 	constructor(
+		// TODO: @legomushroom - cleanup the names
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IFileService private readonly _fileService: IFileService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 	}
 	/**
@@ -135,7 +142,7 @@ export class PromptFilePickers {
 	 * If {@link ISelectOptions.resource resource} is provided, the dialog will have
 	 * the resource pre-selected in the prompts list.
 	 */
-	public async selectInstructionsFiles(options: ISelectOptions): Promise<URI[] | undefined> {
+	public async selectInstructionsFiles(options: ISelectOptions): Promise<undefined> {
 
 		const fileOptions = this._createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_INSTRUCTIONS_FILE_OPTION);
@@ -147,34 +154,41 @@ export class PromptFilePickers {
 		quickPick.matchOnDescription = true;
 		quickPick.items = fileOptions;
 
-		return new Promise<URI[] | undefined>(resolve => {
+		return new Promise<undefined>((resolve) => {
 			const disposables = new DisposableStore();
-
-			let isResolved = false;
+			let lastActiveWidget: IChatWidget | undefined;
 
 			// then the dialog is hidden or disposed for other reason,
 			// dispose everything and resolve the main promise
 			disposables.add({
 				dispose() {
 					quickPick.dispose();
-					if (!isResolved) {
-						resolve(undefined);
-						isResolved = true;
-					}
+					resolve(undefined);
+					// if something was attached (lastActiveWidget is set),
+					// focus on the target chat input
+					lastActiveWidget?.focusInput();
 				},
 			});
 
 			// handle the prompt `accept` event
 			disposables.add(quickPick.onDidAccept(async (event) => {
-				const { selectedItems } = quickPick;
+				const { selectedItems, keyMods } = quickPick;
 
 				if (selectedItems[0] === NEW_INSTRUCTIONS_FILE_OPTION) {
 					await this._commandService.executeCommand(NEW_INSTRUCTIONS_COMMAND_ID);
 					return;
 				}
 
-				resolve(selectedItems.map(item => item.value));
-				isResolved = true;
+				// otherwise attach the selected instructions file to a chat input
+				const widget = await attachInstructionsFiles(
+					selectedItems.map(pick('value')),
+					{
+						inNewChat: keyMods.ctrlCmd,
+						viewsService: this._viewsService,
+						commandService: this._commandService,
+					},
+				);
+				lastActiveWidget = widget;
 
 				// if user submitted their selection, close the dialog
 				if (!event.inBackground) {
@@ -184,10 +198,10 @@ export class PromptFilePickers {
 
 			// handle the `button click` event on a list item (edit, delete, etc.)
 			disposables.add(quickPick.onDidTriggerItemButton(
-				e => this._handleButtonClick(quickPick, e))
-			);
+				this._handleButtonClick.bind(this, quickPick),
+			));
 
-			// when the dialog is hidden, dispose everything
+			// when the dialog is being hidden, dispose everything
 			disposables.add(quickPick.onDidHide(
 				disposables.dispose.bind(disposables),
 			));
@@ -203,6 +217,7 @@ export class PromptFilePickers {
 	 * If {@link ISelectOptions.resource resource} is provided, the dialog will have
 	 * the resource pre-selected in the prompts list.
 	 */
+	// TODO: @legomushroom - fix this one?
 	public async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
 
 		const fileOptions = this._createPromptPickItems(options);
@@ -248,6 +263,7 @@ export class PromptFilePickers {
 					isResolved = true;
 				}
 
+				// TODO: @legomushroom
 				// if user submitted their selection, close the dialog
 				if (!event.inBackground) {
 					disposables.dispose();
@@ -256,8 +272,8 @@ export class PromptFilePickers {
 
 			// handle the `button click` event on a list item (edit, delete, etc.)
 			disposables.add(quickPick.onDidTriggerItemButton(
-				e => this._handleButtonClick(quickPick, e))
-			);
+				this._handleButtonClick.bind(this, quickPick),
+			));
 
 			// when the dialog is hidden, dispose everything
 			disposables.add(quickPick.onDidHide(
@@ -339,7 +355,10 @@ export class PromptFilePickers {
 		};
 	}
 
-	private async _handleButtonClick(quickPick: IQuickPick<WithUriValue<IQuickPickItem>>, context: IQuickPickItemButtonEvent<WithUriValue<IQuickPickItem>>) {
+	private async _handleButtonClick(
+		quickPick: IQuickPick<WithUriValue<IQuickPickItem>>,
+		context: IQuickPickItemButtonEvent<WithUriValue<IQuickPickItem>>,
+	) {
 		const { item, button } = context;
 		const { value } = item;
 
