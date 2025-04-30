@@ -200,7 +200,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 
 			// match each attached file with each glob pattern and
-			// add the instructions file its rule matches the file
+			// add the instructions file if its rule matches the file
 			for (const file of files) {
 				if (match(applyTo, file.fsPath)) {
 					result.push(uri);
