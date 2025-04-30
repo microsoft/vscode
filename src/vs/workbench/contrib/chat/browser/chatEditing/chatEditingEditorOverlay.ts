@@ -378,7 +378,7 @@ class ChatEditingOverlayController {
 			if (!response) {
 				return false;
 			}
-			return observableFromEvent(this, response.onDidChange, () => !response.isComplete).read(r);
+			return observableFromEvent(this, response.onDidChange, () => !response.isComplete && !response.isPendingConfirmation).read(r);
 		});
 
 		this._store.add(autorun(r => {
