@@ -87,8 +87,10 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		super();
 
 		const elements = dom.h('.chat-confirmation-widget@root', [
-			dom.h('.chat-confirmation-widget-title.expandable@title', [
+			dom.h('.chat-confirmation-widget-title.expandable@titleContainer', [
 				dom.h('.chat-confirmation-widget-expando@expando'),
+				dom.h('.chat-confirmation-widget-title-inner@title'),
+				dom.h('.chat-confirmation-widget-title-icon@icon'),
 			]),
 			dom.h('.chat-confirmation-widget-message@message'),
 		]);
@@ -112,7 +114,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				? ThemeIcon.asCSSSelector(Codicon.check)
 				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
 		);
-		elements.title.appendChild(check.root);
+		elements.icon.appendChild(check.root);
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		const btn = this._register(new Button(elements.expando, {}));
@@ -133,7 +135,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		};
 
 		this._register(btn.onDidClick(toggle));
-		this._register(dom.addDisposableListener(elements.title, dom.EventType.CLICK, toggle));
+		this._register(dom.addDisposableListener(elements.titleContainer, dom.EventType.CLICK, toggle));
 
 		elements.message.appendChild(this.createMessageContents());
 	}

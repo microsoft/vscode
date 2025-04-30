@@ -14,21 +14,21 @@
  *   - add `Windows` support
  */
 
-import { IPromptsService } from '../../service/types.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { extUri } from '../../../../../../../base/common/resources.js';
-import { assertOneOf } from '../../../../../../../base/common/types.js';
-import { ITextModel } from '../../../../../../../editor/common/model.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { CancellationError } from '../../../../../../../base/common/errors.js';
-import { PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR } from '../../constants.js';
-import { Position } from '../../../../../../../editor/common/core/position.js';
-import { IPromptFileReference, IPromptReference } from '../../parsers/types.js';
-import { assert, assertNever } from '../../../../../../../base/common/assert.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../../editor/common/languages.js';
+import { IPromptsService } from '../../../service/types.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
+import { extUri } from '../../../../../../../../base/common/resources.js';
+import { assertOneOf } from '../../../../../../../../base/common/types.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../../../../../base/common/errors.js';
+import { PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR } from '../../../constants.js';
+import { Position } from '../../../../../../../../editor/common/core/position.js';
+import { IPromptFileReference, IPromptReference } from '../../../parsers/types.js';
+import { assert, assertNever } from '../../../../../../../../base/common/assert.js';
+import { IFileService } from '../../../../../../../../platform/files/common/files.js';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
+import { ILanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeatures.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../../../editor/common/languages.js';
 
 /**
  * Type for a filesystem completion item - the one that has its {@link CompletionItem.kind kind} set

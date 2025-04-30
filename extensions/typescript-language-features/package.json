@@ -203,6 +203,13 @@
             "description": "%typescript.implementationsCodeLens.enabled%",
             "scope": "window"
           },
+          "typescript.experimental.useTsgo": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%typescript.useTsgo%",
+            "scope": "window",
+            "tags": ["experimental"]
+          },
           "typescript.implementationsCodeLens.showOnInterfaceMethods": {
             "type": "boolean",
             "default": false,
@@ -1615,6 +1622,18 @@
         "command": "javascript.removeUnusedImports",
         "title": "%typescript.removeUnusedImports%",
         "category": "JavaScript"
+      },
+      {
+        "command": "typescript.experimental.enableTsgo",
+        "title": "Use TypeScript Go (Experimental)",
+        "category": "TypeScript",
+        "enablement": "!config.typescript.experimental.useTsgo && config.typescript-go.executablePath"
+      },
+      {
+        "command": "typescript.experimental.disableTsgo",
+        "title": "Stop using TypeScript Go (Experimental)",
+        "category": "TypeScript",
+        "enablement": "config.typescript.experimental.useTsgo"
       }
     ],
     "menus": {

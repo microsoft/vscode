@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { createURI } from '../testUtils/createUri.js';
 import { ChatMode } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
@@ -22,7 +21,6 @@ import { PromptsService } from '../../../../common/promptSyntax/service/promptsS
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { randomBoolean, waitRandom } from '../../../../../../../base/test/common/testUtils.js';
-import { isWindows, isNative, isElectron } from '../../../../../../../base/common/platform.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -148,7 +146,7 @@ suite('PromptsService', () => {
 				'test1\n\t#file:./file.md\n\n\n   [bin file](/root/tmp.bin)\t\n',
 				languageId,
 				undefined,
-				createURI('/Users/vscode/repos/test/file1.txt'),
+				URI.file('/Users/vscode/repos/test/file1.txt'),
 			));
 
 			const parser1 = service.getSyntaxParserFor(model1);
@@ -177,12 +175,12 @@ suite('PromptsService', () => {
 				parser1.allReferences,
 				[
 					new ExpectedLink(
-						createURI('/Users/vscode/repos/test/file.md'),
+						URI.file('/Users/vscode/repos/test/file.md'),
 						new Range(2, 2, 2, 2 + 15),
 						new Range(2, 8, 2, 8 + 9),
 					),
 					new ExpectedLink(
-						createURI('/root/tmp.bin'),
+						URI.file('/root/tmp.bin'),
 						new Range(5, 4, 5, 4 + 25),
 						new Range(5, 15, 5, 15 + 13),
 					),
@@ -219,7 +217,7 @@ suite('PromptsService', () => {
 				'some text #file:/absolute/path.txt  \t\ntest-text2',
 				languageId,
 				undefined,
-				createURI('/Users/vscode/repos/test/some-folder/file.md'),
+				URI.file('/Users/vscode/repos/test/some-folder/file.md'),
 			));
 
 			// wait for some random amount of time
@@ -274,7 +272,7 @@ suite('PromptsService', () => {
 				parser2.allReferences,
 				[
 					new ExpectedLink(
-						createURI('/absolute/path.txt'),
+						URI.file('/absolute/path.txt'),
 						new Range(1, 11, 1, 11 + 24),
 						new Range(1, 17, 1, 17 + 18),
 					),
@@ -293,12 +291,12 @@ suite('PromptsService', () => {
 				parser1_1.allReferences,
 				[
 					new ExpectedLink(
-						createURI('/Users/vscode/repos/test/file.md'),
+						URI.file('/Users/vscode/repos/test/file.md'),
 						new Range(2, 2, 2, 2 + 15),
 						new Range(2, 8, 2, 8 + 9),
 					),
 					new ExpectedLink(
-						createURI('/root/tmp.bin'),
+						URI.file('/root/tmp.bin'),
 						new Range(5, 4, 5, 4 + 25),
 						new Range(5, 15, 5, 15 + 13),
 					),
@@ -365,12 +363,12 @@ suite('PromptsService', () => {
 				parser1_2.allReferences,
 				[
 					new ExpectedLink(
-						createURI('/Users/vscode/repos/test/file.md'),
+						URI.file('/Users/vscode/repos/test/file.md'),
 						new Range(2, 2, 2, 2 + 15),
 						new Range(2, 8, 2, 8 + 9),
 					),
 					new ExpectedLink(
-						createURI('/root/tmp.bin'),
+						URI.file('/root/tmp.bin'),
 						new Range(5, 4, 5, 4 + 25),
 						new Range(5, 15, 5, 15 + 13),
 					),
@@ -412,7 +410,7 @@ suite('PromptsService', () => {
 				'some text #file:/absolute/path.txt  \n [caption](.copilot/prompts/test.prompt.md)\t\n\t\n more text',
 				languageId,
 				undefined,
-				createURI('/Users/vscode/repos/test/some-folder/file.md'),
+				URI.file('/Users/vscode/repos/test/some-folder/file.md'),
 			));
 			const parser2_1 = service.getSyntaxParserFor(model2_1);
 
@@ -445,13 +443,13 @@ suite('PromptsService', () => {
 				[
 					// the first link didn't change
 					new ExpectedLink(
-						createURI('/absolute/path.txt'),
+						URI.file('/absolute/path.txt'),
 						new Range(1, 11, 1, 11 + 24),
 						new Range(1, 17, 1, 17 + 18),
 					),
 					// the second link is new
 					new ExpectedLink(
-						createURI('/Users/vscode/repos/test/some-folder/.copilot/prompts/test.prompt.md'),
+						URI.file('/Users/vscode/repos/test/some-folder/.copilot/prompts/test.prompt.md'),
 						new Range(2, 2, 2, 2 + 42),
 						new Range(2, 12, 2, 12 + 31),
 					),
@@ -466,7 +464,7 @@ suite('PromptsService', () => {
 				' \t #file:../file.md\ntest1\n\t\n  [another file](/Users/root/tmp/file2.txt)\t\n',
 				langId,
 				undefined,
-				createURI('/repos/test/file1.txt'),
+				URI.file('/repos/test/file1.txt'),
 			));
 
 			const parser = service.getSyntaxParserFor(model);
@@ -487,12 +485,12 @@ suite('PromptsService', () => {
 				parser.allReferences,
 				[
 					new ExpectedLink(
-						createURI('/repos/file.md'),
+						URI.file('/repos/file.md'),
 						new Range(1, 4, 1, 4 + 16),
 						new Range(1, 10, 1, 10 + 10),
 					),
 					new ExpectedLink(
-						createURI('/Users/root/tmp/file2.txt'),
+						URI.file('/Users/root/tmp/file2.txt'),
 						new Range(4, 3, 4, 3 + 41),
 						new Range(4, 18, 4, 18 + 25),
 					),
@@ -513,13 +511,13 @@ suite('PromptsService', () => {
 				[
 					// link1 didn't change
 					new ExpectedLink(
-						createURI('/repos/file.md'),
+						URI.file('/repos/file.md'),
 						new Range(1, 4, 1, 4 + 16),
 						new Range(1, 10, 1, 10 + 10),
 					),
 					// link2 changed in the file name only
 					new ExpectedLink(
-						createURI('/Users/root/tmp/file3.txt'),
+						URI.file('/Users/root/tmp/file3.txt'),
 						new Range(4, 3, 4, 3 + 41),
 						new Range(4, 18, 4, 18 + 25),
 					),
@@ -547,11 +545,6 @@ suite('PromptsService', () => {
 	suite('• getCombinedToolsMetadata', () => {
 		suite('• agent mode', () => {
 			test('• explicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -681,11 +674,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -814,11 +802,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1074,11 +1057,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1202,11 +1180,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1452,11 +1425,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1579,11 +1547,6 @@ suite('PromptsService', () => {
 			});
 
 			test('• implicit (incorrect value)', async function () {
-				// temporary disable the tests on for electron/nodejs on windows
-				if (isWindows && (isNative || isElectron)) {
-					this.skip();
-				}
-
 				const rootFolderName = 'gets-combined-tools-metadata';
 				const rootFolder = `/${rootFolderName}`;
 
@@ -1708,11 +1671,6 @@ suite('PromptsService', () => {
 
 	suite('• getAllMetadata', () => {
 		test('• explicit', async function () {
-			// temporary disable the tests on for electron/nodejs on windows
-			if (isWindows && (isNative || isElectron)) {
-				this.skip();
-			}
-
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 
@@ -2040,6 +1998,187 @@ suite('PromptsService', () => {
 			const instructions = await service
 				.findInstructionFilesFor([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
+				]);
+
+			assert.deepStrictEqual(
+				instructions,
+				[
+					// local instructions
+					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
+					URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+					// user instructions
+					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+				],
+				'Must find correct instruction files.',
+			);
+		});
+
+		test('• does not have duplicates', async () => {
+			const rootFolderName = 'finds-instruction-files-without-duplicates';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			const userPromptsFolderName = '/tmp/user-data/prompts';
+			const userPromptsFolderUri = URI.file(userPromptsFolderName);
+
+			sinon.stub(service, 'listPromptFiles')
+				.returns(Promise.resolve([
+					// local instructions
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
+						storage: 'local',
+						type: 'instructions',
+					},
+					// user instructions
+					{
+						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+						storage: 'user',
+						type: 'instructions',
+					},
+					{
+						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
+						storage: 'user',
+						type: 'instructions',
+					},
+				]));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'file1.prompt.md',
+							contents: [
+								'## Some Header',
+								'some contents',
+								' ',
+							],
+						},
+						{
+							name: '.github/prompts',
+							children: [
+								{
+									name: 'file1.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 1.\'',
+										'applyTo: "**/*.tsx"',
+										'---',
+										'Some instructions 1 contents.',
+									],
+								},
+								{
+									name: 'file2.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 2.\'',
+										'applyTo: "**/folder1/*.tsx"',
+										'---',
+										'Some instructions 2 contents.',
+									],
+								},
+								{
+									name: 'file3.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 3.\'',
+										'applyTo: "**/folder2/*.tsx"',
+										'---',
+										'Some instructions 3 contents.',
+									],
+								},
+								{
+									name: 'file4.instructions.md',
+									contents: [
+										'---',
+										'description: \'Instructions file 4.\'',
+										'applyTo: "src/build/*.tsx"',
+										'---',
+										'Some instructions 4 contents.',
+									],
+								},
+								{
+									name: 'file5.prompt.md',
+									contents: [
+										'---',
+										'description: \'Prompt file 5.\'',
+										'---',
+										'Some prompt 5 contents.',
+									],
+								},
+							],
+						},
+						{
+							name: 'folder1',
+							children: [
+								{
+									name: 'main.tsx',
+									contents: 'console.log("Haalou!")',
+								},
+							],
+						},
+					],
+				}])).mock();
+
+			// mock user data instructions
+			await (instaService.createInstance(MockFilesystem, [
+				{
+					name: userPromptsFolderName,
+					children: [
+						{
+							name: 'file10.instructions.md',
+							contents: [
+								'---',
+								'description: \'Instructions file 10.\'',
+								'applyTo: "**/folder1/*.tsx"',
+								'---',
+								'Some instructions 10 contents.',
+							],
+						},
+						{
+							name: 'file11.instructions.md',
+							contents: [
+								'---',
+								'description: \'Instructions file 11.\'',
+								'applyTo: "**/folder1/*.py"',
+								'---',
+								'Some instructions 11 contents.',
+							],
+						},
+						{
+							name: 'file12.prompt.md',
+							contents: [
+								'---',
+								'description: \'Prompt file 12.\'',
+								'---',
+								'Some prompt 12 contents.',
+							],
+						},
+					],
+				}
+			])).mock();
+
+			const instructions = await service
+				.findInstructionFilesFor([
+					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
+					URI.joinPath(rootFolderUri, 'folder1/index.tsx'),
+					URI.joinPath(rootFolderUri, 'folder1/constants.tsx'),
 				]);
 
 			assert.deepStrictEqual(

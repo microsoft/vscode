@@ -348,7 +348,7 @@ export class NotebookOutputEditorContribution implements IWorkbenchContribution 
 			{
 				id: 'notebookOutputEditor',
 				label: 'Notebook Output Editor',
-				priority: RegisteredEditorPriority.exclusive
+				priority: RegisteredEditorPriority.option
 			},
 			{
 				canSupportResource: (resource: URI) => {

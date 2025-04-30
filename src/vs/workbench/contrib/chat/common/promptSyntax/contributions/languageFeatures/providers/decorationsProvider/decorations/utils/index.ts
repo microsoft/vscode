@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorIdentifier } from '../../../../../../../../../../platform/theme/common/colorUtils.js';
+import { ColorIdentifier } from '../../../../../../../../../../../platform/theme/common/colorUtils.js';
 
 /**
  * Convert a registered color to a CSS variable string.
