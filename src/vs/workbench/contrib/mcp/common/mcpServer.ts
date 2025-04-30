@@ -36,6 +36,8 @@ type ServerBootData = {
 	supportsPrompts: boolean;
 	supportsResources: boolean;
 	toolCount: number;
+	serverName: string;
+	serverVersion: string;
 };
 type ServerBootClassification = {
 	owner: 'connor4312';
@@ -44,6 +46,8 @@ type ServerBootClassification = {
 	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports prompts' };
 	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports resource' };
 	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of tools the server advertises' };
+	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server' };
+	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
 
 type ServerBootState = {
@@ -472,6 +476,8 @@ export class McpServer extends Disposable implements IMcpServer {
 				supportsPrompts: !!handler.capabilities.prompts,
 				supportsResources: !!handler.capabilities.resources,
 				toolCount: tools.length,
+				serverName: handler.serverInfo.name,
+				serverVersion: handler.serverInfo.version,
 			});
 		});
 	}
