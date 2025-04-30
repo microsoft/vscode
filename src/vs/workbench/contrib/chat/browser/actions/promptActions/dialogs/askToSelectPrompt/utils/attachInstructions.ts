@@ -5,7 +5,7 @@
 
 import { IChatWidget, showChatView } from '../../../../../chat.js';
 import { URI } from '../../../../../../../../../base/common/uri.js';
-import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
+import { ACTION_ID_NEW_CHAT, INewEditSessionActionContext } from '../../../../chatClearActions.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { IAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
 import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
@@ -77,8 +77,11 @@ const showChat = async (
 	const { commandService, viewsService } = options;
 
 	if (createNew === true) {
-		// TODO: @legomushroom - prevent focus somehow?
-		await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		// TODO: @legomushroom
+		await commandService.executeCommand(
+			ACTION_ID_NEW_CHAT,
+			{ dontFocus: true } satisfies INewEditSessionActionContext,
+		);
 	}
 
 	const widget = await showChatView(viewsService);

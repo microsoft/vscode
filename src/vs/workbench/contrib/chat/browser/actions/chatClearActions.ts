@@ -43,6 +43,11 @@ export interface INewEditSessionActionContext {
 	 * Whether the inputValue is partial and should wait for further user input. If false or not set, the prompt is sent immediately.
 	 */
 	isPartialQuery?: boolean;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	dontFocus?: boolean;
 }
 
 export function registerNewChatActions() {
@@ -115,7 +120,11 @@ export function registerNewChatActions() {
 			await widget.waitForReady();
 			widget.attachmentModel.clear(true);
 			widget.input.relatedFiles?.clear();
-			widget.focusInput();
+
+			// TODO: @legomushroom
+			if (!context?.dontFocus) {
+				widget.focusInput();
+			}
 
 			if (!context) {
 				return;

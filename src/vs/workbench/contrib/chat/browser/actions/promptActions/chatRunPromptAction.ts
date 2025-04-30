@@ -235,7 +235,6 @@ class RunSelectedPromptAction extends Action2 {
 	}
 }
 
-
 /**
  * Gets `URI` of a prompt file open in an active editor instance, if any.
  */

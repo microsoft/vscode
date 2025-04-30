@@ -143,7 +143,6 @@ export class PromptFilePickers {
 	 * the resource pre-selected in the prompts list.
 	 */
 	public async selectInstructionsFiles(options: ISelectOptions): Promise<undefined> {
-
 		const fileOptions = this._createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_INSTRUCTIONS_FILE_OPTION);
 
@@ -217,9 +216,8 @@ export class PromptFilePickers {
 	 * If {@link ISelectOptions.resource resource} is provided, the dialog will have
 	 * the resource pre-selected in the prompts list.
 	 */
-	// TODO: @legomushroom - fix this one?
+	// TODO: @legomushroom - use the same logic for this one?
 	public async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
-
 		const fileOptions = this._createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_PROMPT_FILE_OPTION);
 
