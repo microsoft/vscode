@@ -15,6 +15,7 @@ import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
@@ -113,7 +114,22 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Event that is fired when the current prompt parser is settled.
 	 */
-	public readonly onSettled = this._onSettled.event;
+	public onSettled(
+		callback: (error?: Error) => void,
+	): IDisposable {
+		const disposable = this._onSettled.event(callback);
+		const streamEnded = (this.stream?.ended && (this.stream.disposed === false));
+
+		// if already in the error state or stream has already ended,
+		// invoke the callback immediately but asynchronously
+		if (streamEnded || this.errorCondition) {
+			setTimeout(callback.bind(undefined, this.errorCondition));
+
+			return disposable;
+		}
+
+		return disposable;
+	}
 
 	/**
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
@@ -306,7 +322,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			this._errorCondition = streamOrError;
 			this._onUpdate.fire();
 
-			// fire the 'onSettled' event immediately
+			// when error received fire the 'onSettled' event immediately
 			this._onSettled.fire(streamOrError);
 
 			return;

@@ -345,13 +345,15 @@ export abstract class BaseDecoder<
 	}
 
 	public override dispose(): void {
+		this.settledPromise.complete();
+
 		// remove all existing event listeners
 		this._listeners.clearAndDisposeAll();
 		this.stream.removeListener('data', this.tryOnStreamData);
 		this.stream.removeListener('error', this.onStreamError);
 		this.stream.removeListener('end', this.onStreamEnd);
-		this.stream.destroy();
 
+		this.stream.destroy();
 		super.dispose();
 	}
 }
