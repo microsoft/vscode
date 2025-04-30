@@ -77,7 +77,6 @@ const showChat = async (
 	const { commandService, viewsService } = options;
 
 	if (createNew === true) {
-		// TODO: @legomushroom - prevent focus somehow?
 		await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 	}
 

@@ -103,14 +103,21 @@ class AttachInstructionsAction extends Action2 {
 		}
 
 		// find all prompt files in the user workspace
-		const instructionFiles = await promptsService.listPromptFiles('instructions');
+		const promptFiles = await promptsService.listPromptFiles('instructions');
 		const placeholder = localize(
 			'commands.instructions.select-dialog.placeholder',
 			'Select instructions files to attach',
 		);
 
-		// TODO: @legomushroom - use the options.widget reference?
-		await pickers.selectInstructionsFiles({ promptFiles: instructionFiles, placeholder });
+		const instructions = await pickers.selectInstructionsFiles({ promptFiles, placeholder });
+
+		if (instructions !== undefined) {
+			const widget = await attachInstructionsFiles(
+				instructions,
+				attachOptions,
+			);
+			widget.focusInput();
+		}
 	}
 }
 
