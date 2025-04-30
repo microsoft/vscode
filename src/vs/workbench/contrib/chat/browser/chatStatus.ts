@@ -258,6 +258,19 @@ interface ISettingsAccessor {
 	writeSetting: (value: boolean) => Promise<void>;
 }
 
+type ChatSettingChangedClassification = {
+	owner: 'bpasero';
+	comment: 'Provides insight into chat settings changed from the chat status entry.';
+	settingIdentifier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the setting that changed.' };
+	settingMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The optional editor language for which the setting changed.' };
+	settingEnablement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting got enabled or disabled.' };
+};
+type ChatSettingChangedEvent = {
+	settingIdentifier: string;
+	settingMode?: string;
+	settingEnablement: 'enabled' | 'disabled';
+};
+
 class ChatStatusDashboard extends Disposable {
 
 	private readonly element = $('div.chat-status-bar-entry-tooltip');
@@ -596,6 +609,12 @@ class ChatStatusDashboard extends Disposable {
 		return {
 			readSetting: () => isCompletionsEnabled(this.configurationService, modeId),
 			writeSetting: (value: boolean) => {
+				this.telemetryService.publicLog2<ChatSettingChangedEvent, ChatSettingChangedClassification>('chatStatus.settingChanged', {
+					settingIdentifier: settingId,
+					settingMode: modeId,
+					settingEnablement: value ? 'enabled' : 'disabled'
+				});
+
 				let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
 				if (!isObject(result)) {
 					result = Object.create(null);
@@ -613,7 +632,14 @@ class ChatStatusDashboard extends Disposable {
 
 		const checkbox = this.createSetting(container, [nesSettingId, completionsSettingId], label, {
 			readSetting: () => completionsSettingAccessor.readSetting() && this.textResourceConfigurationService.getValue<boolean>(resource, nesSettingId),
-			writeSetting: (value: boolean) => this.textResourceConfigurationService.updateValue(resource, nesSettingId, value)
+			writeSetting: (value: boolean) => {
+				this.telemetryService.publicLog2<ChatSettingChangedEvent, ChatSettingChangedClassification>('chatStatus.settingChanged', {
+					settingIdentifier: nesSettingId,
+					settingEnablement: value ? 'enabled' : 'disabled'
+				});
+
+				return this.textResourceConfigurationService.updateValue(resource, nesSettingId, value);
+			}
 		}, disposables);
 
 		// enablement of NES depends on completions setting

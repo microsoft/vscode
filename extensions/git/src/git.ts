@@ -3008,8 +3008,8 @@ export class Repository {
 			return relativePath;
 		}
 
-		// Fallback to the original path
-		filePath = sanitizeRelativePath(filePath);
+		// Fallback to relative()
+		filePath = sanitizeRelativePath(path.relative(this.repositoryRoot, filePath));
 		this.logger.trace(`[Git][sanitizeRelativePath] relativePath (fallback): ${filePath}`);
 		return filePath;
 	}

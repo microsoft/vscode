@@ -272,7 +272,7 @@
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
-	margin: 8px 8px 8px 0;
+	margin: 8px 8px 8px 1px;
 	padding: 3px 6px 6px;
 	text-align: left;
 }
@@ -694,7 +694,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline-offset: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
@@ -1057,13 +1057,16 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .category-header {
 	grid-area: header;
 	text-align: left;
-	align-self: end;
+	align-self: center;
 }
 
 /* Steps container - takes most of the space */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent > .steps-container {
+	display: flex;
 	flex: 1;
 	flex-direction: column;
+	justify-content: center;
+	align-self: center;
 }
 
 /* Hide the default media container */
@@ -1074,6 +1077,7 @@
 /* Getting Started Steps Container */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .getting-started-steps-container {
 	max-width: 1000px;
+	max-height: 800px;
 	margin: 0 auto;
 	display: grid;
 	padding-left: 10%;
@@ -1123,8 +1127,6 @@
 	max-width: 1200px;
 	width: 100%;
 	height: 100%;
-	gap: 60px;
-	/* Increased from 40px */
 }
 
 /* Left column - text content only */
@@ -1146,16 +1148,14 @@
 	justify-content: center;
 	min-height: 300px;
 	height: 100%;
+	width: 80%;
 }
 
 /* Navigation buttons in dots container for newSlide scenario */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container {
 	width: 75%;
-	/* Increased from 60% */
 	max-width: 900px;
-	/* Increased from 600px */
 	margin: 12px auto;
-	/* Increased from 8px */
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -1254,7 +1254,6 @@
 	text-align: center;
 	flex-direction: column;
 	align-items: center;
-	border-top: 1px solid var(--vscode-welcomePage-tileBorder);
 }
 
 /* Step title styling */
@@ -1372,17 +1371,13 @@
 	cursor: pointer;
 	transition: background-color 0.1s ease;
 	border-left: 3px solid transparent;
+	width: 80%;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step-title {
 	font-size: 20px;
-	line-height: 24px;;
+	line-height: 24px;
 	margin: 0;
-	padding: 16px 0 4px 16px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step-description {
-	padding: 0 0 0 16px
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step.active {
