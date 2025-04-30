@@ -45,16 +45,15 @@ export class PromptDecorator extends ProviderInstanceBase {
 		this.watchCursorPosition();
 	}
 
-	protected override async onPromptParserUpdate(): Promise<this> {
-		await this.parser.allSettled();
-
+	protected override async onPromptSettled(
+		_error?: Error,
+	): Promise<this> {
 		// by the time the promise above completes, either this object
 		// or the text model might be already has been disposed
 		if (this.disposed || this.model.isDisposed()) {
 			return this;
 		}
 
-		this.removeAllDecorations();
 		this.addDecorations();
 
 		return this;
@@ -127,10 +126,12 @@ export class PromptDecorator extends ProviderInstanceBase {
 		this.model.changeDecorations((accessor) => {
 			const { tokens } = this.parser;
 
-			if (tokens.length === 0) {
-				return;
+			// remove all existing decorations
+			for (const decoration of this.decorations.splice(0)) {
+				decoration.remove(accessor);
 			}
 
+			// then add new decorations based on the current tokens
 			for (const token of tokens) {
 				for (const Decoration of SUPPORTED_DECORATIONS) {
 					if (Decoration.handles(token) === false) {
@@ -157,11 +158,9 @@ export class PromptDecorator extends ProviderInstanceBase {
 		}
 
 		this.model.changeDecorations((accessor) => {
-			for (const decoration of this.decorations) {
+			for (const decoration of this.decorations.splice(0)) {
 				decoration.remove(accessor);
 			}
-
-			this.decorations.splice(0);
 		});
 
 		return this;
@@ -173,7 +172,6 @@ export class PromptDecorator extends ProviderInstanceBase {
 		}
 
 		this.removeAllDecorations();
-
 		super.dispose();
 	}
 

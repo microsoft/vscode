@@ -878,7 +878,7 @@ class ToolCompletions extends Disposable {
 							range,
 							detail,
 							insertText: withLeader + ' ',
-							documentation: t.userDescription,
+							documentation: t.userDescription ?? t.modelDescription,
 							kind: CompletionItemKind.Text,
 							sortText: 'z'
 						};

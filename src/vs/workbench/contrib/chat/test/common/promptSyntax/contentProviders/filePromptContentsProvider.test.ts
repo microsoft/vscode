@@ -9,10 +9,11 @@ import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { randomBoolean, wait } from '../../../../../../../base/test/common/testUtils.js';
 import { ReadableStream } from '../../../../../../../base/common/stream.js';
+import { NotPromptFile } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { randomBoolean, wait } from '../../../../../../../base/test/common/testUtils.js';
 import { NullPolicyService } from '../../../../../../../platform/policy/common/policy.js';
 import { Line } from '../../../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -23,7 +24,6 @@ import { ConfigurationService } from '../../../../../../../platform/configuratio
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FilePromptContentProvider } from '../../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NotPromptFile } from '../../../../common/promptFileReferenceErrors.js';
 
 suite('FilePromptContentsProvider', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();

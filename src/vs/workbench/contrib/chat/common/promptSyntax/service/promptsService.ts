@@ -14,6 +14,7 @@ import { match } from '../../../../../../base/common/glob.js';
 import { pick } from '../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -199,17 +200,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 
 			// match each attached file with each glob pattern and
-			// add the instructions file its rule matches the file
+			// add the instructions file if its rule matches the file
 			for (const file of files) {
 				if (match(applyTo, file.fsPath)) {
 					result.push(uri);
-
-					continue;
 				}
 			}
 		}
 
-		return [...new Set(result)];
+		return [...new ResourceSet(result)];
 	}
 
 	public async getAllMetadata(

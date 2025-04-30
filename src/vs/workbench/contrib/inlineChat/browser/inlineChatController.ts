@@ -1085,6 +1085,8 @@ export class InlineChatController1 implements IEditorContribution {
 					// fully or partially applied edits
 					someApplied = someApplied || Boolean(part.state?.applied);
 					lastEdit = part;
+					part.edits = [];
+					part.state = undefined;
 				}
 			}
 		}
@@ -1094,7 +1096,6 @@ export class InlineChatController1 implements IEditorContribution {
 		if (someApplied) {
 			assertType(lastEdit);
 			lastEdit.edits = [doEdits];
-			lastEdit.state!.applied = 0;
 		}
 
 		await this._instaService.invokeFunction(moveToPanelChat, this._session?.chatModel);

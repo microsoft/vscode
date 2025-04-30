@@ -36,6 +36,15 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
+.chat-confirmation-widget .chat-confirmation-widget-title-inner  {
+	flex-grow: 1;
+	flex-basis: 0;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title-icon  {
+	line-height: 0;
+}
+
 .chat-confirmation-widget .chat-confirmation-widget-title p,
 .chat-confirmation-widget .chat-confirmation-widget-title .rendered-markdown {
 	display: inline;
