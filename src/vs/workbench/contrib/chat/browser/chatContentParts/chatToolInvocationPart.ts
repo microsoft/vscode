@@ -34,7 +34,7 @@ import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../chat.js';
 import { getAttachableImageExtension } from '../chatAttachmentResolve.js';
 import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
@@ -149,6 +149,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMarkerService private readonly markerService: IMarkerService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -382,6 +383,8 @@ class ChatToolInvocationSubPart extends Disposable {
 					toolInvocation.confirmed.complete(false);
 					break;
 			}
+
+			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
@@ -475,6 +478,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
 		this._register(confirmWidget.onDidClick(button => {
 			toolInvocation.confirmed.complete(button.data);
+			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		toolInvocation.confirmed.p.then(() => {
