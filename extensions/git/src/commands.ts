@@ -12,7 +12,7 @@ import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSou
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
@@ -2012,15 +2012,8 @@ export class CommandCenter {
 
 		if (modifiedUri.scheme === 'file') {
 			// Editor
-			const changes = indexLineChanges
-				.filter(c => !selectedDiffs.some(d =>
-					d.originalStartLineNumber === c.originalStartLineNumber &&
-					d.originalEndLineNumber === c.originalEndLineNumber &&
-					d.modifiedStartLineNumber === c.modifiedStartLineNumber &&
-					d.modifiedEndLineNumber === c.modifiedEndLineNumber));
-
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(changes)}`);
-			await this._unstageChanges(textEditor, changes);
+			this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(selectedDiffs)}`);
+			await this._unstageChanges(textEditor, selectedDiffs);
 			return;
 		}
 
@@ -2064,8 +2057,7 @@ export class CommandCenter {
 			return;
 		}
 
-		changes.splice(index, 1);
-		await this._unstageChanges(textEditor, changes);
+		await this._unstageChanges(textEditor, [changes[index]]);
 	}
 
 	private async _unstageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
@@ -2076,9 +2068,23 @@ export class CommandCenter {
 			return;
 		}
 
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (!workingTreeDiffInformation) {
+			return;
+		}
+
+		// Approach to unstage change(s):
+		// - use file on disk as original document
+		// - revert all changes from the working tree
+		// - revert the specify change(s) from the index
+		const workingTreeDiffs = toLineChanges(workingTreeDiffInformation);
+		const workingTreeDiffsInverted = workingTreeDiffs.map(invertLineChange);
+		const changesInverted = changes.map(invertLineChange);
+		const diffsInverted = [...changesInverted, ...workingTreeDiffsInverted].sort(compareLineChanges);
+
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+		const result = applyLineChanges(modifiedDocument, originalDocument, diffsInverted);
 
 		await this.runByRepository(modifiedUri, async (repository, resource) =>
 			await repository.stage(resource, result, modifiedDocument.encoding));
