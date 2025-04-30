@@ -697,6 +697,11 @@
 	outline-offset: 0;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .step-list-container button:focus-visible {
+	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+	outline: none;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
 	position: absolute;
 	left: 40px;
@@ -1094,6 +1099,12 @@
 	/* Center vertically in parent */
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .getting-started-steps-container,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .getting-started-steps-container {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 {
 	font-size: 40px;
 }
@@ -1106,6 +1117,8 @@
 	flex: 1;
 	width: 100%;
 	transition: transform 0.6s ease;
+	padding-top: 16px;
+	padding-bottom: 16px;
 }
 
 /* Individual slide styling */
@@ -1276,32 +1289,19 @@
 /* Buttons in description */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container .monaco-button {
 	height: 36px;
-	/* Increased from 24px */
 	padding: 0 16px;
-	/* Increased from 0 11px */
 	font-size: 15px;
-	/* Increased from default */
 }
 
 /* Multi-step container buttons */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
 	height: 36px;
-	/* Increased from 24px */
 	padding: 0 16px;
-	/* Increased from 0 11px */
 	font-size: 16px;
-	/* Increased from default */
 }
 
 /* Responsive design - stack on smaller screens */
 @media (max-width: 900px) {
-	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide-content {
-		grid-template-columns: 1fr;
-		grid-template-areas:
-			"text"
-			"media";
-		gap: 24px;
-	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-text-content {
 		padding-right: 0;
@@ -1390,8 +1390,13 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container {
-	margin-top: 50px;
+	margin-top: 2rem;
 	margin-left: 16px
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .multi-step-container .button-container,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .multi-step-container .button-container {
+	margin-top: 1rem;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
