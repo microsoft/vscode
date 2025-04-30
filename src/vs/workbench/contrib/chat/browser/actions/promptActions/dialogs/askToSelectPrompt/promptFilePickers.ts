@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// TODO: @legomushroom
+import { IChatWidget } from '../../../../chat.js';
 import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { OS } from '../../../../../../../../base/common/platform.js';
+import { pick } from '../../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
+import { attachInstructionsFiles } from './utils/attachInstructions.js';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
@@ -18,16 +20,13 @@ import { IFileService } from '../../../../../../../../platform/files/common/file
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
 import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
+import { IViewsService } from '../../../../../../../services/views/common/viewsService.js';
 import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName } from '../../../../../../../../platform/prompts/common/constants.js';
 import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID } from '../../../../promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
-import { attachInstructionsFiles } from './utils/attachInstructions.js';
-import { IChatWidget } from '../../../../chat.js';
-import { IViewsService } from '../../../../../../../services/views/common/viewsService.js';
-import { pick } from '../../../../../../../../base/common/arrays.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -50,6 +49,11 @@ export interface ISelectOptions {
 	 * List of prompt files to show in the selection dialog.
 	 */
 	readonly promptFiles: readonly IPromptPath[];
+
+	/**
+	 * Optional chat widget reference to attach files to.
+	 */
+	readonly widget?: IChatWidget;
 }
 
 export interface ISelectPromptResult {
@@ -126,7 +130,6 @@ const DELETE_BUTTON: IQuickInputButton = Object.freeze({
 
 export class PromptFilePickers {
 	constructor(
-		// TODO: @legomushroom - cleanup the names
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -216,7 +219,6 @@ export class PromptFilePickers {
 	 * If {@link ISelectOptions.resource resource} is provided, the dialog will have
 	 * the resource pre-selected in the prompts list.
 	 */
-	// TODO: @legomushroom - use the same logic for this one?
 	public async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
 		const fileOptions = this._createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_PROMPT_FILE_OPTION);
@@ -261,7 +263,6 @@ export class PromptFilePickers {
 					isResolved = true;
 				}
 
-				// TODO: @legomushroom
 				// if user submitted their selection, close the dialog
 				if (!event.inBackground) {
 					disposables.dispose();
