@@ -1323,6 +1323,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0.8;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label {
+	gap: 4px;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
 	height: 16px;
 	padding: 0;
