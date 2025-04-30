@@ -1458,6 +1458,14 @@ export class GettingStartedPage extends EditorPane {
 
 			// Update the selected step and build its media
 			this.selectSlide(steps[newIndex].id);
+
+			// update footer visibility
+			const footer = this.stepsContent.querySelector('.getting-started-footer') as HTMLElement;
+			if (footer && newIndex !== 0) {
+				footer.style.display = 'none';
+			} else if (footer) {
+				footer.style.display = 'block';
+			}
 		}
 	}
 
