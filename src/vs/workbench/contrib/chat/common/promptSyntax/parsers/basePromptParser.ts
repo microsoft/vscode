@@ -4,30 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TopError } from './topError.js';
+import { ChatMode } from '../../constants.js';
+import { PromptHeader } from './promptHeader/header.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
+import * as path from '../../../../../../base/common/path.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
-import { IPromptReference, IResolveError, ITopError } from './types.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
-import { assert, assertNever } from '../../../../../../base/common/assert.js';
-import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { basename, dirname } from '../../../../../../base/common/resources.js';
+import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
-import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IPromptMetadata, IPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
+import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
+import { IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
+
+/**
+ * Options of the {@link BasePromptParser} class.
+ */
+export interface IPromptParserOptions extends IPromptContentsProviderOptions {
+	/**
+	 * List of reference paths have been already seen before
+	 * getting to the current prompt. Used to prevent infinite
+	 * recursion in prompt file references.
+	 */
+	readonly seenReferences: readonly string[];
+}
+
+/**
+ * Default {@link IPromptContentsProviderOptions} options.
+ */
+const DEFAULT_OPTIONS: IPromptParserOptions = {
+	...CONTENTS_PROVIDER_DEFAULT_OPTIONS,
+	seenReferences: [],
+};
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -39,6 +64,12 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
 export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
+	/**
+	 * Options passed to the constructor, extended with
+	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 */
+	protected readonly options: IPromptParserOptions;
+
 	/**
 	 * List of all tokens that were parsed from the prompt contents so far.
 	 */
@@ -54,6 +85,20 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * List of file references in the current branch of the file reference tree.
 	 */
 	private readonly _references: IPromptReference[] = [];
+
+	/**
+	 * Reference to the prompt header object that holds metadata associated
+	 * with the prompt.
+	 */
+	private promptHeader?: PromptHeader;
+
+	/**
+	 * Reference to the prompt header object that holds metadata associated
+	 * with the prompt.
+	 */
+	public get header(): PromptHeader | undefined {
+		return this.promptHeader;
+	}
 
 	/**
 	 * The event is fired when lines or their content change.
@@ -123,12 +168,23 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return this;
 		}
 
+		// by the time when the `firstParseResult` promise is resolved,
+		// this object may have been already disposed, hence noop
+		if (this.disposed) {
+			return this;
+		}
+
 		assertDefined(
 			this.stream,
 			'No stream reference found.',
 		);
 
 		await this.stream.settled;
+
+		// if prompt header exists, also wait for it to be settled
+		if (this.promptHeader) {
+			await this.promptHeader.settled;
+		}
 
 		return this;
 	}
@@ -151,14 +207,21 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 	constructor(
 		private readonly promptContentsProvider: TContentsProvider,
-		seenReferences: string[] = [],
+		options: Partial<IPromptParserOptions>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 
+		this.options = {
+			...DEFAULT_OPTIONS,
+			...options,
+		};
+
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
+
+		const seenReferences = [...this.options.seenReferences];
 
 		// to prevent infinite file recursion, we keep track of all references in
 		// the current branch of the file reference tree and check if the current
@@ -221,6 +284,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		delete this._errorCondition;
 		this.receivedTokens = [];
 
+		// cleanup current prompt header object
+		this.promptHeader?.dispose();
+		delete this.promptHeader;
+
 		// dispose all currently existing references
 		this.disposeReferences();
 
@@ -244,6 +311,16 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			// store all markdown and prompt token references
 			if ((token instanceof MarkdownToken) || (token instanceof PromptToken)) {
 				this.receivedTokens.push(token);
+			}
+
+			// if a prompt header token received, create a new prompt header instance
+			if (token instanceof FrontMatterHeader) {
+				this.promptHeader = new PromptHeader(
+					token.contentToken,
+					this.promptContentsProvider.languageId,
+				).start();
+
+				return;
 			}
 
 			// try to convert a prompt variable with data token into a file reference
@@ -284,14 +361,14 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	): this {
 		const { parentFolder } = this;
 
-		const referenceUri = (parentFolder !== null)
-			? extUri.resolvePath(parentFolder, token.path)
+		const referenceUri = ((parentFolder !== null) && (path.isAbsolute(token.path) === false))
+			? URI.joinPath(parentFolder, token.path)
 			: URI.file(token.path);
 
 		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
 
 		const reference = this.instantiationService
-			.createInstance(PromptReference, contentProvider, token, seenReferences);
+			.createInstance(PromptReference, contentProvider, token, { seenReferences });
 
 		// the content provider is exclusively owned by the reference
 		// hence dispose it when the reference is disposed
@@ -454,6 +531,79 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
+	 * Valid metadata records defined in the prompt header.
+	 */
+	public get metadata(): IPromptMetadata {
+		if (this.header === undefined) {
+			return {};
+		}
+
+		const { metadata } = this.header;
+		if (metadata === undefined) {
+			return {};
+		}
+
+		const { tools, mode, description, applyTo } = metadata;
+
+		// compute resulting mode based on presence
+		// of `tools` metadata in the prompt header
+		const resultingMode = (tools !== undefined)
+			? ChatMode.Agent
+			: mode?.chatMode;
+
+		return {
+			mode: resultingMode,
+			description: description?.text,
+			tools: tools?.toolNames,
+			applyTo: applyTo?.text,
+		};
+	}
+
+	/**
+	 * Entire associated `tools` metadata for this reference and
+	 * all possible nested child references.
+	 */
+	public get allToolsMetadata(): readonly string[] | null {
+		let hasTools = false;
+		const result: string[] = [];
+
+		const { tools, mode } = this.metadata;
+
+		if (tools !== undefined) {
+			result.push(...tools);
+			hasTools = true;
+		}
+
+		const isRootInAgentMode = ((hasTools === true) || (mode === ChatMode.Agent));
+
+		// the top-level mode defines the overall mode for all
+		// nested prompt references, therefore if mode of
+		// the top-level prompt is not equal to `agent`, then
+		// ignore all `tools` metadata of the nested references
+		if (isRootInAgentMode === false) {
+			return null;
+		}
+
+		for (const reference of this.references) {
+			const { allToolsMetadata } = reference;
+
+			if (allToolsMetadata === null) {
+				continue;
+			}
+
+			result.push(...allToolsMetadata);
+			hasTools = true;
+		}
+
+		if (hasTools === false) {
+			return null;
+		}
+
+		// return unique list of tools
+		return [...new Set(result)];
+	}
+
+	/**
 	 * Get list of errors for the direct links of the current reference.
 	 */
 	public get errors(): readonly ResolveError[] {
@@ -553,7 +703,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Check if the current reference points to a prompt snippet file.
 	 */
 	public get isPromptFile(): boolean {
-		return isPromptFile(this.uri);
+		return isPromptOrInstructionsFile(this.uri);
 	}
 
 	/**
@@ -572,8 +722,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		this.disposeReferences();
+
 		this.stream?.dispose();
-		this._onUpdate.fire();
+		delete this.stream;
+
+		this.promptHeader?.dispose();
+		delete this.promptHeader;
 
 		super.dispose();
 	}
@@ -593,7 +747,7 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 	constructor(
 		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
-		seenReferences: string[] = [],
+		options: Partial<IPromptParserOptions> = {},
 		@IInstantiationService initService: IInstantiationService,
 	) {
 		super();
@@ -601,7 +755,7 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		this.parser = this._register(initService.createInstance(
 			BasePromptParser,
 			this.promptContentsProvider,
-			seenReferences,
+			options,
 		));
 	}
 
@@ -725,6 +879,14 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 
 	public get allReferences(): readonly IPromptReference[] {
 		return this.parser.allReferences;
+	}
+
+	public get metadata(): IPromptMetadata {
+		return this.parser.metadata;
+	}
+
+	public get allToolsMetadata(): readonly string[] | null {
+		return this.parser.allToolsMetadata;
 	}
 
 	public get allValidReferences(): readonly IPromptReference[] {

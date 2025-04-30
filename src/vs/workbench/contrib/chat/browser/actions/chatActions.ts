@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -21,7 +22,7 @@ import { SuggestController } from '../../../../../editor/contrib/suggest/browser
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Action2, ICommandPaletteOptions, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -50,11 +51,10 @@ import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatMode, validateChatMode } from '../../common/constants.js';
+import { ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
-import { ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -99,93 +99,141 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
-export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
+const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
+
+abstract class OpenChatGlobalAction extends Action2 {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatMode) {
+		super({
+			...overrides,
+			icon: Codicon.copilot,
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+		opts = typeof opts === 'string' ? { query: opts } : opts;
+
+		const chatService = accessor.get(IChatService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		const viewsService = accessor.get(IViewsService);
+		const hostService = accessor.get(IHostService);
+
+
+		let chatWidget = widgetService.lastFocusedWidget;
+		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
+		// Otherwise, open the view.
+		if (!this.mode || !chatWidget || !isAncestorOfActiveElement(chatWidget.domNode)) {
+			chatWidget = await showChatView(viewsService);
+		}
+
+		if (!chatWidget) {
+			return;
+		}
+
+		const mode = opts?.mode ?? this.mode;
+		if (mode && validateChatMode(mode)) {
+			chatWidget.input.setChatMode(mode);
+		}
+		if (opts?.previousRequests?.length && chatWidget.viewModel) {
+			for (const { request, response } of opts.previousRequests) {
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
+		}
+		if (opts?.attachScreenshot) {
+			const screenshot = await hostService.getScreenshot();
+			if (screenshot) {
+				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
+			}
+		}
+		if (opts?.query) {
+			if (opts.query.startsWith('@') && (chatWidget.input.currentMode === ChatMode.Agent || chatService.edits2Enabled)) {
+				chatWidget.input.setChatMode(ChatMode.Ask);
+			}
+			if (opts.isPartialQuery) {
+				chatWidget.setInput(opts.query);
+			} else {
+				await chatWidget.waitForReady();
+				chatWidget.acceptInput(opts.query);
+			}
+		}
+		if (opts?.toolIds && opts.toolIds.length > 0) {
+			for (const toolId of opts.toolIds) {
+				const tool = toolsService.getTool(toolId);
+				if (tool) {
+					chatWidget.attachmentModel.addContext({
+						id: tool.id,
+						name: tool.displayName,
+						fullName: tool.displayName,
+						value: undefined,
+						icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
+						kind: 'tool'
+					});
+				}
+			}
+		}
+
+		chatWidget.focusInput();
+	}
+}
+
+class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
+	constructor() {
+		super({
+			id: CHAT_OPEN_ACTION_ID,
+			title: localize2('openChat', "Open Chat"),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+				}
+			},
+			menu: [{
+				id: MenuId.ChatTitleBarMenu,
+				group: 'a_open',
+				order: 1
+			}]
+		});
+	}
+}
+
+export function getOpenChatActionIdForMode(mode: ChatMode): string {
+	const modeStr = modeToString(mode);
+	return `workbench.action.chat.open${modeStr}`;
+}
+
+abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
+	constructor(mode: ChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
+		super({
+			id: getOpenChatActionIdForMode(mode),
+			title: localize2('openChatMode', "Open Chat ({0})", modeToString(mode)),
+			keybinding
+		}, mode);
+	}
+}
 
 export function registerChatActions() {
-	registerAction2(class OpenChatGlobalAction extends Action2 {
-
+	registerAction2(PrimaryOpenChatGlobalAction);
+	registerAction2(class extends ModeOpenChatGlobalAction {
+		constructor() { super(ChatMode.Ask); }
+	});
+	registerAction2(class extends ModeOpenChatGlobalAction {
 		constructor() {
-			super({
-				id: CHAT_OPEN_ACTION_ID,
-				title: localize2('openChat', "Open Chat"),
-				icon: Codicon.copilot,
-				f1: true,
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.Setup.hidden.toNegated(),
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-					}
-				},
-				menu: [{
-					id: MenuId.ChatTitleBarMenu,
-					group: 'a_open',
-					order: 1
-				}, {
-					id: MenuId.ChatEditingEditorContent,
-					when: ContextKeyExpr.and(ctxHasRequestInProgress, ctxIsGlobalEditingSession),
-					group: 'navigate',
-					order: 4,
-				}]
-			});
+			super(ChatMode.Agent, {
+				when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+				}
+			},);
 		}
-
-		override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
-			opts = typeof opts === 'string' ? { query: opts } : opts;
-
-			const chatService = accessor.get(IChatService);
-			const toolsService = accessor.get(ILanguageModelToolsService);
-			const viewsService = accessor.get(IViewsService);
-			const hostService = accessor.get(IHostService);
-
-			const chatWidget = await showChatView(viewsService);
-			if (!chatWidget) {
-				return;
-			}
-			if (opts?.mode && validateChatMode(opts.mode)) {
-				chatWidget.input.setChatMode(opts.mode);
-			}
-			if (opts?.previousRequests?.length && chatWidget.viewModel) {
-				for (const { request, response } of opts.previousRequests) {
-					chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
-				}
-			}
-			if (opts?.attachScreenshot) {
-				const screenshot = await hostService.getScreenshot();
-				if (screenshot) {
-					chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
-				}
-			}
-			if (opts?.query) {
-				if (opts.query.startsWith('@') && (chatWidget.input.currentMode === ChatMode.Agent || chatService.edits2Enabled)) {
-					chatWidget.input.setChatMode(ChatMode.Ask);
-				}
-				if (opts.isPartialQuery) {
-					chatWidget.setInput(opts.query);
-				} else {
-					chatWidget.acceptInput(opts.query);
-				}
-			}
-			if (opts?.toolIds && opts.toolIds.length > 0) {
-				for (const toolId of opts.toolIds) {
-					const tool = toolsService.getTool(toolId);
-					if (tool) {
-						chatWidget.attachmentModel.addContext({
-							id: tool.id,
-							name: tool.displayName,
-							fullName: tool.displayName,
-							value: undefined,
-							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
-							kind: 'tool'
-						});
-					}
-				}
-			}
-
-			chatWidget.focusInput();
-		}
+	});
+	registerAction2(class extends ModeOpenChatGlobalAction {
+		constructor() { super(ChatMode.Edit); }
 	});
 
 	registerAction2(class ToggleChatAction extends Action2 {
@@ -607,12 +655,12 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class ShowLimitReachedDialogAction extends Action2 {
+	registerAction2(class ShowQuotaExceededDialogAction extends Action2 {
 
 		constructor() {
 			super({
 				id: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
-				title: localize('upgradeChat', "Upgrade to Copilot Pro")
+				title: localize('upgradeChat', "Upgrade Copilot Plan")
 			});
 		}
 
@@ -622,30 +670,36 @@ export function registerChatActions() {
 			const dialogService = accessor.get(IDialogService);
 			const telemetryService = accessor.get(ITelemetryService);
 
-			const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
-
 			let message: string;
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
+			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
+			const completionsQuotaExceeded = chatEntitlementService.quotas.completions?.percentRemaining === 0;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
+				message = localize('chatQuotaExceeded', "You've reached your monthly chat messages quota. You still have free code completions available.");
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
+				message = localize('completionsQuotaExceeded', "You've reached your monthly code completions quota. You still have free chat messages available.");
 			} else {
-				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
+				message = localize('chatAndCompletionsQuotaExceeded', "You've reached your monthly chat messages and code completions quota.");
 			}
 
-			const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to additional models");
+			if (chatEntitlementService.quotas.resetDate) {
+				const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
+				const quotaResetDate = new Date(chatEntitlementService.quotas.resetDate);
+				message = [message, localize('quotaResetDate', "The allowance will reset on {0}.", dateFormatter.format(quotaResetDate))].join(' ');
+			}
+
+			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
+			const upgradeToPro = limited ? localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to premium models") : undefined;
 
 			await dialogService.prompt({
 				type: 'none',
-				message: localize('copilotFree', "Copilot Limit Reached"),
+				message: localize('copilotQuotaReached', "Copilot Quota Reached"),
 				cancelButton: {
 					label: localize('dismiss', "Dismiss"),
 					run: () => { /* noop */ }
 				},
 				buttons: [
 					{
-						label: localize('upgradePro', "Upgrade to Copilot Pro"),
+						label: limited ? localize('upgradePro', "Upgrade to Copilot Pro") : localize('upgradePlan', "Upgrade Copilot Plan"),
 						run: () => {
 							const commandId = 'workbench.action.chat.upgradePlan';
 							telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-dialog' });
@@ -655,10 +709,10 @@ export function registerChatActions() {
 				],
 				custom: {
 					icon: Codicon.copilotWarningLarge,
-					markdownDetails: [
+					markdownDetails: coalesce([
 						{ markdown: new MarkdownString(message, true) },
-						{ markdown: new MarkdownString(upgradeToPro, true) }
-					]
+						upgradeToPro ? { markdown: new MarkdownString(upgradeToPro, true) } : undefined
+					])
 				}
 			});
 		}
@@ -692,7 +746,10 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
-		ChatContextKeys.Setup.hidden.negate(),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled')
 	),
 	order: 10001 // to the right of command center
@@ -706,7 +763,10 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
-		ChatContextKeys.Setup.hidden.negate(),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
@@ -720,8 +780,11 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControl', 'Copilot Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 5,
 			ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.toNegated(),
-				IsCompactTitleBarContext.toNegated(),
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabled.negate()
+				),
+				IsCompactTitleBarContext.negate(),
 				ChatContextKeys.supported
 			)
 		);
@@ -766,8 +829,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			});
 
 			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
+			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
 
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
@@ -777,15 +841,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
 					primaryActionIcon = Codicon.copilotNotConnected;
-				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
+				} else if (chatQuotaExceeded && limited) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					if (chatQuotaExceeded && !completionsQuotaExceeded) {
-						primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-						primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
-					} else {
-						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
-					}
+					primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages quota reached. Click for details.");
 					primaryActionIcon = Codicon.copilotWarning;
 				}
 			}

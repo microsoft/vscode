@@ -5,11 +5,11 @@
 
 import { Dash } from '../../simpleCodec/tokens/dash.js';
 import { NewLine } from '../../linesCodec/tokens/newLine.js';
+import { FrontMatterHeader } from '../tokens/frontMatterHeader.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
-import { FrontMatterHeader } from '../tokens/frontMatterHeader.js';
 import { FrontMatterMarker, TMarkerToken } from '../tokens/frontMatterMarker.js';
 import { assertNotConsumed, IAcceptTokenSuccess, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
@@ -126,7 +126,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	 * Note! that this method marks the current parser object as "consumed"
 	 *       hence it should not be used after this method is called.
 	 */
-	public asFrontMatterHeader(): FrontMatterHeader | null {
+	public asFrontMatterHeader(): FrontMatterHeader {
 		assertDefined(
 			this.maybeEndMarker,
 			'Cannot convert to Front Matter header token without an end marker.',

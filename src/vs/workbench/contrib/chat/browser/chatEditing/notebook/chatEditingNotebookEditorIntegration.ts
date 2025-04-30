@@ -15,6 +15,7 @@ import { localize } from '../../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
@@ -81,8 +82,8 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	rejectNearestChange(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		return this.integration.rejectNearestChange(change);
 	}
-	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
-		return this.integration.toggleDiff(change);
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined, show?: boolean): Promise<void> {
+		return this.integration.toggleDiff(change, show);
 	}
 
 	public override dispose(): void {
@@ -120,6 +121,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -186,6 +188,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 
 			this.changeIndexComputer = new PrefixSumComputer(new Uint32Array(indexes));
+			if (this.changeIndexComputer.getTotalSum() === 0) {
+				this.revertMarkupCellState();
+			}
 		}));
 
 		// Build cell integrations (responsible for navigating changes within a cell and decorating cell text changes)
@@ -247,7 +252,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					}
 				} else {
 					const diff2 = observableValue(`diff${cell.handle}`, diff);
-					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
+					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2, true);
 					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
 					this._register(integration);
 					this._register(editor.onDidDispose(() => {
@@ -283,10 +288,18 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const modifiedChanges = changes.filter(c => c.type === 'modified');
 
 			this.createDecorators();
-			this.insertedCellDecorator?.apply(changes);
-			this.modifiedCellDecorator?.apply(modifiedChanges);
-			this.deletedCellDecorator?.apply(changes, originalModel);
-			this.overlayToolbarDecorator?.decorate(changes.filter(c => c.type === 'insert' || c.type === 'modified'));
+			// If all cells are just inserts, then no need to show any decorations.
+			if (changes.every(c => c.type === 'insert')) {
+				this.insertedCellDecorator?.apply([]);
+				this.modifiedCellDecorator?.apply([]);
+				this.deletedCellDecorator?.apply([], originalModel);
+				this.overlayToolbarDecorator?.decorate([]);
+			} else {
+				this.insertedCellDecorator?.apply(changes);
+				this.modifiedCellDecorator?.apply(modifiedChanges);
+				this.deletedCellDecorator?.apply(changes, originalModel);
+				this.overlayToolbarDecorator?.decorate(changes.filter(c => c.type === 'insert' || c.type === 'modified'));
+			}
 		}));
 	}
 
@@ -390,7 +403,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					const cellViewModel = this.getCellViewModel(change);
 					if (cellViewModel) {
 						this.updateCurrentIndex(change, indexInCell);
-						this.revealChangeInView(cellViewModel, textChange?.modified, change);
+						this.revealChangeInView(cellViewModel, textChange?.modified, change)
+							.catch(err => { this.logService.warn(`Error revealing change in view: ${err}`); });
 						return true;
 					}
 					break;
@@ -418,15 +432,26 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	private async revealChangeInView(cell: ICellViewModel, lines: LineRange | undefined, change: ICellDiffInfo): Promise<void> {
 		const targetLines = lines ?? new LineRange(0, 0);
-		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
+		if (change.type === 'modified' && cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
 			cell.updateEditState(CellEditState.Editing, 'chatEditNavigation');
 		}
 
-		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: targetLines.startLineNumber });
+		const focusTarget = cell.cellKind === CellKind.Code || change.type === 'modified' ? 'editor' : 'container';
+		await this.notebookEditor.focusNotebookCell(cell, focusTarget, { focusEditorLine: targetLines.startLineNumber });
 		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(targetLines.startLineNumber, 0, targetLines.endLineNumberExclusive, 0));
 	}
 
-	blur(change: ICellDiffInfo | undefined) {
+	private revertMarkupCellState() {
+		for (const change of this.sortedCellChanges) {
+			const cellViewModel = this.getCellViewModel(change);
+			if (cellViewModel?.cellKind === CellKind.Markup && cellViewModel.getEditState() === CellEditState.Editing &&
+				(cellViewModel.editStateSource === 'chatEditNavigation' || cellViewModel.editStateSource === 'chatEdit')) {
+				cellViewModel.updateEditState(CellEditState.Preview, 'chatEdit');
+			}
+		}
+	}
+
+	private blur(change: ICellDiffInfo | undefined) {
 		if (!change) {
 			return;
 		}
@@ -618,15 +643,15 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		}
 
 	}
-	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined, _show?: boolean): Promise<void> {
 		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
-		const diffInput = {
-			original: { resource: this._entry.originalURI, options: { selection: undefined } },
-			modified: { resource: this._entry.modifiedURI, options: { selection: undefined } },
+		const diffInput: IResourceDiffEditorInput = {
+			original: { resource: this._entry.originalURI },
+			modified: { resource: this._entry.modifiedURI },
 			label: defaultAgentName
 				? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
 				: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
-		} satisfies IResourceDiffEditorInput;
+		};
 		await this._editorService.openEditor(diffInput);
 
 	}
@@ -698,7 +723,7 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 		await change.reject();
 		this.next(true);
 	}
-	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined, _show?: boolean): Promise<void> {
 		//
 	}
 }

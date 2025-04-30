@@ -15,6 +15,7 @@ import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 
 export class CellDiagnostics extends Disposable implements INotebookEditorContribution {
 
@@ -121,6 +122,11 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			disposables.push(toDisposable(() => this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [])));
 			cell.executionErrorDiagnostic.set(metadata.error, undefined);
 			disposables.push(toDisposable(() => cell.executionErrorDiagnostic.set(undefined, undefined)));
+			disposables.push(autorun((r) => {
+				if (!cell.executionErrorDiagnostic.read(r)) {
+					this.clear(cellHandle);
+				}
+			}));
 			disposables.push(cell.model.onDidChangeOutputs(() => {
 				if (cell.model.outputs.length === 0) {
 					this.clear(cellHandle);

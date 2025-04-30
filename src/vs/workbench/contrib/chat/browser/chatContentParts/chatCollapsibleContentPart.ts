@@ -8,17 +8,12 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
+import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { $ } from './chatReferencesContentPart.js';
-import { EditorPool } from './chatMarkdownContentPart.js';
-import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { IDisposableReference } from './chatCollections.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
@@ -108,77 +103,5 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	protected setExpanded(value: boolean): void {
 		this._isExpanded.set(value, undefined);
-	}
-}
-
-
-export class ChatCollapsibleEditorContentPart extends ChatCollapsibleContentPart {
-
-	private readonly _editorReference: IDisposableReference<CodeBlockPart>;
-	private readonly _contentDomNode: HTMLElement;
-
-	private _currentWidth: number = 0;
-
-	readonly codeblocks: IChatCodeBlockInfo[] = [];
-
-	constructor(
-		title: IMarkdownString | string,
-		context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
-		private readonly textModel: Promise<ITextModel>,
-		private readonly languageId: string,
-		private readonly options: ICodeBlockRenderOptions = {},
-		private readonly codeBlockInfo: IChatCodeBlockInfo,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-	) {
-		super(title, context);
-		this._contentDomNode = $('div.chat-collapsible-editor-content');
-		this._editorReference = this.editorPool.get();
-		this.codeblocks = [{
-			...codeBlockInfo,
-			focus: () => {
-				this._editorReference.object.focus();
-				codeBlockInfo.focus();
-			}
-		}];
-	}
-
-	override dispose(): void {
-		this._editorReference?.dispose();
-		super.dispose();
-	}
-
-	protected initContent(): HTMLElement {
-		const data: ICodeBlockData = {
-			languageId: this.languageId,
-			textModel: this.textModel,
-			codeBlockIndex: this.codeBlockInfo.codeBlockIndex,
-			codeBlockPartIndex: 0,
-			element: this.context.element,
-			parentContextKeyService: this.contextKeyService,
-			renderOptions: this.options
-		};
-
-		this._editorReference.object.render(data, this._currentWidth || 300);
-		this._register(this._editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
-		this._contentDomNode.appendChild(this._editorReference.object.element);
-
-		this._register(autorun(r => {
-			const value = this._isExpanded.read(r);
-			this._contentDomNode.style.display = value ? 'block' : 'none';
-		}));
-
-
-		return this._contentDomNode;
-	}
-
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		// For now, we consider content different unless it's exactly the same instance
-		return false;
-	}
-
-	layout(width: number): void {
-		this._currentWidth = width;
-		this._editorReference.object.layout(width);
 	}
 }

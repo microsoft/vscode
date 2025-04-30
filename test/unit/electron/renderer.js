@@ -372,7 +372,7 @@ function safeStringify(obj) {
 
 function isObject(obj) {
 	// The method can't do a type cast since there are type (like strings) which
-	// are subclasses of any put not positvely matched by the function. Hence type
+	// are subclasses of any put not positively matched by the function. Hence type
 	// narrowing results in wrong results.
 	return typeof obj === 'object'
 		&& obj !== null

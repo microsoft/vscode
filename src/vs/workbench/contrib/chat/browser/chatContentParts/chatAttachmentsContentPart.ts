@@ -39,10 +39,11 @@ import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/co
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { IChatRequestVariableEntry, INotebookOutputVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, OmittedState } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, INotebookOutputVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, OmittedState } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 import { convertUint8ArrayToString } from '../imageUtils.js';
 
@@ -67,6 +68,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -214,6 +216,23 @@ export class ChatAttachmentsContentPart extends Disposable {
 				const ref = attachment.references?.[0]?.reference;
 				const resource = ref && URI.isUri(ref) ? ref : undefined;
 				renderImageAttachment(ariaLabel, resource, resource?.toString() ?? '', attachment.value as Uint8Array);
+			} else if (isElementVariableEntry(attachment)) {
+				ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
+				widget.style.cursor = 'pointer';
+				const attachmentLabel = attachment.name;
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
+				label.setLabel(withIcon, undefined, { title: localize('chat.clickToViewContents', "Click to view the contents of: {0}", attachmentLabel) });
+
+				this._register(dom.addDisposableListener(widget, dom.EventType.CLICK, async () => {
+					const content = attachment.value?.toString() || '';
+					await this.editorService.openEditor({
+						resource: undefined,
+						contents: content,
+						options: {
+							pinned: true
+						}
+					});
+				}));
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
