@@ -192,7 +192,6 @@ export class PromptFilePickers {
 						inNewChat: keyMods.ctrlCmd,
 						viewsService: this.viewsService,
 						commandService: this.commandService,
-						widget: options.widget,
 					},
 				);
 				lastActiveWidget = widget;
