@@ -1170,6 +1170,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .action-item.chat-attachment-button > .action-label > .codicon {
 	font-size: 14px;
+	height: auto;
 }
 
 .action-item.chat-mcp {
@@ -1328,7 +1329,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
-	height: 16px;
+	height: auto;
 	padding: 0;
 	line-height: 100% !important;
 	align-self: center;
