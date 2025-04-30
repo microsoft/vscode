@@ -170,7 +170,7 @@ export class SettingMatches {
 	}
 
 	private _toAlphaNumeric(s: string): string {
-		return s.replace(/[^A-Za-z0-9]+/g, '');
+		return s.replace(/[^\p{L}\p{N}]+/gu, '');
 	}
 
 	private _doFindMatchesInSetting(searchString: string, setting: ISetting): IRange[] {

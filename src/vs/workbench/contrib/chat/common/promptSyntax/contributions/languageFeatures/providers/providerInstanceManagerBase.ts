@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProviderInstanceBase } from './providerInstanceBase.js';
-import { assert } from '../../../../../../../base/common/assert.js';
-import { ITextModel } from '../../../../../../../editor/common/model.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../constants.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { IDiffEditor, IEditor, IEditorModel } from '../../../../../../../editor/common/editorCommon.js';
-import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { assert } from '../../../../../../../../base/common/assert.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../../base/common/types.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import { ObjectCache } from '../../../../../../../../base/common/objectCache.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../constants.js';
+import { IModelService } from '../../../../../../../../editor/common/services/model.js';
+import { PromptsConfig } from '../../../../../../../../platform/prompts/common/config.js';
+import { IEditorService } from '../../../../../../../services/editor/common/editorService.js';
+import { IDiffEditor, IEditor, IEditorModel } from '../../../../../../../../editor/common/editorCommon.js';
+import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Type for a text editor that is used for reusable prompt files.

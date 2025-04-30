@@ -84,6 +84,7 @@ import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocati
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
 
@@ -200,7 +201,8 @@ export class SearchView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -1952,9 +1954,23 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private handleKeywordClick(keyword: string) {
+	private handleKeywordClick(keyword: string, index: number, maxKeywords: number) {
 		this.searchWidget.searchInput?.setValue(keyword);
 		this.triggerQueryChange({ preserveFocus: false, triggeredOnType: false, shouldKeepAIResults: false });
+		type KeywordClickClassification = {
+			owner: 'osortega';
+			comment: 'Fired when the user clicks on a keyword suggestion';
+			index: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The index of the keyword clicked' };
+			maxKeywords: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total number of suggested keywords' };
+		};
+		type KeywordClickEvent = {
+			index: number;
+			maxKeywords: number;
+		};
+		this.telemetryService.publicLog2<KeywordClickEvent, KeywordClickClassification>('searchComplete', {
+			index,
+			maxKeywords
+		});
 	}
 
 	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
@@ -1977,7 +1993,7 @@ export class SearchView extends ViewPane {
 			}
 			const button = this.messageDisposables.add(new SearchLinkButton(
 				keyword.keyword,
-				() => this.handleKeywordClick(keyword.keyword),
+				() => this.handleKeywordClick(keyword.keyword, index, topKeywords.length),
 				this.hoverService
 			));
 			dom.append(messageEl, button.element);

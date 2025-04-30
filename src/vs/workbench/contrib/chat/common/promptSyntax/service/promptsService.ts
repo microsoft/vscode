@@ -209,7 +209,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		return result;
+		return [...new Set(result)];
 	}
 
 	public async getAllMetadata(

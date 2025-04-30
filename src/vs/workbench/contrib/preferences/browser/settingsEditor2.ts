@@ -1731,13 +1731,14 @@ export class SettingsEditor2 extends EditorPane {
 							this.logService.trace('No ranked results found');
 						} else {
 							this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
-							const combinedResultsKeys = new Set([
+							// Make a suggestion if the setting isn't in the top five results.
+							const firstFewResults = new Set([
 								...(localResults?.filterMatches.map(m => m.setting.key) ?? []),
 								...(remoteResults.filterMatches.map(m => m.setting.key))
-							]);
-							const unlistedResults = rankedResults.filter(r => !combinedResultsKeys.has(r));
-							this.logService.trace(`Got unlisted results ${unlistedResults.join(', ')}`);
-							this.setSearchSuggestions(unlistedResults);
+							].slice(0, 5));
+							const suggestedResults = rankedResults.filter(r => !firstFewResults.has(r));
+							this.logService.trace(`Filtering ranked results down to ${suggestedResults.join(', ')}`);
+							this.setSearchSuggestions(suggestedResults);
 						}
 					}
 				}
