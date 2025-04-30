@@ -1170,6 +1170,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .action-item.chat-attachment-button > .action-label > .codicon {
 	font-size: 14px;
+	height: auto;
 }
 
 .action-item.chat-mcp {
