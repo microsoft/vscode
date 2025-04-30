@@ -15,6 +15,7 @@ import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
@@ -104,6 +105,31 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * The event is fired when lines or their content change.
 	 */
 	private readonly _onUpdate = this._register(new Emitter<void>());
+
+	/**
+	 * Event that is fired when the current prompt parser is settled.
+	 */
+	private readonly _onSettled = this._register(new Emitter<Error | undefined>());
+
+	/**
+	 * Event that is fired when the current prompt parser is settled.
+	 */
+	public onSettled(
+		callback: (error?: Error) => void,
+	): IDisposable {
+		const disposable = this._onSettled.event(callback);
+		const streamEnded = (this.stream?.ended && (this.stream.disposed === false));
+
+		// if already in the error state or stream has already ended,
+		// invoke the callback immediately but asynchronously
+		if (streamEnded || this.errorCondition) {
+			setTimeout(callback.bind(undefined, this.errorCondition));
+
+			return disposable;
+		}
+
+		return disposable;
+	}
 
 	/**
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
@@ -296,6 +322,9 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			this._errorCondition = streamOrError;
 			this._onUpdate.fire();
 
+			// when error received fire the 'onSettled' event immediately
+			this._onSettled.fire(streamOrError);
+
 			return;
 		}
 
@@ -391,9 +420,16 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * @param error Optional error object if stream ended with an error.
 	 */
 	private onStreamEnd(
-		_stream: ChatPromptDecoder,
+		stream: ChatPromptDecoder,
 		error?: Error,
 	): this {
+		// decoders can fire the 'end' event also when they are get disposed,
+		// but because we dispose them when a new stream is received, we can
+		// safely ignore the event in this case
+		if (stream.disposed === true) {
+			return this;
+		}
+
 		if (error) {
 			this.logService.warn(
 				`[prompt parser][${basename(this.uri)}] received an error on the chat prompt decoder stream: ${error}`,
@@ -401,6 +437,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		this._onUpdate.fire();
+		this._onSettled.fire(error);
 
 		return this;
 	}

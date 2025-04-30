@@ -29,6 +29,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../../platform/prompts/common/constants.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { pick } from '../../../../../../../base/common/arrays.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -2001,13 +2002,13 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions,
+				instructions.map(pick('path')),
 				[
 					// local instructions
-					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
-					URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
+					URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md').path,
 					// user instructions
-					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md').path,
 				],
 				'Must find correct instruction files.',
 			);
@@ -2090,7 +2091,7 @@ suite('PromptsService', () => {
 										'description: \'Instructions file 2.\'',
 										'applyTo: "**/folder1/*.tsx"',
 										'---',
-										'Some instructions 2 contents.',
+										'Some instructions 2 contents. [](./file1.instructions.md)',
 									],
 								},
 								{
@@ -2110,7 +2111,7 @@ suite('PromptsService', () => {
 										'description: \'Instructions file 4.\'',
 										'applyTo: "src/build/*.tsx"',
 										'---',
-										'Some instructions 4 contents.',
+										'[](./file3.instructions.md) Some instructions 4 contents.',
 									],
 								},
 								{
@@ -2182,13 +2183,13 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions,
+				instructions.map(pick('path')),
 				[
 					// local instructions
-					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
-					URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
+					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
+					URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md').path,
 					// user instructions
-					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
+					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md').path,
 				],
 				'Must find correct instruction files.',
 			);

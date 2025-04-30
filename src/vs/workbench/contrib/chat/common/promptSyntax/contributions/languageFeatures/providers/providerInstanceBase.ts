@@ -12,9 +12,9 @@ import { ObservableDisposable } from '../../../../../../../../base/common/observ
  */
 export abstract class ProviderInstanceBase extends ObservableDisposable {
 	/**
-	 * Function that is called when the prompt parser is updated.
+	 * Function that is called when the prompt parser is settled.
 	 */
-	protected abstract onPromptParserUpdate(): Promise<this>;
+	protected abstract onPromptSettled(error: Error | undefined): Promise<this>;
 
 	/**
 	 * Returns a string representation of this object.
@@ -33,11 +33,15 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 		super();
 
 		this.parser = promptsService.getSyntaxParserFor(model);
-		this.parser.onUpdate(this.onPromptParserUpdate.bind(this));
-		this.parser.onDispose(this.dispose.bind(this));
-		this.parser.start();
+
+		this._register(
+			this.parser.onSettled(this.onPromptSettled.bind(this)),
+		);
+		this.parser
+			.onDispose(this.dispose.bind(this))
+			.start();
 
 		// initialize an update
-		this.onPromptParserUpdate();
+		this.onPromptSettled(undefined);
 	}
 }
