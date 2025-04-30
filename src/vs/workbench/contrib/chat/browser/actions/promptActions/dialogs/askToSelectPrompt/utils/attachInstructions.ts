@@ -77,9 +77,13 @@ const showChat = async (
 	const { commandService, viewsService } = options;
 
 	if (createNew === true) {
-		// TODO: @legomushroom
 		await commandService.executeCommand(
 			ACTION_ID_NEW_CHAT,
+			/**
+			 * We need to skip the chat input focus on new chat instance
+			 * creation to allow for the files picker dialog to be kept
+			 * open so users can select multiple files.
+			 */
 			{ dontFocus: true } satisfies INewEditSessionActionContext,
 		);
 	}
