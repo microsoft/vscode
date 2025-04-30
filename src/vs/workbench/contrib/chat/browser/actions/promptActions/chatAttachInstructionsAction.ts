@@ -110,6 +110,7 @@ class AttachInstructionsAction extends Action2 {
 
 		await pickers.selectInstructionsFiles({
 			promptFiles,
+			resource,
 			placeholder,
 			widget: options.widget,
 		});
