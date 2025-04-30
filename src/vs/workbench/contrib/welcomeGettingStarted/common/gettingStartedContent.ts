@@ -689,22 +689,22 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'copilotSetup.inline',
 					title: localize('gettingStarted.nes.title', "Next Edit Suggestions"),
-					description: localize('gettingStarted.nes.description', "Get code suggestions, predicting your next edit while you're in the flow of coding."),
+					description: localize('gettingStarted.nes.description', "Get code suggestions that predict your next edit."),
 					media: {
 						type: 'svg', altText: 'Next Edit Suggestions', path: 'ai-powered-suggestions.svg'
 					},
 				},
 				{
 					id: 'copilotSetup.customize',
-					title: localize('gettingStarted.customize.title', "Personalize"),
-					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create instructions to tailor the AI to how you work.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetup')),
+					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
+					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetup')),
 					media: {
 						type: 'svg', altText: 'Personalize', path: 'multi-file-edits.svg'
 					},
 				},
 				{
 					id: 'newCommandPaletteTask',
-					title: localize('newgettingStarted.commandPalette.title', "All VS Code commands within reach"),
+					title: localize('newgettingStarted.commandPalette.title', "All commands within reach"),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
