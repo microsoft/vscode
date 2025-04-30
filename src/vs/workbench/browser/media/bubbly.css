@@ -8,7 +8,7 @@
 	--bubbly-radius-base: 6px;/* The main radius - used on most elements */
 	--bubbly-radius-l: 8px;
 	--bubbly-radius-xl: 10px;/* Used for radius on bubbly part containers */
-	--bubbly-text-transform: none;
+	--bubbly-text-transform: uppercase;
 }
 
 .bubbly-part-pad {
@@ -90,7 +90,6 @@
 .bubbly-part.panel .composite-bar-container .action-item {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--bubbly-radius-base);
-	/*padding: 2px;*/
 	box-sizing: border-box;
 	height: 80% !important;
 	transition: background-color 0.05s linear;
@@ -260,7 +259,6 @@
 .bubbly-part.sidebar > .composite.title > .title-label > h2 {
 	line-height: 28px;
 	font-size: 11.5px;
-	font-weight: 700;
 	text-transform: var(--bubbly-text-transform);
 }
 
@@ -270,12 +268,6 @@
 
 .bubbly-part.sidebar .pane-header {
 	height: 26px;
-}
-
-/* Explorer */
-.part.sidebar .monaco-highlighted-label {
-	font-weight: 500;
-	font-size: 13px;/* was 13 */
 }
 
 /* Activity bar (when on sidebar) */
