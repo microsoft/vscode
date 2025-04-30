@@ -32,6 +32,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -53,6 +54,7 @@ class SimpleBrowserOverlayWidget {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
 
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
@@ -79,11 +81,14 @@ class SimpleBrowserOverlayWidget {
 		let cts: CancellationTokenSource;
 		const selectButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('selectAnElement', 'Click to select an element.') }));
 		selectButton.element.className = 'element-selection-start';
-		selectButton.label = localize('startSelection', 'Start Selection');
+		selectButton.label = localize('startSelection', 'Start');
 
 		const cancelButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
 		cancelButton.element.className = 'element-selection-cancel hidden';
 		cancelButton.label = localize('cancel', 'Cancel');
+
+		const configure = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
+		configure.icon = Codicon.gear;
 
 		const collapseOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.hideOverlay', "Collapse Overlay") }));
 		collapseOverlay.icon = Codicon.chevronRight;
@@ -124,7 +129,7 @@ class SimpleBrowserOverlayWidget {
 			this._editor.focus();
 
 			// start selection
-			message.textContent = localize('elementSelectionInProgress', 'Selection in progress...');
+			message.textContent = localize('elementSelectionInProgress', 'Selecting element...');
 			this.hideElement(selectButton.element);
 			this.showElement(cancelButton.element);
 			await this.addElementToChat(cts);
@@ -155,6 +160,10 @@ class SimpleBrowserOverlayWidget {
 			message.textContent = startSelectionMessage;
 			resetButtons();
 		}));
+
+		this._showStore.add(addDisposableListener(configure.element, 'click', () => {
+			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:chat.sendElementsToChat.enabled,chat.sendElementsToChat.attachCSS,chat.sendElementsToChat.attachImages' });
+		}));
 	}
 
 	hideElement(element: HTMLElement) {
@@ -178,26 +187,29 @@ class SimpleBrowserOverlayWidget {
 			throw new Error('Element data not found');
 		}
 		const bounds = elementData.bounds;
-
-		// remove container so we don't block anything on screenshot
-		this._domNode.style.display = 'none';
-
-		// Wait 1 extra frame to make sure overlay is gone
-		await new Promise(resolve => setTimeout(resolve, 100));
-
 		const toAttach: IChatRequestVariableEntry[] = [];
 
 		const widget = this._chatWidgetService.lastFocusedWidget ?? await showChatView(this._viewService);
+		let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
+		if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
+			value += '\n\n' + elementData.computedStyle;
+		}
 		toAttach.push({
 			id: 'element-' + Date.now(),
 			name: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
 			fullName: this.getDisplayNameFromOuterHTML(elementData.outerHTML),
-			value: elementData.outerHTML + elementData.computedStyle,
+			value: value,
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.layout.id),
 		});
 
 		if (this.configurationService.getValue('chat.sendElementsToChat.attachImages')) {
+			// remove container so we don't block anything on screenshot
+			this._domNode.style.display = 'none';
+
+			// Wait 1 extra frame to make sure overlay is gone
+			await new Promise(resolve => setTimeout(resolve, 100));
+
 			const screenshot = await this._hostService.getScreenshot(bounds);
 			if (!screenshot) {
 				throw new Error('Screenshot failed');
@@ -211,10 +223,11 @@ class SimpleBrowserOverlayWidget {
 				value: screenshot.buffer,
 				references: fileReference ? [{ reference: fileReference, kind: 'reference' }] : [],
 			});
+
+			this._domNode.style.display = '';
 		}
 
 		widget?.attachmentModel?.addContext(...toAttach);
-		this._domNode.style.display = '';
 	}
 
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptsService, TSharedPrompt } from '../../service/types.js';
-import { ITextModel } from '../../../../../../../editor/common/model.js';
-import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
+import { IPromptsService, TSharedPrompt } from '../../../service/types.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { ObservableDisposable } from '../../../../../../../../base/common/observableDisposable.js';
 
 /**
  * Abstract base class for all reusable prompt file providers.

@@ -78,6 +78,7 @@ const NEW_PROMPT_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 	)}`,
 	value: URI.parse(PROMPT_DOCUMENTATION_URL),
 	pickable: false,
+	alwaysShow: true,
 	buttons: [HELP_BUTTON],
 });
 
@@ -92,6 +93,7 @@ const NEW_INSTRUCTIONS_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze
 	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
 	pickable: false,
+	alwaysShow: true,
 	buttons: [HELP_BUTTON],
 });
 

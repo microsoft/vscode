@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
@@ -13,7 +15,6 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -30,7 +31,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -325,7 +326,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: String(err), isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'text', value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -363,7 +364,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (!toolResult.toolResultDetails && toolData.alwaysDisplayInputOutput) {
 			toolResult.toolResultDetails = {
 				input: this.formatToolInput(dto),
-				output: this.toolResultToString(toolResult),
+				output: this.toolResultToIO(toolResult),
 			};
 		}
 	}
@@ -372,18 +373,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return JSON.stringify(dto.parameters, undefined, 2);
 	}
 
-	private toolResultToString(toolResult: IToolResult): string {
-		const strs = [];
-		for (const part of toolResult.content) {
+	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
+		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				strs.push(part.value);
+				return { type: 'text', value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				strs.push(stringifyPromptTsxPart(part));
+				return { type: 'text', value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				strs.push(`\n\n${localize('toolResultData', "Tool result data of type {0} ({1} bytes)", part.value.mimeType, part.value.data.byteLength)}\n\n`);
+				return { type: 'data', value64: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+			} else {
+				assertNever(part);
 			}
-		}
-		return strs.join('');
+		});
 	}
 
 	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {

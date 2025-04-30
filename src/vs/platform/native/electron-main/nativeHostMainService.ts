@@ -765,7 +765,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Find the simple browser webview
 		const allWebContents = webContents.getAllWebContents();
-		const simpleBrowserWebview = allWebContents.find(webContent => webContent.getTitle().includes('Simple Browser'));
+		const simpleBrowserWebview = allWebContents.find(webContent => webContent.id === windowId);
 
 		if (!simpleBrowserWebview) {
 			return undefined;
@@ -782,7 +782,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			// find parent id and extract id
 			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
 				const url = new URL(targetInfo.url);
-				return url.searchParams.get('parentId') === window?.id.toString();
+				return url.searchParams.get('parentId') === window?.id.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
 			});
 
 			if (matchingTarget) {

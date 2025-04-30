@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import themePickerContent from './media/theme_picker.js';
+import themePickerSmallContent from './media/theme_picker_small.js';
 import notebookProfileContent from './media/notebookProfile.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -51,6 +52,7 @@ export async function moduleToContent(resource: URI): Promise<string> {
 }
 
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker', themePickerContent);
+gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker_small', themePickerSmallContent);
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile', notebookProfileContent);
 // Register empty media for accessibility walkthrough
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/empty', () => '');
@@ -708,7 +710,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					media: { type: 'markdown', path: 'theme_picker', }
+					media: { type: 'markdown', path: 'theme_picker_small', }
 				},
 				{
 					id: 'newFindLanguageExtensions',

@@ -100,12 +100,12 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: string;
+	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
 	readonly isError?: boolean;
 }
 
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
-	return typeof obj === 'object' && typeof obj?.input === 'string' && typeof obj?.output === 'string';
+	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
 export interface IToolResult {

@@ -1280,7 +1280,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let userSelectedTools: string[] | undefined;
 			let userSelectedTools2: Record<string, boolean> | undefined;
 			if (this.input.currentMode === ChatMode.Agent) {
-				userSelectedTools = this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id);
+				userSelectedTools = Array.from(this.inputPart.selectedToolsModel.asEnablementMap().entries()).map(([tool]) => tool.id);
 
 				userSelectedTools2 = {};
 				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
