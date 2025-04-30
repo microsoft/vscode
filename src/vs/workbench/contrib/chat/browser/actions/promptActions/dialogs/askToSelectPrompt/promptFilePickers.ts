@@ -147,17 +147,15 @@ export class PromptFilePickers {
 	 * the resource pre-selected in the prompts list.
 	 */
 	public async selectInstructionsFiles(options: ISelectOptions): Promise<null> {
-		const [fileOptions, activeItem] = this.createPromptPickItems(options);
+		const fileOptions = this.createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_INSTRUCTIONS_FILE_OPTION);
 
 		const quickPick = this.quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
+		quickPick.activeItems = fileOptions.length ? [fileOptions[0]] : [];
 		quickPick.placeholder = options.placeholder;
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
 		quickPick.items = fileOptions;
-		quickPick.activeItems = (activeItem !== undefined)
-			? [activeItem]
-			: [fileOptions[0]];
 
 		return new Promise((resolve) => {
 			const disposables = new DisposableStore();
@@ -223,17 +221,15 @@ export class PromptFilePickers {
 	 * the resource pre-selected in the prompts list.
 	 */
 	public async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
-		const [fileOptions, activeItem] = this.createPromptPickItems(options);
+		const fileOptions = this.createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_PROMPT_FILE_OPTION);
 
 		const quickPick = this.quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
+		quickPick.activeItems = fileOptions.length ? [fileOptions[0]] : [];
 		quickPick.placeholder = options.placeholder;
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
 		quickPick.items = fileOptions;
-		quickPick.activeItems = (activeItem !== undefined)
-			? [activeItem]
-			: [fileOptions[0]];
 
 		return new Promise<ISelectPromptResult | undefined>(resolve => {
 			const disposables = new DisposableStore();
@@ -289,7 +285,7 @@ export class PromptFilePickers {
 		});
 	}
 
-	private createPromptPickItems(options: ISelectOptions): [WithUriValue<IQuickPickItem>[], WithUriValue<IQuickPickItem> | undefined] {
+	private createPromptPickItems(options: ISelectOptions): WithUriValue<IQuickPickItem>[] {
 		const { promptFiles, resource } = options;
 
 		const fileOptions = promptFiles.map((promptFile) => {
@@ -331,7 +327,7 @@ export class PromptFilePickers {
 				return 0;
 			});
 		}
-		return [fileOptions, activeItem];
+		return fileOptions;
 	}
 
 	private createPromptPickItem(promptFile: IPromptPath): WithUriValue<IQuickPickItem> {
