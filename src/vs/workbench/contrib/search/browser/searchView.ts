@@ -1967,7 +1967,7 @@ export class SearchView extends ViewPane {
 			index: number;
 			maxKeywords: number;
 		};
-		this.telemetryService.publicLog2<KeywordClickEvent, KeywordClickClassification>('searchComplete', {
+		this.telemetryService.publicLog2<KeywordClickEvent, KeywordClickClassification>('searchKeywordClick', {
 			index,
 			maxKeywords
 		});
