@@ -42,6 +42,6 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 			.start();
 
 		// initialize an update
-		this.onPromptSettled(undefined);
+		setTimeout(this.onPromptSettled.bind(this));
 	}
 }
