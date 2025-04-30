@@ -82,7 +82,7 @@ const HELP_BUTTON: IQuickInputButton = Object.freeze({
 const NEW_PROMPT_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 	type: 'item',
 	label: `$(plus) ${localize(
-		'commands.new-prompt-file.select-dialog.label',
+		'commands.new-promptfile.select-dialog.label',
 		'New prompt file...'
 	)}`,
 	value: URI.parse(PROMPT_DOCUMENTATION_URL),
@@ -97,7 +97,7 @@ const NEW_PROMPT_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 const NEW_INSTRUCTIONS_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 	type: 'item',
 	label: `$(plus) ${localize(
-		'commands.new-instructions-file.select-dialog.label',
+		'commands.new-instructionsfile.select-dialog.label',
 		'Create new instruction file...',
 	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
@@ -127,6 +127,7 @@ const DELETE_BUTTON: IQuickInputButton = Object.freeze({
 	iconClass: ThemeIcon.asClassName(Codicon.trash),
 });
 
+
 export class PromptFilePickers {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -146,10 +147,8 @@ export class PromptFilePickers {
 	 * the resource pre-selected in the prompts list.
 	 */
 	public async selectInstructionsFiles(options: ISelectOptions): Promise<null> {
-		const [fileOptions, activeItem] = this.createPromptPickItems(
-			NEW_INSTRUCTIONS_FILE_OPTION,
-			options,
-		);
+		const [fileOptions, activeItem] = this.createPromptPickItems(options);
+		fileOptions.splice(0, 0, NEW_INSTRUCTIONS_FILE_OPTION);
 
 		const quickPick = this.quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 		quickPick.placeholder = options.placeholder;
@@ -224,10 +223,8 @@ export class PromptFilePickers {
 	 * the resource pre-selected in the prompts list.
 	 */
 	public async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
-		const [fileOptions, activeItem] = this.createPromptPickItems(
-			NEW_PROMPT_FILE_OPTION,
-			options,
-		);
+		const [fileOptions, activeItem] = this.createPromptPickItems(options);
+		fileOptions.splice(0, 0, NEW_PROMPT_FILE_OPTION);
 
 		const quickPick = this.quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 		quickPick.placeholder = options.placeholder;
@@ -292,25 +289,19 @@ export class PromptFilePickers {
 		});
 	}
 
-	private createPromptPickItems(
-		createNewItem: WithUriValue<IQuickPickItem>,
-		options: ISelectOptions,
-	): [WithUriValue<IQuickPickItem>[], WithUriValue<IQuickPickItem> | undefined] {
+	private createPromptPickItems(options: ISelectOptions): [WithUriValue<IQuickPickItem>[], WithUriValue<IQuickPickItem> | undefined] {
 		const { promptFiles, resource } = options;
 
-		const fileOptions = [
-			createNewItem,
-			...promptFiles.map(
-				this.createPromptPickItem.bind(this),
-			),
-		];
+		const fileOptions = promptFiles.map((promptFile) => {
+			return this.createPromptPickItem(promptFile);
+		});
 
 		// if a resource is provided, create an `activeItem` for it to pre-select
 		// it in the UI, and sort the list so the active item appears at the top
 		let activeItem: WithUriValue<IQuickPickItem> | undefined;
 		if (resource) {
-			activeItem = fileOptions.find(({ value }) => {
-				return extUri.isEqual(value, resource);
+			activeItem = fileOptions.find((file) => {
+				return extUri.isEqual(file.value, resource);
 			});
 
 			// if no item for the `resource` was found, it means that the resource is not
@@ -453,7 +444,7 @@ export class PromptFilePickers {
 
 		if (button === HELP_BUTTON) {
 			// open the documentation
-			await this.openerService.open(value);
+			await this.openerService.open(item.value);
 			return;
 		}
 
