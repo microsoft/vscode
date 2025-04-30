@@ -916,6 +916,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .description {
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4em;
+	font-size: 1.4em;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .category-progress .message {
@@ -1148,7 +1149,6 @@
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
-	padding-right: 16px;
 	min-height: 300px;
 	height: 100%;
 }
@@ -1301,14 +1301,21 @@
 }
 
 /* Responsive design - stack on smaller screens */
-@media (max-width: 900px) {
+@media (max-width: 600px) {
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide-content {
+		grid-template-columns: 1fr;
+		grid-template-areas:
+			"text";
+		gap: 24px;
+	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-text-content {
-		padding-right: 0;
+		padding-right: 2px;
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-media-content {
-		min-height: 200px;
+		display: none;
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide {
@@ -1356,7 +1363,6 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container {
 	display: flex;
 	flex-direction: column;
-	margin-top: 10px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step:hover {
@@ -1370,10 +1376,9 @@
 	cursor: pointer;
 	box-sizing: border-box;
 	border-left: 1px solid transparent;
-	width: 80%;
-	padding-left:8px;
+	padding-left: 8px;
 	border-width: 1px;
-	border-style:solid;
+	border-style: solid;
 	border-color: transparent;
 }
 
@@ -1397,6 +1402,10 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .multi-step-container .button-container,
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .multi-step-container .button-container {
 	margin-top: 1rem;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .sub-step-title {
+	padding-top: 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {

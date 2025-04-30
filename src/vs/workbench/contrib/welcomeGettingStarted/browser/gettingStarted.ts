@@ -1652,6 +1652,11 @@ export class GettingStartedPage extends EditorPane {
 		reset(categoryTitle, ...renderLabelWithIcons(category.title));
 		categoryHeader.appendChild(categoryTitle);
 
+		const descriptionContainer = $('.category-description.description.max-lines-3', { 'x-category-description-for': category.id });
+		this.buildMarkdownDescription(descriptionContainer, parseDescription(category.description));
+		reset(descriptionContainer, ...renderLabelWithIcons(category.description));
+		categoryHeader.appendChild(descriptionContainer);
+
 		const categoryFooter = $('.getting-started-footer');
 		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && this.productService.enableTelemetry) {
 			this.buildTelemetryFooter(categoryFooter);
