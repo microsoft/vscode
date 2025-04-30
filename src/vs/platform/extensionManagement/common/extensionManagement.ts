@@ -596,6 +596,8 @@ export const IExtensionManagementService = createDecorator<IExtensionManagementS
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
+	readonly preferPreReleases: boolean;
+
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;
@@ -612,7 +614,7 @@ export interface IExtensionManagementService {
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
-	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
+	toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;

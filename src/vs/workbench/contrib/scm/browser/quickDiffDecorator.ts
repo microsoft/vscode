@@ -16,14 +16,16 @@ import { IEditorDecorationsCollection } from '../../../../editor/common/editorCo
 import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition, IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ChangeType, getChangeType, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../common/quickDiff.js';
+import { ChangeType, getChangeType, IQuickDiffService, QuickDiffProvider, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../common/quickDiff.js';
 import { QuickDiffModel, IQuickDiffModelService } from './quickDiffModel.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyTrueExpr, ContextKeyFalseExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { autorun, autorunWithStore, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const quickDiffDecorationCount = new RawContextKey<number>('quickDiffDecorationCount', 0);
 
@@ -72,7 +74,8 @@ class QuickDiffDecorator extends Disposable {
 	constructor(
 		private readonly codeEditor: ICodeEditor,
 		private readonly quickDiffModelRef: IReference<QuickDiffModel>,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
 	) {
 		super();
 
@@ -132,15 +135,15 @@ class QuickDiffDecorator extends Disposable {
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
 		const primaryQuickDiff = this.quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
-		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(labeledChange => labeledChange.label === primaryQuickDiff?.label);
+		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(change => change.providerId === primaryQuickDiff?.id);
 
 		const decorations: IModelDeltaDecoration[] = [];
 		for (const change of this.quickDiffModelRef.object.changes) {
 			const quickDiff = this.quickDiffModelRef.object.quickDiffs
-				.find(quickDiff => quickDiff.label === change.label);
+				.find(quickDiff => quickDiff.id === change.providerId);
 
-			if (!quickDiff?.visible) {
-				// Not visible
+			// Skip quick diffs that are not visible
+			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
 				continue;
 			}
 
@@ -218,6 +221,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	private readonly quickDiffDecorationCount: IContextKey<number>;
 
 	private readonly activeEditor: IObservable<EditorInput | undefined>;
+	private readonly quickDiffProviders: IObservable<readonly QuickDiffProvider[]>;
 
 	// Resource URI -> Code Editor Id -> Decoration (Disposable)
 	private readonly decorators = new ResourceMap<DisposableMap<string>>();
@@ -229,6 +233,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickDiffModelService private readonly quickDiffModelService: IQuickDiffModelService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -239,6 +244,9 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 		this.activeEditor = observableFromEvent(this,
 			this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
+
+		this.quickDiffProviders = observableFromEvent(this,
+			this.quickDiffService.onDidChangeQuickDiffProviders, () => this.quickDiffService.providers);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));
@@ -308,6 +316,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		this.onEditorsChanged();
 
 		this.onDidActiveEditorChange();
+		this.onDidChangeQuickDiffProviders();
 
 		this.enabled = true;
 	}
@@ -348,14 +357,51 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 			const visibleDecorationCount = observableFromEvent(this,
 				quickDiffModelRef.object.onDidChange, () => {
-					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
-					return quickDiffModelRef.object.changes.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label)).length;
+					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id));
+					return quickDiffModelRef.object.changes.filter(change => visibleQuickDiffs.some(quickDiff => quickDiff.id === change.providerId)).length;
 				});
 
 			store.add(autorun(reader => {
 				const count = visibleDecorationCount.read(reader);
 				this.quickDiffDecorationCount.set(count);
 			}));
+		}));
+	}
+
+	private onDidChangeQuickDiffProviders(): void {
+		this.transientDisposables.add(autorunWithStore((reader, store) => {
+			const providers = this.quickDiffProviders.read(reader);
+
+			const labels: string[] = [];
+			for (let index = 0; index < providers.length; index++) {
+				const provider = providers[index];
+				if (labels.includes(provider.label)) {
+					continue;
+				}
+
+				const visible = this.quickDiffService.isQuickDiffProviderVisible(provider.id);
+				const group = provider.kind !== 'contributed' ? '0_scm' : '1_contributed';
+				const order = index + 1;
+
+				store.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: `workbench.scm.action.toggleQuickDiffVisibility.${provider.id}`,
+							title: provider.label,
+							toggled: visible ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
+							menu: {
+								id: MenuId.SCMQuickDiffDecorations, group, order
+							},
+							f1: false
+						});
+					}
+					override run(accessor: ServicesAccessor): void {
+						const quickDiffService = accessor.get(IQuickDiffService);
+						quickDiffService.toggleQuickDiffProviderVisibility(provider.id);
+					}
+				}));
+				labels.push(provider.label);
+			}
 		}));
 	}
 
@@ -384,7 +430,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 				this.decorators.set(textModel.uri, new DisposableMap<string>());
 			}
 
-			this.decorators.get(textModel.uri)!.set(editorId, new QuickDiffDecorator(editor, quickDiffModelRef, this.configurationService));
+			this.decorators.get(textModel.uri)!.set(editorId, new QuickDiffDecorator(editor, quickDiffModelRef, this.configurationService, this.quickDiffService));
 		}
 
 		// Dispose decorators for editors that are no longer visible.

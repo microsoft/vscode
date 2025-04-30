@@ -217,7 +217,7 @@ export class Extension implements IExtension {
 	}
 
 	get private(): boolean {
-		return this.local ? this.local.private : this.gallery ? this.gallery.private : false;
+		return this.gallery ? this.gallery.private : this.local ? this.local.private : false;
 	}
 
 	get pinned(): boolean {
@@ -937,8 +937,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onReset = new Emitter<void>();
 	get onReset() { return this._onReset.event; }
 
-	readonly preferPreReleases: boolean;
-
 	private installing: IExtension[] = [];
 	private tasksInProgress: CancelablePromise<any>[] = [];
 
@@ -982,7 +980,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super();
-		this.preferPreReleases = productService.quality !== 'stable';
 
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
@@ -1315,7 +1312,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
 		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
-		options.includePreRelease = isUndefined(options.includePreRelease) ? this.preferPreReleases : options.includePreRelease;
+		options.includePreRelease = isUndefined(options.includePreRelease) ? this.extensionManagementService.preferPreReleases : options.includePreRelease;
 
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const pager = await this.galleryService.query(options, token);
@@ -1339,7 +1336,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return [];
 		}
 
-		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.preferPreReleases);
+		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.extensionManagementService.preferPreReleases);
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
 		this.syncInstalledExtensionsWithGallery(galleryExtensions);
@@ -1831,7 +1828,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	async checkForUpdates(reason?: string, onlyBuiltin?: boolean): Promise<void> {
 		if (reason) {
-			this.logService.info(`[Extensions]: Checking for updates. Reason: ${reason}`);
+			this.logService.trace(`[Extensions]: Checking for updates. Reason: ${reason}`);
 		} else {
 			this.logService.trace(`[Extensions]: Checking for updates`);
 		}
@@ -2025,16 +2022,26 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async autoUpdateExtensions(): Promise<void> {
 		const toUpdate: IExtension[] = [];
+		const disabledAutoUpdate = [];
+		const consentRequired = [];
 		for (const extension of this.outdated) {
 			if (!this.shouldAutoUpdateExtension(extension)) {
-				this.logService.info('Auto update disabled for extension', extension.identifier.id);
+				disabledAutoUpdate.push(extension.identifier.id);
 				continue;
 			}
 			if (await this.shouldRequireConsentToUpdate(extension)) {
-				this.logService.info('Auto update consent required for extension', extension.identifier.id);
+				consentRequired.push(extension.identifier.id);
 				continue;
 			}
 			toUpdate.push(extension);
+		}
+
+		if (disabledAutoUpdate.length) {
+			this.logService.trace('Auto update disabled for extensions', disabledAutoUpdate.join(', '));
+		}
+
+		if (consentRequired.length) {
+			this.logService.info('Auto update consent required for extensions', consentRequired.join(', '));
 		}
 
 		if (!toUpdate.length) {
@@ -2042,10 +2049,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const productVersion = this.getProductVersion();
-		await Promises.settled(toUpdate.map(e => {
-			this.logService.info('Auto updating extension', e.identifier.id);
-			return this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true, productVersion } : { productVersion });
-		}));
+		await Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true, productVersion } : { productVersion })));
 	}
 
 	private getProductVersion(): IProductVersion {
@@ -2348,7 +2352,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (isString(arg)) {
 				extension = this.local.find(e => areSameExtensions(e.identifier, { id: arg }));
 				if (!extension?.isBuiltin) {
-					installableInfo = { id: arg, version: installOptions.version, preRelease: installOptions.installPreReleaseVersion ?? this.preferPreReleases };
+					installableInfo = { id: arg, version: installOptions.version, preRelease: installOptions.installPreReleaseVersion ?? this.extensionManagementService.preferPreReleases };
 				}
 			}
 			// Install by gallery
@@ -2694,7 +2698,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await Promise.all(this.getAllExtensions().map(async extensions => {
 			const local = extensions.local.find(e => areSameExtensions(e.identifier, extension.identifier))?.local;
 			if (local && local.isApplicationScoped === isApplicationScoped) {
-				await this.extensionManagementService.toggleAppliationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
+				await this.extensionManagementService.toggleApplicationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
 			}
 		}));
 	}

@@ -27,7 +27,7 @@ const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackg
 }, nls.localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
 
 registerColor('editorGutter.modifiedSecondaryBackground',
-	{ dark: darken(editorGutterModifiedBackground, 0.5), light: lighten(editorGutterModifiedBackground, 0.9), hcDark: '#1B81A8', hcLight: '#2090D3' },
+	{ dark: darken(editorGutterModifiedBackground, 0.5), light: lighten(editorGutterModifiedBackground, 0.7), hcDark: '#1B81A8', hcLight: '#2090D3' },
 	nls.localize('editorGutterModifiedSecondaryBackground', "Editor gutter secondary background color for lines that are modified."));
 
 const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
@@ -35,7 +35,7 @@ const editorGutterAddedBackground = registerColor('editorGutter.addedBackground'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
 registerColor('editorGutter.addedSecondaryBackground',
-	{ dark: darken(editorGutterAddedBackground, 0.5), light: lighten(editorGutterAddedBackground, 0.9), hcDark: '#487E02', hcLight: '#48985D' },
+	{ dark: darken(editorGutterAddedBackground, 0.5), light: lighten(editorGutterAddedBackground, 0.7), hcDark: '#487E02', hcLight: '#48985D' },
 	nls.localize('editorGutterAddedSecondaryBackground', "Editor gutter secondary background color for lines that are added."));
 
 const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground',
@@ -67,22 +67,23 @@ export const editorGutterItemGlyphForeground = registerColor('editorGutter.itemG
 export const editorGutterItemBackground = registerColor('editorGutter.itemBackground', { dark: opaque(listInactiveSelectionBackground, editorBackground), light: darken(opaque(listInactiveSelectionBackground, editorBackground), .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterItemBackground', 'Editor gutter decoration color for gutter item background. This color should be opaque.'));
 
 export interface QuickDiffProvider {
-	label: string;
-	rootUri: URI | undefined;
-	selector?: LanguageSelector;
-	visible: boolean;
+	readonly id: string;
+	readonly label: string;
+	readonly rootUri: URI | undefined;
+	readonly selector?: LanguageSelector;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
 export interface QuickDiff {
-	label: string;
-	originalResource: URI;
-	visible: boolean;
+	readonly id: string;
+	readonly label: string;
+	readonly originalResource: URI;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 }
 
 export interface QuickDiffChange {
+	readonly providerId: string;
 	readonly label: string;
 	readonly original: URI;
 	readonly modified: URI;
@@ -91,7 +92,6 @@ export interface QuickDiffChange {
 }
 
 export interface QuickDiffResult {
-	readonly label: string;
 	readonly original: URI;
 	readonly modified: URI;
 	readonly changes: IChange[];
@@ -102,8 +102,11 @@ export interface IQuickDiffService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeQuickDiffProviders: Event<void>;
+	readonly providers: readonly QuickDiffProvider[];
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable;
 	getQuickDiffs(uri: URI, language?: string, isSynchronized?: boolean): Promise<QuickDiff[]>;
+	toggleQuickDiffProviderVisibility(id: string): void;
+	isQuickDiffProviderVisible(id: string): boolean;
 }
 
 export enum ChangeType {

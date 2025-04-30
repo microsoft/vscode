@@ -3,24 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
-import { PromptToolsMetadata } from './metadata/tools.js';
+import { PromptApplyToMetadata } from './metadata/applyTo.js';
+import { assert } from '../../../../../../../base/common/assert.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
 import { TokenStream } from '../../../../../../../editor/common/codecs/utils/tokenStream.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
 /**
- * Metadata associated with the prompt header.
+ * Metadata defined in the prompt header.
  */
-interface IHeaderMetadata {
+export interface IHeaderMetadata {
 	/**
-	 * Metadata for `tools` record in the header.
+	 * Tools metadata in the prompt header.
 	 */
 	tools?: PromptToolsMetadata;
+
+	/**
+	 * Description metadata in the prompt header.
+	 */
+	description?: PromptDescriptionMetadata;
+
+	/**
+	 * Chat mode metadata in the prompt header.
+	 */
+	mode?: PromptModeMetadata;
+
+	/**
+	 * Chat 'applyTo' metadata in the prompt header.
+	 */
+	applyTo?: PromptApplyToMetadata;
 }
 
 /**
@@ -33,14 +52,16 @@ export class PromptHeader extends Disposable {
 	private readonly stream: FrontMatterDecoder;
 
 	/**
-	 * Metadata records associated with the header.
+	 * Metadata records.
 	 */
 	private readonly meta: IHeaderMetadata;
 	/**
-	 * Metadata records associated with the header.
+	 * Metadata records.
 	 */
 	public get metadata(): Readonly<IHeaderMetadata> {
-		return this.meta;
+		return Object.freeze({
+			...this.meta,
+		});
 	}
 
 	/**
@@ -63,6 +84,7 @@ export class PromptHeader extends Disposable {
 
 	constructor(
 		public readonly contentsToken: Text,
+		public readonly languageId: string,
 	) {
 		super();
 
@@ -126,14 +148,52 @@ export class PromptHeader extends Disposable {
 			return;
 		}
 
+		// if the record might be a "description" metadata
+		// add it to the list of parsed metadata records
+		if (PromptDescriptionMetadata.isDescriptionRecord(token)) {
+			const descriptionMetadata = new PromptDescriptionMetadata(token, this.languageId);
+			const { diagnostics } = descriptionMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.description = descriptionMetadata;
+			this.recordNames.add(recordName);
+			return;
+		}
+
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
-			const toolsMetadata = new PromptToolsMetadata(token);
+			const toolsMetadata = new PromptToolsMetadata(token, this.languageId);
 			const { diagnostics } = toolsMetadata;
 
 			this.issues.push(...diagnostics);
 			this.meta.tools = toolsMetadata;
+			this.recordNames.add(recordName);
+
+			return this.validateToolsAndModeCompatibility();
+		}
+
+		// if the record might be a "mode" metadata
+		// add it to the list of parsed metadata records
+		if (PromptModeMetadata.isModeRecord(token)) {
+			const modeMetadata = new PromptModeMetadata(token, this.languageId);
+			const { diagnostics } = modeMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.mode = modeMetadata;
+			this.recordNames.add(recordName);
+
+			return this.validateToolsAndModeCompatibility();
+		}
+
+		// if the record might be a "applyTo" metadata
+		// add it to the list of parsed metadata records
+		if (PromptApplyToMetadata.isApplyToRecord(token)) {
+			const applyToMetadata = new PromptApplyToMetadata(token, this.languageId);
+			const { diagnostics } = applyToMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.applyTo = applyToMetadata;
 			this.recordNames.add(recordName);
 
 			return;
@@ -147,6 +207,69 @@ export class PromptHeader extends Disposable {
 					'prompt.header.metadata.diagnostics.unknown-record',
 					"Unknown metadata record '{0}' will be ignored.",
 					recordName,
+				),
+			),
+		);
+	}
+
+	/**
+	 * Check if value of `tools` and `mode` metadata
+	 * are compatible with each other.
+	 */
+	private get toolsAndModeCompatible(): boolean {
+		const { tools, mode } = this.meta;
+
+		// if `tools` is not set, then the mode metadata
+		// can have any value so skip the validation
+		if (tools === undefined) {
+			return true;
+		}
+
+		// if `mode` is not set or equal to `agent` mode,
+		// then the tools metadata can have any value so noop
+		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
+			return true;
+		}
+
+		// in the other cases when `tools` are defined and `mode` is not
+		// equal to `agent`, then the `tools` and `mode` are incompatible
+		return false;
+	}
+
+	/**
+	 * Validate that the `tools` and `mode` metadata are compatible
+	 * with each other. If not, add a warning diagnostic.
+	 */
+	private validateToolsAndModeCompatibility(): void {
+		if (this.toolsAndModeCompatible === true) {
+			return;
+		}
+
+		const { tools, mode } = this.meta;
+
+		// sanity checks on the behavior of the `toolsAndModeCompatible` getter
+		assertDefined(
+			tools,
+			'Tools metadata must have been present.',
+		);
+		assertDefined(
+			mode,
+			'Mode metadata must have been present.',
+		);
+		assert(
+			mode.chatMode !== ChatMode.Agent,
+			'Mode metadata must not be agent mode.',
+		);
+
+		this.issues.push(
+			new PromptMetadataWarning(
+				mode.range,
+				localize(
+					'prompt.header.metadata.mode.diagnostics.incompatible-with-tools',
+					"Record '{0}' is implied to have the '{1}' value if '{2}' record is present so the specified value will be ignored.",
+					mode.recordName,
+					ChatMode.Agent,
+					tools.recordName,
 				),
 			),
 		);

@@ -78,6 +78,7 @@ const NEW_PROMPT_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze({
 	)}`,
 	value: URI.parse(PROMPT_DOCUMENTATION_URL),
 	pickable: false,
+	alwaysShow: true,
 	buttons: [HELP_BUTTON],
 });
 
@@ -88,10 +89,11 @@ const NEW_INSTRUCTIONS_FILE_OPTION: WithUriValue<IQuickPickItem> = Object.freeze
 	type: 'item',
 	label: `$(plus) ${localize(
 		'commands.new-instructionsfile.select-dialog.label',
-		'New instructions file...',
+		'Create new instruction file...',
 	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
 	pickable: false,
+	alwaysShow: true,
 	buttons: [HELP_BUTTON],
 });
 
@@ -144,7 +146,6 @@ export class PromptFilePickers {
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
 		quickPick.items = fileOptions;
-		quickPick.canSelectMany = true;
 
 		return new Promise<URI[] | undefined>(resolve => {
 			const disposables = new DisposableStore();
@@ -320,10 +321,7 @@ export class PromptFilePickers {
 		// if a "user" prompt, don't show its filesystem path in
 		// the user interface, but do that for all the "local" ones
 		const description = (storage === 'user')
-			? localize(
-				'user-prompt.capitalized',
-				'User prompt',
-			)
+			? localize('user-data-dir.capitalized', 'User data folder')
 			: this._labelService.getUriLabel(dirname(uri), { relative: true });
 
 		const tooltip = (storage === 'user')
@@ -431,4 +429,3 @@ export class PromptFilePickers {
 	}
 
 }
-
