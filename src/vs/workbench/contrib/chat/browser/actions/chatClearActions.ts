@@ -43,13 +43,6 @@ export interface INewEditSessionActionContext {
 	 * Whether the inputValue is partial and should wait for further user input. If false or not set, the prompt is sent immediately.
 	 */
 	isPartialQuery?: boolean;
-
-	/**
-	 * Don't focus the chat input of the newly created chat session.
-	 * Useful, for instance, to allow the multi-select 'attach file' picker
-	 * flows which also use a key modifier to attach to a new chat session.
-	 */
-	dontFocus?: boolean;
 }
 
 export function registerNewChatActions() {
@@ -122,10 +115,7 @@ export function registerNewChatActions() {
 			await widget.waitForReady();
 			widget.attachmentModel.clear(true);
 			widget.input.relatedFiles?.clear();
-
-			if (!context?.dontFocus) {
-				widget.focusInput();
-			}
+			widget.focusInput();
 
 			if (!context) {
 				return;
