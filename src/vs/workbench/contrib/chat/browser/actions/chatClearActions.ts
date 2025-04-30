@@ -45,9 +45,7 @@ export interface INewEditSessionActionContext {
 	isPartialQuery?: boolean;
 
 	/**
-	 * Don't focus the chat input of the newly created chat session.
-	 * Useful, for instance, to allow the multi-select 'attach file' picker
-	 * flows which also use a key modifier to attach to a new chat session.
+	 * TODO: @legomushroom
 	 */
 	dontFocus?: boolean;
 }
@@ -123,6 +121,7 @@ export function registerNewChatActions() {
 			widget.attachmentModel.clear(true);
 			widget.input.relatedFiles?.clear();
 
+			// TODO: @legomushroom
 			if (!context?.dontFocus) {
 				widget.focusInput();
 			}
