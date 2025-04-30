@@ -22,17 +22,16 @@ import * as typeConvert from './extHostTypeConverters.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 
 class Tool {
+
 	private _data: IToolDataDto;
-	private _apiObject: vscode.LanguageModelToolInformation;
+	private _apiObject: vscode.LanguageModelToolInformation | undefined;
 
 	constructor(data: IToolDataDto) {
 		this._data = data;
-		this._apiObject = typeConvert.LanguageModelToolDescription.to(this._data);
 	}
 
 	update(newData: IToolDataDto): void {
 		this._data = newData;
-		Object.assign(this._apiObject, typeConvert.LanguageModelToolDescription.to(this._data));
 	}
 
 	get data(): IToolDataDto {
@@ -40,6 +39,15 @@ class Tool {
 	}
 
 	get apiObject(): vscode.LanguageModelToolInformation {
+		if (!this._apiObject) {
+			const that = this;
+			this._apiObject = Object.freeze({
+				get name() { return that._data.id; },
+				get description() { return that._data.modelDescription; },
+				get inputSchema() { return that._data.inputSchema; },
+				get tags() { return that._data.tags ?? []; },
+			});
+		}
 		return this._apiObject;
 	}
 }
@@ -109,14 +117,21 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	$onDidChangeTools(tools: IToolDataDto[]): void {
-		this._allTools.clear();
+
+		const oldTools = new Set(this._registeredTools.keys());
+
 		for (const tool of tools) {
+			oldTools.delete(tool.id);
 			const existing = this._allTools.get(tool.id);
 			if (existing) {
 				existing.update(tool);
 			} else {
 				this._allTools.set(tool.id, new Tool(revive(tool)));
 			}
+		}
+
+		for (const id of oldTools) {
+			this._allTools.delete(id);
 		}
 	}
 
