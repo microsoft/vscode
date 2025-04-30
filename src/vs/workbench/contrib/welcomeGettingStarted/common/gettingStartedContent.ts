@@ -674,7 +674,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		isFeatured: false,
 		icon: setupIcon,
 		when: '!isWeb',
-		walkthroughPageTitle: localize('gettingStarted.new.walkthroughPageTitle', 'Setup VS Code'),
+		walkthroughPageTitle: localize('gettingStarted.new.walkthroughPageTitle', 'Set up VS Code'),
 		content: {
 			type: 'steps',
 			steps: [
