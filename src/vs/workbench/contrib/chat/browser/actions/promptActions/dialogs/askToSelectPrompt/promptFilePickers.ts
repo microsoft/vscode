@@ -143,11 +143,11 @@ export class PromptFilePickers {
 		const activeItem = options.resource && fileOptions.find(f => extUri.isEqual(f.value, options.resource));
 
 		const quickPick = this._quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
-		quickPick.items = fileOptions;
 		quickPick.activeItems = [activeItem ?? NEW_INSTRUCTIONS_FILE_OPTION];
 		quickPick.placeholder = options.placeholder;
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
+		quickPick.items = fileOptions;
 
 		return new Promise<URI[] | undefined>(resolve => {
 			const disposables = new DisposableStore();
