@@ -7,6 +7,7 @@ import { BaseToken } from '../../baseToken.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
+import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 
 /**
  * Token that represents a `boolean` value in a Front Matter header.
@@ -22,9 +23,10 @@ export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonl
 	 */
 	public readonly value: boolean;
 
-	constructor(
-		token: Word,
-	) {
+	/**
+	 * @throws if provided {@link Word} cannot be converted to a `boolean` value.
+	 */
+	constructor(token: Word) {
 		const value = asBoolean(token);
 		assertDefined(
 			value,
@@ -37,7 +39,9 @@ export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonl
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Try creating a {@link FrontMatterBoolean} out of provided token.
+	 * Unlike the constructor, this method does not throw, returning
+	 * a 'null' value on failure instead.
 	 */
 	public static tryFromToken(
 		token: BaseToken,
