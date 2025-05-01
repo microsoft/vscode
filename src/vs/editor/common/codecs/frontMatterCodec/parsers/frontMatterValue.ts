@@ -54,6 +54,16 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		return this.currentValueParser.tokens;
 	}
 
+	constructor(
+		/**
+		 * Callback function to pass to the {@link PartialFrontMatterSequence}
+		 * if the current "value" sequence is not of a specific type.
+		 */
+		private readonly shouldStop: (token: BaseToken) => boolean,
+	) {
+		super();
+	}
+
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterValue | FrontMatterValueToken> {
 		if (this.currentValueParser !== undefined) {
@@ -123,9 +133,12 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		}
 
 		// in all other cases, collect all the subsequent tokens into
-		// a generic sequence of tokens until stopped by the call to
-		// the 'asSequenceToken' method
-		this.currentValueParser = new PartialFrontMatterSequence(token);
+		// a generic sequence of tokens until stopped by the `this.shouldStop`
+		// callback or the call to the 'this.asSequenceToken' method
+		this.currentValueParser = new PartialFrontMatterSequence(
+			token,
+			this.shouldStop,
+		);
 		return {
 			result: 'success',
 			nextParser: this,

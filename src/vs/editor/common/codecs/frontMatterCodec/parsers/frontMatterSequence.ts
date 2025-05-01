@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NewLine } from '../../linesCodec/tokens/newLine.js';
+import { BaseToken } from '../../baseToken.js';
 import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
@@ -18,6 +18,17 @@ export class PartialFrontMatterSequence extends ParserBase<
 > {
 	constructor(
 		startToken: TSimpleDecoderToken,
+		/**
+		 * Callback function that is called to check if the current token
+		 * should stop the parsing process of the current generic "value"
+		 * sequence of arbitrary tokens by returning `true`.
+		 *
+		 * When this happens, the parser *will not consume* the token that
+		 * was passed to the `shouldStop` callback or to its `accept` method.
+		 * On the other hand, the parser will be "consumed" hence using it
+		 * to process other tokens will yield an error.
+		 */
+		private readonly shouldStop: (token: BaseToken) => boolean,
 	) {
 		super([startToken]);
 	}
@@ -26,22 +37,19 @@ export class PartialFrontMatterSequence extends ParserBase<
 	public accept(
 		token: TSimpleDecoderToken,
 	): TAcceptTokenResult<PartialFrontMatterSequence | FrontMatterSequence> {
-		this.currentTokens.push(token);
 
-		// collect all tokens until a new line is found which
-		// indicates the end of the generic tokens sequence
-		// TODO: @legomushroom - don't consume the last token?
-		// TODO: @legomushroom - accept a token type that stops the sequence instead?
-		if (token instanceof NewLine) {
+		// collect all tokens until an end of the sequence is found
+		if (this.shouldStop(token)) {
 			this.isConsumed = true;
 
 			return {
 				result: 'success',
 				nextParser: this.asSequenceToken(),
-				wasTokenConsumed: true,
+				wasTokenConsumed: false,
 			};
 		}
 
+		this.currentTokens.push(token);
 		return {
 			result: 'success',
 			nextParser: this,

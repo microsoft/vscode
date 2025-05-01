@@ -114,7 +114,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-tool-name-type',
-						"Expected a tool name '{0}', expected '{1}'.",
+						"Unexpected tool name '{0}', expected '{1}'.",
 						valueToken.text,
 						'string',
 					),

@@ -21,7 +21,6 @@ export class FrontMatterSequence extends FrontMatterValueToken<string> {
 	}
 
 	constructor(
-		// TODO: @legomushroom - exclude new lines?
 		public override readonly tokens: readonly TSimpleDecoderToken[],
 	) {
 		super(BaseToken.fullRange(tokens));

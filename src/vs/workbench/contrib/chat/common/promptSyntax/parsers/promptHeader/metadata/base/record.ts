@@ -34,15 +34,17 @@ export abstract class PromptMetadataRecord {
 	}
 
 	/**
+	 * Name of the metadata record.
+	 */
+	public get recordName(): string {
+		return this.recordToken.nameToken.text;
+	}
+
+	/**
 	 * Validate the metadata record and collect all issues
 	 * related to its content.
 	 */
 	public abstract validate(): readonly PromptMetadataDiagnostic[];
-
-	/**
-	 * Name of the metadata record.
-	 */
-	public abstract get recordName(): string;
 
 	/**
 	 * List of all diagnostic issues related to this metadata record.

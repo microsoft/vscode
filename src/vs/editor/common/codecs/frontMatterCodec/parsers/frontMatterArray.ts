@@ -33,10 +33,9 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	private currentValueParser?: PartialFrontMatterValue;
 
 	/**
-	 * Whether an array item is allowed in the current position
-	 * of the token sequence. E.g., items are allowed after
-	 * a command or a open bracket, but not immediately after
-	 * another item in the array.
+	 * Whether an array item is allowed in the current position of the token
+	 * sequence. E.g., items are allowed after a command or a open bracket,
+	 * but not immediately after another item in the array.
 	 */
 	private arrayItemAllowed = true;
 
@@ -48,19 +47,6 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterArray | FrontMatterArray> {
-		const isRightBracket = (token instanceof RightBracket);
-		const isComma = (token instanceof Comma);
-
-		// TODO: @legomushroom - pass the "end" token to the value parser?
-		if ((isRightBracket || isComma) && this.currentValueParser && (this.currentValueParser instanceof PartialFrontMatterValue) && (this.currentValueParser.isSequence)) {
-			this.currentTokens.push(
-				// TODO: @legomushroom - trim spaces at the end?
-				this.currentValueParser.asSequenceToken(),
-			);
-
-			delete this.currentValueParser;
-		}
-
 		if (this.currentValueParser !== undefined) {
 			const acceptResult = this.currentValueParser.accept(token);
 			const { result, wasTokenConsumed } = acceptResult;
@@ -80,6 +66,13 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 				this.currentTokens.push(nextParser);
 				delete this.currentValueParser;
 
+				// if token was not consume, call the `accept()` method
+				// recursively so that the current parser can re-process
+				// the token (e.g., a comma or a closing square bracket)
+				if (wasTokenConsumed === false) {
+					return this.accept(token);
+				}
+
 				return {
 					result: 'success',
 					nextParser: this,
@@ -95,7 +88,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			};
 		}
 
-		if (isRightBracket) {
+		if (token instanceof RightBracket) {
 			// sanity check in case this block moves around
 			// to a different place in the code
 			assert(
@@ -132,7 +125,13 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 		// once we found a valid start value token, create a new value parser
 		if ((this.arrayItemAllowed === true) && PartialFrontMatterValue.isValueStartToken(token)) {
-			this.currentValueParser = new PartialFrontMatterValue();
+			this.currentValueParser = new PartialFrontMatterValue(
+				(token) => {
+					// comma or a closing square bracket must stop the parsing
+					// process of the value represented by a generic sequence of tokens
+					return ((token instanceof RightBracket) || (token instanceof Comma));
+				},
+			);
 			this.arrayItemAllowed = false;
 
 			return this.accept(token);

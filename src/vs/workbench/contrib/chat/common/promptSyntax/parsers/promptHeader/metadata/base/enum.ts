@@ -37,11 +37,6 @@ export abstract class PromptEnumMetadata<
 		return this.value;
 	}
 
-	// TODO: @legomushroom - can be removed?
-	public override get recordName(): string {
-		return this.expectedRecordName;
-	}
-
 	/**
 	 * Validate the metadata record has an allowed value.
 	 */
