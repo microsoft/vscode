@@ -1259,9 +1259,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot.active {
 	background-color: var(--vscode-button-background);
 	width: 16px;
-	/* Increased from 14px */
 	height: 16px;
-	/* Increased from 14px */
 }
 
 /* Footer area */
@@ -1371,11 +1369,6 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step:hover {
-	background: var(--vscode-welcomePage-tileHoverBackground);
-	border-radius: 6px;
-}
-
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step {
 	display: flex;
 	flex-direction: column;
@@ -1396,6 +1389,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step.active {
+	background: var(--vscode-welcomePage-tileHoverBackground);
 	border-color: var(--vscode-welcomePage-tileBorder);
 	border-radius: 6px;
 }

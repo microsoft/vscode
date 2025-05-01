@@ -1577,6 +1577,9 @@ export class GettingStartedPage extends EditorPane {
 					this.detailsPageDisposables.add(addDisposableListener(subStep, 'click', () => {
 						this.selectSubStep(step.id);
 					}));
+					this.detailsPageDisposables.add(addDisposableListener(subStep, 'mouseenter', () => {
+						this.selectSubStep(step.id);
+					}));
 
 					const subStepTitleEl = $('.sub-step-title', {}, ...renderLabelWithIcons(step.title));
 					subStep.appendChild(subStepTitleEl);
@@ -1605,10 +1608,6 @@ export class GettingStartedPage extends EditorPane {
 
 				textContent.appendChild(multiStepContainer);
 			}
-
-			// Add actions container for buttons
-			const actionsContainer = $('.step-actions');
-			textContent.appendChild(actionsContainer);
 
 			// Append text content to the slide
 			slideContent.appendChild(textContent);
