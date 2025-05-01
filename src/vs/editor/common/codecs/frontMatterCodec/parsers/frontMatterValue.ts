@@ -122,7 +122,9 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 			};
 		}
 
-		// TODO: @legomushroom
+		// in all other cases, collect all the subsequent tokens into
+		// a generic sequence of tokens until stopped by the call to
+		// the 'asSequenceToken' method
 		this.currentValueParser = new PartialFrontMatterSequence(token);
 		return {
 			result: 'success',
@@ -148,7 +150,8 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Check if the current 'value' sequence does not have a specific type
+	 * and is represented by a generic sequence of tokens ({@link PartialFrontMatterSequence}).
 	 */
 	public get isSequence(): boolean {
 		if (this.currentValueParser === undefined) {
@@ -159,7 +162,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Convert current parser into a generic sequence of tokens.
 	 */
 	public asSequenceToken(): FrontMatterSequence {
 		this.isConsumed = true;

@@ -48,9 +48,9 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterArray | FrontMatterArray> {
-		// TODO: @legomushroom
 		const isRightBracket = (token instanceof RightBracket);
 		const isComma = (token instanceof Comma);
+
 		// TODO: @legomushroom - pass the "end" token to the value parser?
 		if ((isRightBracket || isComma) && this.currentValueParser && (this.currentValueParser instanceof PartialFrontMatterValue) && (this.currentValueParser.isSequence)) {
 			this.currentTokens.push(

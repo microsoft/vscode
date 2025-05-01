@@ -6,17 +6,18 @@
 import { PromptStringMetadata } from './string.js';
 import { localize } from '../../../../../../../../../nls.js';
 import { assert } from '../../../../../../../../../base/common/assert.js';
+import { isOneOf } from '../../../../../../../../../base/common/types.js';
 import { PromptMetadataDiagnostic, PromptMetadataError } from '../../diagnostics.js';
 import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
- * TODO: @legomushroom
+ * Enum type is the special case of the {@link PromptStringMetadata string}
+ * type that can take only a well-defined set of {@link validValues}.
  */
 export abstract class PromptEnumMetadata<
 	TValidValues extends string = string,
 > extends PromptStringMetadata {
 	constructor(
-		// TODO: @legomushroom - fix number of args
 		private readonly validValues: readonly TValidValues[],
 		expectedRecordName: string,
 		recordToken: FrontMatterRecord,
@@ -26,12 +27,11 @@ export abstract class PromptEnumMetadata<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Valid enum value or 'undefined'.
 	 */
 	private value: TValidValues | undefined;
-
 	/**
-	 * TODO: @legomushroom
+	 * Valid enum value or 'undefined'.
 	 */
 	public get enumValue(): TValidValues | undefined {
 		return this.value;
@@ -85,15 +85,3 @@ export abstract class PromptEnumMetadata<
 		return this.issues;
 	}
 }
-
-/**
- * TODO: @legomushroom
- */
-// TODO: @legomushroom - move closer to assert?
-const isOneOf = <T, K extends T>(
-	value: T,
-	validValues: readonly K[],
-): value is K => {
-	// TODO: @legomushroom - type casting
-	return validValues.includes(<K>value);
-};

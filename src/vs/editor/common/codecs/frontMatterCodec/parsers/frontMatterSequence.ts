@@ -9,7 +9,8 @@ import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
- * TODO: @legomushroom
+ * Parser responsible for parsing a generic sequence of
+ * tokens of an arbitrary length in a Front Matter header.
  */
 export class PartialFrontMatterSequence extends ParserBase<
 	TSimpleDecoderToken,
@@ -27,7 +28,10 @@ export class PartialFrontMatterSequence extends ParserBase<
 	): TAcceptTokenResult<PartialFrontMatterSequence | FrontMatterSequence> {
 		this.currentTokens.push(token);
 
-		// TODO: @legomushroom
+		// collect all tokens until a new line is found which
+		// indicates the end of the generic tokens sequence
+		// TODO: @legomushroom - don't consume the last token?
+		// TODO: @legomushroom - accept a token type that stops the sequence instead?
 		if (token instanceof NewLine) {
 			this.isConsumed = true;
 
@@ -46,7 +50,7 @@ export class PartialFrontMatterSequence extends ParserBase<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Convert the current parser into a {@link FrontMatterSequence} token.
 	 */
 	public asSequenceToken(): FrontMatterSequence {
 		this.isConsumed = true;
