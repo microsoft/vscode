@@ -36,13 +36,15 @@ export enum GettingStartedExperimentGroup {
 }
 
 const STABLE_EXPERIMENT_GROUPS: ExperimentGroupDefinition[] = [
-	{ name: GettingStartedExperimentGroup.New, min: 0.0, max: 0.1 },
-	{ name: GettingStartedExperimentGroup.Default, min: 0.1, max: 1.0 }
+	// { name: GettingStartedExperimentGroup.New, min: 0.0, max: 0.1 },
+	//{ name: GettingStartedExperimentGroup.Default, min: 0.1, max: 1.0 }
+	{ name: GettingStartedExperimentGroup.Default, min: 0.0, max: 1.0 }
 ];
 
 const INSIDERS_EXPERIMENT_GROUPS: ExperimentGroupDefinition[] = [
-	{ name: GettingStartedExperimentGroup.New, min: 0.0, max: 0.3 },
-	{ name: GettingStartedExperimentGroup.Default, min: 0.3, max: 1.0 }
+	// { name: GettingStartedExperimentGroup.New, min: 0.0, max: 0.3 },
+	//{ name: GettingStartedExperimentGroup.Default, min: 0.3, max: 1.0 }
+	{ name: GettingStartedExperimentGroup.Default, min: 0.0, max: 1.0 }
 ];
 
 const DEFAULT_EXPERIMENT_GROUPS: ExperimentGroupDefinition[] = [
