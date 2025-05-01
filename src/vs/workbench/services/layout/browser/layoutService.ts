@@ -49,7 +49,10 @@ export const bubblyParts: Record<string, BubblyPartSettings> = {
 		customHeaderHeight: 42,
 		borderRadius: 0
 	},
-	[Parts.PANEL_PART]: defaultBubblySettings,
+	[Parts.PANEL_PART]: {
+		...defaultBubblySettings,
+		customTitleHeight: 51
+	},
 	[Parts.EDITOR_PART]: defaultBubblySettings,
 	[Parts.PEAROVERLAY_PART]: {
 		borderRadius: 0,

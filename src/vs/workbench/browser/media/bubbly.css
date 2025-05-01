@@ -11,10 +11,6 @@
 	--bubbly-text-transform: uppercase;
 }
 
-.bubbly-part-pad {
-	margin: 5px;
-}
-
 .split-view-view:has(> .bubbly-part) {
 	background: var(--vscode-sideBar-background);
 }
@@ -78,7 +74,7 @@
 }
 
 /* Panel (bottom bar) */
-.bubbly-part.panel .action-label {/* Makes panel buttons (Problems, Output, Debug Console) not upcase*/
+.bubbly-part.panel .action-label {/* panel buttons (Problems, Output, Debug Console)*/
 	text-transform: var(--bubbly-text-transform) !important;
 	border-bottom-color: transparent !important;
 }
@@ -91,29 +87,7 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--bubbly-radius-base);
 	box-sizing: border-box;
-	height: 80% !important;
-	transition: background-color 0.05s linear;
-	display: flex;
-	align-items: center;
-}
-
-.bubbly-part.panel .global-actions .action-item {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: var(--bubbly-radius-base);
-	width: 28px;
-	height: 28px;
-	box-sizing: border-box;
-	transition: background-color 0.05s linear;
-	display: flex;
-	align-items: center;
-}
-
-.bubbly-part.panel .title-actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: var(--bubbly-radius-base);
-	min-width: 28px;
-	min-height: 28px;
-	box-sizing: border-box;
+	height: 100% !important;
 	transition: background-color 0.05s linear;
 	display: flex;
 	align-items: center;
@@ -121,10 +95,6 @@
 
 .bubbly-part.panel .title-actions {
 	margin-right: 2px;
-}
-
-.bubbly-part.panel .global-actions .action-item:hover {
-	background-color: none;
 }
 
 .bubbly-part.panel .composite-bar-container .action-item {
@@ -137,6 +107,10 @@
 
 .bubbly-part.panel .action-item.checked {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.bubbly-part.panel .composite-bar .actions-container {
+	gap: 4px;
 }
 
 .bubbly-part.panel .actions-container {
@@ -161,7 +135,8 @@
 }
 
 .bubbly-part.panel .composite.title {
-	margin-top: 2px;
+	padding: 8px;
+	height: 51px;/* updated title size to account for padding, see layoutService.ts*/
 }
 
 /* Terminal */
@@ -189,7 +164,7 @@
 	align-items: center;
 	margin-left: 8px;
 	margin-right: 2px;
-	gap: 4px;
+	gap: 8px;
 }
 
 .monaco-workbench .bubbly-part.editor > .content .editor-group-container > .title .tabs-and-actions-container.wrapping .tabs-container {
@@ -315,11 +290,10 @@
 
 /* Activity bar (when on left side of screen, detached from sidebar) */
 .monaco-workbench .bubbly-part.activitybar {
-	background-color: transparent !important;
 	color: transparent !important;
 }
 
-.monaco-workbench .part.activitybar {/* Updated in code, see activitybarPart.ts */
+.monaco-workbench .part.activitybar {/* Updated width in code, see activitybarPart.ts */
 	width: 56px;
 }
 
