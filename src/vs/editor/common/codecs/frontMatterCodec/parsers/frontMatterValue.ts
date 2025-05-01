@@ -136,14 +136,18 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		// a generic sequence of tokens until stopped by the `this.shouldStop`
 		// callback or the call to the 'this.asSequenceToken' method
 		this.currentValueParser = new PartialFrontMatterSequence(
-			token,
+			// token,
 			this.shouldStop,
 		);
-		return {
-			result: 'success',
-			nextParser: this,
-			wasTokenConsumed: true,
-		};
+
+		return this.accept(token);
+
+		// TODO: @legomushroom
+		// return {
+		// 	result: 'success',
+		// 	nextParser: this,
+		// 	wasTokenConsumed: true,
+		// };
 	}
 
 	/**

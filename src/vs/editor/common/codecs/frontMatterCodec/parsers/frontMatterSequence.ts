@@ -17,7 +17,8 @@ export class PartialFrontMatterSequence extends ParserBase<
 	PartialFrontMatterSequence | FrontMatterSequence
 > {
 	constructor(
-		startToken: TSimpleDecoderToken,
+		// TODO: @legomushroom
+		// startToken: TSimpleDecoderToken,
 		/**
 		 * Callback function that is called to check if the current token
 		 * should stop the parsing process of the current generic "value"
@@ -30,7 +31,7 @@ export class PartialFrontMatterSequence extends ParserBase<
 		 */
 		private readonly shouldStop: (token: BaseToken) => boolean,
 	) {
-		super([startToken]);
+		super([]);
 	}
 
 	@assertNotConsumed
@@ -55,6 +56,19 @@ export class PartialFrontMatterSequence extends ParserBase<
 			nextParser: this,
 			wasTokenConsumed: true,
 		};
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public static fromTokens(
+		tokens: readonly TSimpleDecoderToken[],
+		shouldStop: (token: BaseToken) => boolean,
+	): PartialFrontMatterSequence {
+		const parser = new PartialFrontMatterSequence(shouldStop);
+		parser.currentTokens.push(...tokens);
+
+		return parser;
 	}
 
 	/**

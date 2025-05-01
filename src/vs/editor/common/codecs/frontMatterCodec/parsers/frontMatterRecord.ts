@@ -11,8 +11,8 @@ import { PartialFrontMatterSequence } from './frontMatterSequence.js';
 import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
 import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
-import { Colon, Word, Dash, Space, Tab, FormFeed } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { Colon, Word, Dash, Space, Tab, FormFeed, VerticalTab } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken, FrontMatterRecordName, type TRecordNameToken, type TRecordSpaceToken, FrontMatterRecordDelimiter, FrontMatterRecord } from '../tokens/index.js';
 
 /**
@@ -33,7 +33,7 @@ const VALID_NAME_TOKENS = [
  * ```
  */
 const VALID_SPACE_TOKENS = [
-	Space, Tab,
+	Space, Tab, VerticalTab,
 ];
 
 /**
@@ -294,17 +294,27 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 			return this.accept(token);
 		}
 
+		// TODO: @legomushroom
+		if (shouldEndTokenSequence(token)) {
+			this.currentValueParser = PartialFrontMatterSequence.fromTokens(
+				// TODO: @legomushroom
+				this.currentTokens.slice(2),
+				shouldEndTokenSequence,
+			);
+
+			return {
+				result: 'success',
+				nextParser: this.asRecordToken(),
+				wasTokenConsumed: false,
+			};
+		}
+
 		// in all other cases, collect all the subsequent tokens into
 		// a "sequence of tokens" until a new line is found
 		this.currentValueParser = new PartialFrontMatterSequence(
-			token,
 			shouldEndTokenSequence,
 		);
-		return {
-			result: 'success',
-			nextParser: this,
-			wasTokenConsumed: true,
-		};
+		return this.accept(token);
 	}
 
 	/**
