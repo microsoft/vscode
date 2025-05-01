@@ -162,6 +162,17 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 	/**
 	 * TODO: @legomushroom
 	 */
+	public get isSequence(): boolean {
+		if (this.currentValueParser === undefined) {
+			return false;
+		}
+
+		return (this.currentValueParser instanceof PartialFrontMatterSequence);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
 	public asSequenceToken(): FrontMatterSequence {
 		this.isConsumed = true;
 

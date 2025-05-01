@@ -49,6 +49,18 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterArray | FrontMatterArray> {
+		// TODO: @legomushroom
+		const isRightBracket = (token instanceof RightBracket);
+		const isComma = (token instanceof Comma);
+		if ((isRightBracket || isComma) && this.currentValueParser && (this.currentValueParser instanceof PartialFrontMatterValue) && (this.currentValueParser.isSequence)) {
+			this.currentTokens.push(
+				// TODO: @legomushroom - trim spaces at the end?
+				this.currentValueParser.asSequenceToken(),
+			);
+
+			delete this.currentValueParser;
+		}
+
 		if (this.currentValueParser !== undefined) {
 			const acceptResult = this.currentValueParser.accept(token);
 			const { result, wasTokenConsumed } = acceptResult;
@@ -83,7 +95,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			};
 		}
 
-		if (token instanceof RightBracket) {
+		if (isRightBracket) {
 			// sanity check in case this block moves around
 			// to a different place in the code
 			assert(
