@@ -1419,6 +1419,19 @@ export class GettingStartedPage extends EditorPane {
 			footer.style.display = 'block';
 		}
 
+		this.updateNavButtons(newIndex, steps);
+
+		// Update the active dot
+		const dots = this.stepsContent.querySelectorAll('.step-dot');
+		dots.forEach((dot, index) => {
+			if (index === newIndex) {
+				dot.classList.add('active');
+			} else {
+				dot.classList.remove('active');
+			}
+		});
+
+
 		if (currentIndex === newIndex) {
 			return; // No change
 		}
@@ -1460,16 +1473,24 @@ export class GettingStartedPage extends EditorPane {
 					}
 				});
 			}, 20);
+		}
+	}
 
-			// Update the active dot
-			const dots = this.stepsContent.querySelectorAll('.step-dot');
-			dots.forEach((dot, index) => {
-				if (index === newIndex) {
-					dot.classList.add('active');
-				} else {
-					dot.classList.remove('active');
-				}
-			});
+	private updateNavButtons(newIndex: number, steps: IResolvedWalkthroughStep[]) {
+		const prevButton = this.stepsContent.querySelector('.button-link.navigation.back') as HTMLButtonElement;
+		if (newIndex === 0) {
+			if (prevButton) {
+				prevButton.classList.add('inactive');
+				prevButton.setAttribute('aria-hidden', 'true');
+				prevButton.setAttribute('tabindex', '-1');
+			}
+		}
+		else {
+			if (prevButton) {
+				prevButton.classList.remove('inactive');
+				prevButton.removeAttribute('aria-hidden');
+				prevButton.removeAttribute('tabindex');
+			}
 		}
 	}
 
@@ -1633,6 +1654,8 @@ export class GettingStartedPage extends EditorPane {
 			const currentIndex = this.getCurrentSlideIndex(allSlides);
 			if (currentIndex < allSlides.length - 1) {
 				this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
+			} else {
+				this.scrollPrev();
 			}
 		}));
 

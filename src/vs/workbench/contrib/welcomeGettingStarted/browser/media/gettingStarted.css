@@ -1171,10 +1171,11 @@
 	max-width: 900px;
 	margin: 12px auto;
 	display: flex;
-	justify-content: space-between;
+	justify-content: center;
 	align-items: center;
 	grid-area: dots;
 	height: max-content;
+	position: relative;
 }
 
 /* Center dots between navigation buttons */
@@ -1186,13 +1187,13 @@
 	width: max-content;
 	flex: 1;
 	margin: 0 8px;
+	position: absolute;
 }
 
 /* Navigation buttons styling */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation {
 	display: flex;
 	align-items: center;
-	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	padding: 3px 12px;
 	font-size: 16px;
@@ -1200,11 +1201,7 @@
 	border-radius: 4px;
 	white-space: nowrap;
 	flex-shrink: 0;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation:hover {
-	color: var(--vscode-textLink-activeForeground);
-	background: var(--vscode-toolbar-hoverBackground);
+	position: absolute;
 }
 
 /* Make the back/next button icons larger */
@@ -1214,13 +1211,21 @@
 	padding-right: 4px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation.inactive {
+	display: none;
+}
+
 /* Remove auto margins that spread things out */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.back {
-	margin-right: 0;
+	margin: 0;
+	position: absolute;
+	left: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.next {
-	margin-left: 0;
+	margin: 0;
+	position: absolute;
+	right: 0;
 }
 
 /* Left alignment for back button */
