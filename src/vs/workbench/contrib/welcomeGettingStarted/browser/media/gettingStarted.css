@@ -1073,6 +1073,7 @@
 	flex-direction: column;
 	justify-content: center;
 	align-self: center;
+	outline: none;
 }
 
 /* Hide the default media container */
