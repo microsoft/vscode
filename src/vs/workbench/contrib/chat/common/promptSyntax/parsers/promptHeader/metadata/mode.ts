@@ -13,15 +13,6 @@ import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../edi
 const RECORD_NAME = 'mode';
 
 /**
- * Valid chat mode values.
- */
-const VALID_MODES = Object.freeze([
-	ChatMode.Ask,
-	ChatMode.Edit,
-	ChatMode.Agent,
-]);
-
-/**
  * Prompt `mode` metadata record inside the prompt header.
  */
 export class PromptModeMetadata extends PromptEnumMetadata<ChatMode> {
@@ -29,7 +20,12 @@ export class PromptModeMetadata extends PromptEnumMetadata<ChatMode> {
 		recordToken: FrontMatterRecord,
 		languageId: string,
 	) {
-		super(VALID_MODES, RECORD_NAME, recordToken, languageId);
+		super(
+			[ChatMode.Ask, ChatMode.Edit, ChatMode.Agent],
+			RECORD_NAME,
+			recordToken,
+			languageId,
+		);
 	}
 
 	/**

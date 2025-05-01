@@ -33,8 +33,6 @@ export abstract class PromptMetadataRecord {
 	) {
 
 		this.issues = [];
-		// TODO: @legomushroom
-		// this.issues.push(...this.validate());
 	}
 
 	/**
@@ -189,8 +187,8 @@ export abstract class PromptEnumMetadata<
 		);
 
 		const { cleanText } = this.valueToken;
-		if (this.validValues.includes(<TValidValues>cleanText)) {
-			this.value = <TValidValues>cleanText;
+		if (isOneOf(cleanText, this.validValues)) {
+			this.value = cleanText;
 
 			return this.issues;
 		}
@@ -215,3 +213,15 @@ export abstract class PromptEnumMetadata<
 		return this.issues;
 	}
 }
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - move closer to assert?
+const isOneOf = <T, K extends T>(
+	value: T,
+	validValues: readonly K[],
+): value is K => {
+	// TODO: @legomushroom - type casting
+	return validValues.includes(<K>value);
+};

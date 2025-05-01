@@ -26,7 +26,6 @@ const VALID_DELIMITER_TOKENS = Object.freeze([
  * Responsible for parsing an array syntax (or "inline sequence"
  * in YAML terms), e.g. `[1, '2', true, 2.54]`
 */
-// TODO: @legomushroom - parse "sequence" item values too
 export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, PartialFrontMatterArray | FrontMatterArray> {
 	/**
 	 * Current parser reference responsible for parsing an array "value".
@@ -52,6 +51,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 		// TODO: @legomushroom
 		const isRightBracket = (token instanceof RightBracket);
 		const isComma = (token instanceof Comma);
+		// TODO: @legomushroom - pass the "end" token to the value parser?
 		if ((isRightBracket || isComma) && this.currentValueParser && (this.currentValueParser instanceof PartialFrontMatterValue) && (this.currentValueParser.isSequence)) {
 			this.currentTokens.push(
 				// TODO: @legomushroom - trim spaces at the end?

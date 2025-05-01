@@ -301,10 +301,9 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 			'Current value parser must be defined.'
 		);
 
-		// TODO: @legomushroom - assert one of?
 		if (
-			(this.currentValueParser instanceof PartialFrontMatterValue) ||
-			(this.currentValueParser instanceof PartialFrontMatterSequence)
+			(this.currentValueParser instanceof PartialFrontMatterValue)
+			|| (this.currentValueParser instanceof PartialFrontMatterSequence)
 		) {
 			this.currentTokens.push(
 				this.currentValueParser.asSequenceToken(),

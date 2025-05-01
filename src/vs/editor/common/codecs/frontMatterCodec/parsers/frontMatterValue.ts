@@ -111,19 +111,15 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		}
 
 		// if the first token represents a `word` try to parse a boolean
-		if (token instanceof Word) {
-			try {
-				const booleanToken = new FrontMatterBoolean(token);
-				this.isConsumed = true;
+		const maybeBoolean = FrontMatterBoolean.tryFromToken(token);
+		if (maybeBoolean !== null) {
+			this.isConsumed = true;
 
-				return {
-					result: 'success',
-					nextParser: booleanToken,
-					wasTokenConsumed: true,
-				};
-			} catch (_error) {
-				// noop
-			}
+			return {
+				result: 'success',
+				nextParser: maybeBoolean,
+				wasTokenConsumed: true,
+			};
 		}
 
 		// TODO: @legomushroom
@@ -133,14 +129,6 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 			nextParser: this,
 			wasTokenConsumed: true,
 		};
-
-		// TODO: @legomushroom
-		// // in all other cases fail due to unexpected value sequence
-		// this.isConsumed = true;
-		// return {
-		// 	result: 'failure',
-		// 	wasTokenConsumed: false,
-		// };
 	}
 
 	/**

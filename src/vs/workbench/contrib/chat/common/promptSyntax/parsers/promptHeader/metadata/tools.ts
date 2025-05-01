@@ -72,10 +72,8 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-value-type',
-						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
+						"Value of the '{0}' metadata must be an array of strings, got '{2}'.",
 						RECORD_NAME,
-						// TODO: @legomushroom - localize the 'array of strings'?
-						'array of strings',
 						valueToken.valueTypeName,
 					),
 				),
@@ -102,6 +100,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	 * Validate an individual provided value token that
 	 * is used for a tool name.
 	 */
+	// TODO: @legomushroom - allow for single-word 'unknown sequence' values?
 	private validateToolName(
 		valueToken: FrontMatterValueToken,
 		validToolNames: Set<string>,
