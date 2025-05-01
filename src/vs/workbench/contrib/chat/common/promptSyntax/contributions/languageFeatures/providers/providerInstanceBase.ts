@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptsService, TSharedPrompt } from '../../service/types.js';
-import { ITextModel } from '../../../../../../../editor/common/model.js';
-import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
+import { IPromptsService, TSharedPrompt } from '../../../service/types.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { ObservableDisposable } from '../../../../../../../../base/common/observableDisposable.js';
 
 /**
  * Abstract base class for all reusable prompt file providers.
  */
 export abstract class ProviderInstanceBase extends ObservableDisposable {
 	/**
-	 * Function that is called when the prompt parser is updated.
+	 * Function that is called when the prompt parser is settled.
 	 */
-	protected abstract onPromptParserUpdate(): Promise<this>;
+	protected abstract onPromptSettled(error: Error | undefined): Promise<this>;
 
 	/**
 	 * Returns a string representation of this object.
@@ -33,11 +33,15 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 		super();
 
 		this.parser = promptsService.getSyntaxParserFor(model);
-		this.parser.onUpdate(this.onPromptParserUpdate.bind(this));
-		this.parser.onDispose(this.dispose.bind(this));
-		this.parser.start();
+
+		this._register(
+			this.parser.onSettled(this.onPromptSettled.bind(this)),
+		);
+		this.parser
+			.onDispose(this.dispose.bind(this))
+			.start();
 
 		// initialize an update
-		this.onPromptParserUpdate();
+		setTimeout(this.onPromptSettled.bind(this));
 	}
 }

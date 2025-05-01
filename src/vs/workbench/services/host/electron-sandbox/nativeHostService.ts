@@ -207,9 +207,15 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		const disposable = token.onCancellationRequested(() => {
 			ipcRenderer.send(onCancelChannel, cancelSelectionId);
 		});
-		const elementData = this.nativeHostService.getElementData(offsetX, offsetY, token, cancelSelectionId);
-		elementData.finally(() => disposable.dispose());
-		return elementData;
+		try {
+			const elementData = await this.nativeHostService.getElementData(offsetX, offsetY, token, cancelSelectionId);
+			return elementData;
+		} catch (error) {
+			disposable.dispose();
+			throw new Error(`Native Host: Error getting element data: ${error}`);
+		} finally {
+			disposable.dispose();
+		}
 	}
 
 	//#endregion

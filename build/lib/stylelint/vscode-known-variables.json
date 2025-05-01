@@ -59,6 +59,8 @@
 		"--vscode-chat-slashCommandForeground",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
+		"--vscode-checkbox-disabled-background",
+		"--vscode-checkbox-disabled-foreground",
 		"--vscode-checkbox-foreground",
 		"--vscode-checkbox-selectBackground",
 		"--vscode-checkbox-selectBorder",

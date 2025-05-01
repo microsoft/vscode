@@ -14,6 +14,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -1035,7 +1036,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 		}));
 		this._register(autorun(r => {
-			this.input.selectedToolsModel.tools.read(r); // SIGNAL
+			const enabledTools = new Set(this.input.selectedToolsModel.tools.read(r).map(t => t.id));
+			const disabledTools = this.inputPart.attachmentModel.attachments
+				.filter(a => a.kind === 'tool' && !enabledTools.has(a.id))
+				.map(a => a.id);
+
+			this.inputPart.attachmentModel.updateContent(disabledTools, Iterable.empty());
 			this.refreshParsedInput();
 		}));
 	}
@@ -1274,7 +1280,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let userSelectedTools: string[] | undefined;
 			let userSelectedTools2: Record<string, boolean> | undefined;
 			if (this.input.currentMode === ChatMode.Agent) {
-				userSelectedTools = this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id);
+				userSelectedTools = Array.from(this.inputPart.selectedToolsModel.asEnablementMap().entries()).map(([tool]) => tool.id);
 
 				userSelectedTools2 = {};
 				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {

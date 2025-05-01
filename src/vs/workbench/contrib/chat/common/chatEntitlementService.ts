@@ -806,6 +806,7 @@ export interface IChatEntitlementContextState {
 	entitlement: ChatEntitlement;
 	hidden?: boolean;
 	installed?: boolean;
+	disabled?: boolean;
 	registered?: boolean;
 }
 
@@ -819,6 +820,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly proContextKey: IContextKey<boolean>;
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
+	private readonly disabledContext: IContextKey<boolean>;
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
@@ -846,6 +848,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.proContextKey = ChatContextKeys.Entitlement.pro.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
+		this.disabledContext = ChatContextKeys.Setup.disabled.bindTo(contextKeyService);
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 
@@ -865,18 +868,23 @@ export class ChatEntitlementContext extends Disposable {
 			}
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-			this.update({ installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local) });
+			this.update({
+				// TODO@bpasero considering enablement state here as well for historic reasons, should revisit when Copilot can be enabled/disabled more generally
+				installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local),
+				disabled: !!defaultChatExtension?.local && !this.extensionEnablementService.isEnabled(defaultChatExtension.local)
+			});
 		}));
 	}
 
-	update(context: { installed: boolean }): Promise<void>;
+	update(context: { installed: boolean; disabled: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; hidden?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
-		if (typeof context.installed === 'boolean') {
+		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
 			this._state.installed = context.installed;
+			this._state.disabled = context.disabled;
 
 			if (context.installed) {
 				context.hidden = false; // allows to fallback if the extension is uninstalled
@@ -917,6 +925,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.proContextKey.set(this._state.entitlement === ChatEntitlement.Pro);
 		this.hiddenContext.set(!!this._state.hidden);
 		this.installedContext.set(!!this._state.installed);
+		this.disabledContext.set(!!this._state.disabled);
 
 		this._onDidChange.fire();
 	}

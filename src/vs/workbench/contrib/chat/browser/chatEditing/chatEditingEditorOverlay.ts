@@ -58,7 +58,14 @@ class ChatEditorOverlayWidget extends Disposable {
 		this._isBusy = derived(r => {
 			const session = this._session.read(r);
 			const chatModel = session && _chatService.getSession(session?.chatSessionId);
-			return chatModel && observableFromEvent(this, chatModel.onDidChange, () => chatModel.requestInProgress).read(r);
+
+			const lastResponse = chatModel
+				? observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response).read(r)
+				: undefined;
+
+			return lastResponse
+				? observableFromEvent(this, lastResponse.onDidChange, () => !lastResponse.isPendingConfirmation && !lastResponse.isComplete).read(r)
+				: false;
 		});
 
 		const requestMessage = derived(r => {
@@ -371,7 +378,7 @@ class ChatEditingOverlayController {
 			if (!response) {
 				return false;
 			}
-			return observableFromEvent(this, response.onDidChange, () => !response.isComplete).read(r);
+			return observableFromEvent(this, response.onDidChange, () => !response.isComplete && !response.isPendingConfirmation).read(r);
 		});
 
 		this._store.add(autorun(r => {
