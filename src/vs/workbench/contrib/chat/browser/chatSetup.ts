@@ -58,7 +58,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestToolEntry, IChatRequestVariableData } from '../common/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
@@ -76,6 +76,7 @@ const defaultChat = {
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
+	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
@@ -623,7 +624,7 @@ class ChatSetup {
 		this.skipDialogOnce = false;
 
 		let setupStrategy: ChatSetupStrategy;
-		if (dialogSkipped || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+		if (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
 		} else {
 			setupStrategy = await this.showDialog();
@@ -703,7 +704,7 @@ class ChatSetup {
 			return this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot for free");
 		}
 
-		if (this.context.state.entitlement === ChatEntitlement.Pro) {
+		if (isProUser(this.context.state.entitlement)) {
 			return localize('copilotProTitle', "Start using Copilot Pro");
 		}
 
@@ -1000,7 +1001,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 
 				const entitlement = context.state.entitlement;
-				if (entitlement !== ChatEntitlement.Pro) {
+				if (!isProUser(entitlement)) {
 					// If the user is not yet Pro, we listen to window focus to refresh the token
 					// when the user has come back to the window assuming the user signed up.
 					windowFocusListener.value = hostService.onDidChangeFocus(focus => this.onWindowFocus(focus, commandService));
@@ -1012,7 +1013,63 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					windowFocusListener.clear();
 
 					const entitlements = await requests.forceResolveEntitlement(undefined);
-					if (entitlements?.entitlement === ChatEntitlement.Pro) {
+					if (entitlements?.entitlement && isProUser(entitlements?.entitlement)) {
+						refreshTokens(commandService);
+					}
+				}
+			}
+		}
+
+		class EnableOveragesAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.chat.enableOverages',
+					title: localize2('enableOverages', "Enable Copilot Overages"),
+					category: localize2('chat.category', 'Chat'),
+					f1: true,
+					precondition: ContextKeyExpr.or(
+						ChatContextKeys.Entitlement.pro,
+						ChatContextKeys.Entitlement.proPlus,
+					),
+					menu: {
+						id: MenuId.ChatTitleBarMenu,
+						group: 'a_first',
+						order: 1,
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.or(
+								ChatContextKeys.Entitlement.pro,
+								ChatContextKeys.Entitlement.proPlus,
+							),
+							ContextKeyExpr.or(
+								ChatContextKeys.chatQuotaExceeded,
+								ChatContextKeys.completionsQuotaExceeded
+							)
+						)
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor, from?: string): Promise<void> {
+				const openerService = accessor.get(IOpenerService);
+				const hostService = accessor.get(IHostService);
+				const commandService = accessor.get(ICommandService);
+
+				openerService.open(URI.parse(defaultChat.manageOveragesUrl));
+
+				const entitlement = context.state.entitlement;
+				if (!isProUser(entitlement)) {
+					// If the user is not yet Pro, we listen to window focus to refresh the token
+					// when the user has come back to the window assuming the user signed up.
+					windowFocusListener.value = hostService.onDidChangeFocus(focus => this.onWindowFocus(focus, commandService));
+				}
+			}
+
+			private async onWindowFocus(focus: boolean, commandService: ICommandService): Promise<void> {
+				if (focus) {
+					windowFocusListener.clear();
+
+					const entitlements = await requests.forceResolveEntitlement(undefined);
+					if (entitlements?.entitlement && isProUser(entitlements?.entitlement)) {
 						refreshTokens(commandService);
 					}
 				}
@@ -1024,6 +1081,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerWithoutDialogAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
+		registerAction2(EnableOveragesAction);
 	}
 
 	private registerUrlLinkHandler(): void {
@@ -1201,7 +1259,7 @@ class ChatSetupController extends Disposable {
 
 			if (
 				entitlement !== ChatEntitlement.Limited &&	// User is not signed up to Copilot Free
-				entitlement !== ChatEntitlement.Pro &&		// User is not signed up to Copilot Pro
+				!isProUser(entitlement) &&		// User is not signed up for a Copilot subscription
 				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
 			) {
 				if (!session) {
