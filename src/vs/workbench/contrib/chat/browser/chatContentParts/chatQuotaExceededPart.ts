@@ -66,7 +66,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		switch (chatEntitlementService.entitlement) {
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
-				button1Label = localize('enableCopilotOverages', "Enable Copilot Overages");
+				button1Label = localize('enableAdditionalUsage', "Manage paid premium requests");
 				break;
 			case ChatEntitlement.Limited:
 				button1Label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");

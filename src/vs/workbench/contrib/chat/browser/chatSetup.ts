@@ -1023,8 +1023,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		class EnableOveragesAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.action.chat.enableOverages',
-					title: localize2('enableOverages', "Enable Copilot Overages"),
+					id: 'workbench.action.chat.manageOverages',
+					title: localize2('manageOverages', "Manage Copilot Overages"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.or(
@@ -1051,28 +1051,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor, from?: string): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				const hostService = accessor.get(IHostService);
-				const commandService = accessor.get(ICommandService);
-
 				openerService.open(URI.parse(defaultChat.manageOveragesUrl));
-
-				const entitlement = context.state.entitlement;
-				if (!isProUser(entitlement)) {
-					// If the user is not yet Pro, we listen to window focus to refresh the token
-					// when the user has come back to the window assuming the user signed up.
-					windowFocusListener.value = hostService.onDidChangeFocus(focus => this.onWindowFocus(focus, commandService));
-				}
-			}
-
-			private async onWindowFocus(focus: boolean, commandService: ICommandService): Promise<void> {
-				if (focus) {
-					windowFocusListener.clear();
-
-					const entitlements = await requests.forceResolveEntitlement(undefined);
-					if (entitlements?.entitlement && isProUser(entitlements?.entitlement)) {
-						refreshTokens(commandService);
-					}
-				}
 			}
 		}
 
