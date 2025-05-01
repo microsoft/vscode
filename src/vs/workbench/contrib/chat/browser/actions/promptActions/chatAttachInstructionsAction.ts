@@ -109,7 +109,7 @@ class AttachInstructionsAction extends Action2 {
 			'Select instructions files to attach',
 		);
 
-		const instructions = await pickers.selectInstructionsFiles({ promptFiles, placeholder });
+		const instructions = await pickers.selectInstructionsFiles({ promptFiles, resource, placeholder });
 
 		if (instructions !== undefined) {
 			const widget = await attachInstructionsFiles(

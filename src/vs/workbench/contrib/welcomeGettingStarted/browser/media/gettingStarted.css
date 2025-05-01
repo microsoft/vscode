@@ -697,6 +697,11 @@
 	outline-offset: 0;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .step-list-container button:focus-visible {
+	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+	outline: none;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
 	position: absolute;
 	left: 40px;
@@ -911,6 +916,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .description {
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4em;
+	font-size: 1.4em;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .category-progress .message {
@@ -1094,6 +1100,12 @@
 	/* Center vertically in parent */
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .getting-started-steps-container,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .getting-started-steps-container {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 {
 	font-size: 40px;
 }
@@ -1106,6 +1118,8 @@
 	flex: 1;
 	width: 100%;
 	transition: transform 0.6s ease;
+	padding-top: 16px;
+	padding-bottom: 16px;
 }
 
 /* Individual slide styling */
@@ -1135,7 +1149,6 @@
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
-	padding-right: 16px;
 	min-height: 300px;
 	height: 100%;
 }
@@ -1276,39 +1289,33 @@
 /* Buttons in description */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container .monaco-button {
 	height: 36px;
-	/* Increased from 24px */
 	padding: 0 16px;
-	/* Increased from 0 11px */
 	font-size: 15px;
-	/* Increased from default */
 }
 
 /* Multi-step container buttons */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
 	height: 36px;
-	/* Increased from 24px */
 	padding: 0 16px;
-	/* Increased from 0 11px */
 	font-size: 16px;
-	/* Increased from default */
 }
 
 /* Responsive design - stack on smaller screens */
-@media (max-width: 900px) {
+@media (max-width: 600px) {
+
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide-content {
 		grid-template-columns: 1fr;
 		grid-template-areas:
-			"text"
-			"media";
+			"text";
 		gap: 24px;
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-text-content {
-		padding-right: 0;
+		padding-right: 2px;
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-media-content {
-		min-height: 200px;
+		display: none;
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide {
@@ -1356,7 +1363,6 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container {
 	display: flex;
 	flex-direction: column;
-	margin-top: 10px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step:hover {
@@ -1370,10 +1376,9 @@
 	cursor: pointer;
 	box-sizing: border-box;
 	border-left: 1px solid transparent;
-	width: 80%;
-	padding-left:8px;
+	padding-left: 8px;
 	border-width: 1px;
-	border-style:solid;
+	border-style: solid;
 	border-color: transparent;
 }
 
@@ -1390,8 +1395,17 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container {
-	margin-top: 50px;
+	margin-top: 2rem;
 	margin-left: 16px
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .multi-step-container .button-container,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .multi-step-container .button-container {
+	margin-top: 1rem;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .sub-step-title {
+	padding-top: 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {

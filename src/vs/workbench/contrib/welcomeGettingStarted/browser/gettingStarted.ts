@@ -1458,6 +1458,14 @@ export class GettingStartedPage extends EditorPane {
 
 			// Update the selected step and build its media
 			this.selectSlide(steps[newIndex].id);
+
+			// update footer visibility
+			const footer = this.stepsContent.querySelector('.getting-started-footer') as HTMLElement;
+			if (footer && newIndex !== 0) {
+				footer.style.display = 'none';
+			} else if (footer) {
+				footer.style.display = 'block';
+			}
 		}
 	}
 
@@ -1651,6 +1659,11 @@ export class GettingStartedPage extends EditorPane {
 		const categoryTitle = $('h2.category-title', { 'x-category-title-for': category.id });
 		reset(categoryTitle, ...renderLabelWithIcons(category.title));
 		categoryHeader.appendChild(categoryTitle);
+
+		const descriptionContainer = $('.category-description.description.max-lines-3', { 'x-category-description-for': category.id });
+		this.buildMarkdownDescription(descriptionContainer, parseDescription(category.description));
+		reset(descriptionContainer, ...renderLabelWithIcons(category.description));
+		categoryHeader.appendChild(descriptionContainer);
 
 		const categoryFooter = $('.getting-started-footer');
 		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && this.productService.enableTelemetry) {
