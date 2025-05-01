@@ -294,13 +294,30 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 			return this.accept(token);
 		}
 
-		// TODO: @legomushroom
+		// in all other cases, collect all the subsequent tokens into
+		// a "sequence of tokens" until a new line is found
+		this.currentValueParser = new PartialFrontMatterSequence(
+			shouldEndTokenSequence,
+		);
+
+		// if we reached this "generic sequence" parser point, and the current token
+		// is already of a type that stops the sequence, we must have accumulated
+		// some space tokens already, so pass those to the parser and end the sequence
 		if (shouldEndTokenSequence(token)) {
-			this.currentValueParser = PartialFrontMatterSequence.fromTokens(
-				// TODO: @legomushroom
-				this.currentTokens.slice(2),
-				shouldEndTokenSequence,
-			);
+			const spaceTokens = this.currentTokens.slice(this.startTokensCount);
+
+			// if no space tokens accumulated at all, create an "empty" one
+			if (spaceTokens.length === 0) {
+				spaceTokens.push(
+					Word.newOnLine(
+						'',
+						token.range.startLineNumber,
+						token.range.startColumn,
+					),
+				);
+			}
+
+			this.currentValueParser.addTokens(spaceTokens);
 
 			return {
 				result: 'success',
@@ -309,11 +326,6 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 			};
 		}
 
-		// in all other cases, collect all the subsequent tokens into
-		// a "sequence of tokens" until a new line is found
-		this.currentValueParser = new PartialFrontMatterSequence(
-			shouldEndTokenSequence,
-		);
 		return this.accept(token);
 	}
 

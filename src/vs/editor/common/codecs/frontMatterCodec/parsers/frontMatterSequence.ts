@@ -9,16 +9,14 @@ import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
- * Parser responsible for parsing a generic sequence of
- * tokens of an arbitrary length in a Front Matter header.
+ * Parser responsible for parsing a "generic sequence of tokens"
+ * of an arbitrary length in a Front Matter header.
  */
 export class PartialFrontMatterSequence extends ParserBase<
 	TSimpleDecoderToken,
 	PartialFrontMatterSequence | FrontMatterSequence
 > {
 	constructor(
-		// TODO: @legomushroom
-		// startToken: TSimpleDecoderToken,
 		/**
 		 * Callback function that is called to check if the current token
 		 * should stop the parsing process of the current generic "value"
@@ -59,16 +57,14 @@ export class PartialFrontMatterSequence extends ParserBase<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Add provided tokens to the list of the current parsed tokens.
 	 */
-	public static fromTokens(
+	public addTokens(
 		tokens: readonly TSimpleDecoderToken[],
-		shouldStop: (token: BaseToken) => boolean,
-	): PartialFrontMatterSequence {
-		const parser = new PartialFrontMatterSequence(shouldStop);
-		parser.currentTokens.push(...tokens);
+	): this {
+		this.currentTokens.push(...tokens);
 
-		return parser;
+		return this;
 	}
 
 	/**

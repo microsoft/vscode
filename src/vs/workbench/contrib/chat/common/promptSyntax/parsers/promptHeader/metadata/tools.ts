@@ -90,10 +90,9 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	}
 
 	/**
-	 * Validate an individual provided value token that
-	 * is used for a tool name.
+	 * Validate an individual provided value token that is used
+	 * for a tool name.
 	 */
-	// TODO: @legomushroom - allow for single-word 'unknown sequence' values?
 	private validateToolName(
 		valueToken: FrontMatterValueToken,
 		validToolNames: Set<string>,

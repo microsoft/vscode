@@ -14,7 +14,6 @@ const RECORD_NAME = 'description';
 /**
  * Prompt `description` metadata record inside the prompt header.
  */
-// TODO: @legomushroom - allow for 'unknown sequence' values?
 export class PromptDescriptionMetadata extends PromptStringMetadata {
 	public override get recordName(): string {
 		return RECORD_NAME;

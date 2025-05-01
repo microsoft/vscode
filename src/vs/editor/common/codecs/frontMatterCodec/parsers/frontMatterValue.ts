@@ -22,7 +22,6 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleC
  * - {@link LeftBracket} - can start an `array` value
  */
 export const VALID_VALUE_START_TOKENS = Object.freeze([
-	Word,
 	Quote,
 	DoubleQuote,
 	LeftBracket,
@@ -136,18 +135,10 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		// a generic sequence of tokens until stopped by the `this.shouldStop`
 		// callback or the call to the 'this.asSequenceToken' method
 		this.currentValueParser = new PartialFrontMatterSequence(
-			// token,
 			this.shouldStop,
 		);
 
 		return this.accept(token);
-
-		// TODO: @legomushroom
-		// return {
-		// 	result: 'success',
-		// 	nextParser: this,
-		// 	wasTokenConsumed: true,
-		// };
 	}
 
 	/**
@@ -156,11 +147,17 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 	 */
 	public static isValueStartToken(
 		token: BaseToken,
-	): token is TValueStartToken {
+	): token is TValueStartToken | Word<'true' | 'false'> {
 		for (const ValidToken of VALID_VALUE_START_TOKENS) {
 			if (token instanceof ValidToken) {
 				return true;
 			}
+		}
+
+		if (token instanceof Word) {
+			return ['true', 'false'].includes(
+				token.text.toLowerCase(),
+			);
 		}
 
 		return false;
