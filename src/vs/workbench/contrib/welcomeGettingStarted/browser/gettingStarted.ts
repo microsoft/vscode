@@ -1979,7 +1979,8 @@ export class GettingStartedPage extends EditorPane {
 		const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
 			"{0} collects usage data. Read our {1} and learn how to {2}.", this.productService.nameShort, privacyStatementButton, optOutButton);
 
-		parent.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+		const renderedContents = this.detailsPageDisposables.add(mdRenderer.render({ value: text, isTrusted: true }));
+		parent.append(renderedContents.element);
 	}
 
 	private getKeybindingLabel(command: string) {
