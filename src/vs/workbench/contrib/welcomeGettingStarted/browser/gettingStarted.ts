@@ -63,7 +63,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from './
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
-import { startEntries } from '../common/gettingStartedContent.js';
+import { NEW_WELCOME_EXPERIENCE, startEntries } from '../common/gettingStartedContent.js';
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -253,7 +253,8 @@ export class GettingStartedPage extends EditorPane {
 		}));
 
 		this._register(this.gettingStartedService.onDidProgressStep(step => {
-			const category = this.gettingStartedCategories.find(category => category.id === step.category);
+			const category = step.category === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(step.category) :
+				this.gettingStartedCategories.find(c => c.id === step.category);
 			if (!category) { throw Error('Could not find category with ID: ' + step.category); }
 			const ourStep = category.steps.find(_step => _step.id === step.id);
 			if (!ourStep) {
@@ -920,7 +921,7 @@ export class GettingStartedPage extends EditorPane {
 		this.registerDispatchListeners();
 
 		if (this.editorInput.selectedCategory) {
-			const showNewExperience = this.editorInput.selectedCategory === 'NewWelcomeExperience';
+			const showNewExperience = this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE;
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
@@ -1191,6 +1192,7 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.toggle('height-constrained', size.height <= 600);
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 950);
+		this.container.classList.toggle('new-layout-width-constrained', size.width <= 800);
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -1200,7 +1202,8 @@ export class GettingStartedPage extends EditorPane {
 	private updateCategoryProgress() {
 		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
-			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+			const category = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+				this.gettingStartedCategories.find(c => c.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
 
 			const stats = this.getWalkthroughCompletionStats(category);
@@ -1229,7 +1232,8 @@ export class GettingStartedPage extends EditorPane {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 		}
 
-		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
+		const ourCategory = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+			this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
 			throw Error('Could not find category with ID: ' + categoryID);
 		}
@@ -1366,7 +1370,7 @@ export class GettingStartedPage extends EditorPane {
 
 				if (isCommand) {
 					const keybinding = this.getKeyBinding(command);
-					if (keybinding && this.editorInput.selectedCategory !== 'NewWelcomeExperience') {
+					if (keybinding && this.editorInput.selectedCategory !== NEW_WELCOME_EXPERIENCE) {
 						const shortcutMessage = $('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '));
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
@@ -1706,6 +1710,9 @@ export class GettingStartedPage extends EditorPane {
 				if (currentIndex < allSlides.length - 1) {
 					this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
 				}
+				else {
+					this.scrollPrev();
+				}
 			} else if (event.keyCode === KeyCode.LeftArrow) {
 				const currentIndex = this.getCurrentSlideIndex(allSlides);
 				if (currentIndex > 0) {
@@ -1849,7 +1856,8 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageDisposables.clear();
 		this.mediaDisposables.clear();
 
-		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+		const category = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+			this.gettingStartedCategories.find(category => category.id === categoryID);
 		if (!category) {
 			throw Error('could not find category with ID ' + categoryID);
 		}
@@ -2072,7 +2080,7 @@ export class GettingStartedPage extends EditorPane {
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
 			prevButton!.style.display = this.editorInput.showWelcome || this.prevWalkthrough ? 'block' : 'none';
 
-			if (this.editorInput.selectedCategory === 'NewWelcomeExperience') {
+			if (this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE) {
 				prevButton!.style.display = 'none';
 			} else {
 				const moreTextElement = prevButton!.querySelector('.moreText');
