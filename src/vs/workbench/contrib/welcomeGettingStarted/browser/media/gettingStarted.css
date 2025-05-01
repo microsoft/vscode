@@ -1064,6 +1064,11 @@
 	grid-area: header;
 	text-align: left;
 	align-self: center;
+	display: flex;
+	flex-direction: column;
+	flex-wrap: wrap;
+	overflow: visible;
+	white-space: wrap;
 }
 
 /* Steps container - takes most of the space */
@@ -1152,6 +1157,9 @@
 	justify-content: center;
 	min-height: 300px;
 	height: 100%;
+	flex-wrap: wrap;
+	overflow: visible;
+	white-space: wrap;
 }
 
 /* Right column - for media content */
@@ -1406,6 +1414,61 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .sub-step-title {
 	padding-top: 2px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-slide-content,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .step-slide-content {
+	grid-template-columns: 1fr;
+	grid-template-areas: "text";
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-text-content,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .step-text-content {
+	width: 100%;
+	padding-right: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .getting-started-media {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-media-content,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .step-media-content {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .getting-started-steps-container,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .getting-started-steps-container {
+	width: 90%;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .category-header {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .getting-started-steps-container {
+	grid-template-rows: 5% 70% 5% auto;
+	grid-template-areas:
+		"."
+		"slides"
+		"dots"
+		"footer";
+	padding-top: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-slides-container {
+	padding-top: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained h3.step-title {
+	margin-bottom: 12px;
+	font-size: 1.8em;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .steps-container {
+	padding-top: 0;
+	margin-top: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
