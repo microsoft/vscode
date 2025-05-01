@@ -59,6 +59,7 @@ gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGett
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of welcome page"));
+export const NEW_WELCOME_EXPERIENCE = 'NewWelcomeExperience';
 
 export type BuiltinGettingStartedStep = {
 	id: string;
@@ -668,7 +669,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		}
 	},
 	{
-		id: 'NewWelcomeExperience',
+		id: `${NEW_WELCOME_EXPERIENCE}`,
 		title: localize('gettingStarted.new.title', "Get started with VS Code"),
 		description: localize('gettingStarted.new.description', "Supercharge coding with AI"),
 		isFeatured: false,
