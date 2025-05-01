@@ -251,7 +251,7 @@ class ChatToolInvocationSubPart extends Disposable {
 					maxHeightInLines: 13,
 					verticalPadding: 5,
 					editorOptions: {
-						wordWrap: 'on',
+						wordWrap: 'off',
 						readOnly: false
 					}
 				};
@@ -337,6 +337,7 @@ class ChatToolInvocationSubPart extends Disposable {
 						try {
 							const parsed = JSON.parse(model.getValue());
 							model.setValue(JSON.stringify(parsed, null, 2));
+							editor.object.editor.updateOptions({ wordWrap: 'on' });
 						} catch {
 							// ignored
 						}

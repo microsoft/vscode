@@ -673,7 +673,7 @@ export class SettingsEditor2 extends EditorPane {
 		headerControlsContainer.style.borderColor = asCssVariable(settingsHeaderBorder);
 
 		this.suggestionsDiv = DOM.append(headerControlsContainer, $('div.settings-suggestions'));
-		if (this.configurationService.getValue('workbench.settings.showExperimentalSuggestions') === false) {
+		if (this.configurationService.getValue('workbench.settings.showSuggestions') !== true) {
 			this.suggestionsDiv.hidden = true;
 		}
 

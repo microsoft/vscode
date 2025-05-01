@@ -140,8 +140,10 @@ export class PromptFilePickers {
 		const fileOptions = this._createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_INSTRUCTIONS_FILE_OPTION);
 
+		const activeItem = options.resource && fileOptions.find(f => extUri.isEqual(f.value, options.resource));
+
 		const quickPick = this._quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
-		quickPick.activeItems = fileOptions.length ? [fileOptions[0]] : [];
+		quickPick.activeItems = [activeItem ?? NEW_INSTRUCTIONS_FILE_OPTION];
 		quickPick.placeholder = options.placeholder;
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
@@ -208,12 +210,16 @@ export class PromptFilePickers {
 		const fileOptions = this._createPromptPickItems(options);
 		fileOptions.splice(0, 0, NEW_PROMPT_FILE_OPTION);
 
+		const activeItem = options.resource && fileOptions.find(f => extUri.isEqual(f.value, options.resource));
+
 		const quickPick = this._quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
-		quickPick.activeItems = fileOptions.length ? [fileOptions[0]] : [];
+
+		quickPick.activeItems = [activeItem ?? NEW_PROMPT_FILE_OPTION];
 		quickPick.placeholder = options.placeholder;
 		quickPick.canAcceptInBackground = true;
 		quickPick.matchOnDescription = true;
 		quickPick.items = fileOptions;
+
 
 		return new Promise<ISelectPromptResult | undefined>(resolve => {
 			const disposables = new DisposableStore();
