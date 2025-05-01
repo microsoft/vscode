@@ -8,6 +8,8 @@ import { PartialFrontMatterArray } from './frontMatterArray.js';
 import { PartialFrontMatterString } from './frontMatterString.js';
 import { FrontMatterBoolean } from '../tokens/frontMatterBoolean.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
+import { PartialFrontMatterSequence } from './frontMatterSequence.js';
+import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Word, Quote, DoubleQuote, LeftBracket } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
@@ -39,7 +41,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 	 * Current parser reference responsible for parsing
 	 * a specific "value" sequence.
 	 */
-	private currentValueParser?: PartialFrontMatterString | PartialFrontMatterArray;
+	private currentValueParser?: PartialFrontMatterString | PartialFrontMatterArray | PartialFrontMatterSequence;
 
 	/**
 	 * Get the tokens that were accumulated so far.
@@ -110,29 +112,35 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 
 		// if the first token represents a `word` try to parse a boolean
 		if (token instanceof Word) {
-			// in either success or failure case, the parser is consumed
-			this.isConsumed = true;
-
 			try {
+				const booleanToken = new FrontMatterBoolean(token);
+				this.isConsumed = true;
+
 				return {
 					result: 'success',
-					nextParser: new FrontMatterBoolean(token),
+					nextParser: booleanToken,
 					wasTokenConsumed: true,
 				};
 			} catch (_error) {
-				return {
-					result: 'failure',
-					wasTokenConsumed: false,
-				};
+				// noop
 			}
 		}
 
-		// in all other cases fail due to unexpected value sequence
-		this.isConsumed = true;
+		// TODO: @legomushroom
+		this.currentValueParser = new PartialFrontMatterSequence(token);
 		return {
-			result: 'failure',
-			wasTokenConsumed: false,
+			result: 'success',
+			nextParser: this,
+			wasTokenConsumed: true,
 		};
+
+		// TODO: @legomushroom
+		// // in all other cases fail due to unexpected value sequence
+		// this.isConsumed = true;
+		// return {
+		// 	result: 'failure',
+		// 	wasTokenConsumed: false,
+		// };
 	}
 
 	/**
@@ -149,5 +157,14 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 		}
 
 		return false;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public asSequenceToken(): FrontMatterSequence {
+		this.isConsumed = true;
+
+		return new FrontMatterSequence(this.tokens);
 	}
 }

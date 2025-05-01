@@ -16,7 +16,7 @@ export abstract class FrontMatterToken<
 /**
  * List of all currently supported value types.
  */
-export type TValueTypeName = 'string' | 'boolean' | 'array';
+export type TValueTypeName = 'string' | 'boolean' | 'array' | string;
 
 /**
  * Base class for all tokens that represent a `value` inside a Front Matter header.
