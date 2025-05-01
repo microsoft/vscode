@@ -9,6 +9,7 @@ import { assert } from '../../../../../../../../../base/common/assert.js';
 import { isOneOf } from '../../../../../../../../../base/common/types.js';
 import { PromptMetadataDiagnostic, PromptMetadataError } from '../../diagnostics.js';
 import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterSequence } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/frontMatterSequence.js';
 
 /**
  * Enum type is the special case of the {@link PromptStringMetadata string}
@@ -49,7 +50,8 @@ export abstract class PromptEnumMetadata<
 
 		// sanity check for our expectations about the validate call
 		assert(
-			this.valueToken instanceof FrontMatterString,
+			this.valueToken instanceof FrontMatterString
+			|| this.valueToken instanceof FrontMatterSequence,
 			`Record token must be 'string', got '${this.valueToken}'.`,
 		);
 
