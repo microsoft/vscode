@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseToken } from '../../baseToken.js';
+import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { PartialFrontMatterSequence } from './frontMatterSequence.js';
-import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assert, assertNever } from '../../../../../base/common/assert.js';
-import { Colon, Word, Dash, Space, Tab } from '../../simpleCodec/tokens/index.js';
-import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
-import { FrontMatterValueToken, FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterRecord, type TRecordNameToken, type TRecordSpaceToken } from '../tokens/index.js';
+import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
+import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
+import { Colon, Word, Dash, Space, Tab, FormFeed } from '../../simpleCodec/tokens/index.js';
+import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { FrontMatterValueToken, FrontMatterRecordName, type TRecordNameToken, type TRecordSpaceToken, FrontMatterRecordDelimiter, FrontMatterRecord } from '../tokens/index.js';
 
 /**
  * Tokens that can be used inside a record name.
@@ -342,12 +345,12 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
  * Callback to check if a current token should end a
  * record value that is a generic sequence of tokens.
  */
-// TODO: @legomushroom - support other line breaks too?
 const shouldEndTokenSequence = (
 	token: BaseToken,
-): token is (NewLine | CarriageReturn) => {
+): token is (NewLine | CarriageReturn | FormFeed) => {
 	return (
 		(token instanceof NewLine)
 		|| (token instanceof CarriageReturn)
+		|| (token instanceof FormFeed)
 	);
 };

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../../../editor/common/core/range.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../../diagnostics.js';
 import { FrontMatterRecord } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
@@ -26,9 +27,16 @@ export abstract class PromptMetadataRecord {
 	}
 
 	constructor(
+		protected readonly expectedRecordName: string,
 		protected readonly recordToken: FrontMatterRecord,
 		protected readonly languageId: string,
 	) {
+		// validate that the record name has the expected name
+		const recordName = recordToken.nameToken.text;
+		assert(
+			recordName === expectedRecordName,
+			`Record name must be '${expectedRecordName}', got '${recordName}'.`,
+		);
 
 		this.issues = [];
 	}

@@ -5,7 +5,6 @@
 
 import { PromptMetadataRecord } from './record.js';
 import { localize } from '../../../../../../../../../nls.js';
-import { assert } from '../../../../../../../../../base/common/assert.js';
 import { PromptMetadataDiagnostic, PromptMetadataError } from '../../diagnostics.js';
 import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
@@ -26,18 +25,11 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 	}
 
 	constructor(
-		protected readonly expectedRecordName: string,
+		expectedRecordName: string,
 		recordToken: FrontMatterRecord,
 		languageId: string,
 	) {
-		// sanity check on the name of the record
-		const recordName = recordToken.nameToken.text;
-		assert(
-			recordName === expectedRecordName,
-			`Record token must be '${expectedRecordName}', got '${recordName}'.`,
-		);
-
-		super(recordToken, languageId);
+		super(expectedRecordName, recordToken, languageId);
 	}
 
 	/**

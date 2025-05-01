@@ -5,7 +5,6 @@
 
 import { PromptMetadataRecord } from './base/record.js';
 import { localize } from '../../../../../../../../nls.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
 import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
@@ -49,13 +48,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 		recordToken: FrontMatterRecord,
 		languageId: string,
 	) {
-		// sanity check on the name of the tools record
-		assert(
-			PromptToolsMetadata.isToolsRecord(recordToken),
-			`Record token must be a tools token, got '${recordToken.nameToken.text}'.`,
-		);
-
-		super(recordToken, languageId);
+		super(RECORD_NAME, recordToken, languageId);
 	}
 
 	/**
