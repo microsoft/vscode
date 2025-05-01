@@ -25,7 +25,8 @@ const VALID_DELIMITER_TOKENS = Object.freeze([
 /**
  * Responsible for parsing an array syntax (or "inline sequence"
  * in YAML terms), e.g. `[1, '2', true, 2.54]`
- */
+*/
+// TODO: @legomushroom - parse "sequence" item values too
 export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, PartialFrontMatterArray | FrontMatterArray> {
 	/**
 	 * Current parser reference responsible for parsing an array "value".

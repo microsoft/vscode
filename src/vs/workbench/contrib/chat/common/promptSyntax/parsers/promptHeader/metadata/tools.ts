@@ -76,7 +76,8 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 						'prompt.header.metadata.tools.diagnostics.invalid-value-type',
 						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
 						RECORD_NAME,
-						'array',
+						// TODO: @legomushroom - localize the 'array of strings'?
+						'array of strings',
 						valueToken.valueTypeName,
 					),
 				),

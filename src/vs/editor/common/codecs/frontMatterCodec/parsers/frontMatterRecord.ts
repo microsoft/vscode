@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../../../../../base/common/assert.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
+import { assertDefined } from '../../../../../base/common/types.js';
+import { PartialFrontMatterSequence } from './frontMatterSequence.js';
 import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
+import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { Colon, Word, Dash, Space, Tab } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 import { FrontMatterValueToken, FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterRecord, type TRecordNameToken, type TRecordSpaceToken } from '../tokens/index.js';
@@ -197,7 +199,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 	/**
 	 * Current parser reference responsible for parsing the "value" part of the record.
 	 */
-	private currentValueParser?: PartialFrontMatterValue;
+	private currentValueParser?: PartialFrontMatterValue | PartialFrontMatterSequence;
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterRecord | FrontMatterRecord> {
@@ -277,11 +279,48 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 			return this.accept(token);
 		}
 
-		// otherwise fail due to the unexpected token type for a record value
-		this.isConsumed = true;
+		// TODO: @legomushroom
+		this.currentValueParser = new PartialFrontMatterSequence(token);
+
+		// TODO: @legomushroom
 		return {
-			result: 'failure',
-			wasTokenConsumed: false,
+			result: 'success',
+			nextParser: this,
+			wasTokenConsumed: true,
 		};
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public asRecordToken(): FrontMatterRecord {
+		this.isConsumed = true;
+
+		assertDefined(
+			this.currentValueParser,
+			'Current value parser must be defined.'
+		);
+
+		// TODO: @legomushroom - assert one of?
+		if (
+			(this.currentValueParser instanceof PartialFrontMatterValue) ||
+			(this.currentValueParser instanceof PartialFrontMatterSequence)
+		) {
+			this.currentTokens.push(
+				this.currentValueParser.asSequenceToken(),
+			);
+
+			// TODO: @legomushroom - validate current tokens?
+			return new FrontMatterRecord([
+				this.currentTokens[0],
+				this.currentTokens[1],
+				this.currentTokens[2],
+			]);
+		}
+
+		assertNever(
+			this.currentValueParser,
+			`Unexpected value parser '${this.currentValueParser}'.`,
+		);
 	}
 }

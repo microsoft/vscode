@@ -176,6 +176,7 @@ export class PromptHeader extends Disposable {
 
 		// if the record might be a "mode" metadata
 		// add it to the list of parsed metadata records
+		// TODO: @legomushroom - add enum type
 		if (PromptModeMetadata.isModeRecord(token)) {
 			const modeMetadata = new PromptModeMetadata(token, this.languageId);
 			const { diagnostics } = modeMetadata;
