@@ -62,14 +62,12 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	 * Validate the metadata record and collect all issues
 	 * related to its content.
 	 */
-	protected override validate(): readonly PromptMetadataDiagnostic[] {
-		const result: PromptMetadataDiagnostic[] = [];
-
+	public override validate(): readonly PromptMetadataDiagnostic[] {
 		const { valueToken } = this.recordToken;
 
 		// validate that the record value is an array
 		if ((valueToken instanceof FrontMatterArray) === false) {
-			result.push(
+			this.issues.push(
 				new PromptMetadataError(
 					valueToken.range,
 					localize(
@@ -83,7 +81,8 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 				),
 			);
 
-			return result;
+			delete this.valueToken;
+			return this.issues;
 		}
 
 		this.valueToken = valueToken;
@@ -91,12 +90,12 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 		// validate that all array items
 		this.validToolNames = new Set<string>();
 		for (const item of this.valueToken.items) {
-			result.push(
+			this.issues.push(
 				...this.validateToolName(item, this.validToolNames),
 			);
 		}
 
-		return result;
+		return this.issues;
 	}
 
 	/**

@@ -18,7 +18,7 @@ export abstract class PromptMetadataRecord {
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
 	 */
-	private readonly issues: PromptMetadataDiagnostic[];
+	protected readonly issues: PromptMetadataDiagnostic[];
 
 	/**
 	 * Full range of the metadata's record text in the prompt header.
@@ -33,14 +33,15 @@ export abstract class PromptMetadataRecord {
 	) {
 
 		this.issues = [];
-		this.issues.push(...this.validate());
+		// TODO: @legomushroom
+		// this.issues.push(...this.validate());
 	}
 
 	/**
 	 * Validate the metadata record and collect all issues
 	 * related to its content.
 	 */
-	protected abstract validate(): readonly PromptMetadataDiagnostic[];
+	public abstract validate(): readonly PromptMetadataDiagnostic[];
 
 	/**
 	 * Name of the metadata record.
@@ -78,6 +79,7 @@ export abstract class PromptMetadataRecord {
 /**
  * Base class for all metadata records with a `string` value.
  */
+// TODO: @legomushroom - move out
 export abstract class PromptStringMetadata extends PromptMetadataRecord {
 	/**
 	 * Value token reference of the record.
@@ -92,7 +94,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 	}
 
 	constructor(
-		expectedRecordName: string,
+		protected readonly expectedRecordName: string,
 		recordToken: FrontMatterRecord,
 		languageId: string,
 	) {
@@ -109,14 +111,12 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 	/**
 	 * Validate the metadata record has a 'string' value.
 	 */
-	protected override validate(): readonly PromptMetadataDiagnostic[] {
+	public override validate(): readonly PromptMetadataDiagnostic[] {
 		const { valueToken } = this.recordToken;
-
-		const result: PromptMetadataDiagnostic[] = [];
 
 		// validate that the record value is a string
 		if ((valueToken instanceof FrontMatterString) === false) {
-			result.push(
+			this.issues.push(
 				new PromptMetadataError(
 					valueToken.range,
 					localize(
@@ -129,10 +129,89 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 				),
 			);
 
-			return result;
+			delete this.valueToken;
+			return this.issues;
 		}
 
 		this.valueToken = valueToken;
-		return result;
+		return this.issues;
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - move out
+export abstract class PromptEnumMetadata<
+	TValidValues extends string = string,
+> extends PromptStringMetadata {
+	constructor(
+		// TODO: @legomushroom
+		private readonly validValues: readonly TValidValues[],
+		expectedRecordName: string,
+		recordToken: FrontMatterRecord,
+		languageId: string,
+	) {
+		super(expectedRecordName, recordToken, languageId);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private value: TValidValues | undefined;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get enumValue(): TValidValues | undefined {
+		return this.value;
+	}
+
+	// TODO: @legomushroom - can be removed?
+	public override get recordName(): string {
+		return this.expectedRecordName;
+	}
+
+	/**
+	 * Validate the metadata record has an allowed value.
+	 */
+	public override validate(): readonly PromptMetadataDiagnostic[] {
+		super.validate();
+
+		if (this.valueToken === undefined) {
+			return this.issues;
+		}
+
+		// sanity check for our expectations about the validate call
+		assert(
+			this.valueToken instanceof FrontMatterString,
+			`Record token must be 'string', got '${this.valueToken}'.`,
+		);
+
+		const { cleanText } = this.valueToken;
+		if (this.validValues.includes(<TValidValues>cleanText)) {
+			this.value = <TValidValues>cleanText;
+
+			return this.issues;
+		}
+
+		this.issues.push(
+			new PromptMetadataError(
+				this.valueToken.range,
+				localize(
+					'prompt.header.metadata.enum.diagnostics.invalid-value',
+					"Value of the '{0}' metadata must be one of {1}, got '{2}'.",
+					this.recordName,
+					this.validValues
+						.map((value) => {
+							return `'${value}'`;
+						}).join(' | '),
+					cleanText,
+				),
+			),
+		);
+
+		delete this.valueToken;
+		return this.issues;
 	}
 }
