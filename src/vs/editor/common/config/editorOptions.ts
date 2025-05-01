@@ -986,6 +986,7 @@ export interface IEnvironmentalOptions {
 	readonly inputMode: 'insert' | 'overtype';
 	readonly accessibilitySupport: AccessibilitySupport;
 	readonly glyphMarginDecorationLaneCount: number;
+	readonly editContextSupported: boolean;
 }
 
 /**
@@ -1943,8 +1944,7 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
-		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
-		return editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
+		return env.editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
 	}
 }
 

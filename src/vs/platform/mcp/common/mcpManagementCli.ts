@@ -5,9 +5,9 @@
 
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogger } from '../../log/common/log.js';
-import { IMcpConfiguration, IMcpConfigurationSSE, IMcpConfigurationStdio, McpConfigurationServer } from './mcpPlatformTypes.js';
+import { IMcpConfiguration, IMcpConfigurationHTTP, IMcpConfigurationStdio, McpConfigurationServer } from './mcpPlatformTypes.js';
 
-type ValidatedConfig = { name: string; config: IMcpConfigurationStdio | IMcpConfigurationSSE };
+type ValidatedConfig = { name: string; config: IMcpConfigurationStdio | IMcpConfigurationHTTP };
 
 export class McpManagementCli {
 	constructor(
@@ -51,7 +51,7 @@ export class McpManagementCli {
 		}
 
 		const { name, ...rest } = parsed;
-		return { name, config: rest as IMcpConfigurationStdio | IMcpConfigurationSSE };
+		return { name, config: rest as IMcpConfigurationStdio | IMcpConfigurationHTTP };
 	}
 }
 

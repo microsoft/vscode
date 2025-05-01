@@ -6,8 +6,15 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { FilePromptParser } from '../../common/promptSyntax/parsers/filePromptParser.js';
+import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
+import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
+import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+
+/**
+ * Type for a generic prompt parser object.
+ */
+type TPromptParser = BasePromptParser<IPromptContentsProvider>;
 
 /**
  * Model for a single chat prompt instructions attachment.
@@ -17,11 +24,12 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
 	 */
-	private readonly _reference: FilePromptParser;
+	private readonly _reference: TPromptParser;
+
 	/**
 	 * Get the prompt instructions reference instance.
 	 */
-	public get reference(): FilePromptParser {
+	public get reference(): TPromptParser {
 		return this._reference;
 	}
 
@@ -31,7 +39,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 */
 	public get references(): readonly URI[] {
 		const { reference } = this;
-		const { errorCondition } = this.reference;
+		const { errorCondition } = reference;
 
 		// return no references if the attachment is disabled
 		// or if this object itself has an error
@@ -48,10 +56,23 @@ export class ChatPromptAttachmentModel extends Disposable {
 	}
 
 	/**
+	 * Get list of all tools associated with the prompt.
+	 *
+	 * Note! This property returns pont-in-time state of the tools metadata
+	 *       and does not take into account if the prompt or its nested child
+	 *       references are still being resolved. Please use the {@link settled}
+	 *       or {@link allSettled} properties if you need to retrieve the final
+	 *       list of the tools available.
+	 */
+	public get toolsMetadata(): readonly string[] | null {
+		return this.reference.allToolsMetadata;
+	}
+
+	/**
 	 * Promise that resolves when the prompt is fully parsed,
 	 * including all its possible nested child references.
 	 */
-	public get allSettled(): Promise<FilePromptParser> {
+	public get allSettled(): Promise<TPromptParser> {
 		return this.reference.allSettled();
 	}
 
@@ -67,7 +88,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 * Event that fires when the error condition of the prompt
 	 * reference changes.
 	 *
-	 * See {@linkcode onUpdate}.
+	 * See {@link onUpdate}.
 	 */
 	protected _onUpdate = this._register(new Emitter<void>());
 	/**
@@ -83,7 +104,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 	/**
 	 * Event that fires when the object is disposed.
 	 *
-	 * See {@linkcode onDispose}.
+	 * See {@link onDispose}.
 	 */
 	protected _onDispose = this._register(new Emitter<void>());
 	/**
@@ -97,14 +118,25 @@ export class ChatPromptAttachmentModel extends Disposable {
 	}
 
 	constructor(
-		uri: URI,
+		public readonly uri: URI,
 		@IInstantiationService private readonly initService: IInstantiationService,
 	) {
 		super();
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this._reference = this._register(this.initService.createInstance(FilePromptParser, uri, []))
-			.onUpdate(this._onUpdate.fire);
+		this._reference = this._register(
+			this.initService.createInstance(
+				PromptParser,
+				this.uri,
+				// in this case we know that the attached file must have been a
+				// prompt file, hence we pass the `allowNonPromptFiles` option
+				// to the provider to allow for non-prompt files to be attached
+				{ allowNonPromptFiles: true },
+			)
+		);
+
+		this._reference.onUpdate(
+			this._onUpdate.fire.bind(this._onUpdate),
+		);
 	}
 
 	/**

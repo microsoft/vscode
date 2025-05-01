@@ -23,6 +23,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -169,16 +170,21 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+
+
 		for (const uri of uris) {
-			const editedFile = currentEditingSession.getEntry(uri);
-			if (editedFile?.state.get() === ModifiedFileEntryState.Modified) {
-				await editorService.openEditor({
-					original: { resource: URI.from(editedFile.originalURI, true) },
-					modified: { resource: URI.from(editedFile.modifiedURI, true) },
-				});
-			} else {
-				await editorService.openEditor({ resource: uri });
+
+			let pane: IEditorPane | undefined = editorService.activeEditorPane;
+			if (!pane) {
+				pane = await editorService.openEditor({ resource: uri });
 			}
+
+			if (!pane) {
+				return;
+			}
+
+			const editedFile = currentEditingSession.getEntry(uri);
+			editedFile?.getEditorIntegration(pane).toggleDiff(undefined, true);
 		}
 	}
 });

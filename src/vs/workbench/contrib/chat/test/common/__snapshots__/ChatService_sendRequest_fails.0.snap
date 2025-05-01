@@ -84,7 +84,9 @@
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined
     }
   ]
 }

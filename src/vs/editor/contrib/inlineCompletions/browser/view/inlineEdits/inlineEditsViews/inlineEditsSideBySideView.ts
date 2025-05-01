@@ -17,7 +17,6 @@ import { observableCodeEditor } from '../../../../../../browser/observableCodeEd
 import { Rect } from '../../../../../../browser/rect.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
@@ -42,14 +41,14 @@ const MODIFIED_END_PADDING = 12;
 export class InlineEditsSideBySideView extends Disposable implements IInlineEditsView {
 
 	// This is an approximation and should be improved by using the real parameters used bellow
-	static fitsInsideViewport(editor: ICodeEditor, textModel: ITextModel, edit: InlineEditWithChanges, originalDisplayRange: LineRange, reader: IReader): boolean {
+	static fitsInsideViewport(editor: ICodeEditor, textModel: ITextModel, edit: InlineEditWithChanges, reader: IReader): boolean {
 		const editorObs = observableCodeEditor(editor);
 		const editorWidth = editorObs.layoutInfoWidth.read(reader);
 		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
 		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
 		const minimapWidth = editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
 
-		const maxOriginalContent = maxContentWidthInRange(editorObs, originalDisplayRange, undefined/* do not reconsider on each layout info change */);
+		const maxOriginalContent = maxContentWidthInRange(editorObs, edit.displayRange, undefined/* do not reconsider on each layout info change */);
 		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, getContentRenderWidth(line, editor, textModel)), 0);
 		const originalPadding = ORIGINAL_END_PADDING; // padding after last line of original editor
 		const modifiedPadding = MODIFIED_END_PADDING + 2 * BORDER_WIDTH; // padding after last line of modified editor
@@ -68,7 +67,6 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		private readonly _previewTextModel: ITextModel,
 		private readonly _uiState: IObservable<{
 			newTextLineCount: number;
-			originalDisplayRange: LineRange;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -260,7 +258,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
 	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
 
-	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalDisplayRange);
+	private readonly _originalDisplayRange = this._edit.map(e => e?.displayRange);
 	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
 		const originalDisplayRange = this._originalDisplayRange.read(reader);
 		if (!originalDisplayRange) {
@@ -583,7 +581,6 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
-			zIndex: '0',
 			display: this._display,
 		},
 	}, [

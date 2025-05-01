@@ -69,6 +69,7 @@ import './services/editor/browser/editorService.js';
 import './services/editor/browser/editorResolverService.js';
 import './services/aiEmbeddingVector/common/aiEmbeddingVectorService.js';
 import './services/aiRelatedInformation/common/aiRelatedInformationService.js';
+import './services/aiSettingsSearch/common/aiSettingsSearchService.js';
 import './services/history/browser/historyService.js';
 import './services/activity/browser/activityService.js';
 import './services/keybinding/browser/keybindingService.js';

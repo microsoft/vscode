@@ -57,7 +57,6 @@ const ignored = new Set([
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsView.ts',
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineCompletionsView.ts',
 	'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.ts',
-	'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsAccessibleView.ts',
 	'vs/editor/contrib/placeholderText/browser/placeholderTextContribution.ts',
 	'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter.ts',
 	'vs/workbench/contrib/files/browser/views/openEditorsView.ts',
@@ -75,7 +74,6 @@ const ignored = new Set([
 	'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput.ts',
 	'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.ts',
 	'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.ts',
-	'vs/platform/terminal/common/capabilities/commandDetectionCapability.ts',
 	'vs/workbench/services/authentication/browser/authenticationExtensionsService.ts',
 	'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController.ts',
 	'vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl.ts',
@@ -93,7 +91,6 @@ const ignored = new Set([
 	'vs/workbench/contrib/inlineCompletions/browser/inlineCompletionLanguageStatusBarContribution.ts',
 	'vs/workbench/contrib/welcomeDialog/browser/welcomeWidget.ts',
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordInsertView.ts',
-	'vs/platform/terminal/node/ptyService.ts',
 	'vs/workbench/api/common/extHostLanguageFeatures.ts',
 	'vs/workbench/api/common/extHostSearch.ts',
 ]);
