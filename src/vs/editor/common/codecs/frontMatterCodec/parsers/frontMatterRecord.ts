@@ -279,10 +279,9 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 			return this.accept(token);
 		}
 
-		// TODO: @legomushroom
+		// in all other cases, collect all the subsequent tokens into
+		// a "sequence of tokens" until a new line is found
 		this.currentValueParser = new PartialFrontMatterSequence(token);
-
-		// TODO: @legomushroom
 		return {
 			result: 'success',
 			nextParser: this,
@@ -291,11 +290,12 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Convert current parser into a {@link FrontMatterRecord} token.
+	 *
+	 * @throws if no current parser is present, or it is not of the {@link PartialFrontMatterValue}
+	 *         or {@link PartialFrontMatterSequence} types
 	 */
 	public asRecordToken(): FrontMatterRecord {
-		this.isConsumed = true;
-
 		assertDefined(
 			this.currentValueParser,
 			'Current value parser must be defined.'
@@ -309,6 +309,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 				this.currentValueParser.asSequenceToken(),
 			);
 
+			this.isConsumed = true;
 			// TODO: @legomushroom - validate current tokens?
 			return new FrontMatterRecord([
 				this.currentTokens[0],

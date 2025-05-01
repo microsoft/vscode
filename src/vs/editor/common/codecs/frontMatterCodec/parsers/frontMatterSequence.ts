@@ -11,7 +11,6 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleC
 /**
  * TODO: @legomushroom
  */
-// TODO: @legomushroom - rename to 'unknown sequence'?
 export class PartialFrontMatterSequence extends ParserBase<
 	TSimpleDecoderToken,
 	PartialFrontMatterSequence | FrontMatterSequence

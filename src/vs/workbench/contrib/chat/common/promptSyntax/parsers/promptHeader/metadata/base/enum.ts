@@ -1,0 +1,99 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { PromptStringMetadata } from './string.js';
+import { localize } from '../../../../../../../../../nls.js';
+import { assert } from '../../../../../../../../../base/common/assert.js';
+import { PromptMetadataDiagnostic, PromptMetadataError } from '../../diagnostics.js';
+import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+
+/**
+ * TODO: @legomushroom
+ */
+export abstract class PromptEnumMetadata<
+	TValidValues extends string = string,
+> extends PromptStringMetadata {
+	constructor(
+		// TODO: @legomushroom - fix number of args
+		private readonly validValues: readonly TValidValues[],
+		expectedRecordName: string,
+		recordToken: FrontMatterRecord,
+		languageId: string,
+	) {
+		super(expectedRecordName, recordToken, languageId);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private value: TValidValues | undefined;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get enumValue(): TValidValues | undefined {
+		return this.value;
+	}
+
+	// TODO: @legomushroom - can be removed?
+	public override get recordName(): string {
+		return this.expectedRecordName;
+	}
+
+	/**
+	 * Validate the metadata record has an allowed value.
+	 */
+	public override validate(): readonly PromptMetadataDiagnostic[] {
+		super.validate();
+
+		if (this.valueToken === undefined) {
+			return this.issues;
+		}
+
+		// sanity check for our expectations about the validate call
+		assert(
+			this.valueToken instanceof FrontMatterString,
+			`Record token must be 'string', got '${this.valueToken}'.`,
+		);
+
+		const { cleanText } = this.valueToken;
+		if (isOneOf(cleanText, this.validValues)) {
+			this.value = cleanText;
+
+			return this.issues;
+		}
+
+		this.issues.push(
+			new PromptMetadataError(
+				this.valueToken.range,
+				localize(
+					'prompt.header.metadata.enum.diagnostics.invalid-value',
+					"Value of the '{0}' metadata must be one of {1}, got '{2}'.",
+					this.recordName,
+					this.validValues
+						.map((value) => {
+							return `'${value}'`;
+						}).join(' | '),
+					cleanText,
+				),
+			),
+		);
+
+		delete this.valueToken;
+		return this.issues;
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - move closer to assert?
+const isOneOf = <T, K extends T>(
+	value: T,
+	validValues: readonly K[],
+): value is K => {
+	// TODO: @legomushroom - type casting
+	return validValues.includes(<K>value);
+};

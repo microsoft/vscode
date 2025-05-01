@@ -8,7 +8,7 @@ import { FrontMatterValueToken } from './frontMatterToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 
 /**
- * TODO: @legomushroom
+ * Token represents a generic sequence of tokens in a Front Matter header.
  */
 // TODO: @legomushroom - unit test that extends 'FrontMatterValueToken'?
 export class FrontMatterSequence extends FrontMatterValueToken<string> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptStringMetadata } from './record.js';
+import { PromptStringMetadata } from './base/string.js';
 import { localize } from '../../../../../../../../nls.js';
 import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
 import { isEmptyPattern, parse } from '../../../../../../../../base/common/glob.js';
