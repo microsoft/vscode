@@ -8,9 +8,9 @@ import { BaseToken } from './baseToken.js';
 /**
  * TODO: @legomushroom
  */
-export abstract class CompositeToken extends BaseToken {
+export abstract class CompositeToken<TTokens extends readonly BaseToken[]> extends BaseToken {
 	constructor(
-		protected readonly childTokens: BaseToken[],
+		protected readonly childTokens: TTokens,
 	) {
 		super(BaseToken.fullRange(childTokens));
 	}
@@ -19,15 +19,14 @@ export abstract class CompositeToken extends BaseToken {
 	 * TODO: @legomushroom
 	 */
 	// TODO: @legomushroom - unit test?
-	public override get text(): string {
+	public override get text() {
 		return BaseToken.render(this.childTokens);
 	}
 
 	/**
 	 * TODO: @legomushroom
 	 */
-	// TODO: @legomushroom - make generic?
-	public get tokens(): readonly BaseToken[] {
+	public get tokens(): TTokens {
 		return this.childTokens;
 	}
 

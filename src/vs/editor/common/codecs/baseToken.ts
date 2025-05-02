@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CompositeToken } from './compositeToken.js';
 import { pick } from '../../../base/common/arrays.js';
 import { assert } from '../../../base/common/assert.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
@@ -11,7 +12,7 @@ import { IRange, Range } from '../../../editor/common/core/range.js';
  * Base class for all tokens with a `range` that reflects
  * token position in the original text.
  */
-export abstract class BaseToken {
+export abstract class BaseToken<TText extends string = string> {
 	constructor(
 		private tokenRange: Range,
 	) { }
@@ -26,7 +27,7 @@ export abstract class BaseToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public abstract get text(): string;
+	public abstract get text(): TText;
 
 	/**
 	 * Check if this token has the same range as another one.
@@ -150,38 +151,10 @@ export abstract class BaseToken {
  * Tokens that represent a sequence of tokens that does not
  * hold an additional meaning in the text.
  */
-export class Text<TToken extends BaseToken = BaseToken> extends BaseToken {
-	public get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-
-	constructor(
-		range: Range,
-		public readonly tokens: readonly TToken[],
-	) {
-		super(range);
-	}
-
-	/**
-	 * Create new instance of the token from a provided list of tokens.
-	 *
-	 * @throws if the provided tokens list is empty because this function
-	 *         automatically infers the range of the resulting token based
-	 *         on the first and last token in the list.
-	 */
-	public static fromTokens<TToken extends BaseToken = BaseToken>(
-		tokens: readonly TToken[],
-	): Text<TToken> {
-		assert(
-			tokens.length > 0,
-			'Cannot infer range from an empty list of tokens.',
-		);
-
-		const range = BaseToken.fullRange(tokens);
-
-		return new Text(range, tokens);
-	}
-
+// TODO: @legomushroom - move to a separate file?
+export class Text<
+	TTokens extends readonly BaseToken[] = readonly BaseToken[],
+> extends CompositeToken<TTokens> {
 	public override toString(): string {
 		return `text(${this.shortText()})${this.range}`;
 	}
