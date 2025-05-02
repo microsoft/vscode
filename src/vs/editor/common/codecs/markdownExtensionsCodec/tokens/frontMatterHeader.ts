@@ -64,7 +64,7 @@ export class FrontMatterHeader extends MarkdownExtensionsToken {
 		return new FrontMatterHeader(
 			range,
 			FrontMatterMarker.fromTokens(startMarkerTokens),
-			Text.fromTokens(contentTokens),
+			new Text(contentTokens),
 			FrontMatterMarker.fromTokens(endMarkerTokens),
 		);
 	}

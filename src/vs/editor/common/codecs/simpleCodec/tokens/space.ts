@@ -8,7 +8,7 @@ import { SimpleToken } from './simpleToken.js';
 /**
  * A token that represent a `space` with a `range`. The `range`
  * value reflects the position of the token in the original data.
- */export class Space extends SimpleToken {
+ */export class Space extends SimpleToken<' '> {
 	/**
 	 * The underlying symbol of the `Space` token.
 	 */
