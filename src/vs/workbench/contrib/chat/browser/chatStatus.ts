@@ -42,6 +42,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
+import { roundFloat } from '../../../../base/common/numbers.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,
@@ -503,7 +504,7 @@ class ChatStatusDashboard extends Disposable {
 			if (quota.unlimited) {
 				usedPercentage = 0;
 			} else {
-				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
+				usedPercentage = roundFloat(Math.max(0, 100 - quota.percentRemaining), 2);
 			}
 
 			if (quota.unlimited) {

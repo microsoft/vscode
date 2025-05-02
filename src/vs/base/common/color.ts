@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from './charCode.js';
+import { roundFloat } from './numbers.js';
 
-function roundFloat(number: number, decimalPoints: number): number {
-	const decimal = Math.pow(10, decimalPoints);
-	return Math.round(number * decimal) / decimal;
-}
+
 
 export class RGBA {
 	_rgbaBrand: void = undefined;

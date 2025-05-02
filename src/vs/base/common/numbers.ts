@@ -13,6 +13,11 @@ export function rot(index: number, modulo: number): number {
 	return (modulo + (index % modulo)) % modulo;
 }
 
+export function roundFloat(number: number, decimalPoints: number): number {
+	const decimal = Math.pow(10, decimalPoints);
+	return Math.round(number * decimal) / decimal;
+}
+
 export class Counter {
 	private _next = 0;
 
