@@ -84,6 +84,7 @@ import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocati
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
 
@@ -200,7 +201,8 @@ export class SearchView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -1952,47 +1954,50 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private handleKeywordClick(keyword: string) {
+	private handleKeywordClick(keyword: string, index: number, maxKeywords: number) {
 		this.searchWidget.searchInput?.setValue(keyword);
 		this.triggerQueryChange({ preserveFocus: false, triggeredOnType: false, shouldKeepAIResults: false });
+		type KeywordClickClassification = {
+			owner: 'osortega';
+			comment: 'Fired when the user clicks on a keyword suggestion';
+			index: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The index of the keyword clicked' };
+			maxKeywords: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total number of suggested keywords' };
+		};
+		type KeywordClickEvent = {
+			index: number;
+			maxKeywords: number;
+		};
+		this.telemetryService.publicLog2<KeywordClickEvent, KeywordClickClassification>('searchKeywordClick', {
+			index,
+			maxKeywords
+		});
 	}
 
 	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
-		let currentKeyword = keywords.shift()?.keyword || '';
 		const messageEl = this.clearMessage();
+		messageEl.classList.add('ai-keywords');
 
-		// Refresh icon
-		const icon = dom.append(messageEl, dom.$(''));
-		icon.ariaLabel = nls.localize('search.refresh', "Get new suggestion");
-		icon.role = 'button';
-		icon.tabIndex = 0;
-		icon.classList.add('codicon', 'codicon-refresh', 'keyword-refresh');
-		icon.onclick = () => {
-			// change the keyword to the next one
-			const nextKeyword = keywords.shift();
-			if (nextKeyword) {
-				currentKeyword = nextKeyword.keyword;
-				textButton.element.textContent = currentKeyword;
-			}
-			if (keywords.length === 1) {
-				icon.remove();
-			}
-		};
+		if (keywords.length === 0) {
+			// Do not display anything if there are no keywords
+			return;
+		}
 
-		// Unclickable message
+		// Add unclickable message
 		const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
-		this.tree.ariaLabel = resultMsg + nls.localize('aiSearchForTerm', " - Search: {0}", currentKeyword);
 		dom.append(messageEl, resultMsg);
 
-		const textButton = this.messageDisposables.add(new SearchLinkButton(
-			currentKeyword,
-			() => this.handleKeywordClick(currentKeyword),
-			this.hoverService,
-		));
-
-		dom.append(messageEl, textButton.element);
-
-
+		const topKeywords = keywords.slice(0, 3);
+		topKeywords.forEach((keyword, index) => {
+			if (index > 0 && index < topKeywords.length) {
+				dom.append(messageEl, ', ');
+			}
+			const button = this.messageDisposables.add(new SearchLinkButton(
+				keyword.keyword,
+				() => this.handleKeywordClick(keyword.keyword, index, topKeywords.length),
+				this.hoverService
+			));
+			dom.append(messageEl, button.element);
+		});
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {

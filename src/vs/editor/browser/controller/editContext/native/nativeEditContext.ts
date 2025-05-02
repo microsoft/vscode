@@ -87,6 +87,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._imeTextArea = new FastDomNode(document.createElement('textarea'));
 		this._imeTextArea.setClassName(`ime-text-area`);
 		this._imeTextArea.setAttribute('readonly', 'true');
+		this._imeTextArea.setAttribute('tabindex', '-1');
 		this.domNode.setAttribute('autocorrect', 'off');
 		this.domNode.setAttribute('autocapitalize', 'off');
 		this.domNode.setAttribute('autocomplete', 'off');
@@ -574,7 +575,7 @@ export class NativeEditContext extends AbstractEditContext {
 		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (!this.isFocused() || !isScreenReaderOptimized) {
+			if (!this.isFocused() || !isScreenReaderOptimized || !IME.enabled) {
 				return;
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;

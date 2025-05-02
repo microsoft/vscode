@@ -734,7 +734,7 @@ export class BaseIssueReporterService extends Disposable {
 				} else {
 					// If the items property isn't present, the rate limit has been hit
 					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
+					message.textContent = localize('rateLimited', "No duplicate issues found: GitHub query limit exceeded.");
 					similarIssues.appendChild(message);
 
 					const resetTime = response.headers.get('X-RateLimit-Reset');
@@ -1182,13 +1182,19 @@ export class BaseIssueReporterService extends Disposable {
 
 	public addTemplateToUrl(owner?: string, repositoryName?: string): string {
 		const isVscode = this.issueReporterModel.getData().fileOnProduct;
-		const isCopilot = owner === 'microsoft' && repositoryName === 'vscode-copilot-release';
+		const isCopilot = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-copilot-release';
+		const isPython = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-python';
+
 		if (isVscode) {
 			return `&template=bug_report.md`;
 		}
 
 		if (isCopilot) {
 			return `&template=bug_report_chat.md`;
+		}
+
+		if (isPython) {
+			return `&template=bug_report.md`;
 		}
 
 		return '';

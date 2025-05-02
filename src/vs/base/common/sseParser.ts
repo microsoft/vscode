@@ -55,6 +55,7 @@ export class SSEParser {
 	private lastEventIdBuffer?: string;
 	private reconnectionTime?: number;
 	private buffer: Uint8Array[] = [];
+	private endedOnCR = false;
 	private readonly onEventHandler: SSEEventHandler;
 	private readonly decoder: TextDecoder;
 	/**
@@ -84,7 +85,17 @@ export class SSEParser {
 	 * @param chunk The chunk to parse as a Uint8Array of UTF-8 encoded data.
 	 */
 	public feed(chunk: Uint8Array): void {
+		if (chunk.length === 0) {
+			return;
+		}
+
 		let offset = 0;
+
+		// If the data stream was bifurcated between a CR and LF, avoid processing the CR as an extra newline
+		if (this.endedOnCR && chunk[0] === Chr.LF) {
+			offset++;
+		}
+		this.endedOnCR = false;
 
 		// Process complete lines from the buffer
 		while (offset < chunk.length) {
@@ -103,12 +114,14 @@ export class SSEParser {
 			this.processLine(str);
 
 			this.buffer.length = 0;
-			offset = index + (chunk[offset] === Chr.CR && chunk[offset + 1] === Chr.LF ? 2 : 1);
+			offset = index + (chunk[index] === Chr.CR && chunk[index + 1] === Chr.LF ? 2 : 1);
 		}
 
 
 		if (offset < chunk.length) {
 			this.buffer.push(chunk.subarray(offset));
+		} else {
+			this.endedOnCR = chunk[chunk.length - 1] === Chr.CR;
 		}
 	}
 	/**

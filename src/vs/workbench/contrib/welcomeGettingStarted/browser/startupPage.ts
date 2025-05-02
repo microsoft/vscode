@@ -14,7 +14,7 @@ import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchStat
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -37,7 +37,7 @@ const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
-export class StartupPageEditorResolverContribution implements IWorkbenchContribution {
+export class StartupPageEditorResolverContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.startupPageEditorResolver';
 
@@ -45,6 +45,10 @@ export class StartupPageEditorResolverContribution implements IWorkbenchContribu
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
+		super();
+		const disposables = new DisposableStore();
+		this._register(disposables);
+
 		editorResolverService.registerEditor(
 			`${GettingStartedInput.RESOURCE.scheme}:/**`,
 			{
@@ -59,7 +63,7 @@ export class StartupPageEditorResolverContribution implements IWorkbenchContribu
 			{
 				createEditorInput: ({ resource, options }) => {
 					return {
-						editor: this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions),
+						editor: disposables.add(this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions)),
 						options: {
 							...options,
 							pinned: false
@@ -132,7 +136,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					await this.openGettingStarted();
+					await this.openGettingStarted(true);
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}

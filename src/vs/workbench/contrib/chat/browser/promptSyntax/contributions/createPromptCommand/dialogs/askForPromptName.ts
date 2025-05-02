@@ -4,37 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
+import { TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
+import { getPromptFileExtension } from '../../../../../../../../platform/prompts/common/constants.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
+import { IFileService } from '../../../../../../../../platform/files/common/files.js';
+import Severity from '../../../../../../../../base/common/severity.js';
+import { isValidBasename } from '../../../../../../../../base/common/extpath.js';
 
 /**
- * Asks the user for a prompt name.
+ * Asks the user for a file name.
  */
-export const askForPromptName = async (
-	_type: 'local' | 'user',
+export const askForPromptFileName = async (
+	type: TPromptsType,
+	selectedFolder: URI,
 	quickInputService: IQuickInputService,
+	fileService: IFileService,
 ): Promise<string | undefined> => {
-	const result = await quickInputService.input(
-		{
-			placeHolder: localize(
-				'commands.prompts.create.ask-name.placeholder',
-				"Provide a prompt name",
-				PROMPT_FILE_EXTENSION,
-			),
-		});
+	const placeHolder = (type === 'instructions')
+		? localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file")
+		: localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
 
+
+	const sanitizeInput = (input: string) => {
+		const trimmedName = input.trim();
+		if (!trimmedName) {
+			return undefined;
+		}
+
+		const fileExtension = getPromptFileExtension(type);
+		return (trimmedName.endsWith(fileExtension))
+			? trimmedName
+			: `${trimmedName}${fileExtension}`;
+	};
+
+	const validateInput = async (value: string) => {
+		const fileName = sanitizeInput(value);
+		if (!fileName) {
+			return {
+				content: localize('askForPromptFileName.error.empty', "Please enter a name."),
+				severity: Severity.Warning
+			};
+		}
+
+		if (!isValidBasename(fileName)) {
+			return {
+				content: localize('askForPromptFileName.error.invalid', "The name contains invalid characters."),
+				severity: Severity.Error
+			};
+		}
+
+		const fileUri = URI.joinPath(selectedFolder, fileName);
+		if (await fileService.exists(fileUri)) {
+			return {
+				content: localize('askForPromptFileName.error.exists', "A file for the given name already exists."),
+				severity: Severity.Error
+			};
+		}
+
+		return undefined;
+	};
+
+	const result = await quickInputService.input({ placeHolder, validateInput });
 	if (!result) {
 		return undefined;
 	}
 
-	const trimmedName = result.trim();
-	if (!trimmedName) {
-		return undefined;
-	}
-
-	const cleanName = (trimmedName.endsWith(PROMPT_FILE_EXTENSION))
-		? trimmedName
-		: `${trimmedName}${PROMPT_FILE_EXTENSION}`;
-
-	return cleanName;
+	return sanitizeInput(result);
 };

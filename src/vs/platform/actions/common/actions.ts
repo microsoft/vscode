@@ -128,6 +128,7 @@ export class MenuId {
 	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
 	static readonly SCMHistoryItemHover = new MenuId('SCMHistoryItemHover');
 	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
+	static readonly SCMQuickDiffDecorations = new MenuId('SCMQuickDiffDecorations');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');
@@ -603,7 +604,7 @@ interface IBaseAction2Options extends IAction2CommonOptions {
 	f1?: false;
 }
 
-interface ICommandPaletteOptions extends IAction2CommonOptions {
+export interface ICommandPaletteOptions extends IAction2CommonOptions {
 
 	/**
 	 * The title of the command that will be displayed in the command palette after the category.
