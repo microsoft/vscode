@@ -136,6 +136,7 @@
 
 .bubbly-part.panel .composite.title {
 	padding: 8px;
+	padding-right: 12px;
 	height: 51px;/* updated title size to account for padding, see layoutService.ts*/
 }
 
