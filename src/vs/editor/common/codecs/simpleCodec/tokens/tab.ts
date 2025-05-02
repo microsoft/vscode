@@ -9,7 +9,6 @@ import { SpacingToken } from './simpleToken.js';
  * A token that represent a `tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-// TODO: @legomushroom - unit test that extends 'EmptySpaceToken'
 export class Tab extends SpacingToken {
 	/**
 	 * The underlying symbol of the token.

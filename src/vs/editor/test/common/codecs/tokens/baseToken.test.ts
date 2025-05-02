@@ -114,7 +114,8 @@ suite('BaseToken', () => {
 				assert.throws(() => {
 					const lastToken = randomSimpleToken();
 
-					// generate a first token with starting line number that is
+					// generate a first token
+					//  starting line number that is
 					// greater than the start line number of the last token
 					const startLineNumber = lastToken.range.startLineNumber + randomInt(10, 1);
 					const firstToken = new Colon(
@@ -168,6 +169,95 @@ suite('BaseToken', () => {
 					]);
 				});
 			});
+		});
+	});
+
+	suite('• withRange()', () => {
+		test('• updates token range', () => {
+			class TestToken extends BaseToken {
+				public override get text(): string {
+					throw new Error('Method not implemented.');
+				}
+				public override toString(): string {
+					throw new Error('Method not implemented.');
+				}
+			}
+
+			const rangeBefore = randomRange();
+			const token = new TestToken(rangeBefore);
+
+			assert(
+				token.range.equalsRange(rangeBefore),
+				'Token range must be unchanged before updating.',
+			);
+
+			const rangeAfter = randomRangeNotEqualTo(rangeBefore);
+			token.withRange(rangeAfter);
+
+			assert(
+				token.range.equalsRange(rangeAfter),
+				`Token range must be to the new '${rangeAfter}' one.`,
+			);
+		});
+	});
+
+	suite('• collapseRangeToStart()', () => {
+		test('• collapses token range to the start position', () => {
+			class TestToken extends BaseToken {
+				public override get text(): string {
+					throw new Error('Method not implemented.');
+				}
+				public override toString(): string {
+					throw new Error('Method not implemented.');
+				}
+			}
+
+			const startLineNumber = randomInt(10, 1);
+			const startColumnNumber = randomInt(10, 1);
+			const range = new Range(
+				startLineNumber,
+				startColumnNumber,
+				startLineNumber + randomInt(10, 1),
+				startColumnNumber + randomInt(10, 1),
+			);
+
+			const token = new TestToken(range);
+
+			assert(
+				token.range.isEmpty() === false,
+				'Token range must not be empty before collapsing.',
+			);
+
+			token.collapseRangeToStart();
+
+			assert(
+				token.range.isEmpty(),
+				'Token range must be empty after collapsing.',
+			);
+
+			assert.strictEqual(
+				token.range.startLineNumber,
+				startLineNumber,
+				'Token range start line number must not change.',
+			);
+
+			assert.strictEqual(
+				token.range.startColumn,
+				startColumnNumber,
+				'Token range start column number must not change.',
+			);
+
+			assert.strictEqual(
+				token.range.endLineNumber,
+				startLineNumber,
+				'Token range end line number must be equal to line start number.',
+			);
+
+			assert.strictEqual(
+				token.range.endColumn,
+				startColumnNumber,
+				'Token range end column number must be equal to column start number.',
+			);
 		});
 	});
 
