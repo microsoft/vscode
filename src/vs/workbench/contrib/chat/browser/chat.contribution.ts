@@ -464,7 +464,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					properties: {
 						'chat.agent.maxRequests': {
 							type: 'number',
-							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working. \n\n> **Note**: For users on the Copilot Free plan, note that each agent mode request currently uses one chat request."),
+							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working."),
 							default: defaultValue,
 						},
 					}
