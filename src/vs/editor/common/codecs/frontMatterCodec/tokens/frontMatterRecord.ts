@@ -85,11 +85,9 @@ export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRec
 		}
 
 		const trimmedTokens = valueToken.trimEnd();
+		const trimmedRange = BaseToken.fullRange(this.tokens);
 
-		// TODO: @legomushroom
-		this.withRange(
-			BaseToken.fullRange(this.tokens),
-		);
+		this.withRange(trimmedRange);
 
 		return trimmedTokens;
 	}

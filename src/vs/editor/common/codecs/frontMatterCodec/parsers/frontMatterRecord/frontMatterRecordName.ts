@@ -12,6 +12,7 @@ import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../..
 /**
  * Tokens that can be used inside a record name.
  */
+// TODO: @legomushroom - add underscore
 const VALID_NAME_TOKENS = [Word, Dash];
 
 /**
@@ -28,6 +29,7 @@ type TNextParser = PartialFrontMatterRecordName | PartialFrontMatterRecordNameWi
  * name: 'value'
  * ```
  */
+// TODO: @legomushroom - allow for quoted string names
 export class PartialFrontMatterRecordName extends ParserBase<TRecordNameToken, TNextParser> {
 	constructor(
 		startToken: Word,
