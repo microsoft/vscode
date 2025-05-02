@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FrontMatterSequence } from './frontMatterSequence.js';
-import { Colon, Word, Dash, EmptySpaceToken } from '../../simpleCodec/tokens/index.js';
+import { Colon, Word, Dash, SpacingToken } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterToken, FrontMatterValueToken, type TValueTypeName } from '../tokens/frontMatterToken.js';
 
 /**
@@ -40,7 +40,7 @@ export class FrontMatterRecordName extends FrontMatterToken<readonly TNameToken[
  * ---
  * ```
  */
-export class FrontMatterRecordDelimiter extends FrontMatterToken<readonly [Colon, EmptySpaceToken]> {
+export class FrontMatterRecordDelimiter extends FrontMatterToken<readonly [Colon, SpacingToken]> {
 	public override toString(): string {
 		return `front-matter-delimiter(${this.shortText()})${this.range}`;
 	}
@@ -77,7 +77,7 @@ export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRec
 	 * TODO: @legomushroom
 	 */
 	// TODO: @legomushroom - unit test
-	public trimValueEnd(): readonly EmptySpaceToken[] {
+	public trimValueEnd(): readonly SpacingToken[] {
 		const { valueToken } = this;
 
 		if ((valueToken instanceof FrontMatterSequence) === false) {

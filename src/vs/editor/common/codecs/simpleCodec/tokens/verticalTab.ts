@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EmptySpaceToken } from './simpleToken.js';
+import { SpacingToken } from './simpleToken.js';
 
 /**
  * Token that represent a `vertical tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class VerticalTab extends SimpleToken<'\v'> {
+// TODO: @legomushroom - unit test that extends 'EmptySpaceToken'
+export class VerticalTab extends SpacingToken {
 	/**
 	 * The underlying symbol of the `VerticalTab` token.
 	 */

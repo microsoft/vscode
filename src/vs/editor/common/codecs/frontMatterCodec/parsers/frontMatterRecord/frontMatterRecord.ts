@@ -11,7 +11,7 @@ import { assertDefined } from '../../../../../../base/common/types.js';
 import { PartialFrontMatterSequence } from '../frontMatterSequence.js';
 import { CarriageReturn } from '../../../linesCodec/tokens/carriageReturn.js';
 import { type TSimpleDecoderToken } from '../../../simpleCodec/simpleDecoder.js';
-import { Word, FormFeed, EmptySpaceToken } from '../../../simpleCodec/tokens/index.js';
+import { Word, FormFeed, SpacingToken } from '../../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../../simpleCodec/parserBase.js';
 import { FrontMatterValueToken, FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterRecord } from '../../tokens/index.js';
 
@@ -105,7 +105,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 		}
 
 		// iterate until the first non-space token is found
-		if (token instanceof EmptySpaceToken) {
+		if (token instanceof SpacingToken) {
 			this.currentTokens.push(token);
 
 			return {

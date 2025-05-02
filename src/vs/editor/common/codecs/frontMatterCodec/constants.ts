@@ -5,12 +5,12 @@
 
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
-import { FormFeed, EmptySpaceToken } from '../simpleCodec/tokens/index.js';
+import { FormFeed, SpacingToken } from '../simpleCodec/tokens/index.js';
 
 /**
  * List of valid "space" tokens that are valid between different
  * records of a Front Matter header.
  */
 export const VALID_INTER_RECORD_SPACING_TOKENS = Object.freeze([
-	EmptySpaceToken, CarriageReturn, NewLine, FormFeed,
+	SpacingToken, CarriageReturn, NewLine, FormFeed,
 ]);

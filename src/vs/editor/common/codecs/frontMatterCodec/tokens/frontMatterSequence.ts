@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FrontMatterValueToken } from './frontMatterToken.js';
-import { Word, EmptySpaceToken } from '../../simpleCodec/tokens/index.js';
+import { Word, SpacingToken } from '../../simpleCodec/tokens/index.js';
 import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 
 /**

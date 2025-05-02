@@ -18,7 +18,7 @@ export { DollarSign } from './dollarSign.js';
 export { VerticalTab } from './verticalTab.js';
 export { DoubleQuote } from './doubleQuote.js';
 export { ExclamationMark } from './exclamationMark.js';
-export { SimpleToken, EmptySpaceToken } from './simpleToken.js';
+export { SimpleToken, SpacingToken } from './simpleToken.js';
 export { type TBracket, LeftBracket, RightBracket } from './brackets.js';
 export { type TCurlyBrace, LeftCurlyBrace, RightCurlyBrace } from './curlyBraces.js';
 export { type TParenthesis, LeftParenthesis, RightParenthesis } from './parentheses.js';

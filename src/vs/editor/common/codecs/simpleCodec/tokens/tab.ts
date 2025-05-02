@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EmptySpaceToken } from './simpleToken.js';
+import { SpacingToken } from './simpleToken.js';
 
 /**
  * A token that represent a `tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Tab extends SimpleToken<'\t'> {
+// TODO: @legomushroom - unit test that extends 'EmptySpaceToken'
+export class Tab extends SpacingToken {
 	/**
 	 * The underlying symbol of the token.
 	 */

@@ -55,4 +55,4 @@ export abstract class SimpleToken<TSymbol extends string> extends BaseToken<TSym
 /**
  * TODO: @legomushroom
  */
-export abstract class EmptySpaceToken extends SimpleToken { }
+export abstract class SpacingToken extends SimpleToken { }

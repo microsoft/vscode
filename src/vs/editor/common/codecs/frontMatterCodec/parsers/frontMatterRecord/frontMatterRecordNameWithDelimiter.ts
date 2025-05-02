@@ -5,7 +5,7 @@
 
 import { assert } from '../../../../../../base/common/assert.js';
 import { PartialFrontMatterRecord } from './frontMatterRecord.js';
-import { Colon, EmptySpaceToken } from '../../../simpleCodec/tokens/index.js';
+import { Colon, SpacingToken } from '../../../simpleCodec/tokens/index.js';
 import { type TSimpleDecoderToken } from '../../../simpleCodec/simpleDecoder.js';
 import { FrontMatterRecordName, FrontMatterRecordDelimiter } from '../../tokens/index.js';
 import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../../simpleCodec/parserBase.js';
@@ -13,7 +13,7 @@ import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../..
 /**
  * TODO: @legomushroom
  */
-type TNameStopToken = Colon | EmptySpaceToken;
+type TNameStopToken = Colon | SpacingToken;
 
 /**
  * TODO: @legomushroom
@@ -42,7 +42,7 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<TNextParser> {
 		const previousToken = this.currentTokens[this.currentTokens.length - 1];
-		const isSpacingToken = (token instanceof EmptySpaceToken);
+		const isSpacingToken = (token instanceof SpacingToken);
 
 		// delimiter must always be a `:` followed by a "space" character
 		// once we encounter that sequence, we can transition to the next parser
@@ -71,7 +71,7 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<
 		}
 
 		// allow some spacing before the colon delimiter
-		if (token instanceof EmptySpaceToken) {
+		if (token instanceof SpacingToken) {
 			this.currentTokens.push(token);
 
 			return {
