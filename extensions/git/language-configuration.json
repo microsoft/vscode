@@ -4,6 +4,6 @@
   "markers": {
     "start": "^#?\\s*bregion",
     "end": "^#?\\s*eregion"
-  	}
-	}
+  	 }
+     }
 }
