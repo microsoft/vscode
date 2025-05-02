@@ -220,7 +220,6 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 				this.currentTokens.push(nextParser);
 				delete this.currentValueParser;
 
-
 				// TODO: @legomushroom - fix these?
 				assert(
 					this.currentTokens[0] instanceof FrontMatterRecordName,
