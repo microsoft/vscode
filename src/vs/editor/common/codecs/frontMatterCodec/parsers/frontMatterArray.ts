@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VALID_SPACE_TOKENS } from '../constants.js';
+import { VALID_INTER_RECORD_SPACING_TOKENS } from '../constants.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
@@ -18,7 +18,7 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleC
  * and array brackets.
  */
 const VALID_DELIMITER_TOKENS = Object.freeze([
-	...VALID_SPACE_TOKENS,
+	...VALID_INTER_RECORD_SPACING_TOKENS,
 	Comma,
 ]);
 

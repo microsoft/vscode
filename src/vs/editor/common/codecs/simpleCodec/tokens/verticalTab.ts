@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleToken } from './simpleToken.js';
+import { EmptySpaceToken } from './simpleToken.js';
 
 /**
  * Token that represent a `vertical tab` with a `range`. The `range`

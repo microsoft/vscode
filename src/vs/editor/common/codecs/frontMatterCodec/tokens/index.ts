@@ -12,5 +12,4 @@ export {
 	FrontMatterRecordDelimiter,
 	FrontMatterRecord,
 	type TNameToken as TRecordNameToken,
-	type TSpaceToken as TRecordSpaceToken,
 } from './frontMatterRecord.js';

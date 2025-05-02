@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectStream } from '../utils/objectStream.js';
 import { VALID_SPACE_TOKENS } from './constants.js';
 import { Word } from '../simpleCodec/tokens/index.js';
+import { ObjectStream } from '../utils/objectStream.js';
 import { assert } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { VALID_INTER_RECORD_SPACING_TOKENS } from './constants.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { SimpleDecoder, type TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
-import { PartialFrontMatterRecord, PartialFrontMatterRecordName, PartialFrontMatterRecordNameWithDelimiter } from './parsers/frontMatterRecord.js';
+import { PartialFrontMatterRecord, PartialFrontMatterRecordName, PartialFrontMatterRecordNameWithDelimiter } from './parsers/frontMatterRecord/index.js';
 
 /**
  * Tokens produced by this decoder.
@@ -62,7 +63,7 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 			if (nextParser instanceof FrontMatterToken) {
 				// TODO: @legomushroom - cleanup this
 				if (nextParser instanceof FrontMatterRecord) {
-					const spaceTokens = nextParser.trimSequenceValueEnd();
+					const spaceTokens = nextParser.trimValueEnd();
 
 					this._onData.fire(nextParser);
 
@@ -105,7 +106,7 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 
 		// re-emit all "space" tokens immediately as all of them
 		// are valid while we are not in the "record parsing" mode
-		for (const ValidToken of VALID_SPACE_TOKENS) {
+		for (const ValidToken of VALID_INTER_RECORD_SPACING_TOKENS) {
 			if (token instanceof ValidToken) {
 				this._onData.fire(token);
 				return;
@@ -129,7 +130,7 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 
 			const record = this.current.asRecordToken();
 
-			const spaceTokens = record.trimSequenceValueEnd();
+			const spaceTokens = record.trimValueEnd();
 
 			this._onData.fire(record);
 

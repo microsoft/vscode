@@ -4,15 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FrontMatterValueToken } from './frontMatterToken.js';
+import { Word, EmptySpaceToken } from '../../simpleCodec/tokens/index.js';
 import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
-import { Space, Tab, VerticalTab, Word } from '../../simpleCodec/tokens/index.js';
-
-/**
- * TODO: @legomushroom
- */
-export const VALID_SPACE_TOKENS = Object.freeze([
-	Space, Tab, VerticalTab,
-]);
 
 /**
  * Token represents a generic sequence of tokens in a Front Matter header.
