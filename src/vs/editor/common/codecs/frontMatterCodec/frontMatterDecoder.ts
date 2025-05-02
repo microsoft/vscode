@@ -60,6 +60,25 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 			const { nextParser } = acceptResult;
 
 			if (nextParser instanceof FrontMatterToken) {
+				// TODO: @legomushroom - cleanup this
+				if (nextParser instanceof FrontMatterRecord) {
+					const spaceTokens = nextParser.trimSequenceValueEnd();
+
+					this._onData.fire(nextParser);
+
+					// TODO: @legomushroom - refactor
+					for (const spaceToken of spaceTokens) {
+						this._onData.fire(spaceToken);
+					}
+
+					if (wasTokenConsumed === false) {
+						this._onData.fire(token);
+					}
+
+					delete this.current;
+					return;
+				}
+
 				this._onData.fire(nextParser);
 
 				if (wasTokenConsumed === false) {
@@ -108,7 +127,16 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 				'Only partial front matter records can be processed on stream end.',
 			);
 
-			this._onData.fire(this.current.asRecordToken());
+			const record = this.current.asRecordToken();
+
+			const spaceTokens = record.trimSequenceValueEnd();
+
+			this._onData.fire(record);
+
+			// TODO: @legomushroom - refactor
+			for (const spaceToken of spaceTokens) {
+				this._onData.fire(spaceToken);
+			}
 		} catch (_error) {
 			this.reEmitCurrentTokens();
 		} finally {

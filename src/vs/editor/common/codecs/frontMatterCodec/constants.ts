@@ -9,7 +9,7 @@ import { FormFeed, Space, Tab, VerticalTab } from '../simpleCodec/tokens/index.j
 
 /**
  * List of valid "space" tokens that are valid between
- * different entities of the Front Matter header.
+ * different records of the Front Matter header.
  */
 export const VALID_SPACE_TOKENS = Object.freeze([
 	Space, Tab, CarriageReturn, NewLine, FormFeed, VerticalTab,

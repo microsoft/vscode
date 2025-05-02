@@ -296,6 +296,8 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 		if (shouldEndTokenSequence(token)) {
 			const spaceTokens = this.currentTokens.slice(this.startTokensCount);
 
+			// TODO: @legomushroom - fix this
+
 			// if no space tokens accumulated at all, create an "empty" one
 			if (spaceTokens.length === 0) {
 				spaceTokens.push(

@@ -123,8 +123,10 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			}
 		}
 
-		// once we found a valid start value token, create a new value parser
-		if ((this.arrayItemAllowed === true) && PartialFrontMatterValue.isValueStartToken(token)) {
+		// TODO: @legomushroom - check for sequence stop token type?
+
+		// TODO: @legomushroom
+		if (this.arrayItemAllowed === true) {
 			this.currentValueParser = new PartialFrontMatterValue(
 				(currentToken) => {
 					// comma or a closing square bracket must stop the parsing
@@ -155,8 +157,8 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	 * @throws if the last token in the accumulated token list
 	 * 		   is not a closing bracket ({@link RightBracket}).
 	 */
+	// TODO: @legomushroom - return generic sequence of tokens if not possible to convert?
 	public asArrayToken(): FrontMatterArray {
-		this.isConsumed = true;
 		const endToken = this.currentTokens[this.currentTokens.length - 1];
 
 		assertDefined(
@@ -176,6 +178,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			}
 		}
 
+		this.isConsumed = true;
 		return new FrontMatterArray([
 			this.startToken,
 			...valueTokens,
