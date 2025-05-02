@@ -6,7 +6,7 @@
 import { BaseToken } from './baseToken.js';
 
 /**
- * TODO: @legomushroom
+ * Composite token consists of a list of other tokens.
  */
 export abstract class CompositeToken<
 	TTokens extends readonly BaseToken[],
@@ -17,22 +17,20 @@ export abstract class CompositeToken<
 		super(BaseToken.fullRange(childTokens));
 	}
 
-	/**
-	 * TODO: @legomushroom
-	 */
 	public override get text() {
 		return BaseToken.render(this.childTokens);
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Tokens that this composite token consists of.
 	 */
 	public get tokens(): TTokens {
 		return this.childTokens;
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Check if this token is equal to another one,
+	 * including all of its child tokens.
 	 */
 	public override equals(other: BaseToken): other is typeof this {
 		if (super.equals(other) === false) {

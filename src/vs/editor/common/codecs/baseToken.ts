@@ -24,7 +24,7 @@ export abstract class BaseToken<TText extends string = string> {
 	}
 
 	/**
-	 * Return text representation of the token.
+	 * Text representation of the token.
 	 */
 	public abstract get text(): TText;
 
