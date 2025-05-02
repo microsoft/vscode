@@ -120,6 +120,9 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		/* Recommendations views */
 		viewDescriptors.push(...this.createRecommendedExtensionsViewDescriptors());
 
+		/* Installed extensions view */
+		viewDescriptors.push(...this.createInstalledExtensionsViewDescriptors());
+
 		/* Built-in extensions views */
 		viewDescriptors.push(...this.createBuiltinExtensionsViewDescriptors());
 
@@ -396,6 +399,21 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		return viewDescriptors;
 	}
+
+	private createInstalledExtensionsViewDescriptors(): IViewDescriptor[] {
+		const viewDescriptors: IViewDescriptor[] = [];
+
+		viewDescriptors.push({
+			id: 'workbench.views.extensions.installed',
+			name: localize2('installedExtensions', "Installed"),
+			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: '@installed' }]),
+			when: ContextKeyExpr.has('installedExtensions'),
+			order: 3
+		});
+
+		return viewDescriptors;
+	}
+
 
 	private createBuiltinExtensionsViewDescriptors(): IViewDescriptor[] {
 		const viewDescriptors: IViewDescriptor[] = [];
