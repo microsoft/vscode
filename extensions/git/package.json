@@ -70,7 +70,7 @@
     "languages": [
       {
         "id": "git-commit",
-        "alias": ["Test Git"],
+        "alias": ["Git Folding Region"],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -2565,19 +2565,6 @@
         "label": "%submenu.tags%"
       }
     ],
-    "configuration": {
-      "title": "Git",
-
-        "languages": [
-          {
-            "id": "git.commit",
-            "alias": ["Message"],
-            "extension": [".gitcommit"],
-            "configuration": "./language-configuration.json"
-          }
-        ],
-
-
       "properties": {
         "git.enabled": {
           "type": "boolean",
