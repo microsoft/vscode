@@ -50,25 +50,6 @@ export class FrontMatterHeader extends MarkdownExtensionsToken {
 	}
 
 	/**
-	 * Check if this token is equal to another one.
-	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
-			return false;
-		}
-
-		if (!(other instanceof FrontMatterHeader)) {
-			return false;
-		}
-
-		if (this.text.length !== other.text.length) {
-			return false;
-		}
-
-		return (this.text === other.text);
-	}
-
-	/**
 	 * Create new instance of the token from the given tokens.
 	 */
 	public static fromTokens(
