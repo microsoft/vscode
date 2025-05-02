@@ -1,1 +1,9 @@
-
+{
+	"folding": {
+  "offSide": true,
+  "markers": {
+    "start": "^#?\\s*bregion",
+    "end": "^#?\\s*eregion"
+  	}
+	}
+}
