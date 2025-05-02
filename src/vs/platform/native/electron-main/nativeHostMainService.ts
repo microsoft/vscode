@@ -912,21 +912,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			height: nodeData.bounds.height
 		};
 
-		const clippedAbsolute = {
+		const clippedBounds = {
 			x: Math.max(absoluteBounds.x, rect.x),
 			y: Math.max(absoluteBounds.y, rect.y),
 			width: Math.max(0, Math.min(absoluteBounds.x + absoluteBounds.width, rect.x + rect.width) - Math.max(absoluteBounds.x, rect.x)),
 			height: Math.max(0, Math.min(absoluteBounds.y + absoluteBounds.height, rect.y + rect.height) - Math.max(absoluteBounds.y, rect.y))
 		};
 
-		const clippedBounds = {
-			x: clippedAbsolute.x * zoomFactor,
-			y: clippedAbsolute.y * zoomFactor,
-			width: clippedAbsolute.width * zoomFactor,
-			height: clippedAbsolute.height * zoomFactor
+		const scaledBounds = {
+			x: clippedBounds.x * zoomFactor,
+			y: clippedBounds.y * zoomFactor,
+			width: clippedBounds.width * zoomFactor,
+			height: clippedBounds.height * zoomFactor
 		};
 
-		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: clippedBounds };
+		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
 	}
 
 	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
