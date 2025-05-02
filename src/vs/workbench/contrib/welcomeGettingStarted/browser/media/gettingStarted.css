@@ -1480,3 +1480,8 @@
 	min-width: max-content;
 	font-size: 16px;
 }
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStarted.showDetails .gettingStartedSlideCategories {
+	left: 100%;
+	opacity: 0;
+}
