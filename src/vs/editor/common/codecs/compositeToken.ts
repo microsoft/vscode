@@ -20,7 +20,7 @@ export abstract class CompositeToken<
 	/**
 	 * TODO: @legomushroom
 	 */
-	// TODO: @legomushroom - unit test?
+	// TODO: @legomushroom - unit test?x
 	public override get text() {
 		return BaseToken.render(this.childTokens);
 	}

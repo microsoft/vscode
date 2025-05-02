@@ -22,11 +22,6 @@ export interface ISimpleTokenClass<TSimpleToken extends SimpleToken<string>> {
 	new(...args: any[]): TSimpleToken;
 }
 
-// /**
-//  * TODO: @legomushroom
-//  */
-// type TCharacter = string & { readonly length: 1 };
-
 /**
  * Base class for all "simple" tokens with a `range`.
  * A simple token is the one that represents a single character.
