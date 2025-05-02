@@ -237,16 +237,6 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 				this.currentTokens.push(nextParser);
 				delete this.currentValueParser;
 
-				// sanity checks on the original tokens the parser was created with
-				assert(
-					this.currentTokens[0] instanceof FrontMatterRecordName,
-					`Expected a front matter record name, got '${this.currentTokens[0]}'.`,
-				);
-				assert(
-					this.currentTokens[1] instanceof FrontMatterRecordDelimiter,
-					`Expected a front matter record delimiter, got '${this.currentTokens[1]}'.`,
-				);
-
 				this.isConsumed = true;
 				try {
 					return {
