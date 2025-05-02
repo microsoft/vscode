@@ -19,40 +19,6 @@
 	}
 }
 
-.scroll-editor-on-middle-click-editor {
-	* {
-		cursor: all-scroll;
-	}
-
-	&[data-scroll-direction="n"] * {
-		cursor: n-resize;
-	}
-
-	&[data-scroll-direction="ne"] * {
-		cursor: ne-resize;
-	}
-
-	&[data-scroll-direction="e"] * {
-		cursor: e-resize;
-	}
-
-	&[data-scroll-direction="se"] * {
-		cursor: se-resize;
-	}
-
-	&[data-scroll-direction="s"] * {
-		cursor: s-resize;
-	}
-
-	&[data-scroll-direction="sw"] * {
-		cursor: sw-resize;
-	}
-
-	&[data-scroll-direction="w"] * {
-		cursor: w-resize;
-	}
-
-	&[data-scroll-direction="nw"] * {
-		cursor: nw-resize;
-	}
+.scroll-editor-on-middle-click-editor * {
+	cursor: all-scroll;
 }
