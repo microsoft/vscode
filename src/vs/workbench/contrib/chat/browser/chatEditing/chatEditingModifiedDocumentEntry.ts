@@ -6,20 +6,20 @@
 import { assert } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue, ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
+import { ITransaction, autorun, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { ISingleEditOperation, EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { OverviewRulerLane, MinimapPosition, ITextModel, IModelDeltaDecoration } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
 import { OffsetEdits } from '../../../../../editor/common/model/textModelOffsetEdit.js';
@@ -36,15 +36,15 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
-import { SaveReason, IEditorPane } from '../../../../common/editor.js';
+import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { isTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { ITextFileService, isTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntry, ChatEditKind, ModifiedFileEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
-import { AbstractChatEditingModifiedFileEntry, pendingRewriteMinimap, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
+import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry, pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 
@@ -321,8 +321,15 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._updateDiffInfoSeq();
 				this._rewriteRatioObs.set(1, tx);
 				this._editDecorationClear.schedule();
+
 			}
 		});
+		if (isLastEdits) {
+			await this._textFileService.save(this.modifiedModel.uri, {
+				reason: SaveReason.AUTO,
+				skipSaveParticipants: true,
+			});
+		}
 	}
 
 	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
