@@ -8,7 +8,9 @@ import { BaseToken } from './baseToken.js';
 /**
  * TODO: @legomushroom
  */
-export abstract class CompositeToken<TTokens extends readonly BaseToken[]> extends BaseToken {
+export abstract class CompositeToken<
+	TTokens extends readonly BaseToken[],
+> extends BaseToken {
 	constructor(
 		protected readonly childTokens: TTokens,
 	) {
@@ -36,7 +38,7 @@ export abstract class CompositeToken<TTokens extends readonly BaseToken[]> exten
 	// TODO: @legomushroom - unit test?
 	public override equals(other: BaseToken): other is typeof this {
 		if (super.equals(other) === false) {
-			return true;
+			return false;
 		}
 
 		if (this.tokens.length !== other.tokens.length) {

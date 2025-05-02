@@ -35,10 +35,6 @@ export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonl
 		this.value = value;
 	}
 
-	// TODO: @legomushroom - do we need this?
-	// public override get text(): string {
-	// 	return `${this.value}`;
-	// }
 
 	public override toString(): string {
 		return `front-matter-boolean(${this.shortText()})${this.range}`;

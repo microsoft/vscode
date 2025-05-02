@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Text } from '../../textToken.js';
 import { Range } from '../../../core/range.js';
-import { BaseToken, Text } from '../../baseToken.js';
+import { BaseToken } from '../../baseToken.js';
 import { MarkdownExtensionsToken } from './markdownExtensionsToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { FrontMatterMarker, TMarkerToken } from './frontMatterMarker.js';

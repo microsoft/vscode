@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FrontMatterValueToken, type TValueTypeName } from './frontMatterToken.js';
 import { LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
+import { FrontMatterValueToken, type TValueTypeName } from './frontMatterToken.js';
 
 /**
  * Token that represents an `array` value in a Front Matter header.
