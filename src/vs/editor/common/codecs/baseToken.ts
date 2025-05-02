@@ -13,7 +13,6 @@ import { IRange, Range } from '../../../editor/common/core/range.js';
  * token position in the original text.
  */
 export abstract class BaseToken<TText extends string = string> {
-export abstract class BaseToken<TText extends string = string> {
 	constructor(
 		private tokenRange: Range,
 	) { }
