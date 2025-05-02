@@ -30,6 +30,37 @@ export const enum Parts {
 	PEAROVERLAY_PART = 'workbench.parts.pearoverlay'
 }
 
+export interface BubblyPartSettings {
+	margins: {left: number, top: number, right: number, bottom: number}
+	borderRadius: number,
+	customTitleHeight?: number,// default: 35
+	customHeaderHeight?: number,// default: 35
+}
+
+const defaultBubblySettings: BubblyPartSettings = {
+	margins: { left: 4, top: 4, right: 4, bottom: 4 },
+	borderRadius: 10,//--bubbly-radius-xl
+}
+
+export const bubblyParts: Record<string, BubblyPartSettings> = {
+	[Parts.SIDEBAR_PART]: {
+		margins: { left: 4, top: 4, right: 4, bottom: 4 },
+		customTitleHeight: 31,
+		customHeaderHeight: 42,
+		borderRadius: 0
+	},
+	[Parts.PANEL_PART]: {
+		...defaultBubblySettings,
+		customTitleHeight: 46
+	},
+	[Parts.EDITOR_PART]: defaultBubblySettings,
+	[Parts.PEAROVERLAY_PART]: {
+		borderRadius: 0,
+		margins: {left: 0, top: 0, right: 0, bottom: 0}
+	},
+	[Parts.ACTIVITYBAR_PART]: { margins: { left: 0, top: 0, right: 0, bottom: 0 }, borderRadius: 0}
+}
+
 export const enum ZenModeSettings {
 	SHOW_TABS = 'zenMode.showTabs',
 	HIDE_LINENUMBERS = 'zenMode.hideLineNumbers',

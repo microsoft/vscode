@@ -972,8 +972,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Container
 		this.element = parent;
+		this.element.classList.add('bubbly-editor-parent');
 		this.container = document.createElement('div');
 		this.container.classList.add('content');
+		this.container.classList.add('bubbly-editor-content')
+
 		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}

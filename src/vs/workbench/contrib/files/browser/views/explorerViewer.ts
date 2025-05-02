@@ -77,7 +77,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
-	static readonly ITEM_HEIGHT = 22;
+	static readonly ITEM_HEIGHT = 23;//22;
 
 	getHeight(element: ExplorerItem): number {
 		return ExplorerDelegate.ITEM_HEIGHT;

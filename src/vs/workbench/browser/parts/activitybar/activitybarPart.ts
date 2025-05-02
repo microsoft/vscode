@@ -49,8 +49,10 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	readonly minimumWidth: number = 48;
-	readonly maximumWidth: number = 48;
+	// Bubbly - width is now 56 (prev. 48)
+	readonly minimumWidth: number = 56;
+	readonly maximumWidth: number = 56;
+
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
