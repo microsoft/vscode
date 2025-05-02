@@ -183,7 +183,7 @@ class SimpleBrowserOverlayWidget {
 	async addElementToChat(cts: CancellationTokenSource) {
 		const editorContainer = this._container.querySelector('.editor-container') as HTMLDivElement;
 		const editorContainerPosition = editorContainer ? editorContainer.getBoundingClientRect() : this._container.getBoundingClientRect();
-		const elementData = await this._hostService.getElementData(editorContainerPosition.x, editorContainerPosition.y, cts.token);
+		const elementData = await this._hostService.getElementData(editorContainerPosition, cts.token);
 		if (!elementData) {
 			throw new Error('Element data not found');
 		}
