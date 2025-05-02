@@ -20,7 +20,6 @@ export abstract class CompositeToken<
 	/**
 	 * TODO: @legomushroom
 	 */
-	// TODO: @legomushroom - unit test?x
 	public override get text() {
 		return BaseToken.render(this.childTokens);
 	}
@@ -35,7 +34,6 @@ export abstract class CompositeToken<
 	/**
 	 * TODO: @legomushroom
 	 */
-	// TODO: @legomushroom - unit test?
 	public override equals(other: BaseToken): other is typeof this {
 		if (super.equals(other) === false) {
 			return false;
