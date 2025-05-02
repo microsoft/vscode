@@ -8,16 +8,19 @@ import { assert } from '../../../base/common/assert.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
 
 /**
- * Base class for all tokens with a `range` that
- * reflects token position in the original data.
+ * Base class for all tokens with a `range` that reflects
+ * token position in the original text.
  */
 export abstract class BaseToken {
 	constructor(
-		private _range: Range,
+		private tokenRange: Range,
 	) { }
 
+	/**
+	 * Range of the token in the original text.
+	 */
 	public get range(): Range {
-		return this._range;
+		return this.tokenRange;
 	}
 
 	/**
@@ -60,12 +63,22 @@ export abstract class BaseToken {
 	 * Change `range` of the token with provided range components.
 	 */
 	public withRange(components: Partial<IRange>): this {
-		this._range = new Range(
+		this.tokenRange = new Range(
 			components.startLineNumber ?? this.range.startLineNumber,
 			components.startColumn ?? this.range.startColumn,
 			components.endLineNumber ?? this.range.endLineNumber,
 			components.endColumn ?? this.range.endColumn,
 		);
+
+		return this;
+	}
+
+	/**
+	 * Collapse range of the token to its start position.
+	 * See {@link Range.collapseToStart} for more details.
+	 */
+	public collapseRangeToStart(): this {
+		this.tokenRange = this.tokenRange.collapseToStart();
 
 		return this;
 	}
