@@ -16,3 +16,14 @@ export * from './colors/minimapColors.js';
 export * from './colors/miscColors.js';
 export * from './colors/quickpickColors.js';
 export * from './colors/searchColors.js';
+
+export const activityBarHoverForeground = registerColor(
+	'activityBar.hoverForeground',
+	{ dark: '#00a0df', light: '#00a0df', hc: '#00a0df' },
+	localize('activityBarHoverForeground', 'Foreground color of activity bar items on hover.')
+);
+export const activityBarHoverBackground = registerColor(
+	'activityBar.hoverBackground',
+	{ dark: '#a4dcf3', light: '#a4dcf3', hc: '#a4dcf3' },
+	localize('activityBarHoverBackground', 'Background color of activity bar items on hover.')
+);
