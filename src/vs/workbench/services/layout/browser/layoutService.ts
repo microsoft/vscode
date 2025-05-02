@@ -51,7 +51,7 @@ export const bubblyParts: Record<string, BubblyPartSettings> = {
 	},
 	[Parts.PANEL_PART]: {
 		...defaultBubblySettings,
-		customTitleHeight: 51
+		customTitleHeight: 46
 	},
 	[Parts.EDITOR_PART]: defaultBubblySettings,
 	[Parts.PEAROVERLAY_PART]: {
