@@ -63,7 +63,18 @@
       "supported": false
     }
   },
+
+
   "contributes": {
+
+    "languages": [
+      {
+        "id": "git-commit",
+        "alias": ["Test Git"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+
     "commands": [
       {
         "command": "git.continueInLocalClone",
@@ -2556,6 +2567,17 @@
     ],
     "configuration": {
       "title": "Git",
+
+        "languages": [
+          {
+            "id": "git.commit",
+            "alias": ["Message"],
+            "extension": [".gitcommit"],
+            "configuration": "./language-configuration.json"
+          }
+        ],
+
+
       "properties": {
         "git.enabled": {
           "type": "boolean",

@@ -70,6 +70,8 @@ export interface ITestResultService {
 const isRunningTests = (service: ITestResultService) =>
 	service.results.length > 0 && service.results[0].completedAt === undefined;
 
+// const isFailedTests=re
+
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
 export class TestResultService extends Disposable implements ITestResultService {
