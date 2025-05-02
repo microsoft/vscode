@@ -757,7 +757,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
-	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> {
+	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId, windowId);
 		if (!window?.win) {
 			return undefined;
@@ -905,11 +905,25 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		debuggers.detach();
 
 		const zoomFactor = simpleBrowserWebview.getZoomFactor();
+		const absoluteBounds = {
+			x: rect.x + nodeData.bounds.x,
+			y: rect.y + nodeData.bounds.y,
+			width: nodeData.bounds.width,
+			height: nodeData.bounds.height
+		};
+
+		const clippedBounds = {
+			x: Math.max(absoluteBounds.x, rect.x),
+			y: Math.max(absoluteBounds.y, rect.y),
+			width: Math.max(0, Math.min(absoluteBounds.x + absoluteBounds.width, rect.x + rect.width) - Math.max(absoluteBounds.x, rect.x)),
+			height: Math.max(0, Math.min(absoluteBounds.y + absoluteBounds.height, rect.y + rect.height) - Math.max(absoluteBounds.y, rect.y))
+		};
+
 		const scaledBounds = {
-			x: (nodeData.bounds.x + offsetX) * zoomFactor,
-			y: (nodeData.bounds.y + offsetY) * zoomFactor,
-			width: nodeData.bounds.width * zoomFactor,
-			height: nodeData.bounds.height * zoomFactor
+			x: clippedBounds.x * zoomFactor,
+			y: clippedBounds.y * zoomFactor,
+			width: clippedBounds.width * zoomFactor,
+			height: clippedBounds.height * zoomFactor
 		};
 
 		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };

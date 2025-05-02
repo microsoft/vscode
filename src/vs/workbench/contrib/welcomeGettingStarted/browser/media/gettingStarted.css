@@ -1123,7 +1123,7 @@
 	overflow: hidden;
 	flex: 1;
 	width: 100%;
-	transition: transform 0.6s ease;
+	transition: transform 0.25s, opacity 0.25s;
 	padding-top: 16px;
 	padding-bottom: 16px;
 }
@@ -1136,7 +1136,7 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	transition: transform 0.6s ease;
+	transition: transform 0.25s, opacity 0.25s;
 }
 
 /* Two-column layout for slide content */
@@ -1256,7 +1256,7 @@
 	border-radius: 50%;
 	cursor: pointer;
 	padding: 0;
-	transition: transform 0.2s ease, background-color 0.2s ease;
+	transition: transform 0.25s ease, background-color 0.25s ease;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot:hover {
@@ -1343,7 +1343,7 @@
 
 /* Animation for slide transitions */
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.animatable .step-slides-container {
-	transition: transform 0.25s ease;
+	transition: transform 0.25s, opacity 0.25s;
 }
 
 /* Low motion preference */
@@ -1479,4 +1479,9 @@
 	align-items: center;
 	min-width: max-content;
 	font-size: 16px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStarted.showDetails .gettingStartedSlideCategories {
+	left: 100%;
+	opacity: 0;
 }
