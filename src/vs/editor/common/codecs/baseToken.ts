@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CompositeToken } from './compositeToken.js';
 import { pick } from '../../../base/common/arrays.js';
 import { assert } from '../../../base/common/assert.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
@@ -11,6 +12,7 @@ import { IRange, Range } from '../../../editor/common/core/range.js';
  * Base class for all tokens with a `range` that reflects
  * token position in the original text.
  */
+export abstract class BaseToken<TText extends string = string> {
 export abstract class BaseToken<TText extends string = string> {
 	constructor(
 		private tokenRange: Range,
@@ -144,5 +146,18 @@ export abstract class BaseToken<TText extends string = string> {
 		}
 
 		return `${this.text.slice(0, maxLength - 1)}...`;
+	}
+}
+
+/**
+ * Tokens that represent a sequence of tokens that does not
+ * hold an additional meaning in the text.
+ */
+// TODO: @legomushroom - move to a separate file?
+export class Text<
+	TTokens extends readonly BaseToken[] = readonly BaseToken[],
+> extends CompositeToken<TTokens> {
+	public override toString(): string {
+		return `text(${this.shortText()})${this.range}`;
 	}
 }
