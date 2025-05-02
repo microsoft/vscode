@@ -7,6 +7,7 @@ import { BaseToken } from './baseToken.js';
 
 /**
  * Composite token consists of a list of other tokens.
+ * Composite token consists of a list of other tokens.
  */
 export abstract class CompositeToken<
 	TTokens extends readonly BaseToken[],
