@@ -30,7 +30,7 @@ type TEndOfLine = '\n' | '\r\n';
 /**
  * End-of-line utility class for convenience.
  */
-class TestEndOfLine extends Text<NewLine | CarriageReturn> {
+class TestEndOfLine extends Text<(NewLine | CarriageReturn)[]> {
 	/**
 	 * Create a new instance with provided end-of line type and
 	 * a starting position.
@@ -74,7 +74,7 @@ class TestEndOfLine extends Text<NewLine | CarriageReturn> {
 			),
 		));
 
-		return TestEndOfLine.fromTokens(tokens);
+		return new TestEndOfLine(tokens);
 	}
 }
 
@@ -180,7 +180,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 4, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
@@ -246,7 +246,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 5, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
@@ -307,7 +307,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 3, 1 + markerLength),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Tab(new Range(2, 1, 2, 2)),
 								new Word(new Range(2, 2, 2, 2 + 11), 'description'),
 								new Colon(new Range(2, 13, 2, 14)),
