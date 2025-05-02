@@ -202,4 +202,148 @@ suite('BaseToken', () => {
 			});
 		});
 	});
+
+	suite('• equals()', () => {
+		suite('• false', () => {
+			test('• different constructor', () => {
+				test('• same base class', () => {
+					class TestToken1 extends BaseToken {
+						public override get text(): string {
+							throw new Error('Method not implemented.');
+						}
+
+						public override toString(): string {
+							throw new Error('Method not implemented.');
+						}
+					}
+
+					class TestToken2 extends BaseToken {
+						public override get text(): string {
+							throw new Error('Method not implemented.');
+						}
+
+						public override toString(): string {
+							throw new Error('Method not implemented.');
+						}
+					}
+
+					const range = randomRange();
+					const token1 = new TestToken1(range);
+					const token2 = new TestToken2(range);
+
+					assert.strictEqual(
+						token1.equals(token2),
+						false,
+						`Token of type '${token1.constructor.name}' must not be equal to token of type '${token2.constructor.name}'.`,
+					);
+
+					assert.strictEqual(
+						token2.equals(token1),
+						false,
+						`Token of type '${token2.constructor.name}' must not be equal to token of type '${token1.constructor.name}'.`,
+					);
+				});
+			});
+
+			test('• child', () => {
+				class TestToken1 extends BaseToken {
+					public override get text(): string {
+						throw new Error('Method not implemented.');
+					}
+
+					public override toString(): string {
+						throw new Error('Method not implemented.');
+					}
+				}
+
+				class TestToken2 extends TestToken1 {
+					constructor(
+						range: Range,
+					) {
+						super(range);
+					}
+				}
+
+				const range = randomRange();
+				const token1 = new TestToken1(range);
+				const token2 = new TestToken2(range);
+
+				assert.strictEqual(
+					token1.equals(token2),
+					false,
+					`Token of type '${token1.constructor.name}' must not be equal to token of type '${token2.constructor.name}'.`,
+				);
+
+				assert.strictEqual(
+					token2.equals(token1),
+					false,
+					`Token of type '${token2.constructor.name}' must not be equal to token of type '${token1.constructor.name}'.`,
+				);
+			});
+
+			test('• different text', () => {
+				class TestToken extends BaseToken {
+					constructor(
+						private readonly value: string,
+					) {
+						super(new Range(1, 1, 1, 1 + value.length));
+					}
+
+					public override get text(): string {
+						return this.value;
+					}
+
+					public override toString(): string {
+						throw new Error('Method not implemented.');
+					}
+				}
+
+				const token1 = new TestToken('text1');
+				const token2 = new TestToken('text2');
+
+				assert.strictEqual(
+					token1.equals(token2),
+					false,
+					`Token of type '${token1.constructor.name}' must not be equal to token of type '${token2.constructor.name}'.`,
+				);
+
+				assert.strictEqual(
+					token2.equals(token1),
+					false,
+					`Token of type '${token2.constructor.name}' must not be equal to token of type '${token1.constructor.name}'.`,
+				);
+			});
+
+			test('• different range', () => {
+				class TestToken extends BaseToken {
+					public override get text(): string {
+						return 'some text value';
+					}
+
+					public override toString(): string {
+						throw new Error('Method not implemented.');
+					}
+				}
+
+				const range1 = randomRange();
+				const token1 = new TestToken(range1);
+
+				// TODO: @legomushroom - generate range different from the one of token1
+				const range2 = randomRange();
+				const token2 = new TestToken(range2);
+
+				assert.strictEqual(
+					token1.equals(token2),
+					false,
+					`Token of type '${token1.constructor.name}' must not be equal to token of type '${token2.constructor.name}'.`,
+				);
+
+				assert.strictEqual(
+					token2.equals(token1),
+					false,
+					`Token of type '${token2.constructor.name}' must not be equal to token of type '${token1.constructor.name}'.`,
+				);
+			});
+		});
+	});
 });
