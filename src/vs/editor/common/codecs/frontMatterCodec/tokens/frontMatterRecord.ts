@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Colon, Word, Dash, Space, Tab } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterToken, FrontMatterValueToken, TValueTypeName } from '../tokens/frontMatterToken.js';
@@ -30,17 +29,7 @@ export type TSpaceToken = Space | Tab;
  * ---
  * ```
  */
-export class FrontMatterRecordName extends FrontMatterToken {
-	constructor(
-		public readonly tokens: readonly TNameToken[],
-	) {
-		super(BaseToken.fullRange(tokens));
-	}
-
-	public override get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-
+export class FrontMatterRecordName extends FrontMatterToken<readonly TNameToken[]> {
 	public override toString(): string {
 		return `front-matter-record-name(${this.shortText()})${this.range}`;
 	}
@@ -57,19 +46,7 @@ export class FrontMatterRecordName extends FrontMatterToken {
  * ---
  * ```
  */
-export class FrontMatterRecordDelimiter extends FrontMatterToken {
-	constructor(
-		public readonly tokens: readonly [Colon, TSpaceToken],
-	) {
-		super(
-			BaseToken.fullRange(tokens),
-		);
-	}
-
-	public override get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-
+export class FrontMatterRecordDelimiter extends FrontMatterToken<readonly [Colon, TSpaceToken]> {
 	public override toString(): string {
 		return `front-matter-delimiter(${this.shortText()})${this.range}`;
 	}
@@ -86,15 +63,7 @@ export class FrontMatterRecordDelimiter extends FrontMatterToken {
  * ---
  * ```
  */
-export class FrontMatterRecord extends FrontMatterToken {
-	constructor(
-		private readonly tokens: readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken<TValueTypeName>],
-	) {
-		super(
-			BaseToken.fullRange(tokens),
-		);
-	}
-
+export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken<TValueTypeName>]> {
 	/**
 	 * Token that represent `name` of the record.
 	 *
@@ -163,10 +132,6 @@ export class FrontMatterRecord extends FrontMatterToken {
 		return new FrontMatterRecord([
 			token1, token2, token3,
 		]);
-	}
-
-	public override get text(): string {
-		return BaseToken.render(this.tokens);
 	}
 
 	public override toString(): string {
