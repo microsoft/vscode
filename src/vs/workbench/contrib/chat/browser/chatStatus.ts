@@ -505,15 +505,15 @@ class ChatStatusDashboard extends Disposable {
 			} else {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			}
-			// Use intl number format to format the used percentage to 1 decimal place
-			const percentUsedFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+			// Use intl number format to format the presented numbers
+			const chatStatusFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
 			if (quota.unlimited) {
 				quotaValue.textContent = localize('quotaUnlimited', "Included");
 			} else if (quota.overageCount) {
-				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", quota.overageCount);
+				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", chatStatusFormatter.format(quota.overageCount));
 			} else {
-				quotaValue.textContent = localize('quotaDisplay', "{0}%", percentUsedFormatter.format(usedPercentage));
+				quotaValue.textContent = localize('quotaDisplay', "{0}%", chatStatusFormatter.format(usedPercentage));
 			}
 
 			quotaBit.style.width = `${usedPercentage}%`;
