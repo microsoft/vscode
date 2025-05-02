@@ -6,7 +6,7 @@
 import { assert } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ITransaction, asyncTransaction, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { ITransaction, autorun, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -309,7 +309,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, newDecorations);
 
 
-		await asyncTransaction(async (tx) => {
+		transaction((tx) => {
 			if (!isLastEdits) {
 				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
@@ -322,12 +322,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 				this._editDecorationClear.schedule();
 
-				await this._textFileService.save(this.modifiedModel.uri, {
-					reason: SaveReason.AUTO,
-					skipSaveParticipants: true,
-				});
 			}
 		});
+		if (isLastEdits) {
+			await this._textFileService.save(this.modifiedModel.uri, {
+				reason: SaveReason.AUTO,
+				skipSaveParticipants: true,
+			});
+		}
 	}
 
 	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
