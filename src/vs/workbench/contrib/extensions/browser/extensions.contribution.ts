@@ -1078,7 +1078,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
 			},
-			run: () => this.extensionsWorkbenchService.openSearch('@installed')
+			run: () => this.extensionsWorkbenchService.openSearch('@installed ')
 		});
 
 		this.registerExtensionAction({
