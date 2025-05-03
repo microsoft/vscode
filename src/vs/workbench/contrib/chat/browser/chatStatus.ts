@@ -275,7 +275,9 @@ class ChatStatusDashboard extends Disposable {
 
 	private readonly element = $('div.chat-status-bar-entry-tooltip');
 
-	private dateFormatter = new Lazy(() => safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' }));
+	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
+	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+
 	private readonly entryDisposables = this._register(new MutableDisposable());
 
 	constructor(
@@ -505,15 +507,13 @@ class ChatStatusDashboard extends Disposable {
 			} else {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			}
-			// Use intl number format to format the used percentage to 1 decimal place
-			const percentUsedFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
 
 			if (quota.unlimited) {
 				quotaValue.textContent = localize('quotaUnlimited', "Included");
 			} else if (quota.overageCount) {
 				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", quota.overageCount);
 			} else {
-				quotaValue.textContent = localize('quotaDisplay', "{0}%", percentUsedFormatter.format(usedPercentage));
+				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(usedPercentage));
 			}
 
 			quotaBit.style.width = `${usedPercentage}%`;
