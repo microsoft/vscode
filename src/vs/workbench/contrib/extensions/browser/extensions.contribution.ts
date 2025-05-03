@@ -1156,6 +1156,21 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: () => this.extensionsWorkbenchService.openSearch('@disabled ')
 		});
 
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.showInstalledExtensions',
+			title: localize('showInstalledExtensions', "Show Installed Extensions"),
+			category: ExtensionsLocalizedLabel,
+			menu: [
+				{ id: MenuId.CommandPalette, when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER) },
+				{ id: extensionsFilterSubMenu, group: '3_installed', order: 2 }
+			],
+			menuTitles: {
+				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
+			},
+			run: () => this.extensionsWorkbenchService.openSearch('@installed ')
+		});
+
+
 		const extensionsSortSubMenu = new MenuId('extensionsSortSubMenu');
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
 			submenu: extensionsSortSubMenu,
