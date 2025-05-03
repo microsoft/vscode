@@ -693,6 +693,10 @@ class ChatSetup {
 
 	private getPrimaryButton(): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
+			if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
+				return localize('setupWithProviderShort', "Sign in with {0}", defaultChat.enterpriseProviderName);
+			}
+
 			return localize('signInButton', "Sign in");
 		}
 
