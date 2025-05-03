@@ -10,7 +10,7 @@ import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 /**
  * Token represents a generic sequence of tokens in a Front Matter header.
  */
-export class FrontMatterSequence extends FrontMatterValueToken<FrontMatterSequence> {
+export class FrontMatterSequence extends FrontMatterValueToken<string, readonly TSimpleDecoderToken[]> {
 	/**
 	 * @override Because this token represent a generic sequence of tokens,
 	 *           the type name is represented by the sequence of tokens itself

@@ -9,7 +9,7 @@ import { SpacingToken } from './simpleToken.js';
  * A token that represent a `space` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Space extends SpacingToken {
+export class Space extends SpacingToken<' '> {
 	/**
 	 * The underlying symbol of the `Space` token.
 	 */

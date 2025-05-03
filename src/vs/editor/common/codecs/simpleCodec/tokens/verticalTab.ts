@@ -9,7 +9,7 @@ import { SpacingToken } from './simpleToken.js';
  * Token that represent a `vertical tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class VerticalTab extends SpacingToken {
+export class VerticalTab extends SpacingToken<'\v'> {
 	/**
 	 * The underlying symbol of the `VerticalTab` token.
 	 */

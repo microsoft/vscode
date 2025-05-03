@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseToken } from '../../baseToken.js';
 import { FrontMatterSequence } from './frontMatterSequence.js';
 import { Colon, Word, Dash, SpacingToken } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterToken, FrontMatterValueToken, type TValueTypeName } from '../tokens/frontMatterToken.js';
