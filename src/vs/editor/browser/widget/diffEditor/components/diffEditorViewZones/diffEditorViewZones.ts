@@ -267,7 +267,7 @@ export class DiffEditorViewZones extends Disposable {
 							marginDomNode,
 							setZoneId(id) { zoneId = id; },
 							showInHiddenAreas: true,
-							suppressMouseDown: true,
+							suppressMouseDown: false,
 						});
 					}
 

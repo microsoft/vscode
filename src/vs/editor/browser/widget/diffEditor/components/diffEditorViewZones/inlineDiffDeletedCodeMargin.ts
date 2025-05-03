@@ -146,20 +146,6 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 				this.visibility = false;
 			}
 		}));
-
-		this._register(_modifiedEditor.onMouseDown((e: IEditorMouseEvent) => {
-			if (!e.event.leftButton) { return; }
-
-			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
-				const viewZoneId = e.target.detail.viewZoneId;
-
-				if (viewZoneId === this._getViewZoneId()) {
-					e.event.preventDefault();
-					currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
-					showContextMenu(e.event.posx, e.event.posy + lineHeight);
-				}
-			}
-		}));
 	}
 
 	private _updateLightBulbPosition(marginDomNode: HTMLElement, y: number, lineHeight: number): number {

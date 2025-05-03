@@ -266,6 +266,16 @@
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-diffEditor-removedTextBorder);
 }
+
+.monaco-diff-editor:not(.side-by-side) .line-delete {
+	z-index: 1000;
+}
+
+.monaco-editor.no-user-select .line-delete .view-line {
+	user-select: text;
+	-webkit-user-select: text;
+}
+
 .monaco-editor.hc-black .line-delete, .monaco-editor.hc-light .line-delete,
 .monaco-editor.hc-black .char-delete, .monaco-editor.hc-light .char-delete {
 	border-style: dashed;
