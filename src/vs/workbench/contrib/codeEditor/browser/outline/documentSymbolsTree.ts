@@ -11,7 +11,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeDragAndDrop, ITreeDragOverReaction, ITreeFilter, ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -334,7 +334,7 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 
 export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
 
-	private readonly _collator = new dom.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = safeIntl.Collator(undefined, { numeric: true });
 
 	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
