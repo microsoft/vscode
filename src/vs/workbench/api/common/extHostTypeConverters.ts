@@ -2448,7 +2448,7 @@ export namespace LanguageModelChatMessage2 {
 		}
 
 		const content = messageContent.map((c): chatProvider.IChatMessagePart => {
-			if (c instanceof types.LanguageModelToolResultPart2) {
+			if ((c instanceof types.LanguageModelToolResultPart2) || (c instanceof types.LanguageModelToolResultPart)) {
 				return {
 					type: 'tool_result',
 					toolCallId: c.callId,

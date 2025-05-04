@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptsService } from '../../service/types.js';
-import { IPromptFileReference } from '../../parsers/types.js';
+import { IPromptsService } from '../../../service/types.js';
+import { IPromptFileReference } from '../../../parsers/types.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
-import { assert } from '../../../../../../../base/common/assert.js';
-import { NotPromptFile } from '../../../promptFileReferenceErrors.js';
-import { ITextModel } from '../../../../../../../editor/common/model.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
+import { assert } from '../../../../../../../../base/common/assert.js';
+import { NotPromptFile } from '../../../../promptFileReferenceErrors.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../../base/common/types.js';
 import { ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
-import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -33,7 +33,7 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override async onPromptParserUpdate() {
+	protected override async onPromptSettled() {
 		// ensure that parsing process is settled
 		await this.parser.allSettled();
 

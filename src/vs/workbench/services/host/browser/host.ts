@@ -132,7 +132,7 @@ export interface IHostService {
 	 */
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
 
-	getElementData(offsetX: number, offsetY: number, token: CancellationToken): Promise<IElementData | undefined>;
+	getElementData(rect: IRectangle, token: CancellationToken,): Promise<IElementData | undefined>;
 
 	//#endregion
 

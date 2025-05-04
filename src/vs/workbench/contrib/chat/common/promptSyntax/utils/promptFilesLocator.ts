@@ -100,7 +100,7 @@ export class PromptFilesLocator {
 				continue;
 			}
 
-			result.add(URI.file(path));
+			result.add(absoluteLocation.with({ path }));
 		}
 
 		return [...result];

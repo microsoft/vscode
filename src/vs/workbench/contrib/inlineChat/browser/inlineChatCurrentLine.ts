@@ -237,7 +237,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return undefined;
 			}
 
-			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown') {
+			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown' || model.getLanguageId() === 'search-result') {
 				return undefined;
 			}
 

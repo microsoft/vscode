@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { assertNever } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -29,17 +31,18 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
+import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../chat.js';
+import { getAttachableImageExtension } from '../chatAttachmentResolve.js';
 import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatMarkdownContentPart.js';
 import { ChatCustomProgressPart, ChatProgressContentPart } from './chatProgressContentPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from './chatReferencesContentPart.js';
-import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart } from './chatToolInputOutputContentPart.js';
+import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -146,6 +149,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMarkerService private readonly markerService: IMarkerService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -247,7 +251,7 @@ class ChatToolInvocationSubPart extends Disposable {
 					maxHeightInLines: 13,
 					verticalPadding: 5,
 					editorOptions: {
-						wordWrap: 'on',
+						wordWrap: 'off',
 						readOnly: false
 					}
 				};
@@ -333,6 +337,7 @@ class ChatToolInvocationSubPart extends Disposable {
 						try {
 							const parsed = JSON.parse(model.getValue());
 							model.setValue(JSON.stringify(parsed, null, 2));
+							editor.object.editor.updateOptions({ wordWrap: 'on' });
 						} catch {
 							// ignored
 						}
@@ -379,6 +384,8 @@ class ChatToolInvocationSubPart extends Disposable {
 					toolInvocation.confirmed.complete(false);
 					break;
 			}
+
+			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
@@ -472,6 +479,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
 		this._register(confirmWidget.onDidClick(button => {
 			toolInvocation.confirmed.complete(button.data);
+			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		toolInvocation.confirmed.p.then(() => {
@@ -540,7 +548,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		return progressPart.domNode;
 	}
 
-	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output: string | undefined, isError: boolean): HTMLElement {
+	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output: IToolResultInputOutputDetails['output'] | undefined, isError: boolean): HTMLElement {
 		let codeBlockIndex = this.codeBlockStartIndex;
 		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
 			const model = this._register(this.modelService.createModel(
@@ -549,6 +557,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			));
 
 			return {
+				kind: 'code',
 				textModel: model,
 				languageId: model.getLanguageId(),
 				options: {
@@ -574,6 +583,10 @@ class ChatToolInvocationSubPart extends Disposable {
 			};
 		};
 
+		if (typeof output === 'string') { // back compat with older stored versions
+			output = [{ type: 'text', value: output }];
+		}
+
 		const collapsibleListPart = this._register(this.instantiationService.createInstance(
 			ChatCollapsibleInputOutputContentPart,
 			message,
@@ -581,7 +594,22 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.context,
 			this.editorPool,
 			toCodePart(input),
-			output ? { parts: [toCodePart(output)] } : undefined,
+			output && {
+				parts: output.map((o): IChatCollapsibleIODataPart | IChatCollapsibleIOCodePart => {
+					if (o.type === 'data') {
+						const decoded = decodeBase64(o.value64).buffer;
+						if (getAttachableImageExtension(o.mimeType)) {
+							return { kind: 'data', value: decoded, mimeType: o.mimeType };
+						} else {
+							return toCodePart(localize('toolResultData', "Data of type {0} ({1} bytes)", o.mimeType, decoded.byteLength));
+						}
+					} else if (o.type === 'text') {
+						return toCodePart(o.value);
+					} else {
+						assertNever(o);
+					}
+				}),
+			},
 			isError,
 			ChatToolInvocationSubPart._expandedByDefault.get(this.toolInvocation) ?? false,
 		));

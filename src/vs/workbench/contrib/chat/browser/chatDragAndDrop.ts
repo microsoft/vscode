@@ -182,9 +182,9 @@ export class ChatDragAndDrop extends Themable {
 			return ChatDragAndDropType.MARKER;
 		} else if (containsDragType(e, DataTransfers.FILES)) {
 			return ChatDragAndDropType.FILE_EXTERNAL;
-		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
+		} else if (containsDragType(e, CodeDataTransfers.EDITORS)) {
 			return ChatDragAndDropType.FILE_INTERNAL;
-		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
+		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FOLDER;
 		}
 
@@ -237,6 +237,16 @@ export class ChatDragAndDrop extends Themable {
 			return coalesce(await Promise.all(editorDragData.map(editorInput => {
 				return resolveEditorAttachContext(editorInput, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService);
 			})));
+		}
+
+		const internal = e.dataTransfer?.getData(DataTransfers.INTERNAL_URI_LIST);
+		if (internal) {
+			const uriList = UriList.parse(internal);
+			if (uriList.length) {
+				return coalesce(await Promise.all(
+					uriList.map(uri => resolveEditorAttachContext({ resource: URI.parse(uri) }, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService))
+				));
+			}
 		}
 
 		if (!containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, Mimes.uriList) && ((containsDragType(e, Mimes.html) || containsDragType(e, Mimes.text) /* Text mime needed for safari support */))) {

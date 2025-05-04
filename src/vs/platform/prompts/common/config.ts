@@ -132,7 +132,7 @@ export namespace PromptsConfig {
  * 			be clearly mapped to a boolean (e.g., `"true"`, `"TRUE"`, `"FaLSe"`, etc.),
  * 			`undefined` for rest of the values
  */
-function asBoolean(value: any): boolean | undefined {
+export const asBoolean = (value: any): boolean | undefined => {
 	if (typeof value === 'boolean') {
 		return value;
 	}
@@ -151,4 +151,4 @@ function asBoolean(value: any): boolean | undefined {
 	}
 
 	return undefined;
-}
+};
