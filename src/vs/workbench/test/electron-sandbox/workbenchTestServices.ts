@@ -167,7 +167,7 @@ export class TestNativeHostService implements INativeHostService {
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async profileRenderer(): Promise<any> { throw new Error(); }
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
-	async getElementData(offsetX: number, offsetY: number, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> { return undefined; }
+	async getElementData(rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> { return undefined; }
 }
 
 export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {

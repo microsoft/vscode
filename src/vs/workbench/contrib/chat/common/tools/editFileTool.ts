@@ -9,8 +9,6 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { SaveReason } from '../../../../common/editor.js';
-import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
@@ -38,7 +36,6 @@ export class EditTool implements IToolImpl {
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@INotebookService private readonly notebookService: INotebookService,
 	) { }
 
@@ -143,11 +140,6 @@ export class EditTool implements IToolImpl {
 			});
 		}).finally(() => {
 			dispose.dispose();
-		});
-
-		await this.textFileService.save(uri, {
-			reason: SaveReason.AUTO,
-			skipSaveParticipants: true,
 		});
 
 		return {

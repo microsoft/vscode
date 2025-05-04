@@ -33,6 +33,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { safeIntl } from '../../../../base/common/date.js';
 
 export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, nls.localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
 
@@ -164,7 +165,7 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			allowedCodePoints: Object.keys(options.allowedCharacters).map(c => c.codePointAt(0)!),
 			allowedLocales: Object.keys(options.allowedLocales).map(locale => {
 				if (locale === '_os') {
-					const osLocale = new Intl.NumberFormat().resolvedOptions().locale;
+					const osLocale = safeIntl.NumberFormat().value.resolvedOptions().locale;
 					return osLocale;
 				} else if (locale === '_vscode') {
 					return platform.language;

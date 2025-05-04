@@ -156,7 +156,7 @@ export interface ICommonNativeHostService {
 
 	// Screenshots
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
-	getElementData(offsetX: number, offsetY: number, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined>;
+	getElementData(rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
