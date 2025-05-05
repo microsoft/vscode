@@ -255,6 +255,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport.onConfigurationChanged(e);
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
+			// Can not directly write to screen reader content because need the rendering context there, so just setting should render
 			this.setShouldRender();
 		}
 		return true;

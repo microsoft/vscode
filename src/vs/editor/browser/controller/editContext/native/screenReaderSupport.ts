@@ -154,8 +154,8 @@ export class ScreenReaderSupport {
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
-		// this._domNode.setHeight(height);
-		// this._domNode.setLineHeight(height);
+		this._domNode.setHeight(height);
+		this._domNode.setLineHeight(height);
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
 
@@ -197,8 +197,8 @@ export class ScreenReaderSupport {
 			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewLineNumber);
 			const viewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
 			const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-			const inelineDecorations = viewModel.getInlineDecorationsInModelRange(modelRange);
-			const actualInlineDecorations = LineDecoration.filter(inelineDecorations, modelRange.startLineNumber, 0, Infinity);
+			const inlineDecorations = viewModel.getInlineDecorationsInModelRange(modelRange);
+			const actualInlineDecorations = LineDecoration.filter(inlineDecorations, modelRange.startLineNumber, 0, Infinity);
 			const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 			const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
 			const sb = new StringBuilder(10000);
@@ -237,12 +237,7 @@ export class ScreenReaderSupport {
 			domNode.classList.add('monaco-editor');
 			domNode.style.height = `${String(lineHeight)}px`;
 			domNode.style.lineHeight = `${String(lineHeight)}px`;
-			// debugging
-			// domNode.style.overflow = 'visible';
-			// domNode.style.background = 'white';
 			domNode.replaceChildren(preLineDom, activeLineDom, postLineDom);
-			console.log('domNode : ', domNode);
-
 			this._setSelectionOfScreenReaderContent(renderLineOutput, this._screenReaderContentState, preLineDom, activeLineDom, postLineDom);
 		} else {
 			this._screenReaderContentState = undefined;

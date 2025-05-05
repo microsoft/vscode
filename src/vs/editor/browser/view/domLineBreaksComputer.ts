@@ -22,8 +22,6 @@ const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML:
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
-	private _container: HTMLElement | undefined = undefined;
-
 	public static create(targetWindow: Window, model: ITextModel): DOMLineBreaksComputerFactory {
 		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow), model);
 	}
@@ -45,9 +43,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				lineHeights.push(lineHeight);
 			},
 			finalize: () => {
-				this._container?.remove();
 				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), this.model, lineNumbers, lineHeights, requests, tabSize, injectedTexts, allInlineDecorations);
-				this._container = res.containerDomNode;
 				return res.data;
 			}
 		};
