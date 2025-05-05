@@ -37,12 +37,12 @@ export abstract class ObservableDisposable extends Disposable {
 	}
 
 	/**
-	 * Tracks disposed state of this object.
+	 * Tracks 'disposed' state of this object.
 	 */
 	private _disposed = false;
 
 	/**
-	 * Check if the current object was already disposed.
+	 * Gets current 'disposed' state of this object.
 	 */
 	public get disposed(): boolean {
 		return this._disposed;
@@ -56,8 +56,8 @@ export abstract class ObservableDisposable extends Disposable {
 		if (this.disposed) {
 			return;
 		}
-
 		this._disposed = true;
+
 		this._onDispose.fire();
 		super.dispose();
 	}

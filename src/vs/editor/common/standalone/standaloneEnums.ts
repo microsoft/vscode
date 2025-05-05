@@ -420,6 +420,12 @@ export enum InlayHintKind {
 	Parameter = 2
 }
 
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2
+}
+
 /**
  * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
  */

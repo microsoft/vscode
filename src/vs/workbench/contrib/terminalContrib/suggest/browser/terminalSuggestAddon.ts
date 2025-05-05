@@ -5,7 +5,6 @@
 
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { sep } from '../../../../../base/common/path.js';
@@ -38,6 +37,7 @@ import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompl
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon } from './terminalSymbolIcons.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -91,19 +91,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
-		[TerminalCompletionItemKind.File, Codicon.file],
-		[TerminalCompletionItemKind.Folder, Codicon.folder],
-		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
-		[TerminalCompletionItemKind.Alias, Codicon.symbolMethodArrow],
-		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
-		[TerminalCompletionItemKind.Option, Codicon.symbolEnum],
-		[TerminalCompletionItemKind.OptionValue, Codicon.symbolEnumMember],
-		[TerminalCompletionItemKind.Flag, Codicon.flag],
-		[TerminalCompletionItemKind.InlineSuggestion, Codicon.star],
-		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, Codicon.star],
+		[TerminalCompletionItemKind.File, terminalSymbolFileIcon],
+		[TerminalCompletionItemKind.Folder, terminalSymbolFolderIcon],
+		[TerminalCompletionItemKind.Method, terminalSymbolMethodIcon],
+		[TerminalCompletionItemKind.Alias, terminalSymbolAliasIcon],
+		[TerminalCompletionItemKind.Argument, terminalSymbolArgumentIcon],
+		[TerminalCompletionItemKind.Option, terminalSymbolOptionIcon],
+		[TerminalCompletionItemKind.OptionValue, terminalSymbolEnumMember],
+		[TerminalCompletionItemKind.Flag, terminalSymbolFlagIcon],
+		[TerminalCompletionItemKind.InlineSuggestion, terminalSymbolInlineSuggestionIcon],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
 	]);
 
-	private _kindToTypeMap = new Map<number, string>([
+	private _kindToKindLabelMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, localize('file', 'File')],
 		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
 		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
@@ -220,6 +220,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
+		this._register(xterm.onScroll(() => this.hideSuggestWidget(true)));
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -302,13 +303,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
 		// editor and how it interacts with inline completions. This object is tracked and reused as
 		// it may change on input.
-		this._refreshInlineCompletion();
+		this._refreshInlineCompletion(completions);
 
 		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
-				completion.kindLabel = this._kindToTypeMap.get(completion.kind);
+				completion.kindLabel = this._kindToKindLabelMap.get(completion.kind);
 			}
 		}
 
@@ -366,6 +367,22 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
+	}
+
+	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
+		const inlineCompletionLabel = (typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label).trim();
+		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label === 'string' ? c.label === inlineCompletionLabel : c.label.label === inlineCompletionLabel);
+		if (inlineCompletionMatchIndex !== -1) {
+			// Remove the existing inline completion item from the completions list
+			const richCompletionMatchingInline = completions.splice(inlineCompletionMatchIndex, 1)[0];
+			// Apply its properties to the inline completion item
+			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
+			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
+			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
+		} else if (this._inlineCompletionItem.completion) {
+			this._inlineCompletionItem.completion.detail = undefined;
+			this._inlineCompletionItem.completion.documentation = undefined;
+		}
 	}
 
 	private _requestTriggerCharQuickSuggestCompletions(): boolean {
@@ -518,7 +535,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
-		this._refreshInlineCompletion();
+		this._refreshInlineCompletion(this._model?.items.map(i => i.completion) || []);
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
@@ -538,7 +555,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
-	private _refreshInlineCompletion() {
+	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
 		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
 			this._inlineCompletionItem.isInvalid = true;
@@ -556,6 +573,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
+			this._addPropertiesToInlineCompletionItem(completions);
+
 			const x = new TerminalCompletionItem(this._inlineCompletion);
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;

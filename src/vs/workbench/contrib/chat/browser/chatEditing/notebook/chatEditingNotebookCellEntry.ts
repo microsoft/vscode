@@ -26,7 +26,8 @@ import { editorSelectionBackground } from '../../../../../../platform/theme/comm
 import { CellEditState } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
-import { WorkingSetEntryState } from '../../../common/chatEditingService.js';
+import { CellKind } from '../../../../notebook/common/notebookCommon.js';
+import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/chatModel.js';
 import { pendingRewriteMinimap } from '../chatEditingModifiedFileEntry.js';
 
@@ -83,8 +84,8 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	private _editDecorations: string[] = [];
 
 	private readonly _diffTrimWhitespace: IObservable<boolean>;
-	protected readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
-	readonly state: IObservable<WorkingSetEntryState> = this._stateObs;
+	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
+	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
 	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
 	private readonly initialContent: string;
@@ -169,9 +170,9 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
 			const currentState = this._stateObs.get();
 			switch (currentState) {
-				case WorkingSetEntryState.Modified:
+				case ModifiedFileEntryState.Modified:
 					if (didResetToOriginalContent) {
-						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+						this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 						break;
 					}
 			}
@@ -212,7 +213,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 
 		transaction((tx) => {
 			if (!isLastEdits) {
-				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				this._maxModifiedLineNumber.set(maxLineNumber, tx);
 
@@ -229,6 +230,21 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		this._editDecorationClear.schedule();
 	}
 
+	revertMarkdownPreviewState(): void {
+		if (this.cell.cellKind !== CellKind.Markup) {
+			return;
+		}
+
+		const notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(this.notebookUri)?.value;
+		if (notebookEditor) {
+			const vm = notebookEditor.getCellByHandle(this.cell.handle);
+			if (vm?.getEditState() === CellEditState.Editing &&
+				(vm.editStateSource === 'chatEdit' || vm.editStateSource === 'chatEditNavigation')) {
+				vm?.updateEditState(CellEditState.Preview, 'chatEdit');
+			}
+		}
+	}
+
 	protected _resetEditsState(tx: ITransaction): void {
 		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 		this._maxModifiedLineNumber.set(0, tx);
@@ -241,7 +257,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		this._isEditFromUs = true;
 		try {
-			if (!this._diffInfo.get().changes.includes(change)) {
+			if (!this._diffInfo.get().changes.filter(c => c.modified.equals(change.modified) && c.original.equals(change.original)).length) {
 				// diffInfo should have model version ids and check them (instead of the caller doing that)
 				return false;
 			}
@@ -257,7 +273,8 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		}
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
-			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
+			this.revertMarkdownPreviewState();
+			this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
 		}
 		return true;
 	}
@@ -283,7 +300,8 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		}
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
-			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+			this.revertMarkdownPreviewState();
+			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 		}
 		return true;
 	}

@@ -19,6 +19,7 @@ export interface GettingStartedEditorOptions extends IEditorOptions {
 	showTelemetryNotice?: boolean;
 	showWelcome?: boolean;
 	walkthroughPageTitle?: string;
+	showNewExperience?: boolean;
 }
 
 export class GettingStartedInput extends EditorInput {
@@ -29,6 +30,7 @@ export class GettingStartedInput extends EditorInput {
 	private _selectedStep: string | undefined;
 	private _showTelemetryNotice: boolean;
 	private _showWelcome: boolean;
+
 	private _walkthroughPageTitle: string | undefined;
 
 	override get typeId(): string {

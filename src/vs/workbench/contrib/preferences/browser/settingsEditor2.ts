@@ -41,7 +41,7 @@ import { ITOCEntry, getCommonlyUsedData, tocData } from './settingsLayout.js';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
 import { createTOCIterator, TOCTree, TOCTreeModel } from './tocTree.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData } from '../common/preferences.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData, wordifyKey } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -68,7 +68,7 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-
+import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -168,6 +168,7 @@ export class SettingsEditor2 extends EditorPane {
 	private countElement!: HTMLElement;
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
+	private suggestionsDiv!: HTMLElement;
 
 	private splitView!: SplitView<number>;
 
@@ -226,6 +227,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
+	private readonly searchSuggestionDisposables: DisposableStore = this._register(new DisposableStore());
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -249,6 +252,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(300);
@@ -667,6 +671,11 @@ export class SettingsEditor2 extends EditorPane {
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		headerControlsContainer.style.borderColor = asCssVariable(settingsHeaderBorder);
+
+		this.suggestionsDiv = DOM.append(headerControlsContainer, $('div.settings-suggestions'));
+		if (this.configurationService.getValue('workbench.settings.showSuggestions') !== true) {
+			this.suggestionsDiv.hidden = true;
+		}
 
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
@@ -1606,6 +1615,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async triggerSearch(query: string): Promise<void> {
+		this.clearSearchSuggestions();
 		const progressRunner = this.editorProgressService.show(true, 800);
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
@@ -1637,8 +1647,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.searchDelayer.cancel();
 			if (this.searchInProgress) {
-				this.searchInProgress.cancel();
-				this.searchInProgress.dispose();
+				this.searchInProgress.dispose(true);
 				this.searchInProgress = null;
 			}
 
@@ -1673,7 +1682,8 @@ export class SettingsEditor2 extends EditorPane {
 		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 		const fullResult: ISearchResult = {
-			filterMatches: []
+			filterMatches: [],
+			exactMatch: false,
 		};
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {
@@ -1689,22 +1699,49 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async triggerFilterPreferences(query: string): Promise<void> {
 		if (this.searchInProgress) {
-			this.searchInProgress.cancel();
+			this.searchInProgress.dispose(true);
 			this.searchInProgress = null;
 		}
 
 		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 		return this.searchDelayer.trigger(async () => {
-			if (!searchInProgress.token.isCancellationRequested) {
-				const localResults = await this.localFilterPreferences(query, searchInProgress.token);
-				if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
-					await this.remoteSearchPreferences(query, searchInProgress.token);
-				}
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
+			}
+			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+			let remoteResults = null;
+			if ((!localResults || !localResults.exactMatch) && !searchInProgress.token.isCancellationRequested) {
+				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
+			}
 
-				// Update UI only after all the search results are in
-				// ref https://github.com/microsoft/vscode/issues/224946
-				this.onDidFinishSearch();
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
+			}
+
+			// Update UI only after all the search results are in
+			// ref https://github.com/microsoft/vscode/issues/224946
+			this.onDidFinishSearch();
+
+			if (remoteResults?.filterMatches.length) {
+				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
+					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
+					if (!searchInProgress.token.isCancellationRequested) {
+						if (rankedResults === null) {
+							this.logService.trace('No ranked results found');
+						} else {
+							this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
+							// Make a suggestion if the setting isn't in the top five results.
+							const firstFewResults = new Set([
+								...(localResults?.filterMatches.map(m => m.setting.key) ?? []),
+								...(remoteResults.filterMatches.map(m => m.setting.key))
+							].slice(0, 5));
+							const suggestedResults = rankedResults.filter(r => !firstFewResults.has(r));
+							this.logService.trace(`Filtering ranked results down to ${suggestedResults.join(', ')}`);
+							this.setSearchSuggestions(suggestedResults);
+						}
+					}
+				}
 			}
 		});
 	}
@@ -1720,19 +1757,59 @@ export class SettingsEditor2 extends EditorPane {
 		this.renderTree(undefined, true);
 	}
 
-	private localFilterPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
+	private clearSearchSuggestions(): void {
+		this.searchSuggestionDisposables.clear();
+		this.suggestionsDiv.innerText = '';
+	}
+
+	private setSearchSuggestions(suggestions: string[]): void {
+		this.clearSearchSuggestions();
+
+		if (suggestions.length === 0) {
+			return;
+		}
+
+		this.suggestionsDiv.innerText = localize('suggestionsPrefix', "Did you mean: ");
+		suggestions.forEach((suggestion, idx) => {
+			const suggestionLink = document.createElement('a');
+			suggestionLink.textContent = wordifyKey(suggestion);
+			suggestionLink.tabIndex = 0;
+			suggestionLink.setAttribute('aria-label', suggestion);
+			this.searchSuggestionDisposables.add(DOM.addDisposableListener(suggestionLink, 'click', (e) => {
+				e.preventDefault();
+				this.searchWidget.setValue(suggestion);
+				this.focusSearch();
+			}));
+			this.searchSuggestionDisposables.add(DOM.addDisposableListener(suggestionLink, 'keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					this.searchWidget.setValue(suggestion);
+					this.focusSearch();
+				}
+			}));
+			this.suggestionsDiv.appendChild(suggestionLink);
+			if (idx < suggestions.length - 1) {
+				this.suggestionsDiv.appendChild(document.createTextNode(', '));
+			}
+		});
+	}
+
+	private localFilterPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
+		return this.searchWithProvider(SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
+	private remoteSearchPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token);
+		if (!remoteSearchProvider) {
+			return Promise.resolve(null);
+		}
+		return this.searchWithProvider(SearchResultIdx.Remote, remoteSearchProvider, token);
 	}
 
-	private async filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		const result = await this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token);
-		if (token?.isCancellationRequested) {
+	private async searchWithProvider(type: SearchResultIdx, searchProvider: ISearchProvider, token: CancellationToken): Promise<ISearchResult | null> {
+		const result = await this._searchPreferencesModel(this.defaultSettingsEditorModel, searchProvider, token);
+		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
 		}
@@ -1785,31 +1862,16 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
-		return searchP
-			.then<ISearchResult, ISearchResult | null>(undefined, err => {
-				if (isCancellationError(err)) {
-					return Promise.reject(err);
-				} else {
-					// type SettingsSearchErrorEvent = {
-					// 	'message': string;
-					// };
-					// type SettingsSearchErrorClassification = {
-					// 	owner: 'rzhao271';
-					// 	comment: 'Helps understand when settings search errors out';
-					// 	'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
-					// };
-
-					// const message = getErrorMessage(err).trim();
-					// if (message && message !== 'Error') {
-					// 	// "Error" = any generic network error
-					// 	this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
-					// 	this.logService.info('Setting search error: ' + message);
-					// }
-					return null;
-				}
-			});
+	private async _searchPreferencesModel(model: ISettingsEditorModel, provider: ISearchProvider, token: CancellationToken): Promise<ISearchResult | null> {
+		try {
+			return await provider.searchModel(model, token);
+		} catch (err) {
+			if (isCancellationError(err)) {
+				return Promise.reject(err);
+			} else {
+				return null;
+			}
+		}
 	}
 
 	private layoutSplitView(dimension: DOM.Dimension): void {

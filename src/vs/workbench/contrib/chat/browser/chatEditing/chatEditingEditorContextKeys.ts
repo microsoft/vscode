@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chatEdits.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
@@ -109,21 +109,22 @@ class ContextKeyGroup {
 				return;
 			}
 
-			const { session, entry, isInlineChat } = tuple;
+			const { session, entry } = tuple;
 
 			const chatModel = chatService.getSession(session.chatSessionId);
 
-			const isRequestInProgress = chatModel
-				? observableFromEvent(this, chatModel.onDidChange, () => chatModel.requestInProgress)
+			const lastResponse = chatModel
+				? observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response).read(r)
+				: undefined;
+
+			const isRequestInProgress = lastResponse
+				? observableFromEvent(this, lastResponse.onDidChange, () => !lastResponse.isPendingConfirmation && !lastResponse.isComplete)
 				: constObservable(false);
 
-			this._ctxHasEditorModification.set(isInlineChat || entry?.state.read(r) === WorkingSetEntryState.Modified);
+			this._ctxHasEditorModification.set(entry?.state.read(r) === ModifiedFileEntryState.Modified);
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
-			this._ctxHasRequestInProgress.set(
-				Boolean(entry?.isCurrentlyBeingModifiedBy.read(r)) // any entry changing
-				|| (isInlineChat && isRequestInProgress.read(r)) // inline chat request
-			);
+			this._ctxHasRequestInProgress.set(isRequestInProgress.read(r));
 
 			// number of requests
 			const requestCount = chatModel

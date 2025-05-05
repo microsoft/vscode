@@ -13,7 +13,7 @@ import codeInsidersCompletionSpec from './completions/code-insiders';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
-import { PathExecutableCache } from './env/pathExecutableCache';
+import { ITerminalEnvironment, PathExecutableCache, watchPathDirectories } from './env/pathExecutableCache';
 import { osIsWindows } from './helpers/os';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { getBashGlobals } from './shell/bash';
@@ -26,13 +26,16 @@ import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 import { createTimeoutPromise } from './helpers/promise';
+import codeTunnelCompletionSpec from './completions/code-tunnel';
+import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders';
 
 export const enum TerminalShellType {
 	Bash = 'bash',
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
-	Python = 'python'
+	Python = 'python',
+	GitBash = 'gitbash',
 }
 
 const isWindows = osIsWindows();
@@ -43,6 +46,8 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	codeTunnelCompletionSpec,
+	codeTunnelInsidersCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
 ];
@@ -79,13 +84,15 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 	}
 }
 
+
 export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
-
+	let currentTerminalEnv: ITerminalEnvironment = process.env;
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
+			currentTerminalEnv = terminal.shellIntegration?.env?.value ?? process.env;
 			if (token.isCancellationRequested) {
 				console.debug('#terminalCompletions token cancellation requested');
 				return;
@@ -117,7 +124,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					prefix,
 					tokenType,
 					terminal.shellIntegration?.cwd,
-					getEnvAsRecord(terminal.shellIntegration?.env?.value),
+					getEnvAsRecord(currentTerminalEnv),
 					terminal.name,
 					token
 				),
@@ -135,12 +142,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd, env: terminal.shellIntegration?.env?.value });
+			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd ?? terminal.shellIntegration.cwd, env: terminal.shellIntegration?.env?.value });
 			}
 			return result.items;
 		}
 	}, '/', '\\'));
+	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
 }
 
 /**
@@ -264,18 +272,19 @@ export async function getCompletionItemsFromSpecs(
 					prefix,
 					command,
 					command.detail,
-					command.documentation
+					command.documentation,
+					vscode.TerminalCompletionItemKind.Method
 				));
 				labels.add(commandTextLabel);
-			} else {
+			}
+			else {
 				const existingItem = items.find(i => (typeof i.label === 'string' ? i.label : i.label.label) === commandTextLabel);
 				if (!existingItem) {
 					continue;
 				}
-				const preferredItem = compareItems(existingItem, command);
-				if (preferredItem) {
-					items.splice(items.indexOf(existingItem), 1, preferredItem);
-				}
+
+				existingItem.documentation ??= command.documentation;
+				existingItem.detail ??= command.detail;
 			}
 		}
 		filesRequested = true;
@@ -297,21 +306,7 @@ export async function getCompletionItemsFromSpecs(
 	return { items, filesRequested, foldersRequested, fileExtensions, cwd };
 }
 
-function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICompletionResource): vscode.TerminalCompletionItem | undefined {
-	let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 1 : 0) : 0;
-	score += typeof command.label === 'object' ? (command.label.description !== undefined ? 2 : 0) : 0;
-	score += command.documentation ? typeof command.documentation === 'string' ? 2 : 3 : 0;
-	if (score > 0) {
-		score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 1 : 0) : 0;
-		score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 2 : 0) : 0;
-		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 2 : 3 : 0;
-		if (score >= 0) {
-			return { ...command, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength };
-		}
-	}
-}
-
-function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
+function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
 		if (typeof value === 'string') {
@@ -328,6 +323,8 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 	switch (shellType) {
 		case 'bash':
 			return TerminalShellType.Bash;
+		case 'gitbash':
+			return TerminalShellType.GitBash;
 		case 'zsh':
 			return TerminalShellType.Zsh;
 		case 'pwsh':

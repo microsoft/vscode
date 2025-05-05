@@ -42,7 +42,7 @@ import { IKeybindingItem, KeybindingsRegistry } from '../../../platform/keybindi
 import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent, Verbosity } from '../../../platform/label/common/label.js';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from '../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter, IStatusHandle } from '../../../platform/notification/common/notification.js';
 import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from '../../../platform/progress/common/progress.js';
 import { ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder, STANDALONE_EDITOR_WORKSPACE_ID } from '../../../platform/workspace/common/workspace.js';
@@ -98,7 +98,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
 import { StandaloneTreeSitterParserService } from './standaloneTreeSitterService.js';
-import { IWorkerDescriptor } from '../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -350,10 +350,9 @@ export class StandaloneNotificationService implements INotificationService {
 		return StandaloneNotificationService.NO_OP;
 	}
 
-	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	public status(message: string | Error, options?: IStatusMessageOptions): IStatusHandle {
+		return { close: () => { } };
 	}
-
 
 	public setFilter(filter: NotificationsFilter | INotificationSourceFilter): void { }
 
@@ -1077,8 +1076,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
-	moduleId: 'vs/editor/common/services/editorSimpleWorker',
+const standaloneEditorWorkerDescriptor: IWebWorkerDescriptor = {
 	esmModuleLocation: undefined,
 	label: 'editorWorkerService'
 };

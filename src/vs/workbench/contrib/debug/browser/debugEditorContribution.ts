@@ -170,7 +170,7 @@ export function createInlineValueDecoration(lineNumber: number, contentText: str
 }
 
 function replaceWsWithNoBreakWs(str: string): string {
-	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
+	return str.replace(/[ \t\n]/g, strings.noBreakWhitespace);
 }
 
 function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>) {

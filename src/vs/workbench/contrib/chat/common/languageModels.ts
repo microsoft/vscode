@@ -15,6 +15,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+// import { ChatImagePart } from '../../../api/common/extHostTypes.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatContextKeys } from './chatContextKeys.js';
@@ -35,16 +36,33 @@ export interface IChatMessageImagePart {
 	value: IChatImageURLPart;
 }
 
+export interface IChatMessageExtraDataPart {
+	type: 'extra_data';
+	kind: string;
+	data: any;
+}
+
 export interface IChatImageURLPart {
 	/**
 	 * The image's MIME type (e.g., "image/png", "image/jpeg").
 	 */
-	mimeType: string;
+	mimeType: ChatImageMimeType;
 
 	/**
 	 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
 	 */
 	data: VSBuffer;
+}
+
+/**
+ * Enum for supported image MIME types.
+ */
+export enum ChatImageMimeType {
+	PNG = 'image/png',
+	JPEG = 'image/jpeg',
+	GIF = 'image/gif',
+	WEBP = 'image/webp',
+	BMP = 'image/bmp',
 }
 
 /**
@@ -59,11 +77,11 @@ export enum ImageDetailLevel {
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
-	value: (IChatResponseTextPart | IChatResponsePromptTsxPart)[];
+	value: (IChatResponseTextPart | IChatResponsePromptTsxPart | IChatResponseDataPart)[];
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageExtraDataPart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
@@ -81,6 +99,11 @@ export interface IChatResponsePromptTsxPart {
 	value: unknown;
 }
 
+export interface IChatResponseDataPart {
+	type: 'data';
+	value: IChatImageURLPart;
+}
+
 export interface IChatResponseToolUsePart {
 	type: 'tool_use';
 	name: string;
@@ -88,7 +111,7 @@ export interface IChatResponseToolUsePart {
 	parameters: any;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart;
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart;
 
 export interface IChatResponseFragment {
 	index: number;
@@ -102,6 +125,8 @@ export interface ILanguageModelChatMetadata {
 	readonly id: string;
 	readonly vendor: string;
 	readonly version: string;
+	readonly description?: string;
+	readonly cost?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -109,6 +134,7 @@ export interface ILanguageModelChatMetadata {
 
 	readonly isDefault?: boolean;
 	readonly isUserSelectable?: boolean;
+	readonly modelPickerCategory: { label: string; order: number };
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;

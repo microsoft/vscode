@@ -21,6 +21,7 @@ export const enum AccessibleViewProviderId {
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
 	InlineChat = 'inlineChat',
+	AgentChat = 'agentChat',
 	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',

@@ -108,6 +108,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			if (!canAccess && this.extensionGalleryManifest?.[0] === defaultServiceUrl) {
 				return;
 			}
+			this.extensionGalleryManifest = null;
+			this._onDidChangeExtensionGalleryManifest.fire(null);
 			this.requestRestart();
 		}));
 
@@ -122,19 +124,24 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			if (configuredServiceUrl && this.extensionGalleryManifest?.[0] === configuredServiceUrl) {
 				return;
 			}
+			this.extensionGalleryManifest = null;
+			this._onDidChangeExtensionGalleryManifest.fire(null);
 			this.requestRestart();
 		}));
 	}
 
 	private checkAccess(account: IDefaultAccount | null): boolean {
 		if (!account) {
+			this.logService.debug('[Marketplace] Checking account access for configured gallery: No account found');
 			return false;
 		}
-		if (this.productService.extensionsGallery?.accessSKUs?.includes(account.access_type_sku)) {
+		this.logService.debug('[Marketplace] Checking Account SKU access for configured gallery', account.access_type_sku);
+		if (account.access_type_sku && this.productService.extensionsGallery?.accessSKUs?.includes(account.access_type_sku)) {
+			this.logService.debug('[Marketplace] Account has access to configured gallery');
 			return true;
 		}
-		this.logService.debug('Default account label:', account.sessionAccountLabel);
-		return account.sessionAccountLabel.includes('_');
+		this.logService.debug('[Marketplace] Checking enterprise account access for configured gallery', account.enterprise);
+		return account.enterprise;
 	}
 
 	private async requestRestart(): Promise<void> {
@@ -170,10 +177,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 			return extensionGalleryManifest;
 		} catch (error) {
-			this.logService.error(error);
+			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
 			throw error;
 		}
 	}
 }
 
-registerSingleton(IExtensionGalleryManifestService, WorkbenchExtensionGalleryManifestService, InstantiationType.Delayed);
+registerSingleton(IExtensionGalleryManifestService, WorkbenchExtensionGalleryManifestService, InstantiationType.Eager);

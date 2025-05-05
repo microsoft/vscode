@@ -5,11 +5,10 @@
 
 import { Color } from '../../../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
-import { observableFromEventOpts } from '../../../../../../base/common/observableInternal/utils.js';
+import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { diffRemoved, diffInsertedLine, diffInserted, buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, transparent, darken, ColorIdentifier } from '../../../../../../platform/theme/common/colorUtils.js';
+import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, diffInserted, diffInsertedLine, diffRemoved, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { ColorIdentifier, darken, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
@@ -66,9 +65,19 @@ export const inlineEditIndicatorPrimaryForeground = registerColor(
 	buttonForeground,
 	localize('inlineEdit.gutterIndicator.primaryForeground', 'Foreground color for the primary inline edit gutter indicator.')
 );
+export const inlineEditIndicatorPrimaryBorder = registerColor(
+	'inlineEdit.gutterIndicator.primaryBorder',
+	buttonBackground,
+	localize('inlineEdit.gutterIndicator.primaryBorder', 'Border color for the primary inline edit gutter indicator.')
+);
 export const inlineEditIndicatorPrimaryBackground = registerColor(
 	'inlineEdit.gutterIndicator.primaryBackground',
-	buttonBackground,
+	{
+		light: transparent(inlineEditIndicatorPrimaryBorder, 0.5),
+		dark: transparent(inlineEditIndicatorPrimaryBorder, 0.4),
+		hcDark: transparent(inlineEditIndicatorPrimaryBorder, 0.4),
+		hcLight: transparent(inlineEditIndicatorPrimaryBorder, 0.5),
+	},
 	localize('inlineEdit.gutterIndicator.primaryBackground', 'Background color for the primary inline edit gutter indicator.')
 );
 
@@ -77,9 +86,14 @@ export const inlineEditIndicatorSecondaryForeground = registerColor(
 	buttonSecondaryForeground,
 	localize('inlineEdit.gutterIndicator.secondaryForeground', 'Foreground color for the secondary inline edit gutter indicator.')
 );
+export const inlineEditIndicatorSecondaryBorder = registerColor(
+	'inlineEdit.gutterIndicator.secondaryBorder',
+	buttonSecondaryBackground,
+	localize('inlineEdit.gutterIndicator.secondaryBorder', 'Border color for the secondary inline edit gutter indicator.')
+);
 export const inlineEditIndicatorSecondaryBackground = registerColor(
 	'inlineEdit.gutterIndicator.secondaryBackground',
-	buttonSecondaryBackground,
+	inlineEditIndicatorSecondaryBorder,
 	localize('inlineEdit.gutterIndicator.secondaryBackground', 'Background color for the secondary inline edit gutter indicator.')
 );
 
@@ -88,9 +102,14 @@ export const inlineEditIndicatorsuccessfulForeground = registerColor(
 	buttonForeground,
 	localize('inlineEdit.gutterIndicator.successfulForeground', 'Foreground color for the successful inline edit gutter indicator.')
 );
+export const inlineEditIndicatorsuccessfulBorder = registerColor(
+	'inlineEdit.gutterIndicator.successfulBorder',
+	buttonBackground,
+	localize('inlineEdit.gutterIndicator.successfulBorder', 'Border color for the successful inline edit gutter indicator.')
+);
 export const inlineEditIndicatorsuccessfulBackground = registerColor(
 	'inlineEdit.gutterIndicator.successfulBackground',
-	{ light: '#2e825c', dark: '#2e825c', hcLight: '#2e825c', hcDark: '#2e825c' },
+	inlineEditIndicatorsuccessfulBorder,
 	localize('inlineEdit.gutterIndicator.successfulBackground', 'Background color for the successful inline edit gutter indicator.')
 );
 

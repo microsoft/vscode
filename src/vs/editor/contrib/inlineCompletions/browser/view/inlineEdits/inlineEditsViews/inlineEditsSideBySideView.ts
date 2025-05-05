@@ -17,7 +17,6 @@ import { observableCodeEditor } from '../../../../../../browser/observableCodeEd
 import { Rect } from '../../../../../../browser/rect.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
@@ -27,7 +26,7 @@ import { InlineCompletionContextKeys } from '../../../controller/inlineCompletio
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
-import { PathBuilder, getOffsetForPos, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
+import { PathBuilder, getContentRenderWidth, getOffsetForPos, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
 
 const HORIZONTAL_PADDING = 0;
 const VERTICAL_PADDING = 0;
@@ -36,24 +35,25 @@ const ENABLE_OVERFLOW = false;
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
 const BORDER_RADIUS = 4;
+const ORIGINAL_END_PADDING = 20;
+const MODIFIED_END_PADDING = 12;
 
 export class InlineEditsSideBySideView extends Disposable implements IInlineEditsView {
 
 	// This is an approximation and should be improved by using the real parameters used bellow
-	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, originalDisplayRange: LineRange, reader: IReader): boolean {
+	static fitsInsideViewport(editor: ICodeEditor, textModel: ITextModel, edit: InlineEditWithChanges, reader: IReader): boolean {
 		const editorObs = observableCodeEditor(editor);
 		const editorWidth = editorObs.layoutInfoWidth.read(reader);
 		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
 		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
-		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const minimapWidth = editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
 
-		const maxOriginalContent = maxContentWidthInRange(editorObs, originalDisplayRange, undefined/* do not reconsider on each layout info change */);
-		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
-		const endOfEditorPadding = 20; // padding after last line of editor
-		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? HORIZONTAL_PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
+		const maxOriginalContent = maxContentWidthInRange(editorObs, edit.displayRange, undefined/* do not reconsider on each layout info change */);
+		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, getContentRenderWidth(line, editor, textModel)), 0);
+		const originalPadding = ORIGINAL_END_PADDING; // padding after last line of original editor
+		const modifiedPadding = MODIFIED_END_PADDING + 2 * BORDER_WIDTH; // padding after last line of modified editor
 
-		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
+		return maxOriginalContent + maxModifiedContent + originalPadding + modifiedPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -67,7 +67,6 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		private readonly _previewTextModel: ITextModel,
 		private readonly _uiState: IObservable<{
 			newTextLineCount: number;
-			originalDisplayRange: LineRange;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -259,7 +258,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
 	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
 
-	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalDisplayRange);
+	private readonly _originalDisplayRange = this._edit.map(e => e?.displayRange);
 	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
 		const originalDisplayRange = this._originalDisplayRange.read(reader);
 		if (!originalDisplayRange) {
@@ -312,9 +311,9 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 				editorContentAreaWidth + horizontalScrollOffset
 			)
 		);
-		const previewEditorLeftInTextArea = Math.min(editorContentMaxWidthInRange + 20, maxPreviewEditorLeft);
+		const previewEditorLeftInTextArea = Math.min(editorContentMaxWidthInRange + ORIGINAL_END_PADDING, maxPreviewEditorLeft);
 
-		const maxContentWidth = editorContentMaxWidthInRange + 20 + previewContentWidth + 70;
+		const maxContentWidth = editorContentMaxWidthInRange + ORIGINAL_END_PADDING + previewContentWidth + 70;
 
 		const dist = maxPreviewEditorLeft - previewEditorLeftInTextArea;
 
@@ -346,7 +345,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 
 		const clipped = dist === 0;
 		const codeEditDist = 0;
-		const previewEditorWidth = Math.min(previewContentWidth + 12, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
+		const previewEditorWidth = Math.min(previewContentWidth + MODIFIED_END_PADDING, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
 
 		let editRect = Rect.fromLeftTopWidthHeight(codeRect.right + codeEditDist, selectionTop, previewEditorWidth, previewEditorHeight);
 		if (!isInsertion) {
@@ -582,7 +581,6 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
-			zIndex: '0',
 			display: this._display,
 		},
 	}, [
