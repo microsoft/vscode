@@ -627,7 +627,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
 			quotas.chat = {
 				total: response.monthly_quotas.chat,
-				percentRemaining: Math.round((response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100),
+				percentRemaining: (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100,
 				overageEnabled: false,
 				overageCount: 0,
 				unlimited: false
@@ -637,7 +637,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
 			quotas.completions = {
 				total: response.monthly_quotas.completions,
-				percentRemaining: Math.round((response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100),
+				percentRemaining: (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100,
 				overageEnabled: false,
 				overageCount: 0,
 				unlimited: false
