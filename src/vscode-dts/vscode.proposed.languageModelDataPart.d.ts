@@ -70,9 +70,9 @@ declare module 'vscode' {
 		 */
 		static image(data: Uint8Array, mimeType: ChatImageMimeType): LanguageModelDataPart;
 
-		static json(value: object): LanguageModelDataPart;
+		static json(value: any, mime?: string): LanguageModelDataPart;
 
-		static text(value: string): LanguageModelDataPart;
+		static text(value: string, mime?: string): LanguageModelDataPart;
 
 		/**
 		 * The mime type which determines how the data property is interpreted.

@@ -4970,13 +4970,13 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 		return new LanguageModelDataPart(data, mimeType as string);
 	}
 
-	static json(value: object): vscode.LanguageModelDataPart {
+	static json(value: object, mime: string = 'text/x-json'): vscode.LanguageModelDataPart {
 		const rawStr = JSON.stringify(value, undefined, '\t');
-		return new LanguageModelDataPart(VSBuffer.fromString(rawStr).buffer, 'json');
+		return new LanguageModelDataPart(VSBuffer.fromString(rawStr).buffer, mime);
 	}
 
-	static text(value: string): vscode.LanguageModelDataPart {
-		return new LanguageModelDataPart(VSBuffer.fromString(value).buffer, 'text/plain');
+	static text(value: string, mime: string = Mimes.text): vscode.LanguageModelDataPart {
+		return new LanguageModelDataPart(VSBuffer.fromString(value).buffer, mime);
 	}
 
 	toJSON() {
