@@ -10,7 +10,7 @@ import { SimpleToken } from '../../simpleCodec/tokens/simpleToken.js';
  * Token that represent a `carriage return` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class CarriageReturn extends SimpleToken {
+export class CarriageReturn extends SimpleToken<'\r'> {
 	/**
 	 * The underlying symbol of the token.
 	 */

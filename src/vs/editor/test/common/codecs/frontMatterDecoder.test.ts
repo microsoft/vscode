@@ -13,7 +13,7 @@ import { type TSimpleDecoderToken } from '../../../common/codecs/simpleCodec/sim
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
 import { FrontMatterDecoder } from '../../../common/codecs/frontMatterCodec/frontMatterDecoder.js';
-import { ExclamationMark, Quote, Tab, Word, Space, Colon } from '../../../common/codecs/simpleCodec/tokens/index.js';
+import { ExclamationMark, Quote, Tab, Word, Space, Colon, Dash } from '../../../common/codecs/simpleCodec/tokens/index.js';
 import { FrontMatterBoolean, FrontMatterString, FrontMatterArray, FrontMatterRecord, FrontMatterRecordDelimiter, FrontMatterRecordName } from '../../../common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
@@ -67,7 +67,9 @@ suite('FrontMatterDecoder', () => {
 				// second record
 				new FrontMatterRecord([
 					new FrontMatterRecordName([
-						new Word(new Range(2, 1, 2, 1 + 10), 'write-some'),
+						new Word(new Range(2, 1, 2, 1 + 5), 'write'),
+						new Dash(new Range(2, 6, 2, 7)),
+						new Word(new Range(2, 7, 2, 7 + 4), 'some'),
 					]),
 					new FrontMatterRecordDelimiter([
 						new Colon(new Range(2, 12, 2, 13)),
@@ -90,8 +92,7 @@ suite('FrontMatterDecoder', () => {
 							new DoubleQuote(new Range(2, 34, 2, 35)),
 						]),
 						new FrontMatterBoolean(
-							new Range(2, 37, 2, 37 + 4),
-							true,
+							new Word(new Range(2, 37, 2, 37 + 4), 'true'),
 						),
 						new RightBracket(new Range(2, 46, 2, 47)),
 					]),
@@ -107,8 +108,7 @@ suite('FrontMatterDecoder', () => {
 						new Space(new Range(3, 20, 3, 21)),
 					]),
 					new FrontMatterBoolean(
-						new Range(3, 22, 3, 22 + 5),
-						false,
+						new Word(new Range(3, 22, 3, 22 + 5), 'FALSE'),
 					),
 				]),
 				new Space(new Range(3, 27, 3, 28)),
