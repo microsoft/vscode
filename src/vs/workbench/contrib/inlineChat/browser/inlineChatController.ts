@@ -1527,6 +1527,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	if (!token.isCancellationRequested) {
 		chatModel.completeResponse(chatRequest);
 	}
+
 	const isSettled = derived(r => {
 		const entry = editSession?.readEntry(uri, r);
 		if (!entry) {
