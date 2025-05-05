@@ -5,10 +5,10 @@
 
 import { assert } from '../assert.js';
 import { Emitter } from '../event.js';
-import { IDisposable } from '../lifecycle.js';
 import { ReadableStream } from '../stream.js';
 import { DeferredPromise } from '../async.js';
 import { AsyncDecoder } from './asyncDecoder.js';
+import { DisposableMap, IDisposable } from '../lifecycle.js';
 import { ObservableDisposable } from '../observableDisposable.js';
 
 /**
@@ -38,7 +38,10 @@ export abstract class BaseDecoder<
 	/**
 	 * A store of currently registered event listeners.
 	 */
-	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
+	private readonly _listeners: DisposableMap<
+		TStreamListenerNames,
+		DisposableMap<Function, IDisposable>
+	> = this._register(new DisposableMap());
 
 	/**
 	 * This method is called when a new incoming data
@@ -181,7 +184,7 @@ export abstract class BaseDecoder<
 		let currentListeners = this._listeners.get('data');
 
 		if (!currentListeners) {
-			currentListeners = new Map();
+			currentListeners = new DisposableMap();
 			this._listeners.set('data', currentListeners);
 		}
 
@@ -201,7 +204,7 @@ export abstract class BaseDecoder<
 		let currentListeners = this._listeners.get('error');
 
 		if (!currentListeners) {
-			currentListeners = new Map();
+			currentListeners = new DisposableMap();
 			this._listeners.set('error', currentListeners);
 		}
 
@@ -221,30 +224,11 @@ export abstract class BaseDecoder<
 		let currentListeners = this._listeners.get('end');
 
 		if (!currentListeners) {
-			currentListeners = new Map();
+			currentListeners = new DisposableMap();
 			this._listeners.set('end', currentListeners);
 		}
 
 		currentListeners.set(callback, this._onEnd.event(callback));
-	}
-
-	/**
-	 * Remove all existing event listeners.
-	 */
-	public removeAllListeners(): void {
-		// remove listeners set up by this class
-		this.stream.removeListener('data', this.tryOnStreamData);
-		this.stream.removeListener('error', this.onStreamError);
-		this.stream.removeListener('end', this.onStreamEnd);
-
-		// remove listeners set up by external consumers
-		for (const [name, listeners] of this._listeners.entries()) {
-			this._listeners.delete(name);
-			for (const [listener, disposable] of listeners) {
-				disposable.dispose();
-				listeners.delete(listener);
-			}
-		}
 	}
 
 	/**
@@ -285,20 +269,18 @@ export abstract class BaseDecoder<
 	 *    not found, therefore passing incorrect `callback` function may
 	 *    result in silent unexpected behavior
 	 */
-	public removeListener(event: string, callback: Function): void {
-		for (const [nameName, listeners] of this._listeners.entries()) {
-			if (nameName !== event) {
+	public removeListener(eventName: TStreamListenerNames, callback: Function): void {
+		const listeners = this._listeners.get(eventName);
+		if (listeners === undefined) {
+			return;
+		}
+
+		for (const [listener] of listeners) {
+			if (listener !== callback) {
 				continue;
 			}
 
-			for (const [listener, disposable] of listeners) {
-				if (listener !== callback) {
-					continue;
-				}
-
-				disposable.dispose();
-				listeners.delete(listener);
-			}
+			listeners.deleteAndDispose(listener);
 		}
 	}
 
@@ -363,14 +345,15 @@ export abstract class BaseDecoder<
 	}
 
 	public override dispose(): void {
-		if (this.disposed) {
-			return;
-		}
+		this.settledPromise.complete();
 
-		this.onStreamEnd();
+		// remove all existing event listeners
+		this._listeners.clearAndDisposeAll();
+		this.stream.removeListener('data', this.tryOnStreamData);
+		this.stream.removeListener('error', this.onStreamError);
+		this.stream.removeListener('end', this.onStreamEnd);
 
 		this.stream.destroy();
-		this.removeAllListeners();
 		super.dispose();
 	}
 }

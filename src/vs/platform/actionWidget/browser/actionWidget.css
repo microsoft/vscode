@@ -6,7 +6,7 @@
 .action-widget {
 	font-size: 13px;
 	border-radius: 0;
-	min-width: 160px;
+	min-width: 100px;
 	max-width: 80vw;
 	z-index: 40;
 	display: block;

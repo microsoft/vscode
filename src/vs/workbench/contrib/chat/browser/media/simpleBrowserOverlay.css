@@ -8,7 +8,7 @@
 	position: absolute;
 	bottom: 10px;
 	right: 10px;
-	padding: 8px 10px;
+	padding: 0px 10px;
 	background: var(--vscode-notifications-background);
 	color: var(--vscode-notifications-foreground);
 	border-radius: 4px;
@@ -18,7 +18,8 @@
 	align-items: center;
 	gap: 8px;
 	width: max-content;
-	z-index: 1
+	z-index: 1;
+	height: 42px;
 }
 
 .element-selection-message {
@@ -27,19 +28,20 @@
 }
 
 .element-expand-container {
-	bottom: 18px;
+	bottom: 15px;
 	right: 15px;
 }
 
 .element-selection-cancel,
 .element-selection-start {
-	padding: 3px 8px;
+	padding: 2px 8px;
 	width: fit-content;
 }
 
 .element-selection-message .monaco-button.codicon.codicon-close,
 .element-expand-container .monaco-button.codicon.codicon-layout,
-.element-selection-message .monaco-button.codicon.codicon-chevron-right {
+.element-selection-message .monaco-button.codicon.codicon-chevron-right,
+.element-selection-message .monaco-button.codicon.codicon-gear {
 	width: 17px;
 	height: 17px;
 	padding: 2px 2px;

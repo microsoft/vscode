@@ -546,7 +546,7 @@ const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 			id: MenuId.ChatInput,
 			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
 			group: 'navigation',
-			order: 3
+			order: 0
 		},
 		{
 			id: MenuId.ChatExecute,

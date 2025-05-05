@@ -522,6 +522,7 @@ type IExtensionActionOptions = IAction2Options & {
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
 	constructor(
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
@@ -1503,7 +1504,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases });
+					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
 					return action.run();
 				}
@@ -1525,7 +1526,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, {
-						installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases,
+						installPreReleaseVersion: this.extensionManagementService.preferPreReleases,
 						isMachineScoped: true,
 					});
 					action.extension = extension;

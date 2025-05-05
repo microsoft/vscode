@@ -193,6 +193,10 @@ function getMimeTypeFromPath(match: RegExpExecArray): string | undefined {
 	return MIME_TYPES[ext];
 }
 
+export function getAttachableImageExtension(mimeType: string): string | undefined {
+	return Object.entries(MIME_TYPES).find(([_, value]) => value === mimeType)?.[0];
+}
+
 // --- MARKERS ---
 
 export function resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[] {

@@ -5,9 +5,9 @@
 			"---",
 			"applyTo: '${1|**,**/*.ts|}'",
 			"---",
-			"${2:Instructions here...}",
+			"${2:Coding standards, domain knowledge, and preferences that AI should follow.}",
 		],
-		"description": "Instructions",
+		"description": "Instructions guide and customize Chat behavior by providing context, coding standards, and preferences.",
 		"isFileTemplate": true,
 	}
 }

@@ -30,6 +30,7 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	// These actions are those shown at the bottom of the action widget
 	readonly actionBarActions?: IAction[];
 	readonly actionBarActionProvider?: IActionProvider;
+	readonly showItemKeybindings?: boolean;
 }
 
 /**
@@ -95,7 +96,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					disabled: false,
 					hideIcon: false,
 					label: action.label,
-					keybinding: this.keybindingService.lookupKeybinding(action.id)
+					keybinding: this._options.showItemKeybindings ?
+						this.keybindingService.lookupKeybinding(action.id) :
+						undefined,
 				});
 			}
 		}

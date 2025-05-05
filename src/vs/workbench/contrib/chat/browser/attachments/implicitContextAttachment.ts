@@ -9,6 +9,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -53,14 +54,14 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		dom.clearNode(this.domNode);
 		this.renderDisposables.clear();
 
-		const attachmentTypeName = (this.attachment.isPromptFile === false)
-			? localize('file.lowercase', "file")
-			: localize('prompt.lowercase', "prompt");
-
 		this.domNode.classList.toggle('disabled', !this.attachment.enabled);
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value!.uri;
 		const range = URI.isUri(this.attachment.value) || !this.attachment.isSelection ? undefined : this.attachment.value!.range;
+
+		const attachmentTypeName = (this.attachment.isPromptFile === false)
+			? file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file")
+			: localize('prompt.lowercase', "prompt");
 
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);

@@ -516,6 +516,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 
 	dispose(): void {
+		this._stagedQuickDiff?.dispose();
 		this._quickDiff?.dispose();
 	}
 }

@@ -63,7 +63,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from './
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
-import { startEntries } from '../common/gettingStartedContent.js';
+import { NEW_WELCOME_EXPERIENCE, startEntries } from '../common/gettingStartedContent.js';
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -73,6 +73,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { IGettingStartedExperimentService } from './gettingStartedExpService.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -190,7 +191,8 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IGettingStartedExperimentService private readonly gettingStartedExperimentService: IGettingStartedExperimentService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -253,7 +255,8 @@ export class GettingStartedPage extends EditorPane {
 		}));
 
 		this._register(this.gettingStartedService.onDidProgressStep(step => {
-			const category = this.gettingStartedCategories.find(category => category.id === step.category);
+			const category = step.category === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(step.category) :
+				this.gettingStartedCategories.find(c => c.id === step.category);
 			if (!category) { throw Error('Could not find category with ID: ' + step.category); }
 			const ourStep = category.steps.find(_step => _step.id === step.id);
 			if (!ourStep) {
@@ -920,7 +923,7 @@ export class GettingStartedPage extends EditorPane {
 		this.registerDispatchListeners();
 
 		if (this.editorInput.selectedCategory) {
-			const showNewExperience = this.editorInput.selectedCategory === 'NewWelcomeExperience';
+			const showNewExperience = this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE;
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
@@ -958,13 +961,18 @@ export class GettingStartedPage extends EditorPane {
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+				const exp = this.gettingStartedExperimentService.getCurrentExperiment();
+				const first = exp?.walkthroughId ? this.gettingStartedService.getWalkthrough(exp.walkthroughId) : this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
 				if (first) {
 					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					if (first.id === NEW_WELCOME_EXPERIENCE) {
+						this.buildNewCategorySlide(this.editorInput.selectedCategory, undefined);
+					} else {
+						this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					}
 					this.setSlide('details', true /* firstLaunch */);
 					return;
 				}
@@ -1191,6 +1199,7 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.toggle('height-constrained', size.height <= 600);
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 950);
+		this.container.classList.toggle('new-layout-width-constrained', size.width <= 800);
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -1200,7 +1209,8 @@ export class GettingStartedPage extends EditorPane {
 	private updateCategoryProgress() {
 		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
-			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+			const category = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+				this.gettingStartedCategories.find(c => c.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
 
 			const stats = this.getWalkthroughCompletionStats(category);
@@ -1229,7 +1239,8 @@ export class GettingStartedPage extends EditorPane {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 		}
 
-		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
+		const ourCategory = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+			this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
 			throw Error('Could not find category with ID: ' + categoryID);
 		}
@@ -1366,7 +1377,7 @@ export class GettingStartedPage extends EditorPane {
 
 				if (isCommand) {
 					const keybinding = this.getKeyBinding(command);
-					if (keybinding && this.editorInput.selectedCategory !== 'NewWelcomeExperience') {
+					if (keybinding && this.editorInput.selectedCategory !== NEW_WELCOME_EXPERIENCE) {
 						const shortcutMessage = $('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '));
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
@@ -1406,9 +1417,38 @@ export class GettingStartedPage extends EditorPane {
 
 
 	private selectStepByIndex(newIndex: number, steps: IResolvedWalkthroughStep[], direction: number) {
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectTask', argument: steps[newIndex].id, walkthroughId: this.currentWalkthrough?.id });
 		const currentIndex = steps.findIndex(step => step.id === this.editorInput.selectedStep);
-		const slidesContainer = this.stepsContent.querySelector('.step-slides-container') as HTMLElement;
 
+		// Update the selected step and build its media
+		this.selectSlide(steps[newIndex].id);
+
+		// update footer visibility
+		const footer = this.stepsContent.querySelector('.getting-started-footer') as HTMLElement;
+		if (footer && newIndex !== 0) {
+			footer.style.display = 'none';
+		} else if (footer) {
+			footer.style.display = 'block';
+		}
+
+		this.updateNavButtons(newIndex, steps);
+
+		// Update the active dot
+		const dots = this.stepsContent.querySelectorAll('.step-dot');
+		dots.forEach((dot, index) => {
+			if (index === newIndex) {
+				dot.classList.add('active');
+			} else {
+				dot.classList.remove('active');
+			}
+		});
+
+
+		if (currentIndex === newIndex) {
+			return; // No change
+		}
+
+		const slidesContainer = this.stepsContent.querySelector('.step-slides-container') as HTMLElement;
 		if (slidesContainer) {
 			// Apply the transform to move the slides
 			const slides = slidesContainer.querySelectorAll('.step-slide');
@@ -1445,19 +1485,24 @@ export class GettingStartedPage extends EditorPane {
 					}
 				});
 			}, 20);
+		}
+	}
 
-			// Update the active dot
-			const dots = this.stepsContent.querySelectorAll('.step-dot');
-			dots.forEach((dot, index) => {
-				if (index === newIndex) {
-					dot.classList.add('active');
-				} else {
-					dot.classList.remove('active');
-				}
-			});
-
-			// Update the selected step and build its media
-			this.selectSlide(steps[newIndex].id);
+	private updateNavButtons(newIndex: number, steps: IResolvedWalkthroughStep[]) {
+		const prevButton = this.stepsContent.querySelector('.button-link.navigation.back') as HTMLButtonElement;
+		if (newIndex === 0) {
+			if (prevButton) {
+				prevButton.classList.add('inactive');
+				prevButton.setAttribute('aria-hidden', 'true');
+				prevButton.setAttribute('tabindex', '-1');
+			}
+		}
+		else {
+			if (prevButton) {
+				prevButton.classList.remove('inactive');
+				prevButton.removeAttribute('aria-hidden');
+				prevButton.removeAttribute('tabindex');
+			}
 		}
 	}
 
@@ -1542,15 +1587,10 @@ export class GettingStartedPage extends EditorPane {
 					const subStep = $('.sub-step', { 'data-sub-step-id': step.id });
 
 					this.detailsPageDisposables.add(addDisposableListener(subStep, 'click', () => {
-						this.selectSubStep(slide.steps, step.id);
+						this.selectSubStep(step.id);
 					}));
-
-					this.detailsPageDisposables.add(addDisposableListener(subStep, 'keydown', (e) => {
-						const event = new StandardKeyboardEvent(e);
-						if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
-							this.selectSubStep(slide.steps, step.id);
-							e.preventDefault();
-						}
+					this.detailsPageDisposables.add(addDisposableListener(subStep, 'mouseenter', () => {
+						this.selectSubStep(step.id);
 					}));
 
 					const subStepTitleEl = $('.sub-step-title', {}, ...renderLabelWithIcons(step.title));
@@ -1580,10 +1620,6 @@ export class GettingStartedPage extends EditorPane {
 
 				textContent.appendChild(multiStepContainer);
 			}
-
-			// Add actions container for buttons
-			const actionsContainer = $('.step-actions');
-			textContent.appendChild(actionsContainer);
 
 			// Append text content to the slide
 			slideContent.appendChild(textContent);
@@ -1615,7 +1651,6 @@ export class GettingStartedPage extends EditorPane {
 		// Add next button
 		const nextButton = $('button.button-link.navigation.next', {
 			'aria-label': localize('nextStep', "Next"),
-			'tabindex': '0'
 		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
 
 		navigationContainer.appendChild(nextButton);
@@ -1630,6 +1665,8 @@ export class GettingStartedPage extends EditorPane {
 			const currentIndex = this.getCurrentSlideIndex(allSlides);
 			if (currentIndex < allSlides.length - 1) {
 				this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
+			} else {
+				this.scrollPrev();
 			}
 		}));
 
@@ -1637,20 +1674,17 @@ export class GettingStartedPage extends EditorPane {
 		this.currentWalkthrough = category;
 		this.editorInput.selectedCategory = categoryID;
 		this.editorInput.selectedStep = this.currentWalkthrough.steps[0].id;
-		const stepId = this.editorInput.selectedStep.match(/^([^.]+)\./)?.[1] ?? this.editorInput.selectedStep;
-
-		const selectedSlide = slidesContainer.querySelector(`.step-slide[data-step="${stepId}"]`);
-		if (selectedSlide) {
-			const selectedSlideContent = selectedSlide.querySelector('.step-slide-content');
-			this.buildMediaComponent(this.editorInput.selectedStep);
-			selectedSlideContent?.appendChild(this.stepMediaComponent);
-		}
 
 		// Category title and description
 		const categoryHeader = $('.category-header');
 		const categoryTitle = $('h2.category-title', { 'x-category-title-for': category.id });
 		reset(categoryTitle, ...renderLabelWithIcons(category.title));
 		categoryHeader.appendChild(categoryTitle);
+
+		const descriptionContainer = $('.category-description.description.max-lines-3', { 'x-category-description-for': category.id });
+		this.buildMarkdownDescription(descriptionContainer, parseDescription(category.description));
+		reset(descriptionContainer, ...renderLabelWithIcons(category.description));
+		categoryHeader.appendChild(descriptionContainer);
 
 		const categoryFooter = $('.getting-started-footer');
 		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && this.productService.enableTelemetry) {
@@ -1671,6 +1705,10 @@ export class GettingStartedPage extends EditorPane {
 
 		// Append to the content area
 		reset(this.stepsContent, stepListComponent);
+		stepListComponent.tabIndex = 0;
+		stepListComponent.focus();
+
+		this.selectStepByIndex(0, this.currentWalkthrough.steps, 1);
 
 		// Add keyboard navigation
 		this.detailsPageDisposables.add(addDisposableListener(stepListComponent, 'keydown', (e) => {
@@ -1680,11 +1718,20 @@ export class GettingStartedPage extends EditorPane {
 				if (currentIndex < allSlides.length - 1) {
 					this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
 				}
+				else {
+					this.scrollPrev();
+				}
 			} else if (event.keyCode === KeyCode.LeftArrow) {
 				const currentIndex = this.getCurrentSlideIndex(allSlides);
 				if (currentIndex > 0) {
 					this.selectStepByIndex(currentIndex - 1, allSlides.map(s => s.steps[0]), -1);
 				}
+			} else if (event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.DownArrow) {
+				const currentIndex = this.getCurrentSlideIndex(allSlides);
+				if (currentIndex > 0) {
+					return;
+				}
+				this.navigateWithinMultiStepContainer(event.keyCode);
 			}
 		}));
 
@@ -1695,7 +1742,32 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageScrollbar?.scanDomNode();
 	}
 
-	private selectSubStep(steps: IResolvedWalkthroughStep[], selectedStepId: string) {
+	private navigateWithinMultiStepContainer(keyCode: KeyCode) {
+		const currentElement = this.container.querySelector(`.multi-step-container`) as HTMLElement;
+		if (!currentElement) { return; }
+		const currentSubStep = currentElement.querySelector('.sub-step.active');
+		const allElements = Array.from(this.container.querySelectorAll('.sub-step'));
+		const currentIndex = currentSubStep ? allElements.indexOf(currentSubStep as HTMLElement) : -1;
+
+		let targetElement: HTMLElement | undefined;
+		if (keyCode === KeyCode.UpArrow && currentIndex > 0) {
+			targetElement = allElements[currentIndex - 1] as HTMLElement;
+		} else if (keyCode === KeyCode.DownArrow && currentIndex < allElements.length - 1) {
+			targetElement = allElements[currentIndex + 1] as HTMLElement;
+		}
+
+		if (targetElement) {
+			const stepId = targetElement.getAttribute('data-sub-step-id');
+			this.selectSubStep(stepId!);
+			targetElement.focus();
+		}
+	}
+
+	private selectSubStep(selectedStepId: string) {
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectTask', argument: selectedStepId, walkthroughId: this.currentWalkthrough?.id });
+		if (this.editorInput.selectedStep === selectedStepId) {
+			return;
+		}
 		this.editorInput.selectedStep = selectedStepId;
 
 		const multiStepContainer = this.container.querySelector('.multi-step-container');
@@ -1793,7 +1865,8 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageDisposables.clear();
 		this.mediaDisposables.clear();
 
-		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+		const category = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+			this.gettingStartedCategories.find(category => category.id === categoryID);
 		if (!category) {
 			throw Error('could not find category with ID ' + categoryID);
 		}
@@ -1945,7 +2018,8 @@ export class GettingStartedPage extends EditorPane {
 		const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
 			"{0} collects usage data. Read our {1} and learn how to {2}.", this.productService.nameShort, privacyStatementButton, optOutButton);
 
-		parent.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+		const renderedContents = this.detailsPageDisposables.add(mdRenderer.render({ value: text, isTrusted: true }));
+		parent.append(renderedContents.element);
 	}
 
 	private getKeybindingLabel(command: string) {
@@ -2015,7 +2089,7 @@ export class GettingStartedPage extends EditorPane {
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
 			prevButton!.style.display = this.editorInput.showWelcome || this.prevWalkthrough ? 'block' : 'none';
 
-			if (this.editorInput.selectedCategory === 'NewWelcomeExperience') {
+			if (this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE) {
 				prevButton!.style.display = 'none';
 			} else {
 				const moreTextElement = prevButton!.querySelector('.moreText');
