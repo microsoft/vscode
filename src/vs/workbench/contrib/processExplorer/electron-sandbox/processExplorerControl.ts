@@ -23,6 +23,8 @@ import { platform, PlatformToString } from '../../../../base/common/platform.js'
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -307,7 +309,8 @@ export class ProcessExplorerControl extends Disposable {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -411,9 +414,9 @@ export class ProcessExplorerControl extends Disposable {
 					selectionPids.push(pid);
 				}
 
-				const rows = selectionPids?.map(e => getDocument(container).getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				const rows = selectionPids?.map(e => getDocument(container).getElementById(`pid-${e}`)).filter(e => !!e);
 				if (rows) {
-					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
+					const text = rows.map(e => e.innerText).filter(e => !!e);
 					this.nativeHostService.writeClipboardText(text.join('\n'));
 				}
 			}
@@ -432,14 +435,7 @@ export class ProcessExplorerControl extends Disposable {
 
 		if (this.isDebuggable(item.cmd)) {
 			actions.push(new Separator());
-
-			actions.push(toAction({
-				id: 'debug',
-				label: localize('debug', "Debug"),
-				run: () => {
-					this.attachTo(item);
-				}
-			}));
+			actions.push(toAction({ id: 'debug', label: localize('debug', "Debug"), run: () => this.attachTo(item) }));
 		}
 
 		this.contextMenuService.showContextMenu({
@@ -455,13 +451,7 @@ export class ProcessExplorerControl extends Disposable {
 	}
 
 	private attachTo(item: ProcessItem) {
-		const config: {
-			type: string;
-			request: string;
-			name: string;
-			port?: number;
-			processId?: string;
-		} = {
+		const config: { type: string; request: string; name: string; port?: number; processId?: string } = {
 			type: 'node',
 			request: 'attach',
 			name: `process ${item.pid}`
@@ -480,7 +470,7 @@ export class ProcessExplorerControl extends Disposable {
 			config.port = Number(matches.groups!.port); // override port
 		}
 
-		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
+		this.commandService.executeCommand('debug.startFromConfig', config);
 	}
 
 	private requestProcessList(totalWaitTime: number): void {
@@ -499,13 +489,14 @@ export class ProcessExplorerControl extends Disposable {
 		}, 200);
 	}
 
-	private getSelectedPids() {
-		return this.tree?.getSelection()?.map(e => {
-			if (!e || !('pid' in e)) {
+	private getSelectedPids(): number[] {
+		return coalesce(this.tree?.getSelection()?.map(e => {
+			if (!isProcessItem(e)) {
 				return undefined;
 			}
+
 			return e.pid;
-		}).filter(e => !!e) as number[];
+		}) ?? []);
 	}
 
 	layout(dimension: Dimension): void {
