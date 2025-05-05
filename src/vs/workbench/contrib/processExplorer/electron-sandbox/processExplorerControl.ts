@@ -25,6 +25,7 @@ import { IAction, Separator, toAction } from '../../../../base/common/actions.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -373,7 +374,9 @@ export class ProcessExplorerControl extends Disposable {
 			new ProcessTreeDataSource(),
 			{
 				accessibilityProvider: new ProcessAccessibilityProvider(),
-				identityProvider: new ProcessIdentityProvider()
+				identityProvider: new ProcessIdentityProvider(),
+				expandOnlyOnTwistieClick: true,
+				renderIndentGuides: RenderIndentGuides.Always
 			}));
 
 		this._register(this.tree.onKeyDown(async e => this.onTreeKeyDown(e)));
