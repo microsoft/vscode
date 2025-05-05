@@ -480,6 +480,18 @@
             "tags": [
               "experimental"
             ]
+          },
+          "typescript.maximumHoverLength": {
+            "type": "number",
+            "default": 500,
+            "description": "%configuration.maximumHoverLength%",
+            "scope": "window"
+          },
+          "javascript.maximumHoverLength": {
+            "type": "number",
+            "default": 500,
+            "description": "%configuration.maximumHoverLength%",
+            "scope": "window"
           }
         }
       },
