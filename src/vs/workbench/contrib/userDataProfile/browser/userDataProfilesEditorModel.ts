@@ -527,7 +527,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 							const extensions = await this.extensionManagementService.getInstalled(undefined, this.profile.extensionsResource);
 							const extension = extensions.find(e => areSameExtensions(e.identifier, child.identifier));
 							if (extension) {
-								await this.extensionManagementService.toggleAppliationScope(extension, this.profile.extensionsResource);
+								await this.extensionManagementService.toggleApplicationScope(extension, this.profile.extensionsResource);
 							}
 						}
 					}]

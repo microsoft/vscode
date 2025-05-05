@@ -13,6 +13,7 @@ import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/types.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -101,6 +102,7 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
+
 		return `${chatAgentLeader}${this.agent.name}`;
 	}
 
@@ -140,6 +142,23 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 
 	get promptText(): string {
 		return `${chatSubcommandLeader}${this.slashCommand.command}`;
+	}
+}
+
+/**
+ * An invocation of a standalone slash command
+ */
+export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
+	static readonly Kind = 'prompt';
+	readonly kind = ChatRequestSlashPromptPart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashPromptCommand: IChatPromptSlashCommand) { }
+
+	get text(): string {
+		return `${chatSubcommandLeader}${this.slashPromptCommand.command}`;
+	}
+
+	get promptText(): string {
+		return `${chatSubcommandLeader}${this.slashPromptCommand.command}`;
 	}
 }
 
@@ -215,6 +234,12 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestSlashCommandPart).slashCommand
+				);
+			} else if (part.kind === ChatRequestSlashPromptPart.Kind) {
+				return new ChatRequestSlashPromptPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestSlashPromptPart).slashPromptCommand
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(

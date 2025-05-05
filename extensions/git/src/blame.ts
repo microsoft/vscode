@@ -253,6 +253,7 @@ export class GitBlameController {
 		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
 		const avatar = commitAvatar ? `![${authorName}](${commitAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
 
+
 		if (authorName) {
 			if (authorEmail) {
 				const emailTitle = l10n.t('Email');
@@ -272,7 +273,8 @@ export class GitBlameController {
 		}
 
 		// Subject | Message
-		markdownString.appendMarkdown(`${emojify(commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
+		const message = commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '';
+		markdownString.appendMarkdown(`${emojify(message.replace(/\r\n|\r|\n/g, '\n\n'))}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
 		// Short stats
@@ -720,10 +722,13 @@ class GitBlameStatusBarItem {
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
 		this._controller.onDidChangeBlameInformation(() => this._onDidChangeBlameInformation(), this, this._disposables);
+
+		this._onDidChangeConfiguration();
 	}
 
-	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.commitShortHashLength') &&
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e &&
+			!e.affectsConfiguration('git.commitShortHashLength') &&
 			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}

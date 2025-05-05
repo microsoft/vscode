@@ -329,9 +329,7 @@ class CellOutputElement extends Disposable {
 		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
 		const cellOutputMimetype = NOTEBOOK_CELL_OUTPUT_MIMETYPE.bindTo(menuContextKeyService);
 		isFirstCellOutput.set(index === 0);
-		if (mimeTypes[index]) {
-			cellOutputMimetype.set(currentMimeType.mimeType);
-		}
+		cellOutputMimetype.set(currentMimeType.mimeType);
 		this.toolbarDisposables.add(autorun((r) => { hasHiddenOutputs.set(this.cellOutputContainer.hasHiddenOutputs.read(r)); }));
 		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 

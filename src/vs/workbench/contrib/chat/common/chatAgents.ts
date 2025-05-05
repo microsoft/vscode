@@ -24,7 +24,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
+import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
@@ -138,6 +138,9 @@ export interface IChatAgentRequest {
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
 	userSelectedTools?: string[];
+	userSelectedTools2?: Record<string, boolean>;
+	toolSelectionIsExclusive?: boolean;
+	editedFileEvents?: IChatAgentEditedFileEvent[];
 }
 
 export interface IChatQuestion {
@@ -485,11 +488,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 		const data = this._agents.get(id);
-		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
-		}
-
-		if (!data.impl?.provideFollowups) {
+		if (!data?.impl?.provideFollowups) {
 			return [];
 		}
 

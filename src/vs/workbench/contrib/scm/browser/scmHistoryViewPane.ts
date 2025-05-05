@@ -490,14 +490,14 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			}
 
 			if (historyItem.timestamp) {
-				const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).value;
 				markdown.appendMarkdown(`, $(history) ${fromNow(historyItem.timestamp, true, true)} (${dateFormatter.format(historyItem.timestamp)})`);
 			}
 
 			markdown.appendMarkdown('\n\n');
 		}
 
-		markdown.appendMarkdown(`${historyItem.message}\n\n`);
+		markdown.appendMarkdown(`${historyItem.message.replace(/\r\n|\r|\n/g, '\n\n')}\n\n`);
 
 		if (historyItem.statistics) {
 			markdown.appendMarkdown(`---\n\n`);

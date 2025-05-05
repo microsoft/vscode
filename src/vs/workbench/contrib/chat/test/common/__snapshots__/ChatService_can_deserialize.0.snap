@@ -101,7 +101,8 @@
       contentReferences: [  ],
       codeCitations: [  ],
       timestamp: undefined,
-      confirmation: undefined
+      confirmation: undefined,
+      editedFileEvents: undefined
     }
   ]
 }

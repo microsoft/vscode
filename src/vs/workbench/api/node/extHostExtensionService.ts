@@ -253,7 +253,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			if (mode === 'esm') {
-				r = <T>await import(module.fsPath);
+				r = <T>await import(module.toString(true));
 			} else {
 				r = <T>require(module.fsPath);
 			}

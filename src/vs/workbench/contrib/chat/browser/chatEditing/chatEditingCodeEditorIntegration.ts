@@ -70,6 +70,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
+		renderDiffImmediately: boolean,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
@@ -147,8 +148,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 
 			// done: render diff
-			if (!_entry.isCurrentlyBeingModifiedBy.read(r)) {
-
+			if (!_entry.isCurrentlyBeingModifiedBy.read(r) || renderDiffImmediately) {
 				const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
 				codeEditorObs.getOption(EditorOption.fontInfo).read(r);
@@ -598,7 +598,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}
 	}
 
-	async toggleDiff(widget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(widget: IModifiedFileEntryChangeHunk | undefined, show?: boolean): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -614,38 +614,25 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
-		if (isDiffEditor) {
-			// normal EDITOR
-			await this._editorService.openEditor({
-				resource: this._entry.modifiedURI,
-				options: {
-					selection,
-					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
-				}
-			});
-
-		} else {
-			// DIFF editor
+		// Use the 'show' argument to control the diff state if provided
+		if (show !== undefined ? show : !isDiffEditor) {
+			// Open DIFF editor
 			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
-				original: { resource: this._entry.originalURI, options: { selection: undefined } },
-				modified: { resource: this._entry.modifiedURI, options: { selection } },
+				original: { resource: this._entry.originalURI },
+				modified: { resource: this._entry.modifiedURI },
+				options: { selection },
 				label: defaultAgentName
 					? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
 					: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
 			});
 
 			if (diffEditor && diffEditor.input) {
-
-				// this is needed, passing the selection doesn't seem to work
 				diffEditor.getControl()?.setSelection(selection);
-
-				// close diff editor when entry is decided
 				const d = autorun(r => {
 					const state = this._entry.state.read(r);
 					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
 						d.dispose();
-
 						const editorIdents: IEditorIdentifier[] = [];
 						for (const candidate of this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 							if (isDiffEditorInput(candidate.editor)
@@ -660,6 +647,15 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					}
 				});
 			}
+		} else {
+			// Open normal editor
+			await this._editorService.openEditor({
+				resource: this._entry.modifiedURI,
+				options: {
+					selection,
+					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
+				}
+			});
 		}
 	}
 }
