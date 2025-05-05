@@ -12,7 +12,6 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { ProcessItem } from '../../../../base/common/processes.js';
-import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -22,6 +21,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { platform, PlatformToString } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -307,7 +308,8 @@ export class ProcessExplorerControl extends Disposable {
 		container: HTMLElement,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -342,6 +344,8 @@ export class ProcessExplorerControl extends Disposable {
 	}
 
 	private async createProcessTree(container: HTMLElement, processRoots: MachineProcessInformation[]): Promise<void> {
+		container.classList.add('process-explorer');
+
 		const { totalmem } = await this.nativeHostService.getOSStatistics();
 
 		const renderers = [
@@ -351,7 +355,7 @@ export class ProcessExplorerControl extends Disposable {
 			new ErrorRenderer()
 		];
 
-		this.tree = this.instantiationService.createInstance(
+		this.tree = this._register(this.instantiationService.createInstance(
 			WorkbenchDataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any>,
 			'processExplorer',
 			container,
@@ -361,7 +365,7 @@ export class ProcessExplorerControl extends Disposable {
 			{
 				accessibilityProvider: new ProcessAccessibilityProvider(),
 				identityProvider: new ProcessIdentityProvider()
-			});
+			}));
 
 		this.tree.setInput({ processes: { processRoots } });
 		this.layoutTree();
@@ -372,11 +376,83 @@ export class ProcessExplorerControl extends Disposable {
 				void Promise.all(selectionPids.map((pid) => this.nativeHostService.killProcess(pid, 'SIGTERM'))).then(() => this.tree?.refresh());
 			}
 		});
-		this.tree.onContextMenu(e => {
-			if (isProcessItem(e.element)) {
-				this.showContextMenu(e.element, true);
+
+		this._register(this.tree.onContextMenu(e => {
+			if (!isProcessItem(e.element)) {
+				return;
 			}
-		});
+
+			const item = e.element;
+
+			const actions: IAction[] = [];
+			const pid = Number(item.pid);
+
+			actions.push(toAction({
+				id: 'killProcess',
+				label: localize('killProcess', "Kill Process"),
+				run: () => {
+					this.nativeHostService.killProcess(pid, 'SIGTERM');
+				}
+			}));
+
+			actions.push(toAction({
+				id: 'forceKillProcess',
+				label: localize('forceKillProcess', "Force Kill Process"),
+				run: () => {
+					this.nativeHostService.killProcess(pid, 'SIGKILL');
+				}
+			}));
+
+			actions.push(new Separator());
+
+			actions.push(toAction({
+				id: 'copy',
+				label: localize('copy', "Copy"),
+				run: () => {
+					// Collect the selected pids
+					const selectionPids = this.getSelectedPids();
+					// If the selection does not contain the right clicked item, copy the right clicked
+					// item only.
+					if (!selectionPids?.includes(pid)) {
+						selectionPids.length = 0;
+						selectionPids.push(pid);
+					}
+					const rows = selectionPids?.map(e => window.document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+					if (rows) {
+						const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
+						this.nativeHostService.writeClipboardText(text.join('\n'));
+					}
+				}
+			}));
+
+			actions.push(toAction({
+				id: 'copyAll',
+				label: localize('copyAll', "Copy All"),
+				run: () => {
+					const processList = window.document.getElementById('process-list');
+					if (processList) {
+						this.nativeHostService.writeClipboardText(processList.innerText);
+					}
+				}
+			}));
+
+			if (this.isDebuggable(item.cmd)) {
+				actions.push(new Separator());
+
+				actions.push(toAction({
+					id: 'debug',
+					label: localize('debug', "Debug"),
+					run: () => {
+						this.attachTo(item);
+					}
+				}));
+			}
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions
+			});
+		}));
 	}
 
 	private isDebuggable(cmd: string): boolean {
@@ -412,76 +488,6 @@ export class ProcessExplorerControl extends Disposable {
 		}
 
 		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
-	}
-
-	private showContextMenu(item: ProcessItem, isLocal: boolean) {
-		const items: IContextMenuItem[] = [];
-		const pid = Number(item.pid);
-
-		if (isLocal) {
-			items.push({
-				accelerator: 'Alt+E',
-				label: localize('killProcess', "Kill Process"),
-				click: () => {
-					this.nativeHostService.killProcess(pid, 'SIGTERM');
-				}
-			});
-
-			items.push({
-				label: localize('forceKillProcess', "Force Kill Process"),
-				click: () => {
-					this.nativeHostService.killProcess(pid, 'SIGKILL');
-				}
-			});
-
-			items.push({
-				type: 'separator'
-			});
-		}
-
-		items.push({
-			label: localize('copy', "Copy"),
-			click: () => {
-				// Collect the selected pids
-				const selectionPids = this.getSelectedPids();
-				// If the selection does not contain the right clicked item, copy the right clicked
-				// item only.
-				if (!selectionPids?.includes(pid)) {
-					selectionPids.length = 0;
-					selectionPids.push(pid);
-				}
-				const rows = selectionPids?.map(e => window.document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
-				if (rows) {
-					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
-					this.nativeHostService.writeClipboardText(text.join('\n'));
-				}
-			}
-		});
-
-		items.push({
-			label: localize('copyAll', "Copy All"),
-			click: () => {
-				const processList = window.document.getElementById('process-list');
-				if (processList) {
-					this.nativeHostService.writeClipboardText(processList.innerText);
-				}
-			}
-		});
-
-		if (item && isLocal && this.isDebuggable(item.cmd)) {
-			items.push({
-				type: 'separator'
-			});
-
-			items.push({
-				label: localize('debug', "Debug"),
-				click: () => {
-					this.attachTo(item);
-				}
-			});
-		}
-
-		// popup(items);
 	}
 
 	private requestProcessList(totalWaitTime: number): void {
