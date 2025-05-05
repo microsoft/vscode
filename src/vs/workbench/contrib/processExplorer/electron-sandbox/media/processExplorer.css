@@ -7,8 +7,11 @@
 	display: flex;
 }
 
-.process-explorer .row .cell {
+.process-explorer .row .cell:not(:first-of-type) {
 	padding-left: 10px;
+}
+
+.process-explorer .row .cell:not(:last-of-type) {
 	padding-right: 10px;
 }
 
