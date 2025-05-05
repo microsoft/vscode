@@ -2741,7 +2741,7 @@ SOFTWARE.
 ---------------------------------------------------------
 
 gethostname 0.4.3 - Apache-2.0
-https://github.com/swsnr/gethostname.rs
+https://codeberg.org/swsnr/gethostname.rs.git
 
 Apache License
                         Version 2.0, January 2004

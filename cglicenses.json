@@ -613,5 +613,10 @@
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 			"SOFTWARE"
 		]
+	},
+	{
+		// Reason: Repository moved from https://github.com/swsnr/gethostname.rs to https://codeberg.org/swsnr/gethostname.rs
+		"name": "gethostname",
+		"fullLicenseTextUri": "https://codeberg.org/swsnr/gethostname.rs/raw/branch/main/LICENSE"
 	}
 ]
