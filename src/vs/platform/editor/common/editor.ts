@@ -7,6 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IRectangle } from '../../window/common/window.js';
 
 export interface IResolvableEditorModel extends IDisposable {
 
@@ -300,12 +301,25 @@ export interface IEditorOptions {
 	transient?: boolean;
 
 	/**
-	 * A hint that the editor should have compact chrome when showing if possible.
-	 *
-	 * Note: this currently is only working if AUX_GROUP is specified as target to
-	 * open the editor in a floating window.
+	 * Options that only apply when `AUX_WINDOW_GROUP` is used for opening.
 	 */
-	compact?: boolean;
+	auxiliary?: {
+
+		/**
+		 * Define the bounds of the editor window.
+		 */
+		bounds?: Partial<IRectangle>;
+
+		/**
+		 * Show editor compact, hiding unnecessary elements.
+		 */
+		compact?: boolean;
+
+		/**
+		 * Show the editor always on top of other windows.
+		 */
+		alwaysOnTop?: boolean;
+	};
 }
 
 export interface ITextEditorSelection {

@@ -51,7 +51,7 @@ registerAction2(class OpenProcessExplorer extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const editorService = accessor.get(IEditorService);
 
-		editorService.openEditor(ProcessExplorerEditorInput.instance, { pinned: true, compact: true }, AUX_WINDOW_GROUP);
+		editorService.openEditor(ProcessExplorerEditorInput.instance, { pinned: true, auxiliary: { compact: true, bounds: { width: 800, height: 500 }, alwaysOnTop: true } }, AUX_WINDOW_GROUP);
 	}
 });
 
