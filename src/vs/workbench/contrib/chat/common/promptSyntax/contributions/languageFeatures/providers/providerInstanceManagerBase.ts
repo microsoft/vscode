@@ -25,9 +25,9 @@ export interface IPromptFileEditor extends IEditor {
 }
 
 /**
- * TODO: @legomushroom
+ * Type for a class that can create a new provider instance.
  */
-export type TProviderInstance<TInstance extends ProviderInstanceBase> = new (editor: ITextModel, ...args: any[]) => TInstance;
+export type TProviderClass<TInstance extends ProviderInstanceBase> = new (editor: ITextModel, ...args: any[]) => TInstance;
 
 /**
  * A generic base class that manages creation and disposal of {@link TInstance}
@@ -42,7 +42,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	/**
 	 * Class object of the managed {@link TInstance}.
 	 */
-	protected abstract get InstanceClass(): TProviderInstance<TInstance>;
+	protected abstract get InstanceClass(): TProviderClass<TInstance>;
 
 	constructor(
 		@IModelService modelService: IModelService,

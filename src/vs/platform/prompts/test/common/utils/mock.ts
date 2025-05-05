@@ -11,8 +11,7 @@ import { assertOneOf } from '../../../../../base/common/types.js';
  * If you need to mock an `Service`, please use {@link mockService}
  * instead which provides better type safety guarantees for the case.
  *
- * @throws Reading non-overridden property or function
- * 		   on `TObject` throws an error.
+ * @throws Reading non-overridden property or function on `TObject` throws an error.
  */
 export function mockObject<TObject extends object>(
 	overrides: Partial<TObject>,
@@ -41,14 +40,15 @@ export function mockObject<TObject extends object>(
 					`The '${key}' is not mocked.`,
 				);
 
-				// TODO: @legomushroom - add type assertion comment
+				// note! it's ok to type assert here, because of the explicit runtime
+				//       assertion  above
 				// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 				return overrides[key as T] as TObject[T];
 			},
 		});
 
-	// note! it's ok to `as TObject` here, because of the runtime checks
-	//       in the `Proxy` getter
+	// note! it's ok to type assert here, because of the runtime checks in
+	//       the `Proxy` getter
 	// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 	return service as TObject;
 }

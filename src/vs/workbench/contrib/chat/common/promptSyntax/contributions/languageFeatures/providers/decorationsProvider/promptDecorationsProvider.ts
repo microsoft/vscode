@@ -10,7 +10,7 @@ import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
 import { toDisposable } from '../../../../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
-import { ProviderInstanceManagerBase, TProviderInstance } from '../providerInstanceManagerBase.js';
+import { ProviderInstanceManagerBase, TProviderClass } from '../providerInstanceManagerBase.js';
 import { registerThemingParticipant } from '../../../../../../../../../platform/theme/common/themeService.js';
 import { FrontMatterHeader } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { DecorationBase, ReactiveDecorationBase, type TDecorationClass, type TChangedDecorator } from './decorations/utils/index.js';
@@ -198,7 +198,7 @@ registerThemingParticipant((_theme, collector) => {
  * Provider for prompt syntax decorators on text models.
  */
 export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<PromptDecorator> {
-	protected override get InstanceClass(): TProviderInstance<PromptDecorator> {
+	protected override get InstanceClass(): TProviderClass<PromptDecorator> {
 		return PromptDecorator;
 	}
 }

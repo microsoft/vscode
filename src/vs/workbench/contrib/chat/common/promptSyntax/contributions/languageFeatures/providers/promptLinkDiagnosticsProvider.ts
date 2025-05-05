@@ -10,7 +10,7 @@ import { assert } from '../../../../../../../../base/common/assert.js';
 import { NotPromptFile } from '../../../../promptFileReferenceErrors.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
-import { ProviderInstanceManagerBase, TProviderInstance } from './providerInstanceManagerBase.js';
+import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
 
 /**
@@ -125,7 +125,7 @@ const toMarker = (
  * classes for each specific editor text model.
  */
 export class PromptLinkDiagnosticsInstanceManager extends ProviderInstanceManagerBase<PromptLinkDiagnosticsProvider> {
-	protected override get InstanceClass(): TProviderInstance<PromptLinkDiagnosticsProvider> {
+	protected override get InstanceClass(): TProviderClass<PromptLinkDiagnosticsProvider> {
 		return PromptLinkDiagnosticsProvider;
 	}
 }

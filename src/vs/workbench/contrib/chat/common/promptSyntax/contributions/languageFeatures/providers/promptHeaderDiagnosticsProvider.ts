@@ -7,7 +7,7 @@ import { IPromptsService } from '../../../service/types.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { assertNever } from '../../../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
-import { ProviderInstanceManagerBase, TProviderInstance } from './providerInstanceManagerBase.js';
+import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
 import { TDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../../../parsers/promptHeader/diagnostics.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
 
@@ -100,7 +100,7 @@ const toMarker = (
  * classes for each specific editor text model.
  */
 export class PromptHeaderDiagnosticsInstanceManager extends ProviderInstanceManagerBase<PromptHeaderDiagnosticsProvider> {
-	protected override get InstanceClass(): TProviderInstance<PromptHeaderDiagnosticsProvider> {
+	protected override get InstanceClass(): TProviderClass<PromptHeaderDiagnosticsProvider> {
 		return PromptHeaderDiagnosticsProvider;
 	}
 }
