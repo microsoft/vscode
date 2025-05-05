@@ -376,7 +376,7 @@ export class ProcessExplorerControl extends Disposable {
 				accessibilityProvider: new ProcessAccessibilityProvider(),
 				identityProvider: new ProcessIdentityProvider(),
 				expandOnlyOnTwistieClick: true,
-				renderIndentGuides: RenderIndentGuides.Always
+				renderIndentGuides: RenderIndentGuides.OnHover
 			}));
 
 		this._register(this.tree.onKeyDown(async e => this.onTreeKeyDown(e)));
