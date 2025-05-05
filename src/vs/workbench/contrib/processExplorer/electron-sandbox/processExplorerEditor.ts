@@ -3,31 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, IDomPosition } from '../../../../base/browser/dom.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { ProcessExplorerControl } from './processExplorerControl.js';
 
 export class ProcessExplorerEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.processExplorer';
 
+	private processExplorerControl: ProcessExplorerControl | undefined = undefined;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(ProcessExplorerEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
-
+		this.processExplorerControl = this._register(this.instantiationService.createInstance(ProcessExplorerControl, parent));
 	}
 
-	override layout(dimension: Dimension, position?: IDomPosition): void {
-		
+	override layout(dimension: Dimension): void {
+		this.processExplorerControl?.layout(dimension);
 	}
 }

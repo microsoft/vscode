@@ -4,26 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/processExplorer.css';
-import { ipcRenderer } from 'electron';
-import { popup } from '../../../../base/parts/contextmenu/electron-sandbox/contextmenu.js';
-import { ElectronIPCMainProcessService } from '../../../../platform/ipc/electron-sandbox/mainProcessService.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
-
 import { localize } from '../../../../nls.js';
-import { $, append } from '../../../../base/browser/dom.js';
-import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { DataTree } from '../../../../base/browser/ui/tree/dataTree.js';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { ProcessItem } from '../../../../base/common/processes.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
-import { ProcessExplorerData, ProcessExplorerStyles } from '../../issue/common/issue.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { WorkbenchDataTree } from '../../../../platform/list/browser/listService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { platform, PlatformToString } from '../../../../base/common/platform.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -73,7 +71,7 @@ function isProcessItem(item: unknown): item is ProcessItem {
 
 class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 
-	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
+	getHeight() {
 		return 22;
 	}
 
@@ -122,9 +120,8 @@ class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformati
 		}
 
 		if (isProcessInformation(element)) {
-			// If there are multiple process roots, return these, otherwise go directly to the root process
 			if (element.processRoots.length > 1) {
-				return element.processRoots;
+				return element.processRoots; // If there are multiple process roots, return these, otherwise go directly to the root process
 			} else {
 				return [element.processRoots[0].rootProcess];
 			}
@@ -222,6 +219,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 		return { name, CPU, PID, memory };
 	}
+
 	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		const { element } = node;
 
@@ -248,24 +246,70 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	}
 }
 
+class ProcessAccessibilityProvider implements IListAccessibilityProvider<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+
+	getWidgetAriaLabel(): string {
+		return localize('processExplorer', "Process Explorer");
+	}
+
+	getAriaLabel(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError): string | null {
+		if (isProcessItem(element)) {
+			return element.name;
+		}
+
+		if (isMachineProcessInformation(element)) {
+			return element.name;
+		}
+
+		if (isRemoteDiagnosticError(element)) {
+			return element.hostName;
+		}
+
+		return null;
+	}
+}
+
+class ProcessIdentityProvider implements IIdentityProvider<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+
+	getId(element: IRemoteDiagnosticError | ProcessItem | MachineProcessInformation): { toString(): string } {
+		if (isProcessItem(element)) {
+			return element.pid.toString();
+		}
+
+		if (isRemoteDiagnosticError(element)) {
+			return element.hostName;
+		}
+
+		if (isProcessInformation(element)) {
+			return 'processes';
+		}
+
+		if (isMachineProcessInformation(element)) {
+			return element.name;
+		}
+
+		return 'header';
+	}
+}
+
 //#endregion
 
-
-class ProcessExplorer {
+export class ProcessExplorerControl extends Disposable {
 
 	private lastRequestTime: number;
 
 	private readonly mapPidToName = new Map<number, string>();
+	private dimensions: Dimension | undefined = undefined;
 
-	private nativeHostService: INativeHostService;
+	private tree: WorkbenchDataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any> | undefined;
 
-	private tree: DataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any> | undefined;
-
-	constructor(windowId: number, private data: ProcessExplorerData) {
-		const mainProcessService = new ElectronIPCMainProcessService(windowId);
-		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
-
-		this.applyStyles(data.styles);
+	constructor(
+		container: HTMLElement,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService
+	) {
+		super();
 
 		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
 			this.mapPidToName.clear();
@@ -278,15 +322,15 @@ class ProcessExplorer {
 		ipcRenderer.on('vscode:listProcessesResponse', async (event: unknown, processRoots: MachineProcessInformation[]) => {
 			processRoots.forEach((info, index) => {
 				if (isProcessItem(info.rootProcess)) {
-					info.rootProcess.name = index === 0 ? `${this.data.applicationName} main` : 'remote agent';
+					info.rootProcess.name = index === 0 ? `${this.productService.applicationName} main` : 'remote agent';
 				}
 			});
 
 			if (!this.tree) {
-				await this.createProcessTree(processRoots);
+				await this.createProcessTree(container, processRoots);
 			} else {
 				this.tree.setInput({ processes: { processRoots } });
-				this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
+				this.layoutTree();
 			}
 
 			this.requestProcessList(0);
@@ -297,52 +341,30 @@ class ProcessExplorer {
 		ipcRenderer.send('vscode:listProcesses');
 	}
 
-	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
-		const container = mainWindow.document.getElementById('process-list');
-		if (!container) {
-			return;
-		}
-
+	private async createProcessTree(container: HTMLElement, processRoots: MachineProcessInformation[]): Promise<void> {
 		const { totalmem } = await this.nativeHostService.getOSStatistics();
 
 		const renderers = [
-			new ProcessRenderer(this.data.platform, totalmem, this.mapPidToName),
+			new ProcessRenderer(PlatformToString(platform), totalmem, this.mapPidToName),
 			new ProcessHeaderTreeRenderer(),
 			new MachineRenderer(),
 			new ErrorRenderer()
 		];
 
-		this.tree = new DataTree('processExplorer',
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchDataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any>,
+			'processExplorer',
 			container,
 			new ProcessListDelegate(),
 			renderers,
 			new ProcessTreeDataSource(),
 			{
-				identityProvider: {
-					getId: (element: ProcessTree | ProcessItem | MachineProcessInformation | ProcessInformation | IRemoteDiagnosticError) => {
-						if (isProcessItem(element)) {
-							return element.pid.toString();
-						}
-
-						if (isRemoteDiagnosticError(element)) {
-							return element.hostName;
-						}
-
-						if (isProcessInformation(element)) {
-							return 'processes';
-						}
-
-						if (isMachineProcessInformation(element)) {
-							return element.name;
-						}
-
-						return 'header';
-					}
-				}
+				accessibilityProvider: new ProcessAccessibilityProvider(),
+				identityProvider: new ProcessIdentityProvider()
 			});
 
 		this.tree.setInput({ processes: { processRoots } });
-		this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
+		this.layoutTree();
 		this.tree.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.KeyE && event.altKey) {
@@ -354,13 +376,6 @@ class ProcessExplorer {
 			if (isProcessItem(e.element)) {
 				this.showContextMenu(e.element, true);
 			}
-		});
-
-		container.style.height = `${mainWindow.innerHeight}px`;
-
-		mainWindow.addEventListener('resize', () => {
-			container.style.height = `${mainWindow.innerHeight}px`;
-			this.tree?.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 		});
 	}
 
@@ -399,92 +414,6 @@ class ProcessExplorer {
 		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
 	}
 
-	private applyStyles(styles: ProcessExplorerStyles): void {
-		const styleElement = createStyleSheet();
-		const content: string[] = [];
-
-		if (styles.listFocusBackground) {
-			content.push(`.monaco-list:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
-			content.push(`.monaco-list:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`);
-		}
-
-		if (styles.listFocusForeground) {
-			content.push(`.monaco-list:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
-		}
-
-		if (styles.listActiveSelectionBackground) {
-			content.push(`.monaco-list:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
-			content.push(`.monaco-list:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`);
-		}
-
-		if (styles.listActiveSelectionForeground) {
-			content.push(`.monaco-list:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
-		}
-
-		if (styles.listHoverBackground) {
-			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
-		}
-
-		if (styles.listHoverForeground) {
-			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
-		}
-
-		if (styles.listFocusOutline) {
-			content.push(`.monaco-list:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
-		}
-
-		if (styles.listHoverOutline) {
-			content.push(`.monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
-		}
-
-		// Scrollbars
-		if (styles.scrollbarShadowColor) {
-			content.push(`
-				.monaco-scrollable-element > .shadow.top {
-					box-shadow: ${styles.scrollbarShadowColor} 0 6px 6px -6px inset;
-				}
-
-				.monaco-scrollable-element > .shadow.left {
-					box-shadow: ${styles.scrollbarShadowColor} 6px 0 6px -6px inset;
-				}
-
-				.monaco-scrollable-element > .shadow.top.left {
-					box-shadow: ${styles.scrollbarShadowColor} 6px 6px 6px -6px inset;
-				}
-			`);
-		}
-
-		if (styles.scrollbarSliderBackgroundColor) {
-			content.push(`
-				.monaco-scrollable-element > .scrollbar > .slider {
-					background: ${styles.scrollbarSliderBackgroundColor};
-				}
-			`);
-		}
-
-		if (styles.scrollbarSliderHoverBackgroundColor) {
-			content.push(`
-				.monaco-scrollable-element > .scrollbar > .slider:hover {
-					background: ${styles.scrollbarSliderHoverBackgroundColor};
-				}
-			`);
-		}
-
-		if (styles.scrollbarSliderActiveBackgroundColor) {
-			content.push(`
-				.monaco-scrollable-element > .scrollbar > .slider.active {
-					background: ${styles.scrollbarSliderActiveBackgroundColor};
-				}
-			`);
-		}
-
-		styleElement.textContent = content.join('\n');
-
-		if (styles.color) {
-			mainWindow.document.body.style.color = styles.color;
-		}
-	}
-
 	private showContextMenu(item: ProcessItem, isLocal: boolean) {
 		const items: IContextMenuItem[] = [];
 		const pid = Number(item.pid);
@@ -521,7 +450,7 @@ class ProcessExplorer {
 					selectionPids.length = 0;
 					selectionPids.push(pid);
 				}
-				const rows = selectionPids?.map(e => mainWindow.document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				const rows = selectionPids?.map(e => window.document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
 				if (rows) {
 					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
 					this.nativeHostService.writeClipboardText(text.join('\n'));
@@ -532,7 +461,7 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copyAll', "Copy All"),
 			click: () => {
-				const processList = mainWindow.document.getElementById('process-list');
+				const processList = window.document.getElementById('process-list');
 				if (processList) {
 					this.nativeHostService.writeClipboardText(processList.innerText);
 				}
@@ -552,7 +481,7 @@ class ProcessExplorer {
 			});
 		}
 
-		popup(items);
+		// popup(items);
 	}
 
 	private requestProcessList(totalWaitTime: number): void {
@@ -578,5 +507,17 @@ class ProcessExplorer {
 			}
 			return e.pid;
 		}).filter(e => !!e) as number[];
+	}
+
+	layout(dimension: Dimension): void {
+		this.dimensions = dimension;
+
+		this.layoutTree();
+	}
+
+	private layoutTree(): void {
+		if (this.dimensions && this.tree) {
+			this.tree.layout(this.dimensions.height, this.dimensions.width);
+		}
 	}
 }
