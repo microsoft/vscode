@@ -5,7 +5,7 @@
 
 import './media/processExplorer.css';
 import { localize } from '../../../../nls.js';
-import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { ipcRenderer, process } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { $, append, Dimension, getDocument } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -19,7 +19,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { WorkbenchDataTree } from '../../../../platform/list/browser/listService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
-import { platform, PlatformToString } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -213,7 +212,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 	readonly templateId: string = 'process';
 
-	constructor(private platform: string, private totalMem: number, private mapPidToName: Map<number, string>) { }
+	constructor(private totalMem: number, private mapPidToName: Map<number, string>) { }
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const row = append(container, $('.row'));
@@ -243,7 +242,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 		templateData.pid.textContent = pid;
 		templateData.pid.parentElement!.id = `pid-${pid}`;
 
-		const memory = this.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
+		const memory = process.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
 		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
 	}
 
@@ -359,7 +358,7 @@ export class ProcessExplorerControl extends Disposable {
 		container.id = 'process-explorer';
 
 		const renderers = [
-			new ProcessRenderer(PlatformToString(platform), totalmem, this.mapPidToName),
+			new ProcessRenderer(totalmem, this.mapPidToName),
 			new ProcessHeaderTreeRenderer(),
 			new MachineRenderer(),
 			new ErrorRenderer()
