@@ -7,12 +7,18 @@
 	display: flex;
 }
 
-.process-explorer .cell {
+.process-explorer .row .cell {
 	padding-left: 10px;
+	padding-right: 10px;
+}
+
+.process-explorer .row:not(.header) .cell {
+	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .row.header {
 	font-weight: 600;
+	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .nameLabel {
@@ -20,25 +26,18 @@
 	width: calc(100% - 185px);
 	overflow: hidden;
 	text-overflow: ellipsis;
-	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .cpu {
 	width: 60px;
-	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
-}
-
-.process-explorer .pid {
-	width: 50px;
-	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .memory {
 	width: 90px;
 }
 
-.process-explorer .monaco-list:focus {
-	outline: 0;
+.process-explorer .pid {
+	width: 50px;
 }
 
 .process-explorer .monaco-list-row:first-of-type {
@@ -47,17 +46,4 @@
 
 .process-explorer .centered {
 	text-align: center;
-}
-
-.process-explorer .data {
-	white-space: pre;
-	padding-left: .5rem;
-	font-weight: normal;
-	text-align: left;
-	height: 22px;
-}
-
-.process-explorer .error {
-	padding-left: 20px;
-	white-space: nowrap;
 }
