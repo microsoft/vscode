@@ -8,7 +8,7 @@ import { localize } from '../../../../../../../../../../nls.js';
 import { FrontMatterMarkerDecoration } from './frontMatterMarkerDecoration.js';
 import { Position } from '../../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../../editor/common/codecs/baseToken.js';
-import { TAddAccessor, TDecorationStyles, ReactiveDecorationBase, asCssVariable } from './utils/index.js';
+import { TAddAccessor, TDecorationStyles, ReactiveDecorationBase, asCssVariable, IReactiveDecorationClassNames } from './utils/index.js';
 import { contrastBorder, editorBackground } from '../../../../../../../../../../platform/theme/common/colorRegistry.js';
 import { ColorIdentifier, darken, registerColor } from '../../../../../../../../../../platform/theme/common/colorUtils.js';
 import { FrontMatterHeader } from '../../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
@@ -92,7 +92,7 @@ export class FrontMatterDecoration extends ReactiveDecorationBase<FrontMatterHea
 		return result;
 	}
 
-	protected override get classNames() {
+	protected override get classNames(): IReactiveDecorationClassNames<CssClassNames> {
 		return CssClassNames;
 	}
 

@@ -171,7 +171,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * The promise is resolved when at least one parse result (a stream or
 	 * an error) has been received from the prompt contents provider.
 	 */
-	private firstParseResult = new FirstParseResult();
+	private readonly firstParseResult = new FirstParseResult();
 
 	/**
 	 * Returned promise is resolved when the parser process is settled.
@@ -445,7 +445,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Dispose all currently held references.
 	 */
-	private disposeReferences() {
+	private disposeReferences(): void {
 		for (const reference of [...this._references]) {
 			reference.dispose();
 		}
@@ -753,7 +753,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * @inheritdoc
 	 */
-	public override dispose() {
+	public override dispose(): void {
 		if (this.disposed) {
 			return;
 		}
@@ -784,7 +784,7 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 	constructor(
 		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
-		options: Partial<IPromptParserOptions> = {},
+		options: Partial<IPromptParserOptions>,
 		@IInstantiationService initService: IInstantiationService,
 	) {
 		super();
@@ -945,7 +945,7 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `prompt-reference/${this.type}:${this.subtype}/${this.token}`;
 	}
 }
@@ -978,7 +978,7 @@ class FirstParseResult extends DeferredPromise<void> {
 	/**
 	 * Complete the underlying promise.
 	 */
-	public override complete() {
+	public override complete(): Promise<void> {
 		this._gotResult = true;
 		return super.complete(void 0);
 	}

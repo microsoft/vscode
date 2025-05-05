@@ -10,7 +10,7 @@ import { assert } from '../../../../../../../../base/common/assert.js';
 import { NotPromptFile } from '../../../../promptFileReferenceErrors.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
-import { ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
+import { ProviderInstanceManagerBase, TProviderInstance } from './providerInstanceManagerBase.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
 
 /**
@@ -33,7 +33,7 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override async onPromptSettled() {
+	protected override async onPromptSettled(): Promise<this> {
 		// ensure that parsing process is settled
 		await this.parser.allSettled();
 
@@ -72,7 +72,7 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `prompt-link-diagnostics:${this.model.uri.path}`;
 	}
 }
@@ -125,7 +125,7 @@ const toMarker = (
  * classes for each specific editor text model.
  */
 export class PromptLinkDiagnosticsInstanceManager extends ProviderInstanceManagerBase<PromptLinkDiagnosticsProvider> {
-	protected override get InstanceClass() {
+	protected override get InstanceClass(): TProviderInstance<PromptLinkDiagnosticsProvider> {
 		return PromptLinkDiagnosticsProvider;
 	}
 }

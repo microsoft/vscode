@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CssClassModifiers } from '../types.js';
-import { TDecorationStyles, ReactiveDecorationBase } from './utils/index.js';
+import { TDecorationStyles, ReactiveDecorationBase, IReactiveDecorationClassNames } from './utils/index.js';
 import { FrontMatterMarker } from '../../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
 /**
@@ -34,7 +34,7 @@ export class FrontMatterMarkerDecoration extends ReactiveDecorationBase<FrontMat
 		return this;
 	}
 
-	protected override get classNames() {
+	protected override get classNames(): IReactiveDecorationClassNames<CssClassNames> {
 		return CssClassNames;
 	}
 

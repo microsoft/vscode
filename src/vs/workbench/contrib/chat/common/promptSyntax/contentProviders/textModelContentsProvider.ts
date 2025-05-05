@@ -38,7 +38,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 	constructor(
 		private readonly model: ITextModel,
-		options: Partial<IPromptContentsProviderOptions> = {},
+		options: Partial<IPromptContentsProviderOptions>,
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -149,7 +149,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	/**
 	 * String representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `text-model-prompt-contents-provider:${this.uri.path}`;
 	}
 }

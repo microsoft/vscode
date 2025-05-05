@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 export class FilePromptParser extends BasePromptParser<FilePromptContentProvider> {
 	constructor(
 		uri: URI,
-		options: Partial<IPromptParserOptions> = {},
+		options: Partial<IPromptParserOptions>,
 		@IInstantiationService initService: IInstantiationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
@@ -31,7 +31,7 @@ export class FilePromptParser extends BasePromptParser<FilePromptContentProvider
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `file-prompt:${this.uri.path}`;
 	}
 }

@@ -39,9 +39,9 @@ export const forEach = <TTreeNode>(
 	}
 
 	for (const child of treeRoot.children ?? []) {
-		const shouldStop = forEach(callback, child);
+		const childShouldStop = forEach(callback, child);
 
-		if (shouldStop === true) {
+		if (childShouldStop === true) {
 			return true;
 		}
 	}

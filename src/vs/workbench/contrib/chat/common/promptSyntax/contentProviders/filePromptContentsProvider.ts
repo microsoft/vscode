@@ -46,7 +46,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 	constructor(
 		public readonly uri: URI,
-		options: Partial<IPromptContentsProviderOptions> = {},
+		options: Partial<IPromptContentsProviderOptions>,
 		@IFileService private readonly fileService: IFileService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -152,7 +152,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	/**
 	 * String representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `file-prompt-contents-provider:${this.uri.path}`;
 	}
 }
