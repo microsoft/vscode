@@ -46,7 +46,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly fileLocator: PromptFilesLocator;
 
 	constructor(
-		@ILogService public readonly logService: ILogService,
+		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly initService: IInstantiationService,
