@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.process-explorer .cpu {
+	width: 60px;
+}
+
+.process-explorer .pid {
+	width: 50px
+}
+
+.process-explorer .memory {
+	width: 90px;
+}
+
+.process-explorer .monaco-list:focus {
+	outline: 0;
+}
+
+.process-explorer .monaco-list-row:first-of-type {
+	border-bottom: 1px solid;
+}
+
+.process-explorer .row {
+	display: flex;
+}
+
+.process-explorer .centered {
+	text-align: center;
+}
+
+.process-explorer .nameLabel {
+	text-align: left;
+	width: calc(100% - 185px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.process-explorer .data {
+	white-space: pre;
+	padding-left: .5rem;
+	font-weight: normal;
+	text-align: left;
+	height: 22px;
+}
+
+.process-explorer .error {
+	padding-left: 20px;
+	white-space: nowrap;
+}
