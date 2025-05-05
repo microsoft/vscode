@@ -1506,9 +1506,12 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
 
 	chatModel.startEditingSession(true);
+
 	const editSession = await chatModel.editingSessionObs?.promise;
+
 	const store = new DisposableStore();
 	store.add(chatModel);
+
 	// STREAM
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
 	assertType(chatRequest.response);
