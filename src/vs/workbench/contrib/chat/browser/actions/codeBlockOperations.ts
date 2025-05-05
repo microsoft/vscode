@@ -154,7 +154,7 @@ export class ApplyCodeBlockOperation {
 		} else {
 			const activeNotebookEditor = getActiveNotebookEditor(this.editorService);
 			if (activeNotebookEditor) {
-				result = await this.handleNotebookEditor(activeNotebookEditor, context.code);
+				result = await this.handleNotebookEditor(activeNotebookEditor, context.chatSessionId, context.code);
 			} else {
 				this.notify(localize('applyCodeBlock.noActiveEditor', "To apply this code block, open a code or notebook editor."));
 			}
@@ -214,7 +214,7 @@ export class ApplyCodeBlockOperation {
 		return undefined;
 	}
 
-	private async handleNotebookEditor(notebookEditor: IActiveNotebookEditor, code: string): Promise<IComputeEditsResult | undefined> {
+	private async handleNotebookEditor(notebookEditor: IActiveNotebookEditor, chatSessionId: string | undefined, code: string): Promise<IComputeEditsResult | undefined> {
 		if (notebookEditor.isReadOnly) {
 			this.notify(localize('applyCodeBlock.readonlyNotebook', "Cannot apply code block to read-only notebook editor."));
 			return undefined;
@@ -233,7 +233,7 @@ export class ApplyCodeBlockOperation {
 				{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 				async progress => {
 					progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
-					const editsIterable = this.getNotebookEdits(codeBlock, cancellationTokenSource.token);
+					const editsIterable = this.getNotebookEdits(codeBlock, chatSessionId, cancellationTokenSource.token);
 					return await this.waitForFirstElement(editsIterable);
 				},
 				() => cancellationTokenSource.cancel()
@@ -315,7 +315,7 @@ export class ApplyCodeBlockOperation {
 		});
 	}
 
-	private getNotebookEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]> {
+	private getNotebookEdits(codeBlock: ICodeMapperCodeBlock, chatSessionId: string | undefined, token: CancellationToken): AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]> {
 		return new AsyncIterableObject<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
