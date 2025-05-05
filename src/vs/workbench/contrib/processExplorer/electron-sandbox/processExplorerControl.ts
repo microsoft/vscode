@@ -450,7 +450,7 @@ export class ProcessExplorerControl extends Disposable {
 		return (matches && matches.groups!.port !== '0') || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
 	}
 
-	private attachTo(item: ProcessItem) {
+	private attachTo(item: ProcessItem): void {
 		const config: { type: string; request: string; name: string; port?: number; processId?: string } = {
 			type: 'node',
 			request: 'attach',
@@ -475,12 +475,15 @@ export class ProcessExplorerControl extends Disposable {
 
 	private requestProcessList(totalWaitTime: number): void {
 		setTimeout(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+
 			const nextRequestTime = Date.now();
 			const waited = totalWaitTime + nextRequestTime - (this.lastRequestTime ?? 0);
 			this.lastRequestTime = nextRequestTime;
 
-			// Wait at least a second between requests.
-			if (waited > 1000) {
+			if (waited > 1000 /* Wait at least a second between requests */) {
 				ipcRenderer.send('vscode:pidToNameRequest');
 				ipcRenderer.send('vscode:listProcesses');
 			} else {
