@@ -145,7 +145,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const row = append(container, $('.row.header'));
-		const name = append(row, $('.cell.nameLabel'));
+		const name = append(row, $('.cell.name'));
 		const cpu = append(row, $('.cell.cpu'));
 		const memory = append(row, $('.cell.memory'));
 		const pid = append(row, $('.cell.pid'));
@@ -175,7 +175,7 @@ class MachineRenderer implements ITreeRenderer<IMachineProcessInformation, void,
 
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
 		const row = append(container, $('.row'));
-		const name = append(row, $('.nameLabel'));
+		const name = append(row, $('.name'));
 
 		return { name };
 	}
@@ -195,7 +195,7 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
 		const row = append(container, $('.row'));
-		const name = append(row, $('.nameLabel'));
+		const name = append(row, $('.name'));
 
 		return { name };
 	}
@@ -218,7 +218,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const row = append(container, $('.row'));
 
-		const name = append(row, $('.cell.nameLabel'));
+		const name = append(row, $('.cell.name'));
 		const cpu = append(row, $('.cell.cpu'));
 		const memory = append(row, $('.cell.memory'));
 		const pid = append(row, $('.cell.pid'));

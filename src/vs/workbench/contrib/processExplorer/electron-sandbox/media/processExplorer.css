@@ -24,23 +24,23 @@
 	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
-.process-explorer .nameLabel {
+.process-explorer .name {
 	text-align: left;
-	width: calc(100% - 185px);
+	flex-grow: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 .process-explorer .cpu {
-	width: 60px;
+	flex: 0 0 60px;
 }
 
 .process-explorer .memory {
-	width: 90px;
+	flex: 0 0 90px;
 }
 
 .process-explorer .pid {
-	width: 50px;
+	flex: 0 0 50px;
 }
 
 .process-explorer .monaco-list-row:first-of-type {
