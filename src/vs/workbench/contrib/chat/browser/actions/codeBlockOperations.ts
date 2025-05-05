@@ -279,7 +279,7 @@ export class ApplyCodeBlockOperation {
 				},
 				() => cancellationTokenSource.cancel()
 			);
-			editsProposed = await this.applyWithInlinePreview(iterable, activeModel.uri, cancellationTokenSource);
+			editsProposed = await this.applyWithInlinePreview(iterable, codeEditor, cancellationTokenSource);
 		} catch (e) {
 			if (!isCancellationError(e)) {
 				this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
@@ -319,7 +319,8 @@ export class ApplyCodeBlockOperation {
 		return new AsyncIterableObject<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
-				chatSessionId
+				chatSessionId,
+				location: 'panel'
 			};
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edits: TextEdit[]) => {
@@ -358,8 +359,8 @@ export class ApplyCodeBlockOperation {
 		};
 	}
 
-	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[] | ICellEditOperation[]>, uri: URI, tokenSource: CancellationTokenSource): Promise<boolean> {
-		return this.instantiationService.invokeFunction(reviewEdits, uri, edits, tokenSource.token);
+	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[]>, codeEditor: IActiveCodeEditor, tokenSource: CancellationTokenSource): Promise<boolean> {
+		return this.instantiationService.invokeFunction(reviewEdits, codeEditor, edits, tokenSource.token);
 	}
 
 	private async applyNotebookEditsWithInlinePreview(edits: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, uri: URI, tokenSource: CancellationTokenSource): Promise<boolean> {

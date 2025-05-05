@@ -55,7 +55,7 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -1496,7 +1496,52 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 }
 
-export async function reviewEdits(accessor: ServicesAccessor, uri: URI, stream: AsyncIterable<TextEdit[] | ICellEditOperation[]>, token: CancellationToken): Promise<boolean> {
+export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEditor, stream: AsyncIterable<TextEdit[]>, token: CancellationToken): Promise<boolean> {
+	if (!editor.hasModel()) {
+		return false;
+	}
+
+	const chatService = accessor.get(IChatService);
+	const uri = editor.getModel().uri;
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
+
+	chatModel.startEditingSession(true);
+	const editSession = await chatModel.editingSessionObs?.promise;
+	const store = new DisposableStore();
+	store.add(chatModel);
+	// STREAM
+	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+	assertType(chatRequest.response);
+	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
+	for await (const chunk of stream) {
+
+		if (token.isCancellationRequested) {
+			chatRequest.response.cancel();
+			break;
+		}
+
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: chunk, done: false });
+	}
+	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
+
+	if (!token.isCancellationRequested) {
+		chatModel.completeResponse(chatRequest);
+	}
+	const isSettled = derived(r => {
+		const entry = editSession?.readEntry(uri, r);
+		if (!entry) {
+			return false;
+		}
+		const state = entry.state.read(r);
+		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
+	});
+	const whenDecided = waitForState(isSettled, Boolean);
+	await raceCancellation(whenDecided, token);
+	store.dispose();
+	return true;
+}
+
+export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, stream: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, token: CancellationToken): Promise<boolean> {
 
 	const chatService = accessor.get(IChatService);
 	const notebookService = accessor.get(INotebookService);
@@ -1509,68 +1554,6 @@ export async function reviewEdits(accessor: ServicesAccessor, uri: URI, stream: 
 
 	const store = new DisposableStore();
 	store.add(chatModel);
-
-	// STREAM
-	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
-	assertType(chatRequest.response);
-	if (isNotebook) {
-		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: false });
-	} else {
-		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
-	}
-	for await (const chunk of stream) {
-
-		if (token.isCancellationRequested) {
-			chatRequest.response.cancel();
-			break;
-		}
-		if (chunk.every(edit => TextEdit.isTextEdit(edit))) {
-			chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: chunk, done: false });
-		} else {
-			chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: chunk, done: false });
-		}
-	}
-	if (isNotebook) {
-		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: true });
-	} else {
-		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
-	}
-
-	if (!token.isCancellationRequested) {
-		chatModel.completeResponse(chatRequest);
-	}
-
-	const isSettled = derived(r => {
-		const entry = editSession?.readEntry(uri, r);
-		if (!entry) {
-			return false;
-		}
-		const state = entry.state.read(r);
-		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
-	});
-
-	const whenDecided = waitForState(isSettled, Boolean);
-
-	await raceCancellation(whenDecided, token);
-
-	store.dispose();
-
-	return true;
-}
-
-export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, stream: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, token: CancellationToken): Promise<boolean> {
-
-	const chatService = accessor.get(IChatService);
-	const chatEditingService = accessor.get(IChatEditingService);
-	const notebookService = accessor.get(INotebookService);
-	const isNotebook = notebookService.hasSupportedNotebooks(uri);
-	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
-
-	const editSession = await chatEditingService.createEditingSession(chatModel);
-
-	const store = new DisposableStore();
-	store.add(chatModel);
-	store.add(editSession);
 
 	// STREAM
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
@@ -1603,7 +1586,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession.readEntry(uri, r);
+		const entry = editSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}
