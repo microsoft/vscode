@@ -176,23 +176,23 @@ const getLogFunction = <T extends TLogLevel>(
 	logger: ILogger,
 ): ILogger[T] => {
 	if (logLevel === 'trace') {
-		return logger.trace;
+		return logger.trace.bind(logger);
 	}
 
 	if (logLevel === 'debug') {
-		return logger.debug;
+		return logger.debug.bind(logger);
 	}
 
 	if (logLevel === 'info') {
-		return logger.info;
+		return logger.info.bind(logger);
 	}
 
 	if (logLevel === 'warn') {
-		return logger.warn;
+		return logger.warn.bind(logger);
 	}
 
 	if (logLevel === 'error') {
-		return logger.error;
+		return logger.error.bind(logger);
 	}
 
 	assertNever(
