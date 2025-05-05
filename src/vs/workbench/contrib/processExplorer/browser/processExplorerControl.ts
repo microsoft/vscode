@@ -7,32 +7,72 @@ import './media/processExplorer.css';
 import { ipcRenderer } from 'electron';
 import { popup } from '../../../../base/parts/contextmenu/electron-sandbox/contextmenu.js';
 import { ElectronIPCMainProcessService } from '../../../../platform/ipc/electron-sandbox/mainProcessService.js';
-import { zoomIn, zoomOut, applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
 
-import { append } from '../../../../base/browser/dom.js';
+import { localize } from '../../../../nls.js';
+import { $, append } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DataTree } from '../../../../base/browser/ui/tree/dataTree.js';
 import { IDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { ProcessItem } from '../../../../base/common/processes.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
-import { localize } from '../../../../nls.js';
 import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
-import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { $ } from '../../chat/browser/chatContentParts/chatReferencesContentPart.js';
-import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from '../../issue/common/issue.js';
+import { ProcessExplorerData, ProcessExplorerStyles } from '../../issue/common/issue.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
 
+//#region --- process explorer tree
+
+interface IProcessItemTemplateData extends IProcessRowTemplateData {
+	readonly CPU: HTMLElement;
+	readonly memory: HTMLElement;
+	readonly PID: HTMLElement;
+}
+
+interface IProcessRowTemplateData {
+	readonly name: HTMLElement;
+}
+
+interface MachineProcessInformation {
+	name: string;
+	rootProcess: ProcessItem | IRemoteDiagnosticError;
+}
+
+interface ProcessInformation {
+	processRoots: MachineProcessInformation[];
+}
+
+interface ProcessTree {
+	processes: ProcessInformation;
+}
+
+function isMachineProcessInformation(item: unknown): item is MachineProcessInformation {
+	const candidate = item as MachineProcessInformation | undefined;
+
+	return !!candidate?.name && !!candidate?.rootProcess;
+}
+
+function isProcessInformation(item: unknown): item is ProcessInformation {
+	const candidate = item as ProcessInformation | undefined;
+
+	return !!candidate?.processRoots;
+}
+
+function isProcessItem(item: unknown): item is ProcessItem {
+	const candidate = item as ProcessItem | undefined;
+
+	return typeof candidate?.pid === 'number';
+}
+
 class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+
 	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
 		return 22;
 	}
@@ -58,17 +98,8 @@ class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformat
 	}
 }
 
-interface IProcessItemTemplateData extends IProcessRowTemplateData {
-	readonly CPU: HTMLElement;
-	readonly memory: HTMLElement;
-	readonly PID: HTMLElement;
-}
-
-interface IProcessRowTemplateData {
-	readonly name: HTMLElement;
-}
-
 class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+
 	hasChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError): boolean {
 		if (isRemoteDiagnosticError(element)) {
 			return false;
@@ -76,9 +107,9 @@ class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformati
 
 		if (isProcessItem(element)) {
 			return !!element.children?.length;
-		} else {
-			return true;
 		}
+
+		return true;
 	}
 
 	getChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
@@ -108,7 +139,8 @@ class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformati
 }
 
 class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, void, IProcessItemTemplateData> {
-	templateId: string = 'header';
+
+	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const row = append(container, $('.row'));
@@ -116,6 +148,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, voi
 		const CPU = append(row, $('.cpu'));
 		const memory = append(row, $('.memory'));
 		const PID = append(row, $('.pid'));
+
 		return { name, CPU, memory, PID };
 	}
 
@@ -124,51 +157,61 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, voi
 		templateData.CPU.textContent = localize('cpu', "CPU (%)");
 		templateData.PID.textContent = localize('pid', "PID");
 		templateData.memory.textContent = localize('memory', "Memory (MB)");
-
 	}
 
-	disposeTemplate(templateData: any): void {
+	disposeTemplate(templateData: unknown): void {
 		// Nothing to do
 	}
 }
 
 class MachineRenderer implements ITreeRenderer<MachineProcessInformation, void, IProcessRowTemplateData> {
-	templateId: string = 'machine';
+
+	readonly templateId: string = 'machine';
+
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
 		const data = Object.create(null);
 		const row = append(container, $('.row'));
 		data.name = append(row, $('.nameLabel'));
+
 		return data;
 	}
+
 	renderElement(node: ITreeNode<MachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
 		templateData.name.textContent = node.element.name;
 	}
+
 	disposeTemplate(templateData: IProcessRowTemplateData): void {
 		// Nothing to do
 	}
 }
 
 class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProcessRowTemplateData> {
-	templateId: string = 'error';
+
+	readonly templateId: string = 'error';
+
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
 		const data = Object.create(null);
 		const row = append(container, $('.row'));
 		data.name = append(row, $('.nameLabel'));
+
 		return data;
 	}
+
 	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
 		templateData.name.textContent = node.element.errorMessage;
 	}
+
 	disposeTemplate(templateData: IProcessRowTemplateData): void {
 		// Nothing to do
 	}
 }
 
-
 class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData> {
+
+	readonly templateId: string = 'process';
+
 	constructor(private platform: string, private totalMem: number, private mapPidToName: Map<number, string>) { }
 
-	templateId: string = 'process';
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const row = append(container, $('.row'));
 
@@ -205,35 +248,14 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	}
 }
 
-interface MachineProcessInformation {
-	name: string;
-	rootProcess: ProcessItem | IRemoteDiagnosticError;
-}
+//#endregion
 
-interface ProcessInformation {
-	processRoots: MachineProcessInformation[];
-}
-
-interface ProcessTree {
-	processes: ProcessInformation;
-}
-
-function isMachineProcessInformation(item: any): item is MachineProcessInformation {
-	return !!item.name && !!item.rootProcess;
-}
-
-function isProcessInformation(item: any): item is ProcessInformation {
-	return !!item.processRoots;
-}
-
-function isProcessItem(item: any): item is ProcessItem {
-	return !!item.pid;
-}
 
 class ProcessExplorer {
+
 	private lastRequestTime: number;
 
-	private mapPidToName = new Map<number, string>();
+	private readonly mapPidToName = new Map<number, string>();
 
 	private nativeHostService: INativeHostService;
 
@@ -244,7 +266,6 @@ class ProcessExplorer {
 		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
 
 		this.applyStyles(data.styles);
-		this.setEventHandlers(data);
 
 		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
 			this.mapPidToName.clear();
@@ -274,30 +295,6 @@ class ProcessExplorer {
 		this.lastRequestTime = Date.now();
 		ipcRenderer.send('vscode:pidToNameRequest');
 		ipcRenderer.send('vscode:listProcesses');
-	}
-
-	private setEventHandlers(data: ProcessExplorerData): void {
-		mainWindow.document.onkeydown = (e: KeyboardEvent) => {
-			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-
-			// Cmd/Ctrl + w closes issue window
-			if (cmdOrCtrlKey && e.keyCode === 87) {
-				e.stopPropagation();
-				e.preventDefault();
-
-				ipcRenderer.send('vscode:closeProcessExplorer');
-			}
-
-			// Cmd/Ctrl + zooms in
-			if (cmdOrCtrlKey && e.keyCode === 187) {
-				zoomIn(mainWindow);
-			}
-
-			// Cmd/Ctrl - zooms out
-			if (cmdOrCtrlKey && e.keyCode === 189) {
-				zoomOut(mainWindow);
-			}
-		};
 	}
 
 	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
@@ -369,11 +366,18 @@ class ProcessExplorer {
 
 	private isDebuggable(cmd: string): boolean {
 		const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
+
 		return (matches && matches.groups!.port !== '0') || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
 	}
 
 	private attachTo(item: ProcessItem) {
-		const config: any = {
+		const config: {
+			type: string;
+			request: string;
+			name: string;
+			port?: number;
+			processId?: string;
+		} = {
 			type: 'node',
 			request: 'attach',
 			name: `process ${item.pid}`
@@ -383,15 +387,13 @@ class ProcessExplorer {
 		if (matches) {
 			config.port = Number(matches.groups!.port);
 		} else {
-			// no port -> try to attach via pid (send SIGUSR1)
-			config.processId = String(item.pid);
+			config.processId = String(item.pid); // no port -> try to attach via pid (send SIGUSR1)
 		}
 
 		// a debug-port=n or inspect-port=n overrides the port
 		matches = DEBUG_PORT_PATTERN.exec(item.cmd);
 		if (matches) {
-			// override port
-			config.port = Number(matches.groups!.port);
+			config.port = Number(matches.groups!.port); // override port
 		}
 
 		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
@@ -577,31 +579,4 @@ class ProcessExplorer {
 			return e.pid;
 		}).filter(e => !!e) as number[];
 	}
-}
-
-function createCodiconStyleSheet() {
-	const codiconStyleSheet = createStyleSheet();
-	codiconStyleSheet.id = 'codiconStyles';
-
-	const iconsStyleSheet = getIconsStyleSheet(undefined);
-	function updateAll() {
-		codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
-	}
-
-	const delayer = new RunOnceScheduler(updateAll, 0);
-	iconsStyleSheet.onDidChange(() => delayer.schedule());
-	delayer.schedule();
-}
-
-export interface IProcessExplorerMain {
-	startup(configuration: ProcessExplorerWindowConfiguration): void;
-}
-
-export function startup(configuration: ProcessExplorerWindowConfiguration): void {
-	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
-	mainWindow.document.body.classList.add(platformClass); // used by our fonts
-	createCodiconStyleSheet();
-	applyZoom(configuration.data.zoomLevel, mainWindow);
-
-	new ProcessExplorer(configuration.windowId, configuration.data);
 }
