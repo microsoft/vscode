@@ -3,12 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.process-explorer .row {
+	display: flex;
+}
+
+.process-explorer .cell {
+	padding-left: 10px;
+}
+
+.process-explorer .row.header {
+	font-weight: 600;
+}
+
+.process-explorer .nameLabel {
+	text-align: left;
+	width: calc(100% - 185px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
+}
+
 .process-explorer .cpu {
 	width: 60px;
+	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .pid {
-	width: 50px
+	width: 50px;
+	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .memory {
@@ -20,22 +42,11 @@
 }
 
 .process-explorer .monaco-list-row:first-of-type {
-	border-bottom: 1px solid;
-}
-
-.process-explorer .row {
-	display: flex;
+	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .centered {
 	text-align: center;
-}
-
-.process-explorer .nameLabel {
-	text-align: left;
-	width: calc(100% - 185px);
-	overflow: hidden;
-	text-overflow: ellipsis;
 }
 
 .process-explorer .data {

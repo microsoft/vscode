@@ -143,11 +143,11 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const row = append(container, $('.row'));
-		const name = append(row, $('.nameLabel'));
-		const cpu = append(row, $('.cpu'));
-		const memory = append(row, $('.memory'));
-		const pid = append(row, $('.pid'));
+		const row = append(container, $('.row.header'));
+		const name = append(row, $('.cell.nameLabel'));
+		const cpu = append(row, $('.cell.cpu'));
+		const memory = append(row, $('.cell.memory'));
+		const pid = append(row, $('.cell.pid'));
 
 		return { name, cpu, memory, pid };
 	}
@@ -213,10 +213,10 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const row = append(container, $('.row'));
 
-		const name = append(row, $('.nameLabel'));
-		const cpu = append(row, $('.cpu'));
-		const memory = append(row, $('.memory'));
-		const pid = append(row, $('.pid'));
+		const name = append(row, $('.cell.nameLabel'));
+		const cpu = append(row, $('.cell.cpu'));
+		const memory = append(row, $('.cell.memory'));
+		const pid = append(row, $('.cell.pid'));
 
 		return { name, cpu, pid, memory };
 	}
@@ -384,6 +384,7 @@ export class ProcessExplorerControl extends Disposable {
 		if (event.keyCode === KeyCode.KeyE && event.altKey) {
 			const selectionPids = this.getSelectedPids();
 			await Promise.all(selectionPids.map(pid => this.nativeHostService.killProcess(pid, 'SIGTERM')));
+
 			this.tree?.refresh();
 		}
 	}

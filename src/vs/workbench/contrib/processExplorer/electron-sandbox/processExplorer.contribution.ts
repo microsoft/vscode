@@ -12,7 +12,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IEditorSerializer, EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { ProcessExplorerEditorInput } from './processExplorerEditoInput.js';
 import { ProcessExplorerEditor } from './processExplorerEditor.js';
 
@@ -51,7 +51,7 @@ registerAction2(class OpenProcessExplorer extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const editorService = accessor.get(IEditorService);
 
-		editorService.openEditor(ProcessExplorerEditorInput.instance, { pinned: true });
+		editorService.openEditor(ProcessExplorerEditorInput.instance, { pinned: true, compact: true }, AUX_WINDOW_GROUP);
 	}
 });
 
