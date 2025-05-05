@@ -9,7 +9,6 @@ import { ILanguageFeaturesService } from '../../../common/services/languageFeatu
 import { CancellationToken, CancellationTokenSource, } from '../../../../base/common/cancellation.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { Range } from '../../../common/core/range.js';
 import { binarySearch } from '../../../../base/common/arrays.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
