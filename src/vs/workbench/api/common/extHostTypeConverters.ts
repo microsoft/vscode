@@ -2329,7 +2329,7 @@ export namespace LanguageModelChatMessage {
 					}
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
-			} else if (c.type === 'image_url' || c.type === 'extra_data') {
+			} else if (c.type === 'image_url') {
 				// Non-stable types
 				return undefined;
 			} else {
@@ -2426,8 +2426,6 @@ export namespace LanguageModelChatMessage2 {
 				return new types.LanguageModelToolResultPart2(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
 				return new types.LanguageModelDataPart(c.value.data.buffer, c.value.mimeType);
-			} else if (c.type === 'extra_data') {
-				return new types.LanguageModelExtraDataPart(c.kind, c.data);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2500,12 +2498,6 @@ export namespace LanguageModelChatMessage2 {
 					type: 'text',
 					value: c.value
 				};
-			} else if (c instanceof types.LanguageModelExtraDataPart) {
-				return {
-					type: 'extra_data',
-					kind: c.kind,
-					data: c.data
-				} satisfies chatProvider.IChatMessagePart;
 			} else {
 				if (typeof c !== 'string') {
 					throw new Error('Unexpected chat message content type llm 2');
