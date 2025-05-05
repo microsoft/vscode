@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VALID_SPACE_TOKENS } from '../constants.js';
-import { assert } from '../../../../../base/common/assert.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
+import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { Comma, LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
 import { PartialFrontMatterValue, VALID_VALUE_START_TOKENS } from './frontMatterValue.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
@@ -21,6 +21,13 @@ const VALID_DELIMITER_TOKENS = Object.freeze([
 	...VALID_SPACE_TOKENS,
 	Comma,
 ]);
+
+// readonly (Exclude<(typeof VALID_SPACE_TOKENS[number] | typeof Comma), typeof VALID_VALUE_START_TOKENS[number]>)[]
+
+/**
+ * TODO: @legomushroom
+ */
+type IsUnion<T, U> = T extends U ? never : never;
 
 /**
  * Responsible for parsing an array syntax (or "inline sequence"
@@ -43,22 +50,28 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	constructor(
 		private readonly startToken: LeftBracket,
 	) {
-		/**
-		 * Sanity check - logic inside the {@link PartialFrontMatterArray.accept accept} method
-		 * above assumes that the {@link VALID_DELIMITER_TOKENS} tokens list does not intersect
-		 * with the {@link VALID_VALUE_START_TOKENS} tokens list.
-		 *
-		 * Note! the `as` type casting below is ok since we offload the type intersection check
-		 *       to the runtime, and is required to avoid compilation errors in Typescript.
-		 */
-		for (const DelimiterToken of VALID_DELIMITER_TOKENS) {
-			for (const ValueStartToken of VALID_VALUE_START_TOKENS as unknown[]) {
-				assert(
-					DelimiterToken !== ValueStartToken,
-					`Delimiter tokens list must not contain value start token '${ValueStartToken}'.`,
-				);
-			}
-		}
+		// // TODO: @legomushroom
+		// /**
+		//  * Sanity check - logic inside the {@link PartialFrontMatterArray.accept accept} method
+		//  * above assumes that the {@link VALID_DELIMITER_TOKENS} tokens list does not intersect
+		//  * with the {@link VALID_VALUE_START_TOKENS} tokens list.
+		//  *
+		//  * Note! the `as` type casting below is ok since we offload the type intersection check
+		//  *       to the runtime, and is required to avoid compilation errors in Typescript.
+		//  */
+		// for (const DelimiterToken of VALID_DELIMITER_TOKENS) {
+		// 	for (const ValueStartToken of VALID_VALUE_START_TOKENS as unknown[]) {
+		// 		assert(
+		// 			DelimiterToken !== ValueStartToken,
+		// 			`Delimiter tokens list must not contain value start token '${ValueStartToken}'.`,
+		// 		);
+		// 	}
+		// }
+
+		assertNever(
+			IsUnion<typeof VALID_DELIMITER_TOKENS, typeof VALID_VALUE_START_TOKENS>,
+			'',
+		);
 
 		super([startToken]);
 	}

@@ -24,7 +24,7 @@ import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { IPromptMetadata, IPromptReference, IResolveError, ITopError } from './types.js';
+import { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
@@ -85,7 +85,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
-	private readonly _references: IPromptReference[] = [];
+	private readonly _references: TPromptReference[] = [];
 
 	/**
 	 * Reference to the prompt header object that holds metadata associated
@@ -513,7 +513,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Get a list of immediate child references of the prompt.
 	 */
-	public get references(): readonly IPromptReference[] {
+	public get references(): readonly TPromptReference[] {
 		return [...this._references];
 	}
 
@@ -521,8 +521,8 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Get a list of all references of the prompt, including
 	 * all possible nested references its children may have.
 	 */
-	public get allReferences(): readonly IPromptReference[] {
-		const result: IPromptReference[] = [];
+	public get allReferences(): readonly TPromptReference[] {
+		const result: TPromptReference[] = [];
 
 		for (const reference of this.references) {
 			result.push(reference);
@@ -538,7 +538,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Get list of all valid references.
 	 */
-	public get allValidReferences(): readonly IPromptReference[] {
+	public get allValidReferences(): readonly TPromptReference[] {
 		return this.allReferences
 			// filter out unresolved references
 			.filter((reference) => {
@@ -775,7 +775,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
  * contents. For instance the file variable(`#file:/path/to/file.md`) or
  * a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
-export class PromptReference extends ObservableDisposable implements IPromptReference {
+export class PromptReference extends ObservableDisposable implements TPromptReference {
 	/**
 	 * Instance of underlying prompt parser object.
 	 */
@@ -910,11 +910,11 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		return this.parser.allErrors;
 	}
 
-	public get references(): readonly IPromptReference[] {
+	public get references(): readonly TPromptReference[] {
 		return this.parser.references;
 	}
 
-	public get allReferences(): readonly IPromptReference[] {
+	public get allReferences(): readonly TPromptReference[] {
 		return this.parser.allReferences;
 	}
 
@@ -926,7 +926,7 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		return this.parser.allToolsMetadata;
 	}
 
-	public get allValidReferences(): readonly IPromptReference[] {
+	public get allValidReferences(): readonly TPromptReference[] {
 		return this.parser.allValidReferences;
 	}
 

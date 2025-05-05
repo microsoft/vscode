@@ -115,7 +115,7 @@ export function assertNotConsumed<T extends ParserBase<any, any>>(
 	_target: T,
 	propertyKey: 'accept',
 	descriptor: PropertyDescriptor,
-) {
+): PropertyDescriptor {
 	// store the original method reference
 	const originalMethod = descriptor.value;
 
