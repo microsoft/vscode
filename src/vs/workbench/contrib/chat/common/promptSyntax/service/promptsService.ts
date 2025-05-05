@@ -50,7 +50,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-		// TODO: @legomushroom - make protected?
 		@ILogService public readonly logService: ILogService,
 	) {
 		super();
