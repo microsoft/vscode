@@ -7,7 +7,7 @@ import { assertNever } from '../assert.js';
 import { assertDefined } from '../types.js';
 
 /**
- * Type for supported log levels.
+ * Type for supported log levels argument of the decorator.
  */
 export type TLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
@@ -23,14 +23,14 @@ export interface ILogger {
 }
 
 /**
- * Type for an object that contains a `logService` property
+ * Type for an object that contains a `logger` property
  * with the logging methods.
  */
-type TObjectWithLogger<T extends object> = T & { logService: ILogger };
+type TObjectWithLogger<T extends object> = T & { logger: ILogger };
 
 /**
  * Decorator allows to log execution time of any method of a class.
- * The class must have the `logService` property that provides
+ * The class must have the `logger` property that provides
  * logging methods that the decorator can call.
  *
  * The decorated method can be asynchronous or synchronous, but
@@ -97,7 +97,7 @@ export function logTime(
 			return logExecutionTime(
 				`${this.constructor.name}.${methodName}`,
 				originalMethod.bind(this, ...args),
-				getLogFunction(logLevel, this.logService),
+				getLogFunction(logLevel, this.logger),
 			);
 		};
 

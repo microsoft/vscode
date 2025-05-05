@@ -44,11 +44,11 @@ suite('logTime', () => {
 				test(`• '${logLevel}' log level`, async () => {
 					const logSpy = sinon.spy();
 
-					const mockLogService = mockObject<ILogger>({
+					const mockLogger = mockObject<ILogger>({
 						[logLevel]: logSpy,
 					});
 					class TestClass {
-						public logService = mockLogService;
+						public logger = mockLogger;
 
 						constructor(
 							private readonly returnValue: number
@@ -109,11 +109,11 @@ suite('logTime', () => {
 				test(`• '${logLevel}' log level`, async () => {
 					const logSpy = sinon.spy();
 
-					const mockLogService = mockObject<ILogger>({
+					const mockLogger = mockObject<ILogger>({
 						[logLevel]: logSpy,
 					});
 					class TestClass {
-						public logService = mockLogService;
+						public logger = mockLogger;
 
 						constructor(
 							private readonly returnValue: number
@@ -159,11 +159,11 @@ suite('logTime', () => {
 		test('• uses \'trace\' level by default', async () => {
 			const logSpy = sinon.spy();
 
-			const mockLogService = mockObject<ILogger>({
+			const mockLogger = mockObject<ILogger>({
 				trace: logSpy,
 			});
 			class TestClass {
-				public logService = mockLogService;
+				public logger = mockLogger;
 
 				constructor(
 					private readonly returnValue: number
