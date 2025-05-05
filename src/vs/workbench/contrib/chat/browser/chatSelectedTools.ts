@@ -18,6 +18,7 @@ import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../common/languageModelToolsService.js';
 
 /**
@@ -45,6 +46,7 @@ export class ChatSelectedTools extends Disposable {
 	private readonly _allTools: IObservable<Readonly<IToolData>[]>;
 
 	constructor(
+		mode: IObservable<ChatMode>,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instaService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -63,12 +65,14 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		this.tools = derived(r => {
-			const disabled = disabledData.read(r);
 			const tools = this._allTools.read(r);
+			if (mode.read(r) !== ChatMode.Agent) {
+				return tools;
+			}
+			const disabled = disabledData.read(r);
 			if (!disabled) {
 				return tools;
 			}
-
 			return tools.filter(t =>
 				!(disabled.toolIds.has(t.id) || disabled.buckets.has(ToolDataSource.toKey(t.source)))
 			);
@@ -123,8 +127,8 @@ export class ChatSelectedTools extends Disposable {
 		);
 	}
 
-	selectOnly(tools: readonly string[]): void {
-		const uniqueTools = new Set(tools);
+	selectOnly(toolIds: readonly string[]): void {
+		const uniqueTools = new Set(toolIds);
 
 		const disabledTools = this._allTools.get().filter(tool => !uniqueTools.has(tool.id));
 
@@ -142,7 +146,9 @@ export class ChatSelectedTools extends Disposable {
 		const result = new Map<IToolData, boolean>();
 		const enabledTools = new Set(this.tools.get().map(t => t.id));
 		for (const tool of this._allTools.get()) {
-			result.set(tool, enabledTools.has(tool.id));
+			if (tool.supportsToolPicker) {
+				result.set(tool, enabledTools.has(tool.id));
+			}
 		}
 		return result;
 	}

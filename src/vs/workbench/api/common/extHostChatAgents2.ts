@@ -567,7 +567,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 		const result = new Map<string, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
-			result.set(tool.name, request.userSelectedTools2[tool.name] ?? false);
+			if (typeof request.userSelectedTools2[tool.name] === 'boolean') {
+				result.set(tool.name, request.userSelectedTools2[tool.name]);
+			}
 		}
 		return result;
 	}

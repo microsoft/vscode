@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { createURI } from '../testUtils/createUri.js';
 import { ChatMode } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -70,7 +69,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			initService.createInstance(TextModelPromptParser, this.model, []),
+			initService.createInstance(TextModelPromptParser, this.model, {}),
 		).start();
 	}
 
@@ -179,7 +178,7 @@ suite('TextModelPromptParser', () => {
 
 	test('• core logic #1', async () => {
 		const test = createTest(
-			createURI('/foo/bar.md'),
+			URI.file('/foo/bar.md'),
 			[
 				/* 01 */"The quick brown fox tries #file:/abs/path/to/file.md online yoga for the first time.",
 				/* 02 */"Maria discovered a stray turtle roaming in her kitchen.",
@@ -198,38 +197,38 @@ suite('TextModelPromptParser', () => {
 
 		await test.validateReferences([
 			new ExpectedReference({
-				uri: createURI('/abs/path/to/file.md'),
+				uri: URI.file('/abs/path/to/file.md'),
 				text: '#file:/abs/path/to/file.md',
 				path: '/abs/path/to/file.md',
 				startLine: 1,
 				startColumn: 27,
 				pathStartColumn: 33,
-				childrenOrError: new OpenFailed(createURI('/abs/path/to/file.md'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/abs/path/to/file.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
-				uri: createURI('/foo/folder/binary.file'),
+				uri: URI.file('/foo/folder/binary.file'),
 				text: '#file:./folder/binary.file',
 				path: './folder/binary.file',
 				startLine: 7,
 				startColumn: 10,
 				pathStartColumn: 16,
-				childrenOrError: new OpenFailed(createURI('/foo/folder/binary.file'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/foo/folder/binary.file'), 'File not found.'),
 			}),
 			new ExpectedReference({
-				uri: createURI('/etc/hosts/random-file.txt'),
+				uri: URI.file('/etc/hosts/random-file.txt'),
 				text: '[md link](/etc/hosts/random-file.txt)',
 				path: '/etc/hosts/random-file.txt',
 				startLine: 7,
 				startColumn: 81,
 				pathStartColumn: 91,
-				childrenOrError: new OpenFailed(createURI('/etc/hosts/random-file.txt'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/etc/hosts/random-file.txt'), 'File not found.'),
 			}),
 		]);
 	});
 
 	test('• core logic #2', async () => {
 		const test = createTest(
-			createURI('/absolute/folder/and/a/filename.txt'),
+			URI.file('/absolute/folder/and/a/filename.txt'),
 			[
 				/* 01 */"The penguin wore sunglasses but never left the iceberg.",
 				/* 02 */"I once saw a cloud that looked like an antique teapot.",
@@ -251,40 +250,40 @@ suite('TextModelPromptParser', () => {
 
 		await test.validateReferences([
 			new ExpectedReference({
-				uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+				uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 				text: '[link text](./foo-bar-baz/another-file.ts)',
 				path: './foo-bar-baz/another-file.ts',
 				startLine: 3,
 				startColumn: 43,
 				pathStartColumn: 55,
-				childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 			}),
 			new ExpectedReference({
-				uri: createURI('/absolute/c/file_name.prompt.md'),
+				uri: URI.file('/absolute/c/file_name.prompt.md'),
 				text: '[caption](../../../c/file_name.prompt.md)',
 				path: '../../../c/file_name.prompt.md',
 				startLine: 6,
 				startColumn: 7,
 				pathStartColumn: 17,
-				childrenOrError: new OpenFailed(createURI('/absolute/c/file_name.prompt.md'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/absolute/c/file_name.prompt.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
-				uri: createURI('/absolute/folder/main.rs'),
+				uri: URI.file('/absolute/folder/main.rs'),
 				text: '#file:../../main.rs',
 				path: '../../main.rs',
 				startLine: 11,
 				startColumn: 36,
 				pathStartColumn: 42,
-				childrenOrError: new OpenFailed(createURI('/absolute/folder/main.rs'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/absolute/folder/main.rs'), 'File not found.'),
 			}),
 			new ExpectedReference({
-				uri: createURI('/absolute/folder/and/a/samefile.jpeg'),
+				uri: URI.file('/absolute/folder/and/a/samefile.jpeg'),
 				text: '#file:./somefolder/../samefile.jpeg',
 				path: './somefolder/../samefile.jpeg',
 				startLine: 11,
 				startColumn: 56,
 				pathStartColumn: 62,
-				childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
+				childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
 			}),
 		]);
 	});
@@ -293,7 +292,7 @@ suite('TextModelPromptParser', () => {
 		suite(' • metadata', () => {
 			test('• has correct \'prompt\' metadata', async () => {
 				const test = createTest(
-					createURI('/absolute/folder/and/a/filename.txt'),
+					URI.file('/absolute/folder/and/a/filename.txt'),
 					[
 					/* 01 */"---",
 					/* 02 */"description: 'My prompt.'\t\t",
@@ -302,7 +301,7 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
-					/* 07 */"	include: 'frontend/**/*spec.ts'",
+					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
 					/* 08 */"---",
 					/* 09 */"The cactus on my desk has a thriving Instagram account.",
 					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
@@ -314,13 +313,13 @@ suite('TextModelPromptParser', () => {
 
 				await test.validateReferences([
 					new ExpectedReference({
-						uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 						text: '[text](./foo-bar-baz/another-file.ts)',
 						path: './foo-bar-baz/another-file.ts',
 						startLine: 11,
 						startColumn: 43,
 						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 					}),
 				]);
 
@@ -330,7 +329,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo } = metadata;
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
@@ -350,15 +349,15 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					undefined,
-					`Prompt header must have no 'include' metadata.`,
+					`Prompt header must have no 'applyTo' metadata.`,
 				);
 			});
 
 			test('• has correct \'instructions\' metadata', async () => {
 				const test = createTest(
-					createURI('/absolute/folder/and/a/filename.instructions.md'),
+					URI.file('/absolute/folder/and/a/filename.instructions.md'),
 					[
 					/* 01 */"---",
 					/* 02 */"description: 'My prompt.'\t\t",
@@ -367,7 +366,7 @@ suite('TextModelPromptParser', () => {
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
 					/* 07 */"	mode: 'agent'",
-					/* 07 */"	include: 'frontend/**/*spec.ts'",
+					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
 					/* 08 */"---",
 					/* 09 */"The cactus on my desk has a thriving Instagram account.",
 					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
@@ -380,13 +379,13 @@ suite('TextModelPromptParser', () => {
 
 				await test.validateReferences([
 					new ExpectedReference({
-						uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 						text: '[text](./foo-bar-baz/another-file.ts)',
 						path: './foo-bar-baz/another-file.ts',
 						startLine: 11,
 						startColumn: 43,
 						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 					}),
 				]);
 
@@ -396,7 +395,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { tools, mode, description, include } = metadata;
+				const { tools, mode, description, applyTo } = metadata;
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
@@ -416,9 +415,9 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					'frontend/**/*spec.ts',
-					`Prompt header must have no 'include' metadata.`,
+					`Prompt header must have no 'applyTo' metadata.`,
 				);
 			});
 		});
@@ -426,7 +425,7 @@ suite('TextModelPromptParser', () => {
 		suite('• diagnostics', () => {
 			test('• core logic', async () => {
 				const test = createTest(
-					createURI('/absolute/folder/and/a/filename.txt'),
+					URI.file('/absolute/folder/and/a/filename.txt'),
 					[
 					/* 01 */"---",
 					/* 02 */"	description: true \t ",
@@ -446,13 +445,13 @@ suite('TextModelPromptParser', () => {
 
 				await test.validateReferences([
 					new ExpectedReference({
-						uri: createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
 						text: '[text](./foo-bar-baz/another-file.ts)',
 						path: './foo-bar-baz/another-file.ts',
 						startLine: 10,
 						startColumn: 43,
 						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 					}),
 				]);
 
@@ -512,14 +511,14 @@ suite('TextModelPromptParser', () => {
 				]);
 			});
 
-			suite('• include metadata', () => {
+			suite('• applyTo metadata', () => {
 				suite('• language', () => {
 					test('• prompt', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/my.prompt.md'),
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
 					/* 01 */"---",
-					/* 02 */"include: '**/*'",
+					/* 02 */"applyTo: '**/*'",
 					/* 03 */"mode: \"ask\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
@@ -535,7 +534,7 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						const { include, mode } = metadata;
+						const { applyTo, mode } = metadata;
 						assert.strictEqual(
 							mode,
 							ChatMode.Ask,
@@ -543,24 +542,24 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							include === undefined,
-							'Include metadata must not be defined.',
+							applyTo === undefined,
+							'ApplyTo metadata must not be defined.',
 						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 1, 2, 1 + 15),
-								'The \'include\' metadata record is only valid in instruction files.',
+								'The \'applyTo\' metadata record is only valid in instruction files.',
 							),
 						]);
 					});
 
 					test('• instructions', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/my.prompt.md'),
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
 					/* 01 */"---",
-					/* 02 */"include: '**/*'",
+					/* 02 */"applyTo: '**/*'",
 					/* 03 */"mode: \"edit\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
@@ -576,7 +575,7 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						const { include, mode } = metadata;
+						const { applyTo, mode } = metadata;
 						assert.strictEqual(
 							mode,
 							ChatMode.Edit,
@@ -584,9 +583,9 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert.strictEqual(
-							include,
+							applyTo,
 							'**/*',
-							'Include metadata must have correct value.',
+							'ApplyTo metadata must have correct value.',
 						);
 
 						await test.validateHeaderDiagnostics([]);
@@ -596,11 +595,11 @@ suite('TextModelPromptParser', () => {
 
 			test('• invalid glob pattern', async () => {
 				const test = createTest(
-					createURI('/absolute/folder/and/a/my.prompt.md'),
+					URI.file('/absolute/folder/and/a/my.prompt.md'),
 					[
 					/* 01 */"---",
 					/* 02 */"mode: \"agent\"",
-					/* 03 */"include: ''",
+					/* 03 */"applyTo: ''",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 					],
@@ -615,7 +614,7 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				const { include, mode } = metadata;
+				const { applyTo, mode } = metadata;
 				assert.strictEqual(
 					mode,
 					ChatMode.Agent,
@@ -623,9 +622,9 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert.strictEqual(
-					include,
+					applyTo,
 					undefined,
-					'Include metadata must not be defined.',
+					'ApplyTo metadata must not be defined.',
 				);
 
 				await test.validateHeaderDiagnostics([
@@ -640,7 +639,7 @@ suite('TextModelPromptParser', () => {
 				suite('• tools is set', () => {
 					test('• ask mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
@@ -680,7 +679,7 @@ suite('TextModelPromptParser', () => {
 
 					test('• edit mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
@@ -720,7 +719,7 @@ suite('TextModelPromptParser', () => {
 
 					test('• agent mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
@@ -755,7 +754,7 @@ suite('TextModelPromptParser', () => {
 
 					test('• no mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
@@ -791,7 +790,7 @@ suite('TextModelPromptParser', () => {
 				suite('• tools is not set', () => {
 					test('• ask mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"description: ['my prompt', 'description.']",
@@ -831,7 +830,7 @@ suite('TextModelPromptParser', () => {
 
 					test('• edit mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"description: my prompt description. \t\t  \t\t   ",
@@ -887,7 +886,7 @@ suite('TextModelPromptParser', () => {
 
 					test('• agent mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"mode: \"agent\"",
@@ -921,7 +920,7 @@ suite('TextModelPromptParser', () => {
 
 					test('• no mode', async () => {
 						const test = createTest(
-							createURI('/absolute/folder/and/a/filename.txt'),
+							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"description: 'My prompt.'",
@@ -959,7 +958,7 @@ suite('TextModelPromptParser', () => {
 
 	test('• gets disposed with the model', async () => {
 		const test = createTest(
-			createURI('/some/path/file.prompt.md'),
+			URI.file('/some/path/file.prompt.md'),
 			[
 				'line1',
 				'line2',
@@ -979,7 +978,7 @@ suite('TextModelPromptParser', () => {
 	});
 
 	test('• toString() implementation', async () => {
-		const modelUri = createURI('/Users/legomushroom/repos/prompt-snippets/README.md');
+		const modelUri = URI.file('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,
 			[

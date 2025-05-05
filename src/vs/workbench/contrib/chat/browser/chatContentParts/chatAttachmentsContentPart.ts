@@ -144,7 +144,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			const renderLabelWithIcon = (attachment: IChatRequestVariableEntry) => {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
-				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
 				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
 			};
 

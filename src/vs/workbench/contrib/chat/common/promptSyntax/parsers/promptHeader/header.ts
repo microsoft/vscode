@@ -5,7 +5,7 @@
 
 import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
-import { PromptIncludeMetadata } from './metadata/include.js';
+import { PromptApplyToMetadata } from './metadata/applyTo.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
@@ -37,9 +37,9 @@ export interface IHeaderMetadata {
 	mode?: PromptModeMetadata;
 
 	/**
-	 * Chat include metadata in the prompt header.
+	 * Chat 'applyTo' metadata in the prompt header.
 	 */
-	include?: PromptIncludeMetadata;
+	applyTo?: PromptApplyToMetadata;
 }
 
 /**
@@ -186,14 +186,14 @@ export class PromptHeader extends Disposable {
 			return this.validateToolsAndModeCompatibility();
 		}
 
-		// if the record might be a "include" metadata
+		// if the record might be a "applyTo" metadata
 		// add it to the list of parsed metadata records
-		if (PromptIncludeMetadata.isIncludeRecord(token)) {
-			const includeMetadata = new PromptIncludeMetadata(token, this.languageId);
-			const { diagnostics } = includeMetadata;
+		if (PromptApplyToMetadata.isApplyToRecord(token)) {
+			const applyToMetadata = new PromptApplyToMetadata(token, this.languageId);
+			const { diagnostics } = applyToMetadata;
 
 			this.issues.push(...diagnostics);
-			this.meta.include = includeMetadata;
+			this.meta.applyTo = applyToMetadata;
 			this.recordNames.add(recordName);
 
 			return;
@@ -219,15 +219,15 @@ export class PromptHeader extends Disposable {
 	private get toolsAndModeCompatible(): boolean {
 		const { tools, mode } = this.meta;
 
-		// if `mode` is not set or equal to `agent` mode,
-		// then the tools metadata can have any value so noop
-		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
-			return true;
-		}
-
 		// if `tools` is not set, then the mode metadata
 		// can have any value so skip the validation
 		if (tools === undefined) {
+			return true;
+		}
+
+		// if `mode` is not set or equal to `agent` mode,
+		// then the tools metadata can have any value so noop
+		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
 			return true;
 		}
 

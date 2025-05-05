@@ -109,8 +109,15 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 			const servers: McpServerDefinition.Serialized[] = [];
 			for (const item of list ?? []) {
+				let id = ExtensionIdentifier.toKey(extension.identifier) + '/' + item.label;
+				if (servers.some(s => s.id === id)) {
+					let i = 2;
+					while (servers.some(s => s.id === id + i)) { i++; }
+					id = id + i;
+				}
+
 				servers.push({
-					id: ExtensionIdentifier.toKey(extension.identifier),
+					id,
 					label: item.label,
 					cacheNonce: item.version,
 					launch: Convert.McpServerDefinition.from(item)

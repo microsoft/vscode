@@ -15,6 +15,24 @@ import { FailedToResolveContentsStream, ResolveError } from '../../promptFileRef
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
 
 /**
+ * Options of the {@link PromptContentsProviderBase} class.
+ */
+export interface IPromptContentsProviderOptions {
+	/**
+	 * Whether to allow files that don't have usual prompt
+	 * file extension to be treated as a prompt file.
+	 */
+	readonly allowNonPromptFiles: boolean;
+}
+
+/**
+ * Default {@link IPromptContentsProviderOptions} options.
+ */
+export const DEFAULT_OPTIONS: IPromptContentsProviderOptions = {
+	allowNonPromptFiles: false,
+};
+
+/**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
  *
  * - implement the {@link getContentsStream} method to provide the contents stream
@@ -34,11 +52,8 @@ export abstract class PromptContentsProviderBase<
 	public abstract readonly uri: URI;
 	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
 	public abstract override toString(): string;
-
-	/**
-	 * Language ID of the prompt contents.
-	 */
 	public abstract get languageId(): string;
+	public abstract get sourceName(): string;
 
 	/**
 	 * Function to get contents stream for the provider. This function should
@@ -60,8 +75,22 @@ export abstract class PromptContentsProviderBase<
 	 */
 	protected readonly onChangeEmitter = this._register(new Emitter<TChangeEvent | 'full'>());
 
-	constructor() {
+	/**
+	 * Options passed to the constructor, extended with
+	 * value defaults from {@link DEFAULT_OPTIONS}.
+	 */
+	protected readonly options: IPromptContentsProviderOptions;
+
+	constructor(
+		options: Partial<IPromptContentsProviderOptions>,
+	) {
 		super();
+
+		this.options = {
+			...DEFAULT_OPTIONS,
+			...options,
+		};
+
 		// ensure that the `onChangeEmitter` always fires with the correct context
 		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
 	}

@@ -26,31 +26,29 @@ export interface IChatAttachmentChangeEvent {
 }
 
 export class ChatAttachmentModel extends Disposable {
-	/**
-	 * Collection on prompt instruction attachments.
-	 */
-	public readonly promptInstructions: ChatPromptAttachmentsCollection;
+
+	readonly promptInstructions: ChatPromptAttachmentsCollection;
+	private readonly _attachments = new Map<string, IChatRequestVariableEntry>();
+
+	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService instaService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 
-		this.promptInstructions = this._register(
-			this.initService.createInstance(ChatPromptAttachmentsCollection),
-		);
+		this.promptInstructions = this._register(instaService.createInstance(ChatPromptAttachmentsCollection));
 	}
 
-	private _attachments = new Map<string, IChatRequestVariableEntry>();
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
 		return Array.from(this._attachments.values());
 	}
 
-	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
-	readonly onDidChange = this._onDidChange.event;
+
 
 	get size(): number {
 		return this._attachments.size;
@@ -65,9 +63,7 @@ export class ChatAttachmentModel extends Disposable {
 		return new Set(this._attachments.keys());
 	}
 
-	clear(
-		clearStickyAttachments: boolean = false,
-	): void {
+	clear(clearStickyAttachments: boolean = false): void {
 		const deleted = Array.from(this._attachments.keys());
 		this._attachments.clear();
 
