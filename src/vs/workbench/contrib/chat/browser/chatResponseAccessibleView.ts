@@ -66,6 +66,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			responseContent = item.errorDetails.message;
 		}
 		if (isResponseVM(item)) {
+
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
 				if (toolInvocation.confirmationMessages) {
@@ -78,7 +79,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					}
 					responseContent += `\n${message}\n`;
 				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
-					responseContent += toolInvocation.resultDetails.isError ? '\nErrored ' : '\nCompleted ';
+					responseContent += `\nTool calls used in this response:\n`;
+					responseContent += toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
 					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
 				}
 			}
