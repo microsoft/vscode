@@ -45,7 +45,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, lineNumber: number, lineHeight: number, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, lineNumber: number, lineHeight: number, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, _wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -64,23 +64,23 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, lineNumber: numbe
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
-	let _wrappingIndent: "none" | "same" | "indent" | "deepIndent" | undefined;
-	switch (wrappingIndent) {
+	let wrappingIndent: "none" | "same" | "indent" | "deepIndent" | undefined;
+	switch (_wrappingIndent) {
 		case WrappingIndent.None:
-			_wrappingIndent = 'none';
+			wrappingIndent = 'none';
 			break;
 		case WrappingIndent.Same:
-			_wrappingIndent = 'same';
+			wrappingIndent = 'same';
 			break;
 		case WrappingIndent.Indent:
-			_wrappingIndent = 'indent';
+			wrappingIndent = 'indent';
 			break;
 		case WrappingIndent.DeepIndent:
-			_wrappingIndent = 'deepIndent';
+			wrappingIndent = 'deepIndent';
 			break;
 	}
 	const configuration = new TestConfiguration({
-		wrappingIndent: _wrappingIndent,
+		wrappingIndent,
 		wordBreak,
 		fontFamily: fontInfo.fontFamily,
 		fontWeight: fontInfo.fontWeight,

@@ -56,7 +56,6 @@ export class InlineCompletionsView extends Disposable {
 		.recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _fontFamily = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => val.fontFamily);
-	private readonly _cursorSelection = this._editorObs.cursorSelection;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -68,7 +67,7 @@ export class InlineCompletionsView extends Disposable {
 
 		this._register(createStyleSheetFromObservable(derived(reader => {
 			const fontFamily = this._fontFamily.read(reader);
-			const cursorSelection = this._cursorSelection.read(reader);
+			const cursorSelection = this._editorObs.cursorSelection.read(reader);
 			if (fontFamily === '' || fontFamily === 'default' || !cursorSelection) { return ''; }
 			let fontSize: number = this._editor.getOption(EditorOption.fontSize);
 			const endPosition = cursorSelection.getEndPosition();

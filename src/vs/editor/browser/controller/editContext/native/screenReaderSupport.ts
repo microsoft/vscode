@@ -233,14 +233,13 @@ export class ScreenReaderSupport {
 			const postLineDom = document.createElement('div');
 			postLineDom.textContent = postPositionLineText;
 			this.setIgnoreSelectionChangeTime('setValue');
-
 			const domNode = this._domNode.domNode;
 			domNode.classList.add('monaco-editor');
-			// domNode.style.height = `${String(lineHeight)}px`;
-			// domNode.style.lineHeight = `${String(lineHeight)}px`;
+			domNode.style.height = `${String(lineHeight)}px`;
+			domNode.style.lineHeight = `${String(lineHeight)}px`;
 			// debugging
-			domNode.style.overflow = 'visible';
-			domNode.style.background = 'white';
+			// domNode.style.overflow = 'visible';
+			// domNode.style.background = 'white';
 			domNode.replaceChildren(preLineDom, activeLineDom, postLineDom);
 			console.log('domNode : ', domNode);
 

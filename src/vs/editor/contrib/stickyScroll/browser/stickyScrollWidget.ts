@@ -42,6 +42,7 @@ export class StickyScrollWidgetState {
 	}
 }
 
+
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
 const STICKY_INDEX_ATTR = 'data-sticky-line-index';
 const STICKY_IS_LINE_ATTR = 'data-sticky-is-line';

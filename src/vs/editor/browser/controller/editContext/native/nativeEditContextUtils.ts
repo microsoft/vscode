@@ -224,9 +224,7 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 			startPositionWithinEditor,
 			newlineCountBeforeSelection
 		);
-
 		console.log('viewSelection : ', viewSelection);
-
 		return state;
 	}
 }

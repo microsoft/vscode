@@ -1587,6 +1587,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null, affectedLineHeights: Set<LineHeightChangingDecoration> | null, affectedFontLines: Set<LineFontChangingDecoration> | null): void {
 		// This is called before the decoration changed event is fired.
+
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
 			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
@@ -1898,12 +1899,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
 			this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, nodeRange.startLineNumber, options.lineHeight);
 		}
-		if (
-			node.options.fontFamily !== null || options.fontFamily !== null
+		if (node.options.fontFamily !== null || options.fontFamily !== null
 			|| node.options.fontSize !== null || options.fontSize !== null
 			|| node.options.fontStyle !== null || options.fontStyle !== null
-			|| node.options.fontWeight !== null || options.fontWeight !== null
-		) {
+			|| node.options.fontWeight !== null || options.fontWeight !== null) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
 			const endColumn = nodeRange.endLineNumber === nodeRange.startLineNumber ? nodeRange.endColumn : this.getLineMaxColumn(nodeRange.startLineNumber);
 			const fontDecoration = new FontDecoration(

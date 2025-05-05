@@ -78,10 +78,6 @@ export class ViewLine implements IVisibleLine {
 		}
 	}
 
-	public get options(): ViewLineOptions {
-		return this._options;
-	}
-
 	public onContentChanged(): void {
 		this._isMaybeInvalid = true;
 	}

@@ -280,6 +280,7 @@ function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: numb
 
 	lowRects = lowRects || readClientRect(range, spans, charOffsets[low], spanOffsets[low], charOffsets[low + 1], spanOffsets[low + 1]);
 	highRects = highRects || readClientRect(range, spans, charOffsets[high], spanOffsets[high], charOffsets[high + 1], spanOffsets[high + 1]);
+
 	if (Math.abs(lowRects[0].top - highRects[0].top) <= lineHeight / 2) {
 		// same line
 		return;
@@ -299,9 +300,7 @@ function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: numb
 }
 
 function readClientRect(range: Range, spans: HTMLSpanElement[], startCharacterOffset: number, startSpanOffset: number, endCharacterOffset: number, endSpanOffset: number): DOMRectList {
-	const startNode = spans[startSpanOffset].firstChild!;
-	const endNode = spans[endSpanOffset].firstChild!;
-	range.setStart(startNode, startCharacterOffset);
-	range.setEnd(endNode, endCharacterOffset);
+	range.setStart(spans[startSpanOffset].firstChild!, startCharacterOffset);
+	range.setEnd(spans[endSpanOffset].firstChild!, endCharacterOffset);
 	return range.getClientRects();
 }

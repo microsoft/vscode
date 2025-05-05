@@ -400,7 +400,7 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		// completely empty line
 		sb.appendString('<span><span></span></span>');
 		return new RenderLineOutput(
-			new CharacterMapping(0, 0), // re-use
+			new CharacterMapping(0, 0),
 			false,
 			ForeignElementType.None,
 			[],
