@@ -11,10 +11,10 @@ import { FrontMatterMarker } from '../../../../../../../../../../editor/common/c
  * Decoration CSS class names.
  */
 export enum CssClassNames {
-	main = '.prompt-front-matter-decoration-marker',
-	inline = '.prompt-front-matter-decoration-marker-inline',
-	mainInactive = `${CssClassNames.main}${CssClassModifiers.inactive}`,
-	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.inactive}`,
+	Main = '.prompt-front-matter-decoration-marker',
+	Inline = '.prompt-front-matter-decoration-marker-inline',
+	MainInactive = `${CssClassNames.Main}${CssClassModifiers.Inactive}`,
+	InlineInactive = `${CssClassNames.Inline}${CssClassModifiers.Inactive}`,
 }
 
 /**
@@ -44,10 +44,10 @@ export class FrontMatterMarkerDecoration extends ReactiveDecorationBase<FrontMat
 
 	public static get cssStyles(): TDecorationStyles {
 		return {
-			[CssClassNames.inline]: [
+			[CssClassNames.Inline]: [
 				'color: var(--vscode-disabledForeground);',
 			],
-			[CssClassNames.inlineInactive]: [
+			[CssClassNames.InlineInactive]: [
 				'opacity: 0.25;',
 			],
 		};

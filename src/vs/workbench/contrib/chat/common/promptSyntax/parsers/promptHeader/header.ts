@@ -170,7 +170,8 @@ export class PromptHeader extends Disposable {
 			this.meta.tools = toolsMetadata;
 			this.recordNames.add(recordName);
 
-			return this.validateToolsAndModeCompatibility();
+			this.validateToolsAndModeCompatibility();
+			return;
 		}
 
 		// if the record might be a "mode" metadata
@@ -183,7 +184,8 @@ export class PromptHeader extends Disposable {
 			this.meta.mode = modeMetadata;
 			this.recordNames.add(recordName);
 
-			return this.validateToolsAndModeCompatibility();
+			this.validateToolsAndModeCompatibility();
+			return;
 		}
 
 		// if the record might be a "applyTo" metadata

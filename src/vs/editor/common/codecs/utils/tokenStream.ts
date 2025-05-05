@@ -123,14 +123,16 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 
 	public pause(): void {
 		this.stopStream();
+		this.stream.pause();
 
-		return this.stream.pause();
+		return;
 	}
 
 	public resume(): void {
 		this.startStream();
+		this.stream.resume();
 
-		return this.stream.resume();
+		return;
 	}
 
 	public destroy(): void {
@@ -138,7 +140,9 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	}
 
 	public removeListener(event: string, callback: Function): void {
-		return this.stream.removeListener(event, callback);
+		this.stream.removeListener(event, callback);
+
+		return;
 	}
 
 	public on(event: 'data', callback: (data: T) => void): void;
@@ -155,11 +159,13 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 		}
 
 		if (event === 'error') {
-			return this.stream.on(event, callback);
+			this.stream.on(event, callback);
+			return;
 		}
 
 		if (event === 'end') {
-			return this.stream.on(event, callback);
+			this.stream.on(event, callback);
+			return;
 		}
 
 		assertNever(

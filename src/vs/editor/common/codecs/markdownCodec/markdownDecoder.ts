@@ -116,7 +116,9 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderT
 			if (this.current instanceof MarkdownCommentStart) {
 				this._onData.fire(this.current.asMarkdownComment());
 				delete this.current;
-				return this.onStreamEnd();
+				this.onStreamEnd();
+
+				return;
 			}
 
 			// in all other cases, re-emit existing parser tokens

@@ -61,13 +61,15 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 				if (event.contains(this.uri, FileChangeType.ADDED, FileChangeType.UPDATED)) {
 					// we support only full file parsing right now because
 					// the event doesn't contain a list of changed lines
-					return this.onChangeEmitter.fire('full');
+					this.onChangeEmitter.fire('full');
+					return;
 				}
 
 				// if file was deleted, forward the event to
 				// the `getContentsStream()` produce an error
 				if (event.contains(this.uri, FileChangeType.DELETED)) {
-					return this.onChangeEmitter.fire(event);
+					this.onChangeEmitter.fire(event);
+					return;
 				}
 			}),
 		);

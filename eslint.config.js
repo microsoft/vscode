@@ -1471,61 +1471,61 @@ export default tseslint.config(
 					allowDirectConstAssertionInArrowFunctions: false,
 				},
 			],
-			// '@typescript-eslint/explicit-member-accessibility': [
+			'@typescript-eslint/explicit-member-accessibility': [
+				'error',
+				{
+					accessibility: 'explicit',
+					ignoredMethodNames: ['constructor'],
+				},
+			],
+			'no-shadow': 'off', '@typescript-eslint/no-shadow': 'error',
+			'@typescript-eslint/ban-ts-comment': 'error',
+			'default-param-last': 'off', '@typescript-eslint/default-param-last': 'error',
+			'no-array-constructor': 'off', '@typescript-eslint/no-array-constructor': 'error',
+			'@typescript-eslint/explicit-module-boundary-types': 'error',
+			'@typescript-eslint/no-array-delete': 'error',
+			'@typescript-eslint/no-base-to-string': 'error',
+			'@typescript-eslint/no-confusing-non-null-assertion': 'error',
+			'@typescript-eslint/no-confusing-void-expression': 'error',
+			// '@typescript-eslint/no-duplicate-enum-values': 'error',
+			// '@typescript-eslint/no-dynamic-delete': 'error',
+			// 'no-empty-function': 'off', '@typescript-eslint/no-empty-function': [
 			// 	'error',
 			// 	{
-			// 		accessibility: 'explicit',
-			// 		ignoredMethodNames: ['constructor'],
+			// 		'allow': [
+			// 			'private-constructors'
+			// 		]
 			// 	}
 			// ],
-			// 'no-shadow': 'off', '@typescript-eslint/no-shadow': 'error',
-			// '@typescript-eslint/ban-ts-comment': 'error',
-			// 'default-param-last': 'off', '@typescript-eslint/default-param-last': 'error',
-			// 'no-array-constructor': 'off', '@typescript-eslint/no-array-constructor': 'error',
-			// // '@typescript-eslint/explicit-module-boundary-types': 'error',
-			// // '@typescript-eslint/no-array-delete': 'error',
-			// // '@typescript-eslint/no-base-to-string': 'error',
-			// // '@typescript-eslint/no-confusing-non-null-assertion': 'error',
-			// // '@typescript-eslint/no-confusing-void-expression': 'error',
-			// // '@typescript-eslint/no-duplicate-enum-values': 'error',
-			// // '@typescript-eslint/no-dynamic-delete': 'error',
-			// // 'no-empty-function': 'off', '@typescript-eslint/no-empty-function': [
-			// // 	'error',
-			// // 	{
-			// // 		'allow': [
-			// // 			'private-constructors'
-			// // 		]
-			// // 	}
-			// // ],
-			// // '@typescript-eslint/no-empty-object-type': 'error',
-			// // '@typescript-eslint/no-explicit-any': 'error',
-			// // '@typescript-eslint/no-extra-non-null-assertion': 'error',
-			// // '@typescript-eslint/no-extraneous-class': 'error',
-			// // '@typescript-eslint/no-floating-promises': 'error',
-			// // '@typescript-eslint/no-for-in-array': 'error',
-			// // 'no-implied-eval': 'off', '@typescript-eslint/no-implied-eval': 'error',
-			// // '@typescript-eslint/no-invalid-void-type': 'error',
-			// // 'no-loop-func': 'off', '@typescript-eslint/no-loop-func': 'error',
-			// // '@typescript-eslint/no-misused-new': 'warn',
-			// // '@typescript-eslint/no-misused-promises': 'error',
-			// // '@typescript-eslint/no-mixed-enums': 'error',
-			// // '@typescript-eslint/no-non-null-asserted-nullish-coalescing': 'error',
-			// // '@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
-			// // '@typescript-eslint/no-non-null-assertion': 'error',
-			// // '@typescript-eslint/no-redundant-type-constituents': 'error',
-			// '@typescript-eslint/naming-convention': [
-			// 	'warn',
-			// 	{ 'selector': 'variable', 'format': ['camelCase', 'UPPER_CASE', 'PascalCase'] },
-			// 	{ 'selector': 'variable', 'filter': '^I.+Service$', 'format': ['PascalCase'], 'prefix': ['I'] },
-			// 	{ 'selector': 'enumMember', 'format': ['PascalCase'] },
-			// 	{ 'selector': 'typeAlias', 'format': ['PascalCase'], 'prefix': ['T'] },
-			// 	{ 'selector': 'interface', 'format': ['PascalCase'], 'prefix': ['I'] }
-			// ],
-			// // 'comma-dangle': ['warn', 'only-multiline'],
-			// // // // // TODO: @lego
-			// // // // '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
-			// // // // TODO: @lego - comes from 'tseslint.configs.recommendedTypeChecked', but does not allow objects with `toString()` implementations
-			// // // '@typescript-eslint/restrict-template-expressions': 'off',
+			// '@typescript-eslint/no-empty-object-type': 'error',
+			// '@typescript-eslint/no-explicit-any': 'error',
+			// '@typescript-eslint/no-extra-non-null-assertion': 'error',
+			// '@typescript-eslint/no-extraneous-class': 'error',
+			// '@typescript-eslint/no-floating-promises': 'error',
+			// '@typescript-eslint/no-for-in-array': 'error',
+			// 'no-implied-eval': 'off', '@typescript-eslint/no-implied-eval': 'error',
+			// '@typescript-eslint/no-invalid-void-type': 'error',
+			// 'no-loop-func': 'off', '@typescript-eslint/no-loop-func': 'error',
+			// '@typescript-eslint/no-misused-new': 'warn',
+			// '@typescript-eslint/no-misused-promises': 'error',
+			// '@typescript-eslint/no-mixed-enums': 'error',
+			// '@typescript-eslint/no-non-null-asserted-nullish-coalescing': 'error',
+			// '@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
+			// '@typescript-eslint/no-non-null-assertion': 'error',
+			// '@typescript-eslint/no-redundant-type-constituents': 'error',
+			'@typescript-eslint/naming-convention': [
+				'warn',
+				{ 'selector': 'variable', 'format': ['camelCase', 'UPPER_CASE', 'PascalCase'] },
+				{ 'selector': 'variable', 'filter': '^I.+Service$', 'format': ['PascalCase'], 'prefix': ['I'] },
+				{ 'selector': 'enumMember', 'format': ['PascalCase'] },
+				{ 'selector': 'typeAlias', 'format': ['PascalCase'], 'prefix': ['T'] },
+				{ 'selector': 'interface', 'format': ['PascalCase'], 'prefix': ['I'] }
+			],
+			'comma-dangle': ['warn', 'only-multiline'],
+			// // // // TODO: @lego
+			// // // '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
+			// // // TODO: @lego - comes from 'tseslint.configs.recommendedTypeChecked', but does not allow objects with `toString()` implementations
+			// // '@typescript-eslint/restrict-template-expressions': 'off',
 		}
 	},
 );
