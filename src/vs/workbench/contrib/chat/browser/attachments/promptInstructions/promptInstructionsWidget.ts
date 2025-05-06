@@ -84,7 +84,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.render = this.render.bind(this);
 		this.dispose = this.dispose.bind(this);
 
-		this.model.onUpdate(this.render);
+		this._register(this.model.onUpdate(this.render));
 		this.model.onDispose(this.dispose);
 
 		this.render();

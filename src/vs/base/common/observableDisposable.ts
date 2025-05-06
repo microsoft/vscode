@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from './event.js';
-import { Disposable } from './lifecycle.js';
+import { Disposable, IDisposable } from './lifecycle.js';
 
 /**
  * Disposable object that tracks its {@linkcode disposed} state
@@ -33,6 +33,14 @@ export abstract class ObservableDisposable extends Disposable {
 
 		// otherwise subscribe to the event
 		this._register(this._onDispose.event(callback));
+		return this;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public addDisposable(disposable: IDisposable): this {
+		this._register(disposable);
 		return this;
 	}
 
