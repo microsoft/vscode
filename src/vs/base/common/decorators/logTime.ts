@@ -7,11 +7,6 @@ import { assertNever } from '../assert.js';
 import { assertDefined } from '../types.js';
 
 /**
- * Type for supported log levels argument of the decorator.
- */
-export type TLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
-
-/**
  * Interface for an object that provides logging methods.
  */
 export interface ILogger {
@@ -72,7 +67,7 @@ type TObjectWithLogger<T extends object> = T & { logger: ILogger };
  * ```
  */
 export function logTime(
-	logLevel: TLogLevel = 'trace',
+	logLevel: keyof ILogger = 'trace',
 ) {
 	return function logExecutionTimeDecorator<
 		TObject extends TObjectWithLogger<object>,
@@ -171,7 +166,7 @@ export const logExecutionTime = <T>(
 /**
  * Gets method of {@link logger} by the provided {@link logLevel}.
  */
-const getLogFunction = <T extends TLogLevel>(
+const getLogFunction = <T extends keyof ILogger>(
 	logLevel: T,
 	logger: ILogger,
 ): ILogger[T] => {

@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { randomInt } from '../../common/numbers.js';
 import { mockObject, waitRandom } from './testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { ILogger, logExecutionTime, logTime, TLogLevel } from '../../common/decorators/logTime.js';
+import { ILogger, logExecutionTime, logTime } from '../../common/decorators/logTime.js';
 
 suite('logTime', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,7 +36,7 @@ suite('logTime', () => {
 
 	suite('• decorator', () => {
 		suite('• async method', () => {
-			const logLevels: TLogLevel[] = [
+			const logLevels: (keyof ILogger)[] = [
 				'trace', 'debug', 'info', 'warn', 'error',
 			];
 
@@ -101,7 +101,7 @@ suite('logTime', () => {
 		});
 
 		suite('• sync method', () => {
-			const logLevels: TLogLevel[] = [
+			const logLevels: (keyof ILogger)[] = [
 				'trace', 'debug', 'info', 'warn', 'error',
 			];
 
@@ -216,7 +216,7 @@ suite('logTime', () => {
 
 	suite('• logExecutionTime helper', () => {
 		suite('• async function', () => {
-			const logLevels: TLogLevel[] = [
+			const logLevels: (keyof ILogger)[] = [
 				'trace', 'debug', 'info', 'warn', 'error',
 			];
 
@@ -273,7 +273,7 @@ suite('logTime', () => {
 		});
 
 		suite('• sync function', () => {
-			const logLevels: TLogLevel[] = [
+			const logLevels: (keyof ILogger)[] = [
 				'trace', 'debug', 'info', 'warn', 'error',
 			];
 
