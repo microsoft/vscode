@@ -11,9 +11,9 @@ import { ObservableDisposable } from '../../../../base/common/observableDisposab
 import { newWriteableStream, WriteableStream, ReadableStream } from '../../../../base/common/stream.js';
 
 /**
- * A readable stream of provided tokens.
+ * A readable stream of provided objects.
  */
-export class Stream<T extends object> extends ObservableDisposable implements ReadableStream<T> {
+export class ObjectStream<T extends object> extends ObservableDisposable implements ReadableStream<T> {
 	/**
 	 * Flag that indicates whether the stream has ended.
 	 */
@@ -26,9 +26,9 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 
 	/**
 	 * Interval reference that is used to periodically send
-	 * tokens to the stream in the background.
+	 * objects to the stream in the background.
 	 */
-	private interval: ReturnType<typeof setTimeout> | undefined;
+	private timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		private readonly data: Generator<T, undefined>,
@@ -43,15 +43,15 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 			return;
 		}
 
-		// send a first batch of tokens immediately
+		// send a first batch of data immediately
 		this.send(true);
 	}
 
 	/**
-	 * Starts process of sending tokens to the stream.
+	 * Starts process of sending data to the stream.
 	 *
-	 * @param stopAfterFirstSend whether to continue sending data to the stream or
-	 *             stop sending after the first batch of data is sent
+	 * @param stopAfterFirstSend whether to continue sending data to the stream
+	 *             or stop sending after the first batch of data is sent instead
 	 */
 	public send(
 		stopAfterFirstSend: boolean = false,
@@ -67,7 +67,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 			'Cannot send on already ended stream.',
 		);
 
-		this.sendTokens()
+		this.sendData()
 			.then(() => {
 				if (this.cancellationToken?.isCancellationRequested) {
 					this.end();
@@ -86,7 +86,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 					return;
 				}
 
-				this.interval = setTimeout(this.send.bind(this));
+				this.timeoutHandle = setTimeout(this.send.bind(this));
 			})
 			.catch((error) => {
 				this.stream.error(error);
@@ -95,37 +95,37 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	}
 
 	/**
-	 * Stop tokens sending interval.
+	 * Stop the data sending loop.
 	 */
 	public stopStream(): this {
-		if (this.interval === undefined) {
+		if (this.timeoutHandle === undefined) {
 			return this;
 		}
 
-		clearTimeout(this.interval);
-		delete this.interval;
+		clearTimeout(this.timeoutHandle);
+		delete this.timeoutHandle;
 
 		return this;
 	}
 
 	/**
-	 * Sends a provided number of tokens to the stream.
+	 * Sends a provided number of objects to the stream.
 	 */
-	private async sendTokens(
-		tokensCount: number = 25,
+	private async sendData(
+		objectsCount: number = 25,
 	): Promise<void> {
-		// send up to 'tokensCount' tokens at a time
-		while (tokensCount > 0) {
+		// send up to 'objectsCount' objects at a time
+		while (objectsCount > 0) {
 			try {
-				const token = this.data.next();
-				if (token.done || this.cancellationToken?.isCancellationRequested) {
+				const next = this.data.next();
+				if (next.done || this.cancellationToken?.isCancellationRequested) {
 					this.end();
 
 					return;
 				}
 
-				await this.stream.write(token.value);
-				tokensCount--;
+				await this.stream.write(next.value);
+				objectsCount--;
 			} catch (error) {
 				this.stream.error(error);
 				this.dispose();
@@ -135,7 +135,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	}
 
 	/**
-	 * Ends the stream and stops sending tokens.
+	 * Ends the stream and stops sending data objects.
 	 */
 	private end(): this {
 		if (this.ended) {
@@ -217,8 +217,8 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	public static fromArray<T extends object>(
 		array: T[],
 		cancellationToken?: CancellationToken,
-	): Stream<T> {
-		return new Stream(arrayToGenerator(array), cancellationToken);
+	): ObjectStream<T> {
+		return new ObjectStream(arrayToGenerator(array), cancellationToken);
 	}
 
 	/**
@@ -227,8 +227,8 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	public static fromTextModel(
 		model: ITextModel,
 		cancellationToken?: CancellationToken,
-	): Stream<VSBuffer> {
-		return new Stream(modelToGenerator(model), cancellationToken);
+	): ObjectStream<VSBuffer> {
+		return new ObjectStream(modelToGenerator(model), cancellationToken);
 	}
 }
 

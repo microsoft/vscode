@@ -12,17 +12,17 @@ import { BaseToken } from '../../../../common/codecs/baseToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { arrayToGenerator, Stream } from '../../../../common/codecs/utils/stream.js';
+import { arrayToGenerator, ObjectStream } from '../../../../common/codecs/utils/objectStream.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
-suite('Stream', () => {
+suite('ObjectStream', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('• fromArray()', () => {
-		test('• sends tokens in the array', async () => {
+		test('• sends objects in the array', async () => {
 			const tokens = randomTokens();
 
-			const stream = disposables.add(Stream.fromArray(tokens));
+			const stream = disposables.add(ObjectStream.fromArray(tokens));
 			const receivedTokens = await consume(stream);
 
 			assertTokensEqual(receivedTokens, tokens);
@@ -49,7 +49,7 @@ suite('Stream', () => {
 					URI.file('/foo.js'),
 				),
 			);
-			const stream = disposables.add(Stream.fromTextModel(model));
+			const stream = disposables.add(ObjectStream.fromTextModel(model));
 
 			const receivedData = await consume(stream);
 
@@ -102,7 +102,7 @@ suite('Stream', () => {
 			};
 
 			const stream = disposables.add(
-				Stream.fromTextModel(model, cancellation.token),
+				ObjectStream.fromTextModel(model, cancellation.token),
 			);
 
 			const receivedData = await consume(stream);
@@ -162,7 +162,7 @@ const assertTokensEqual = (
 /**
  * Consume a provided stream and return a list of received data objects.
  */
-const consume = <T extends object>(stream: Stream<T>): Promise<T[]> => {
+const consume = <T extends object>(stream: ObjectStream<T>): Promise<T[]> => {
 	return new Promise((resolve, reject) => {
 		const receivedData: T[] = [];
 		stream.on('data', (token) => {
