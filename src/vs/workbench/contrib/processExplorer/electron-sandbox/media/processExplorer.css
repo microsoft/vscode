@@ -43,6 +43,17 @@
 	flex: 0 0 50px;
 }
 
+.mac:not(.fullscreen) .process-explorer .monaco-list:focus::before {
+	/* Rounded corners to make focus outline appear properly (unless fullscreen) */
+	border-bottom-right-radius: 5px;
+	border-bottom-left-radius: 5px;
+}
+.mac:not(.fullscreen).macos-bigsur-or-newer .process-explorer .monaco-list:focus::before {
+	/* macOS Big Sur increased rounded corners size */
+	border-bottom-right-radius: 10px;
+	border-bottom-left-radius: 10px;
+}
+
 .process-explorer .monaco-list-row:first-of-type {
 	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
 }

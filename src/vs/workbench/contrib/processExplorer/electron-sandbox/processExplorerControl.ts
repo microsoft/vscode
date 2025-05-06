@@ -5,7 +5,7 @@
 
 import './media/processExplorer.css';
 import { localize } from '../../../../nls.js';
-import { ipcRenderer, process } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { $, append, Dimension, getDocument } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -25,6 +25,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -242,7 +243,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 		templateData.pid.textContent = pid;
 		templateData.pid.parentElement!.id = `pid-${pid}`;
 
-		const memory = process.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
+		const memory = isWindows ? element.mem : (this.totalMem * (element.mem / 100));
 		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
 	}
 
