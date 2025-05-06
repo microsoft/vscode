@@ -505,7 +505,7 @@ class ProcessExplorerModel implements IProcessTree {
 		// Processes
 		processRoots.forEach((info, index) => {
 			if (isProcessItem(info.rootProcess)) {
-				info.rootProcess.name = index === 0 ? `${this.productService.applicationName} main` : 'remote agent';
+				info.rootProcess.name = index === 0 ? this.productService.applicationName : 'remote-server';
 			}
 		});
 
