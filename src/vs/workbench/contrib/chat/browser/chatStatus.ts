@@ -277,6 +277,7 @@ class ChatStatusDashboard extends Disposable {
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+	private readonly quotaOverageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
 	private readonly entryDisposables = this._register(new MutableDisposable());
 
@@ -511,7 +512,7 @@ class ChatStatusDashboard extends Disposable {
 			if (quota.unlimited) {
 				quotaValue.textContent = localize('quotaUnlimited', "Included");
 			} else if (quota.overageCount) {
-				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", quota.overageCount);
+				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", this.quotaOverageFormatter.value.format(quota.overageCount));
 			} else {
 				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(usedPercentage));
 			}

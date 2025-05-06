@@ -63,6 +63,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -1235,7 +1236,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
@@ -1576,7 +1577,15 @@ export class SCMHistoryViewPane extends ViewPane {
 				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
 				const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
-				await this._commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+				await this._editorService.openEditor({
+					label: title,
+					multiDiffSource: multiDiffSourceUri,
+					resources: historyItemChanges.map(c => ({
+						original: { resource: c.originalUri },
+						modified: { resource: c.modifiedUri }
+					})),
+					options: e.editorOptions
+				});
 			}
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;

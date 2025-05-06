@@ -9,7 +9,7 @@ import { SimpleToken } from './simpleToken.js';
  * A token that represent a `{` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class LeftCurlyBrace extends SimpleToken {
+export class LeftCurlyBrace extends SimpleToken<'{'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -34,7 +34,7 @@ export class LeftCurlyBrace extends SimpleToken {
  * A token that represent a `}` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class RightCurlyBrace extends SimpleToken {
+export class RightCurlyBrace extends SimpleToken<'}'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
