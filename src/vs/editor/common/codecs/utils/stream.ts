@@ -5,8 +5,8 @@
 
 import { ITextModel } from '../../model.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { assert, assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { assertNever } from '../../../../base/common/assert.js';
 import { ObservableDisposable } from '../../../../base/common/observableDisposable.js';
 import { newWriteableStream, WriteableStream, ReadableStream } from '../../../../base/common/stream.js';
 
@@ -15,7 +15,7 @@ import { newWriteableStream, WriteableStream, ReadableStream } from '../../../..
  */
 export class Stream<T extends object> extends ObservableDisposable implements ReadableStream<T> {
 	/**
-	 * TODO: @legomushroom
+	 * Flag that indicates whether the stream has ended.
 	 */
 	private ended: boolean = false;
 
@@ -40,24 +40,26 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 
 		if (cancellationToken?.isCancellationRequested) {
 			this.end();
-
 			return;
 		}
 
-		// send couple of tokens immediately
-		this.send(false);
+		// send a first batch of tokens immediately
+		this.send(true);
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Starts process of sending tokens to the stream.
+	 *
+	 * @param stopAfterFirstSend whether to continue sending data to the stream or
+	 *             stop sending after the first batch of data is sent
 	 */
 	public send(
-		play: boolean = true,
+		stopAfterFirstSend: boolean = false,
 	): void {
-		// TODO: @legomushroom - throw instead?
-		if (this.ended) {
-			return;
-		}
+		assert(
+			this.ended === false,
+			'Cannot send on already ended stream.',
+		);
 
 		this.sendTokens()
 			.then(() => {
@@ -73,17 +75,16 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 					return;
 				}
 
-				if (play === false) {
+				if (stopAfterFirstSend === true) {
 					this.stopStream();
 					return;
 				}
 
 				this.interval = setImmediate(this.send.bind(this));
 			})
-			.catch(() => {
-				this.stream.destroy();
-				this.stream.end();
-				this.stopStream();
+			.catch((error) => {
+				this.stream.error(error);
+				this.dispose();
 			});
 	}
 
@@ -119,18 +120,16 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 
 				await this.stream.write(token.value);
 				tokensCount--;
-			} catch {
-				this.stopStream();
-				this.stream.destroy();
-				// TODO: @legomushroom - needed?
-				this.stream.end();
+			} catch (error) {
+				this.stream.error(error);
+				this.dispose();
 				return;
 			}
 		}
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Ends the stream and stops sending tokens.
 	 */
 	private end(): this {
 		this.ended = true;
@@ -203,7 +202,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Create new instance of the stream from a provided array.
 	 */
 	public static fromArray<T extends object>(
 		array: T[],
@@ -213,7 +212,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Create new instance of the stream from a provided text model.
 	 */
 	public static fromTextModel(
 		model: ITextModel,
@@ -224,7 +223,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 }
 
 /**
- * TODO: @legomushroom
+ * Create a generator out of a provided array.
  */
 export const arrayToGenerator = <T extends NonNullable<unknown>>(array: T[]): Generator<T, undefined> => {
 	return (function* (): Generator<T, undefined> {
@@ -235,7 +234,7 @@ export const arrayToGenerator = <T extends NonNullable<unknown>>(array: T[]): Ge
 };
 
 /**
- * TODO: @legomushroom
+ * Create a generator out of a provided text model.
  */
 export const modelToGenerator = (model: ITextModel): Generator<VSBuffer, undefined> => {
 	return (function* (): Generator<VSBuffer, undefined> {

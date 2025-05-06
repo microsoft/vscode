@@ -7,13 +7,13 @@ import * as assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { createTextModel } from '../../testTextModel.js';
 import { randomTokens } from '../testUtils/randomTokens.js';
+import { randomInt } from '../../../../../base/common/numbers.js';
 import { Stream } from '../../../../common/codecs/utils/stream.js';
 import { BaseToken } from '../../../../common/codecs/baseToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { randomInt } from '../../../../../base/common/numbers.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Stream', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -122,7 +122,7 @@ suite('Stream', () => {
 });
 
 /**
- * TODO: @legomushroom
+ * Asserts that two tokens lists are equal.
  */
 const assertTokensEqual = (
 	receivedTokens: BaseToken[],
@@ -144,7 +144,7 @@ const assertTokensEqual = (
 };
 
 /**
- * TODO: @legomushroom
+ * Consume a provided stream and return a list of received data objects.
  */
 const consume = <T extends object>(stream: Stream<T>): Promise<T[]> => {
 	return new Promise((resolve, reject) => {

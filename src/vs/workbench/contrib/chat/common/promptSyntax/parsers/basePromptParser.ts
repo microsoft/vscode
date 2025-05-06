@@ -982,8 +982,8 @@ class FirstParseResult extends DeferredPromise<void> {
 		this._gotResult = true;
 		super.complete(void 0)
 			.catch(() => {
-				// noop
-				// TODO: @legomushroom
+				// the complete method is never fails
+				// so we can ignore the error here
 			});
 
 		return;

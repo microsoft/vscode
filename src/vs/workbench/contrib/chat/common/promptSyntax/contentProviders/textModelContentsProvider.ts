@@ -39,8 +39,6 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		private readonly model: ITextModel,
 		options: Partial<IPromptContentsProviderOptions>,
 		@IInstantiationService private readonly initService: IInstantiationService,
-		// TODO: @legomushroom - use the log service?
-		// @ILogService private readonly logService: ILogService,
 	) {
 		super(options);
 
@@ -63,7 +61,6 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<ReadableStream<VSBuffer>> {
-		// TODO: @legomushroom - do we need `IModelContentChangedEvent` here?
 		return Stream.fromTextModel(this.model, cancellationToken);
 	}
 

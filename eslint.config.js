@@ -1445,10 +1445,7 @@ export default tseslint.config(
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
-				project: [
-					// TODO: @lego - check if needed
-					'src/tsconfig.strict.json',
-				],
+				project: 'src/vs/platform/prompts/tsconfig.strict.json',
 			}
 		},
 		plugins: {

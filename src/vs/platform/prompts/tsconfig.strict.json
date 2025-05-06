@@ -1,6 +1,7 @@
 {
-	"extends": "./tsconfig.json",
+	"extends": "../../../tsconfig.json",
 	"compilerOptions": {
+		"strict": true,
 		"allowUnusedLabels": false,
 		"allowUnreachableCode": false,
 		"alwaysStrict": true,
@@ -14,6 +15,5 @@
 		"noUncheckedIndexedAccess": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"strict": true,
 	}
 }
