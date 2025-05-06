@@ -36,7 +36,8 @@ export async function showRunRecentQuickPick(
 	type: 'command' | 'cwd',
 	filterMode?: 'fuzzy' | 'contiguous',
 	value?: string,
-): Promise<void> {
+	isFromRunRecentCommand?: boolean,
+): Promise<void | boolean> {
 	if (!instance.xterm) {
 		return;
 	}
@@ -228,6 +229,9 @@ export async function showRunRecentQuickPick(
 		}
 	}
 	if (items.length === 0) {
+		if (isFromRunRecentCommand) {
+			return true;
+		}
 		return;
 	}
 	const disposables = new DisposableStore();
