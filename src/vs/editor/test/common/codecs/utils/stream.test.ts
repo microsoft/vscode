@@ -8,11 +8,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { createTextModel } from '../../testTextModel.js';
 import { randomTokens } from '../testUtils/randomTokens.js';
 import { randomInt } from '../../../../../base/common/numbers.js';
-import { Stream } from '../../../../common/codecs/utils/stream.js';
 import { BaseToken } from '../../../../common/codecs/baseToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { arrayToGenerator, Stream } from '../../../../common/codecs/utils/stream.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Stream', () => {
@@ -117,6 +117,22 @@ suite('Stream', () => {
 				expectedData + lineEnding,
 				'Received data must be equal to the contents before cancel.',
 			);
+		});
+	});
+
+	suite('• helpers', () => {
+		suite('• arrayToGenerator()', () => {
+			test('• sends tokens in the array', async () => {
+				const tokens = randomTokens();
+				const generator = arrayToGenerator(tokens);
+
+				const receivedTokens = [];
+				for (const token of generator) {
+					receivedTokens.push(token);
+				}
+
+				assertTokensEqual(receivedTokens, tokens);
+			});
 		});
 	});
 });

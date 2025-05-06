@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Stream } from '../utils/stream.js';
 import { VALID_SPACE_TOKENS } from './constants.js';
 import { Word } from '../simpleCodec/tokens/index.js';
-import { Stream } from '../utils/stream.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';

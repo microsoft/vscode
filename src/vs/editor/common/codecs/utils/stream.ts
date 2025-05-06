@@ -28,7 +28,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	 * Interval reference that is used to periodically send
 	 * tokens to the stream in the background.
 	 */
-	private interval: ReturnType<typeof setImmediate> | undefined;
+	private interval: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		private readonly data: Generator<T, undefined>,
@@ -56,6 +56,12 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	public send(
 		stopAfterFirstSend: boolean = false,
 	): void {
+		if (this.cancellationToken?.isCancellationRequested) {
+			this.end();
+
+			return;
+		}
+
 		assert(
 			this.ended === false,
 			'Cannot send on already ended stream.',
@@ -80,7 +86,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 					return;
 				}
 
-				this.interval = setImmediate(this.send.bind(this));
+				this.interval = setTimeout(this.send.bind(this));
 			})
 			.catch((error) => {
 				this.stream.error(error);
@@ -96,7 +102,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 			return this;
 		}
 
-		clearImmediate(this.interval);
+		clearTimeout(this.interval);
 		delete this.interval;
 
 		return this;
@@ -132,9 +138,13 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	 * Ends the stream and stops sending tokens.
 	 */
 	private end(): this {
+		if (this.ended) {
+			return this;
+		}
 		this.ended = true;
-		this.stream.end();
+
 		this.stopStream();
+		this.stream.end();
 		return this;
 	}
 
