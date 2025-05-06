@@ -20190,7 +20190,7 @@ declare module 'vscode' {
 
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
-		 * and need to be lookup in the respective documentation.
+		 * and need to be looked up in the respective documentation.
 		 */
 		modelOptions?: { [name: string]: any };
 
