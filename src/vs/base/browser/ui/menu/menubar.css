@@ -11,6 +11,7 @@
 	box-sizing: border-box;
 	height: 100%;
 	overflow: hidden;
+	--menubar-padding: 8px;
 }
 
 .menubar.overflow-menu-only {
@@ -52,7 +53,7 @@
 }
 
 .menubar-menu-title {
-	padding: 0px 8px;
+	padding: 0px var(--menubar-paddding);
 	border-radius: 5px;
 }
 
@@ -79,7 +80,7 @@
 .menubar .toolbar-toggle-more {
 	width: 22px;
 	height: 22px;
-	padding: 0 8px;
+	padding: 0 var(--menubar-paddding);
 	display: flex;
 	align-items: center;
 	justify-content: center;
