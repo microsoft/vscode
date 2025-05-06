@@ -35,8 +35,6 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { IRemoteExplorerService } from '../../../services/remote/common/remoteExplorerService.js';
-import { Tunnel, TunnelCloseReason } from '../../../services/remote/common/tunnelModel.js';
 
 export const REMOTE_TUNNEL_CATEGORY = localize2('remoteTunnel.category', 'Remote Tunnels');
 
@@ -714,42 +712,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					clipboardService.writeText(linkToOpen.toString(true));
 				}
 
-			}
-		}));
-
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: RemoteTunnelCommandIds.closeUnusedPorts,
-					title: RemoteTunnelCommandLabels.closeUnusedPorts,
-					category: REMOTE_TUNNEL_CATEGORY,
-					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
-					menu: [{
-						id: MenuId.CommandPalette,
-					}]
-				});
-			}
-
-			async run(accessor: ServicesAccessor) {
-				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				const ports: Tunnel[] = [];
-				// collect all forwarded ports and filter out those who do not have a process running
-				const forwarded = remoteExplorerService.tunnelModel.forwarded;
-				for (const [_, tunnel] of forwarded) {
-					if (!tunnel.hasRunningProcess) {
-						ports.push(tunnel);
-					}
-				}
-
-				// Close the collected unused ports
-				if (ports.length) {
-					for (const port of ports) {
-						await remoteExplorerService.close({
-							host: port.remoteHost,
-							port: port.remotePort
-						}, TunnelCloseReason.User);
-					}
-				}
 			}
 		}));
 

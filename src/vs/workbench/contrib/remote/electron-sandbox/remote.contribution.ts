@@ -27,9 +27,14 @@ import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderComman
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IRemoteExplorerService } from '../../../services/remote/common/remoteExplorerService.js';
+import { Tunnel, TunnelCloseReason } from '../../../services/remote/common/tunnelModel.js';
+import { localize, localize2 } from '../../../../nls.js';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	constructor(
@@ -243,4 +248,56 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: RemoteFileDialogContext,
 	metadata: { description: SaveLocalFileCommand.LABEL, args: [] },
 	handler: SaveLocalFileCommand.handler()
+});
+
+// --- Close Unused Forwarded Ports Action ---
+
+const REMOTE_CATEGORY = localize2('remote.category', 'Remote');
+
+namespace RemoteCommandIds {
+	export const closeUnusedPorts = 'workbench.remote.action.closeUnusedPorts';
+}
+
+namespace RemoteCommandLabels {
+	export const closeUnusedPorts = localize('remote.actions.closeUnusedPorts', 'Close Unused Forwarded Ports');
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteCommandIds.closeUnusedPorts,
+			title: RemoteCommandLabels.closeUnusedPorts,
+			category: REMOTE_CATEGORY,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('isLinux', true),
+					ContextKeyExpr.notEquals('config.remote.autoForwardPortsSource', 'output')
+				)
+			}],
+			precondition: ContextKeyExpr.equals('isWindows', false)
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const remoteExplorerService = accessor.get(IRemoteExplorerService);
+		const ports: Tunnel[] = [];
+		// collect all forwarded ports and filter out those who do not have a process running
+		const forwarded = remoteExplorerService.tunnelModel.forwarded;
+		for (const [_, tunnel] of forwarded) {
+			if (!tunnel.hasRunningProcess) {
+				ports.push(tunnel);
+			}
+		}
+
+		// Close the collected unused ports
+		if (ports.length) {
+			for (const port of ports) {
+				await remoteExplorerService.close({
+					host: port.remoteHost,
+					port: port.remotePort
+				}, TunnelCloseReason.User);
+			}
+		}
+	}
 });
