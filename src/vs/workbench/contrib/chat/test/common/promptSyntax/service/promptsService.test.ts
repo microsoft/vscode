@@ -8,6 +8,7 @@ import * as sinon from 'sinon';
 import { ChatMode } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { pick } from '../../../../../../../base/common/arrays.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
@@ -29,7 +30,6 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../../platform/prompts/common/constants.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { pick } from '../../../../../../../base/common/arrays.js';
 
 /**
  * Helper class to assert the properties of a link.

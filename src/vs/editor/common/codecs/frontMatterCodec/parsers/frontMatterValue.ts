@@ -116,7 +116,7 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 			try {
 				return {
 					result: 'success',
-					nextParser: FrontMatterBoolean.fromToken(token),
+					nextParser: new FrontMatterBoolean(token),
 					wasTokenConsumed: true,
 				};
 			} catch (_error) {

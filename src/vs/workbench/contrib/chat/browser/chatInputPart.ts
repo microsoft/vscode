@@ -15,6 +15,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -185,13 +186,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// prompt files may have nested child references to other prompt
 		// files that are resolved asynchronously, hence we need to wait
 		// for the entire prompt instruction tree to be processed
-		const instructionsStarted = performance.now();
-
-		// wait for all prompt files resolve precesses to settle
-		await this.promptInstructionsAttachmentsPart.allSettled();
-
-		// allow-any-unicode-next-line
-		this.logService.trace(`[⏱] instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
+		await logExecutionTime('instructions tree resolve',
+			this.promptInstructionsAttachmentsPart
+				.allSettled.bind(this.promptInstructionsAttachmentsPart),
+			this.logService.trace.bind(this.logService),
+		);
 
 		contextArr
 			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
@@ -1192,18 +1191,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1);
 
 			let attachmentWidget;
+			const options = { shouldFocusClearButton, supportsDeletion: true };
 			if (resource && isNotebookOutputVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
-				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isImageVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isElementVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPasteVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else {
-				attachmentWidget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			}
 			store.add(attachmentWidget);
 			store.add(attachmentWidget.onDidDelete(e => {

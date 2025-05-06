@@ -123,6 +123,8 @@ export const mcpServerSchema: IJSONSchema = {
 						url: {
 							type: 'string',
 							format: 'uri',
+							pattern: '^https?:\\/\\/.+',
+							patternErrorMessage: localize('app.mcp.json.url.pattern', "The URL must start with 'http://' or 'https://'."),
 							description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
 						},
 						headers: {

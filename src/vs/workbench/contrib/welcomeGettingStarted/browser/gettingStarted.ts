@@ -73,6 +73,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { IGettingStartedExperimentService } from './gettingStartedExpService.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -190,7 +191,8 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IGettingStartedExperimentService private readonly gettingStartedExperimentService: IGettingStartedExperimentService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -959,13 +961,18 @@ export class GettingStartedPage extends EditorPane {
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+				const exp = this.gettingStartedExperimentService.getCurrentExperiment();
+				const first = exp?.walkthroughId ? this.gettingStartedService.getWalkthrough(exp.walkthroughId) : this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
 				if (first) {
 					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					if (first.id === NEW_WELCOME_EXPERIENCE) {
+						this.buildNewCategorySlide(this.editorInput.selectedCategory, undefined);
+					} else {
+						this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					}
 					this.setSlide('details', true /* firstLaunch */);
 					return;
 				}
@@ -1410,6 +1417,7 @@ export class GettingStartedPage extends EditorPane {
 
 
 	private selectStepByIndex(newIndex: number, steps: IResolvedWalkthroughStep[], direction: number) {
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectTask', argument: steps[newIndex].id, walkthroughId: this.currentWalkthrough?.id });
 		const currentIndex = steps.findIndex(step => step.id === this.editorInput.selectedStep);
 
 		// Update the selected step and build its media
@@ -1756,6 +1764,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private selectSubStep(selectedStepId: string) {
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectTask', argument: selectedStepId, walkthroughId: this.currentWalkthrough?.id });
 		if (this.editorInput.selectedStep === selectedStepId) {
 			return;
 		}

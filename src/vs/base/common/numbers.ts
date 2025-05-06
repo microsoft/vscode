@@ -101,8 +101,7 @@ export function isPointWithinTriangle(
 
 /**
  * Function to get a (pseudo)random integer from a provided `max`...[`min`] range.
- * Both `min` and `max` values are inclusive. The `min` value is optional and defaults
- * to `0` if not explicitly specified.
+ * Both `min` and `max` values are inclusive. The `min` value is optional (defaults to `0`).
  *
  * @throws in the next cases:
  * 	- if provided `min` or `max` is not a number
