@@ -2,10 +2,32 @@
 
 set -e
 
-# Comment out if pearai submodule does not need to be recompiled. Speeds things up.
-# cd extensions/pearai-submodule
-# ./scripts/install-and-build.sh
-# cd ../..
+# ===========================================================================
+# CONFIGURATION SECTION - Edit these variables to match your environment
+# ===========================================================================
+
+# Path to PearAI-Roo-Code extension
+# PEARAI_ROO_CODE_PATH="tmp/PearAI-Roo-Code"
+PEARAI_ROO_CODE_PATH="./../../Documents/PearAI/PearAI-Roo-Code"
+# PEARAI_ROO_CODE_PATH="/Users/acorn221/Documents/Documents/PearAI/PearAI-Roo-Code"
+
+# Path to pearai-submodule vscode extension
+PEARAI_SUBMODULE_PATH="./../pearai-submodule/extensions/vscode"
+# PEARAI_SUBMODULE_PATH="/Users/acorn221/Documents/tmp/pearai-app/tmp/pearai-submodule"
+
+# Enable/disable building pearai submodule before launch (uncomment to enable)
+# BUILD_PEARAI_SUBMODULE=true
+
+# ===========================================================================
+# END CONFIGURATION SECTION
+# ===========================================================================
+
+# Build pearai submodule if enabled
+if [[ -n "$BUILD_PEARAI_SUBMODULE" ]]; then
+  cd extensions/pearai-submodule
+  ./scripts/install-and-build.sh
+  cd ../..
+fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -17,6 +39,51 @@ else
 		IN_WSL=true
 	fi
 fi
+
+# Default paths for extension development - using relative paths from ROOT
+EXTENSION_PATHS=(
+    "${ROOT}/extensions/vscode"
+)
+
+# Add PearAI extensions
+if [[ -d "${ROOT}/${PEARAI_ROO_CODE_PATH}" ]]; then
+    EXTENSION_PATHS+=("${ROOT}/${PEARAI_ROO_CODE_PATH}")
+else
+    echo "Warning: PearAI-Roo-Code extension path not found at ${ROOT}/${PEARAI_ROO_CODE_PATH}"
+fi
+
+if [[ -d "${ROOT}/${PEARAI_SUBMODULE_PATH}" ]]; then
+    EXTENSION_PATHS+=("${ROOT}/${PEARAI_SUBMODULE_PATH}")
+else
+    echo "Warning: PearAI submodule vscode extension path not found at ${ROOT}/${PEARAI_SUBMODULE_PATH}"
+fi
+
+# Function to check if directory exists and add to extension paths
+add_extension_path() {
+    if [ -d "$1" ]; then
+        EXTENSION_PATHS+=("$1")
+    else
+        echo "Warning: Extension path $1 does not exist, skipping..."
+    fi
+}
+
+# Process command line arguments for extension paths
+process_args() {
+    local i=1
+    while [ $i -le $# ]; do
+        arg="${!i}"
+        if [[ "$arg" == "--ext-path="* ]]; then
+            path="${arg#*=}"
+            add_extension_path "$path"
+        elif [[ "$arg" == "--ext-path" && $(($i + 1)) -le $# ]]; then
+            j=$(($i + 1))
+            path="${!j}"
+            add_extension_path "$path"
+            ((i++))
+        fi
+        ((i++))
+    done
+}
 
 function code() {
 	cd "$ROOT"
@@ -52,8 +119,38 @@ function code() {
 		DISABLE_TEST_EXTENSION=""
 	fi
 
-	# Launch Code
-	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
+	# Process extension paths from command line
+	process_args "$@"
+
+	# Define sandbox test path
+	SANDBOX_TEST_PATH="${ROOT}/extensions/vscode/manual-testing-sandbox/test.js"
+
+	# Check if sandbox test file exists
+	if [[ -f "$SANDBOX_TEST_PATH" ]]; then
+		SANDBOX_ARG="$SANDBOX_TEST_PATH"
+	else
+		SANDBOX_ARG=""
+	fi
+
+	# Prepare extension development path arguments
+	EXT_DEV_ARGS=""
+	for path in "${EXTENSION_PATHS[@]}"; do
+		EXT_DEV_ARGS="$EXT_DEV_ARGS --extensionDevelopmentPath=$path"
+	done
+
+	# Show which extensions are being loaded
+	echo "Loading extensions from:"
+	for path in "${EXTENSION_PATHS[@]}"; do
+		echo " - $path"
+	done
+
+	# Launch Code with extension paths
+	if [[ -n "$SANDBOX_ARG" ]]; then
+		echo "Using sandbox test file: $SANDBOX_ARG"
+		exec "$CODE" . "$SANDBOX_ARG" $DISABLE_TEST_EXTENSION $EXT_DEV_ARGS "$@"
+	else
+		exec "$CODE" . $DISABLE_TEST_EXTENSION $EXT_DEV_ARGS "$@"
+	fi
 }
 
 function code-wsl()
