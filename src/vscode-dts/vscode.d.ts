@@ -20314,7 +20314,7 @@ declare module 'vscode' {
 		/**
 		 * Optional event fired to signal that the set of available servers has changed.
 		 */
-		onDidChangeMcpServerDefinitions?: Event<void>;
+		readonly onDidChangeMcpServerDefinitions?: Event<void>;
 
 		/**
 		 * Provides available MCP servers. The editor will call this method eagerly
@@ -20328,10 +20328,10 @@ declare module 'vscode' {
 		provideMcpServerDefinitions(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * This function will be called when the editor needs to start MCP server.
+		 * This function will be called when the editor needs to start a MCP server.
 		 * At this point, the extension may take any actions which may require user
 		 * interaction, such as authentication. Any non-`readonly` property of the
-		 * server may be modified, and the extension may return a new server.
+		 * server may be modified, and the extension should return the resolved server.
 		 *
 		 * The extension may return undefined to indicate that the server
 		 * should not be started, or throw an error. If there is a pending tool
@@ -20340,7 +20340,8 @@ declare module 'vscode' {
 		 *
 		 * @param server The MCP server to resolve
 		 * @param token A cancellation token.
-		 * @returns The resolved server or thenable that resolves to such.
+		 * @returns The resolved server or thenable that resolves to such. This may
+		 * be the given `server` definition with non-readonly properties filled in.
 		 */
 		resolveMcpServerDefinition?(server: T, token: CancellationToken): ProviderResult<T>;
 	}
@@ -20446,7 +20447,7 @@ declare module 'vscode' {
 		 * When a new McpServerDefinitionProvider is available, the editor will present a 'refresh'
 		 * action to the user to discover new servers. To enable this flow, extensions should
 		 * call `registerMcpServerDefinitionProvider` during activation.
-		 * @param id The ID of the provider
+		 * @param id The ID of the provider, which is unique to the extension.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
