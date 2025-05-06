@@ -35,7 +35,8 @@ export abstract class ObservableDisposable extends Disposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Adds a disposable object to the list of disposables
+	 * that will be disposed with this object.
 	 */
 	public addDisposable(...disposables: IDisposable[]): this {
 		for (const disposable of disposables) {

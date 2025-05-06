@@ -250,16 +250,15 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				continue;
 			}
 
-			const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
-				.onDispose(() => {
+			const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri);
+			instruction.addDisposable(
+				instruction.onDispose(() => {
 					// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
 					//       alternative results in an infinite loop of calling this callback
 					this.attachments.deleteAndLeak(uri.path);
 					this._onUpdate.fire();
 					this._onRemove.fire(instruction);
-				});
-
-			instruction.addDisposable(
+				}),
 				instruction.onUpdate(this._onUpdate.fire),
 			);
 
