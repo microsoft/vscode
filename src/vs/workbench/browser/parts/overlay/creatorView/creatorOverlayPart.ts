@@ -487,7 +487,7 @@ export class CreatorOverlayPart extends Part {
         let messageReceived = false;
 
         this.webviewElement.onMessage((e) => {
-            console.log("Received message from webview:", e.message);
+            // console.log("Received message from webview:", e.message);
             if (e.message.messageType === "loaded" || e.message.messageType === "pong") {
                 messageReceived = true;
             }
@@ -707,7 +707,7 @@ export class CreatorOverlayPart extends Part {
 		// Create the element if it doesn't exist yet
 		if (!topOfBodyElement) {
 			topOfBodyElement = document.createElement("div");
-			topOfBodyElement.style.position = "relative";
+			topOfBodyElement.style.position = "sticky";
 			topOfBodyElement.style.top = "0";
 			topOfBodyElement.style.left = "0";
 			topOfBodyElement.style.height = "0vh";
@@ -749,7 +749,7 @@ export class CreatorOverlayPart extends Part {
 			blurGradient.style.width = "100%";
 			blurGradient.style.height = "10vh";
 			blurGradient.style.zIndex = "30";
-			blurGradient.style.position = "absolute";
+			blurGradient.style.position = "fixed";
 			blurGradient.style.top = "0";
 			blurGradient.style.left = "0";
 
@@ -785,7 +785,7 @@ export class CreatorOverlayPart extends Part {
 			blurOverlayElement = document.createElement("div");
 			blurOverlayElement.id = "blurred-container";
 			blurOverlayElement.style.width = "100%";
-			blurOverlayElement.style.height = "90vh";
+			blurOverlayElement.style.height = "100vh";
 			blurOverlayElement.style.display = "none";
 			blurOverlayElement.style.overflow = "hidden";
 			blurOverlayElement.style.zIndex = "20";

@@ -93,7 +93,12 @@ PearAI consists of several components:
    ```bash
    yarn watch
    ```
-   Wait for it to compile everything (approximately 2 minutes) until it shows "finished compiling". Keep this terminal running.
+   Wait for it to compile everything (approximately 2 minutes) until it shows:
+   ```bash
+   [watch-extensions] [17:45:16] Finished compilation extensions with 0 errors after 24750 ms
+   [watch-client    ] [17:45:43] Finished compilation with 0 errors after 51228 ms
+   ```
+      Keep this terminal running.
 
 2. Open another terminal to run the app:
 
@@ -147,16 +152,21 @@ PearAI consists of several components:
    ```
    npm run watch
    ```
-4. Launch for debugging:
+4. Run dev on the extension:
+   ```
+   npm run dev
+   ```
+   This will start Vite with PearAI-Roo-Code on port 5174.
+5. Launch for debugging:
    - Switch to Run and Debug view.
    - Select `Extension (VS Code)` from the dropdown.
    - Click the play button to launch.
    - A new VSCode/PearAI window will open with your extension installed (with your local changes).
    - The window title will display "Extension Development Host".
-5. View logs:
+6. View logs:
    - Open the command palette (`Cmd/Ctrl+Shift+P`).
    - Select `Developer: Open Webview Developer Tools`.
-6. Make text changes to see them reflected in the PearAI window.
+7. Make text changes to see them reflected in the PearAI window.
 
 #### B) From pearai-submodule (for changes to both components)
 

@@ -52,6 +52,12 @@ if [ -d "$app_dir/extensions/pearai-submodule" ]; then
     execute "rm -rf $app_dir/extensions/pearai-submodule" "Failed to remove existing pearai-submodule directory"
 fi
 
+# Check if the PearAI Roo Code directory already exists
+if [ -d "$app_dir/extensions/PearAI-Roo-Code" ]; then
+    echo "Removing existing PearAI-Roo-Code directory"
+    execute "rm -rf $app_dir/extensions/PearAI-Roo-Code" "Failed to remove existing PearAI-Roo-Code directory"
+fi
+
 # Clone the submodule extension folder
 execute "git submodule update --init --recursive" "Failed to initialize git submodules"
 execute "git submodule update --recursive --remote" "Failed to update to latest tip of submodule"
@@ -89,6 +95,18 @@ execute "./scripts/install-and-build.sh" "Failed to install dependencies for the
 
 # Discard the package.json and package-lock.json version update changes
 execute "git reset --hard" "Failed to reset --hard after submodule dependencies install"
+
+# ROO CODE
+execute "cd ../PearAI-Roo-Code" "Failed to change directory to extensions/PearAI-Roo-Code"
+# Discard any potential changes or merge conflicts in the working directory or staging area,
+# ensuring local branch matches remote branch exactly before checking out main
+execute "git reset --hard" "Failed to reset --hard"
+execute "git checkout main" "Failed to checkout main branch"
+execute "git fetch origin" "Failed to fetch latest changes from origin"
+# Make sure the submodule has the latest updates
+execute "git pull origin main" "Failed to pull latest changes from origin/main"
+execute "npm run install:all" "Failed to install dependencies for the PearAI-Roo-Code"
+execute "npm run build" "Failed to build the PearAI-Roo-Code"
 
 execute "cd '$app_dir'" "Failed to change directory to application root"
 

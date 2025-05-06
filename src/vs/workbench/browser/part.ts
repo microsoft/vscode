@@ -10,7 +10,7 @@ import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition }
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
+import { bubblyParts, BubblyPartSettings, IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
 import { assertIsDefined } from '../../base/common/types.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 
@@ -76,10 +76,20 @@ export abstract class Part extends Component implements ISerializableView {
 	 */
 	create(parent: HTMLElement, options?: object): void {
 		this.parent = parent;
+		const bubblySettings = bubblyParts[parent.id];
+		if (bubblySettings) {
+			this.parent.classList.add('bubbly-part');
+			this.parent.style.marginLeft = `${bubblySettings.margins.left}px`;
+			this.parent.style.marginTop = `${bubblySettings.margins.top}px`;
+			this.parent.style.marginRight = `${bubblySettings.margins.right}px`;
+			this.parent.style.marginBottom = `${bubblySettings.margins.bottom}px`;
+			this.parent.style.borderRadius = `${bubblySettings.borderRadius}px`;
+		}
+
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
-		this.partLayout = new PartLayout(this.options, this.contentArea);
+		this.partLayout = new PartLayout(this.options, this.contentArea, bubblySettings);
 
 		this.updateStyles();
 	}
@@ -234,14 +244,21 @@ class PartLayout {
 	private headerVisible: boolean = false;
 	private footerVisible: boolean = false;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
+	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined, private bubblySettings: BubblyPartSettings | undefined = undefined) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
+		if (this.bubblySettings) {
+			width = width - this.bubblySettings.margins.left - this.bubblySettings.margins.right;
+			height = height - this.bubblySettings.margins.top - this.bubblySettings.margins.bottom;
+		}
 
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
 		if (this.options.hasTitle) {
-			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
+			const titleHeight = (this.bubblySettings && this.bubblySettings.customTitleHeight)
+				? this.bubblySettings.customTitleHeight
+				: PartLayout.TITLE_HEIGHT;
+			titleSize = new Dimension(width, Math.min(height, titleHeight));
 		} else {
 			titleSize = Dimension.None;
 		}
@@ -249,7 +266,10 @@ class PartLayout {
 		// Header Size: Width (Fill), Height (Variable)
 		let headerSize: Dimension;
 		if (this.headerVisible) {
-			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
+			const headerHeight = (this.bubblySettings && this.bubblySettings.customHeaderHeight)
+				? this.bubblySettings.customHeaderHeight
+				: PartLayout.HEADER_HEIGHT;
+			headerSize = new Dimension(width, Math.min(height, headerHeight));
 		} else {
 			headerSize = Dimension.None;
 		}

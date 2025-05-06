@@ -20,6 +20,12 @@ execute "cd $submodule_dir" "Failed to change directory to $submodule_dir"
 execute "./scripts/install-and-build.sh" "Failed to install dependencies for the submodule"
 execute "cd ../../" "Failed to change back to the root directory"
 
+# Define the PearAI-Roo-Code directory
+roo_dir="extensions/PearAI-Roo-Code"
+execute "cd $roo_dir" "Failed to change directory to $roo_dir"
+execute "npm run install:all" "Failed to install dependencies for the submodule"
+execute "npm run build" "Failed to change back to the root directory"
+
 # Install dependencies using npm
 execute "npm install" "Failed to install dependencies with npm"
 

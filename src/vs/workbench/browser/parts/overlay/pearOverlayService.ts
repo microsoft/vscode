@@ -65,6 +65,8 @@ export interface IPearOverlayService extends IDisposable {
 	 * Hides the loading overlay message.
 	 */
 	hideOverlayLoadingMessage(): void;
+
+	postMessageToWebview(msg: any): Promise<boolean>;
 }
 
 export class PearOverlayService
@@ -113,6 +115,19 @@ export class PearOverlayService
 		CommandsRegistry.registerCommand("pearai.showOverlay", (accessor) => {
 			const overlayService = accessor.get(IPearOverlayService);
 			overlayService.show();
+		});
+
+		CommandsRegistry.registerCommand("pearai.showOverlay.feedback", (accessor) => {
+			const overlayService = accessor.get(IPearOverlayService);
+			overlayService.show();
+			overlayService.postMessageToWebview({
+				destination: "settings",
+				messageType: "tab",
+				messageId: "1",
+				payload: {
+					tab: "creator-feedback"
+				}
+			});
 		});
 
 		CommandsRegistry.registerCommand("pearai.hideOverlay", (accessor) => {
@@ -185,6 +200,10 @@ export class PearOverlayService
 
 	isVisible(): boolean {
 		return this._pearOverlayPart.isVisible();
+	}
+
+	postMessageToWebview(msg: { messageType: string, payload: any, messageId?: string}): Promise<boolean> {
+		return this._pearOverlayPart.postMessageToWebview(msg);
 	}
 }
 

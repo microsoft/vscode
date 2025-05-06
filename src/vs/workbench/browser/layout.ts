@@ -1477,7 +1477,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 
-		// Helper methods to check and set Creator Mode state
+	// Helper methods to check and set Creator Mode state
 	private isCreatorModeActive(): boolean {
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_ACTIVE);
 	}
@@ -1519,7 +1519,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Store current state to restore when exiting but don't change fullscreen
 			creatorModeExitInfo.transitionedToFullScreen = false;
 			creatorModeExitInfo.transitionedToCenteredEditorLayout = !this.isMainEditorLayoutCentered() && config.centerLayout;
-			creatorModeExitInfo.handleNotificationsDoNotDisturbMode = this.notificationService.getFilter() === NotificationsFilter.OFF;
+			// creatorModeExitInfo.handleNotificationsDoNotDisturbMode = this.notificationService.getFilter() === NotificationsFilter.OFF;
 			creatorModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
 			creatorModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
 			creatorModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
@@ -1630,9 +1630,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setActivityBarHidden(true, true);
 		}
 
-		if (config.hideStatusBar) {
-			this.setStatusBarHidden(true, true);
-		}
+		// if (config.hideStatusBar) {
+		// 	this.setStatusBarHidden(true, true);
+		// }
 
 		if (config.hideLineNumbers) {
 			setLineNumbers('off');
@@ -1643,9 +1643,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.creatorMode.transitionDisposables.set('showTabs', this.editorGroupService.mainPart.enforcePartOptions({ showTabs: config.showTabs }));
 		}
 
-		if (config.silentNotifications && creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
-			this.notificationService.setFilter(NotificationsFilter.ERROR);
-		}
+		// if (config.silentNotifications && creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
+		// 	this.notificationService.setFilter(NotificationsFilter.ERROR);
+		// }
 
 
 		this.centerMainEditorLayout(false, true);
@@ -1660,10 +1660,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			// Status Bar
-			if (e.affectsConfiguration('creatorMode.hideStatusBar')) {
-				const creatorModeHideStatusBar = this.configurationService.getValue<boolean>('creatorMode.hideStatusBar');
-				this.setStatusBarHidden(creatorModeHideStatusBar, true);
-			}
+			// if (e.affectsConfiguration('creatorMode.hideStatusBar')) {
+			// 	const creatorModeHideStatusBar = this.configurationService.getValue<boolean>('creatorMode.hideStatusBar');
+			// 	this.setStatusBarHidden(creatorModeHideStatusBar, true);
+			// }
 
 			// Center Layout
 			if (e.affectsConfiguration('creatorMode.centerLayout')) {
@@ -1678,12 +1678,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			// Notifications
-			if (e.affectsConfiguration('creatorMode.silentNotifications')) {
-				const creatorModeSilentNotifications = !!this.configurationService.getValue('creatorMode.silentNotifications');
-				if (creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
-					this.notificationService.setFilter(creatorModeSilentNotifications ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
-				}
-			}
+			// if (e.affectsConfiguration('creatorMode.silentNotifications')) {
+			// 	const creatorModeSilentNotifications = !!this.configurationService.getValue('creatorMode.silentNotifications');
+			// 	if (creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
+			// 		this.notificationService.setFilter(creatorModeSilentNotifications ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
+			// 	}
+			// }
 
 			// Line Numbers
 			if (e.affectsConfiguration('creatorMode.hideLineNumbers')) {
@@ -1793,19 +1793,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Restore status bar
-		if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
-			this.setStatusBarHidden(false, true);
-		}
+		// if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
+		// 	this.setStatusBarHidden(false, true);
+		// }
 
 		// Restore editor layout
 		if (creatorModeExitInfo.transitionedToCenteredEditorLayout) {
 			this.centerMainEditorLayout(false, true);
 		}
 
-		// Restore notifications
-		if (creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
-			this.notificationService.setFilter(NotificationsFilter.OFF);
-		}
+		// // Restore notifications
+		// if (creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
+		// 	this.notificationService.setFilter(NotificationsFilter.OFF);
+		// }
 
 		// Reset editor options
 		setLineNumbers();
