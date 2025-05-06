@@ -292,7 +292,7 @@ export class ProcessExplorerControl extends Disposable {
 
 	private dimensions: Dimension | undefined = undefined;
 
-	private readonly model = new ProcessExplorerModel(this.productService);
+	private readonly model: ProcessExplorerModel;
 	private tree: WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError> | undefined;
 
 	private readonly delayer = this._register(new Delayer(1000));
@@ -308,6 +308,7 @@ export class ProcessExplorerControl extends Disposable {
 	) {
 		super();
 
+		this.model = new ProcessExplorerModel(this.productService);
 		this.create(container);
 	}
 
