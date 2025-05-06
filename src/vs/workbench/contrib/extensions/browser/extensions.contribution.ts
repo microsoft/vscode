@@ -1066,6 +1066,22 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.installedExtensions',
+			title: localize2('installedExtensions', 'Show Installed Extensions'),
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			menu: [{
+				id: extensionsFilterSubMenu,
+				group: '3_installed',
+				order: 1,
+			}],
+			menuTitles: {
+				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
+			},
+			run: () => this.extensionsWorkbenchService.openSearch('@installed ')
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.listBuiltInExtensions',
 			title: localize2('showBuiltInExtensions', 'Show Built-in Extensions'),
 			category: ExtensionsLocalizedLabel,
@@ -1075,7 +1091,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 2,
+				order: 3,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
@@ -1093,7 +1109,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
 				when: CONTEXT_HAS_GALLERY,
-				order: 1,
+				order: 2,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('extension updates filter', "Updates")
@@ -1111,7 +1127,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 5,
+				order: 6,
 				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
 			}],
 			menuTitles: {
@@ -1130,7 +1146,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 3,
+				order: 4,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('enabled filter', "Enabled")
@@ -1148,7 +1164,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 4,
+				order: 5,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('disabled filter', "Disabled")
