@@ -267,7 +267,6 @@ export class NativeSimpleBrowserElementsMainService extends Disposable implement
 						debuggers.off('message', onMessage);
 						debuggers.detach();
 						reject(err);
-
 					}
 				}
 			};
