@@ -35,6 +35,7 @@ import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { NativeSimpleBrowserElementsMainService, INativeSimpleBrowserElementsMainService } from '../../platform/simpleBrowserElements/electron-main/nativeSimpleBrowserElementsMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -1023,6 +1024,9 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// Simple Browser Elements
+		services.set(INativeSimpleBrowserElementsMainService, new SyncDescriptor(NativeSimpleBrowserElementsMainService, undefined, false /* proxied to other processes */));
+
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
@@ -1164,6 +1168,11 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Simple Browser Elements
+		const simpleBrowserElementsChannel = ProxyChannel.fromService(accessor.get(INativeSimpleBrowserElementsMainService), disposables);
+		mainProcessElectronServer.registerChannel('simpleBrowserElements', simpleBrowserElementsChannel);
+		sharedProcessClient.then(client => client.registerChannel('simpleBrowserElements', simpleBrowserElementsChannel));
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);

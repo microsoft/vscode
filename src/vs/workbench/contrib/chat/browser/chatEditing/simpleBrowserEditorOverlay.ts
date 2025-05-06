@@ -33,6 +33,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { ISimpleBrowserElementsService } from '../../../../services/simpleBrowserElements/browser/simpleBrowserElementsService.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -55,6 +56,7 @@ class SimpleBrowserOverlayWidget {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@ISimpleBrowserElementsService private readonly _simpleBrowserElementsService: ISimpleBrowserElementsService,
 	) {
 
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
@@ -183,7 +185,8 @@ class SimpleBrowserOverlayWidget {
 	async addElementToChat(cts: CancellationTokenSource) {
 		const editorContainer = this._container.querySelector('.editor-container') as HTMLDivElement;
 		const editorContainerPosition = editorContainer ? editorContainer.getBoundingClientRect() : this._container.getBoundingClientRect();
-		const elementData = await this._hostService.getElementData(editorContainerPosition, cts.token);
+
+		const elementData = await this._simpleBrowserElementsService.getElementData(editorContainerPosition, cts.token);
 		if (!elementData) {
 			throw new Error('Element data not found');
 		}
