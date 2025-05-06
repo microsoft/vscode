@@ -104,7 +104,8 @@ const NATIVE_TYPES = [
 	'INativeWindowConfiguration',
 	'ICommonNativeHostService',
 	'INativeHostService',
-	'IMainProcessService'
+	'IMainProcessService',
+	'INativeSimpleBrowserElementsService',
 ];
 
 const RULES: IRule[] = [
