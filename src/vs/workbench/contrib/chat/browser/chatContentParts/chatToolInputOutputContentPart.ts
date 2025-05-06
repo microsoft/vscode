@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -86,39 +86,36 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	) {
 		super();
 
-		const elements = dom.h('.chat-confirmation-widget@root', [
-			dom.h('.chat-confirmation-widget-title.expandable@titleContainer', [
-				dom.h('.chat-confirmation-widget-expando@expando'),
-				dom.h('.chat-confirmation-widget-title-inner@title'),
-				dom.h('.chat-confirmation-widget-title-icon@icon'),
-			]),
-			dom.h('.chat-confirmation-widget-message@message'),
-		]);
+		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
+		const iconEl = dom.h('.chat-confirmation-widget-title-icon');
+		const elements = dom.h('.chat-confirmation-widget');
 		this.domNode = elements.root;
 
 		const titlePart = this._titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
-			elements.title,
+			titleEl.root,
 			title,
 			subtitle,
 			_instantiationService.createInstance(MarkdownRenderer, {}),
 		));
-
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
-		elements.title.appendChild(spacer);
+
+		const btn = this._register(new ButtonWithIcon(elements.root, {}));
+		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
+		btn.labelElement.append(titleEl.root, iconEl.root);
+
 		const check = dom.h(isError
 			? ThemeIcon.asCSSSelector(Codicon.error)
 			: output
 				? ThemeIcon.asCSSSelector(Codicon.check)
 				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
 		);
-		elements.icon.appendChild(check.root);
+		iconEl.root.appendChild(check.root);
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
-		const btn = this._register(new Button(elements.expando, {}));
-
 		this._register(autorun(r => {
 			const value = expanded.read(r);
 			btn.icon = value ? Codicon.chevronDown : Codicon.chevronRight;
@@ -135,9 +132,10 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		};
 
 		this._register(btn.onDidClick(toggle));
-		this._register(dom.addDisposableListener(elements.titleContainer, dom.EventType.CLICK, toggle));
 
-		elements.message.appendChild(this.createMessageContents());
+		const message = dom.h('.chat-confirmation-widget-message');
+		message.root.appendChild(this.createMessageContents());
+		elements.root.appendChild(message.root);
 	}
 
 	private createMessageContents() {

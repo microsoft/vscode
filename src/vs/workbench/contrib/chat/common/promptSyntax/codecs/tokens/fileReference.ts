@@ -7,7 +7,6 @@
 import { PromptVariableWithData } from './promptVariable.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
-import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 
 /**
  * Name of the variable.
@@ -39,17 +38,6 @@ export class FileReference extends PromptVariableWithData {
 			variable.range,
 			variable.data,
 		);
-	}
-
-	/**
-	 * Check if this token is equal to another one.
-	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if ((other instanceof FileReference) === false) {
-			return false;
-		}
-
-		return super.equals(other);
 	}
 
 	/**

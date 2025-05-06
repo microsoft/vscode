@@ -10,7 +10,7 @@ import { SimpleToken } from '../../simpleCodec/tokens/simpleToken.js';
  * A token that represent a `new line` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class NewLine extends SimpleToken {
+export class NewLine extends SimpleToken<'\n'> {
 	/**
 	 * The underlying symbol of the `NewLine` token.
 	 */

@@ -840,12 +840,8 @@ class Extensions extends Disposable {
 	private async onDidUpdateExtensionMetadata(local: ILocalExtension): Promise<void> {
 		const extension = this.installed.find(e => areSameExtensions(e.identifier, local.identifier));
 		if (extension?.local) {
-			const hasChanged = extension.local.pinned !== local.pinned
-				|| extension.local.preRelease !== local.preRelease;
 			extension.local = local;
-			if (hasChanged) {
-				this._onChange.fire({ extension });
-			}
+			this._onChange.fire({ extension });
 		}
 	}
 
@@ -2573,9 +2569,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];
-		for (const packExtension of this.getAllPackExtensionsToUninstall(extension.local, this.local)) {
-			if (!extensionsToUninstall.some(e => areSameExtensions(e.extension.identifier, packExtension.identifier))) {
-				extensionsToUninstall.push({ extension: packExtension });
+		for (const packExtension of this.getAllPackedExtensions(extension, this.local)) {
+			if (packExtension.local && !extensionsToUninstall.some(e => areSameExtensions(e.extension.identifier, packExtension.identifier))) {
+				extensionsToUninstall.push({ extension: packExtension.local });
 			}
 		}
 
@@ -2629,22 +2625,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, () => this.extensionManagementService.uninstallExtensions(extensionsToUninstall).then(() => undefined));
 	}
 
-	private getAllPackExtensionsToUninstall(extension: ILocalExtension, installed: IExtension[], checked: ILocalExtension[] = []): ILocalExtension[] {
+	private getAllPackedExtensions(extension: IExtension, installed: IExtension[], checked: IExtension[] = []): IExtension[] {
 		if (checked.some(e => areSameExtensions(e.identifier, extension.identifier))) {
 			return [];
 		}
 		checked.push(extension);
-		const extensionsPack = extension.manifest.extensionPack ?? [];
+		const extensionsPack = extension.extensionPack ?? [];
 		if (extensionsPack.length) {
-			const packedExtensions: ILocalExtension[] = [];
+			const packedExtensions: IExtension[] = [];
 			for (const i of installed) {
-				if (i.local && !i.isBuiltin && extensionsPack.some(id => areSameExtensions({ id }, i.identifier))) {
-					packedExtensions.push(i.local);
+				if (!i.isBuiltin && extensionsPack.some(id => areSameExtensions({ id }, i.identifier))) {
+					packedExtensions.push(i);
 				}
 			}
-			const packOfPackedExtensions: ILocalExtension[] = [];
+			const packOfPackedExtensions: IExtension[] = [];
 			for (const packedExtension of packedExtensions) {
-				packOfPackedExtensions.push(...this.getAllPackExtensionsToUninstall(packedExtension, installed, checked));
+				packOfPackedExtensions.push(...this.getAllPackedExtensions(packedExtension, installed, checked));
 			}
 			return [...packedExtensions, ...packOfPackedExtensions];
 		}
@@ -2680,30 +2676,37 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async toggleExtensionIgnoredToSync(extension: IExtension): Promise<void> {
-		const isIgnored = this.isExtensionIgnoredToSync(extension);
-		if (extension.local && isIgnored) {
-			(<Extension>extension).local = await this.updateSynchronizingInstalledExtension(extension.local, true);
-			this._onChange.fire(extension);
-		} else {
-			this.extensionsSyncManagementService.updateIgnoredExtensions(extension.identifier.id, !isIgnored);
+		const extensionsIncludingPackedExtensions = [extension, ...this.getAllPackedExtensions(extension, this.local)];
+		// Updated in sync to prevent race conditions
+		for (const e of extensionsIncludingPackedExtensions) {
+			const isIgnored = this.isExtensionIgnoredToSync(e);
+			if (e.local && isIgnored && e.local.isMachineScoped) {
+				await this.extensionManagementService.updateMetadata(e.local, { isMachineScoped: false });
+			} else {
+				await this.extensionsSyncManagementService.updateIgnoredExtensions(e.identifier.id, !isIgnored);
+			}
 		}
 		await this.userDataAutoSyncService.triggerSync(['IgnoredExtensionsUpdated']);
 	}
 
 	async toggleApplyExtensionToAllProfiles(extension: IExtension): Promise<void> {
-		if (!extension.local || isApplicationScopedExtension(extension.local.manifest) || extension.isBuiltin) {
-			return;
-		}
-		const isApplicationScoped = extension.local.isApplicationScoped;
-		await Promise.all(this.getAllExtensions().map(async extensions => {
-			const local = extensions.local.find(e => areSameExtensions(e.identifier, extension.identifier))?.local;
-			if (local && local.isApplicationScoped === isApplicationScoped) {
-				await this.extensionManagementService.toggleApplicationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
+		const extensionsIncludingPackedExtensions = [extension, ...this.getAllPackedExtensions(extension, this.local)];
+		const allExtensionServers = this.getAllExtensionServers();
+		await Promise.allSettled(extensionsIncludingPackedExtensions.map(async e => {
+			if (!e.local || isApplicationScopedExtension(e.local.manifest) || e.isBuiltin) {
+				return;
 			}
+			const isApplicationScoped = e.local.isApplicationScoped;
+			await Promise.all(allExtensionServers.map(async extensionServer => {
+				const local = extensionServer.local.find(local => areSameExtensions(e.identifier, local.identifier))?.local;
+				if (local && local.isApplicationScoped === isApplicationScoped) {
+					await this.extensionManagementService.toggleApplicationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
+				}
+			}));
 		}));
 	}
 
-	private getAllExtensions(): Extensions[] {
+	private getAllExtensionServers(): Extensions[] {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -2725,17 +2728,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return true;
 		}
 		return !this.extensionsSyncManagementService.hasToNeverSyncExtension(extension.identifier.id);
-	}
-
-	async updateSynchronizingInstalledExtension(extension: ILocalExtension, sync: boolean): Promise<ILocalExtension> {
-		const isMachineScoped = !sync;
-		if (extension.isMachineScoped !== isMachineScoped) {
-			extension = await this.extensionManagementService.updateMetadata(extension, { isMachineScoped });
-		}
-		if (sync) {
-			this.extensionsSyncManagementService.updateIgnoredExtensions(extension.identifier.id, false);
-		}
-		return extension;
 	}
 
 	private doInstall(extension: IExtension | undefined, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation | string): Promise<IExtension> {
