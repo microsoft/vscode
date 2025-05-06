@@ -127,7 +127,11 @@ class ProcessTreeDataSource implements IDataSource<IProcessTree, IProcessInforma
 				return element.processRoots; // If there are multiple process roots, return these, otherwise go directly to the root process
 			}
 
-			return [element.processRoots[0].rootProcess];
+			if (element.processRoots.length > 0) {
+				return [element.processRoots[0].rootProcess];
+			}
+
+			return [];
 		}
 
 		if (isMachineProcessInformation(element)) {
@@ -138,18 +142,23 @@ class ProcessTreeDataSource implements IDataSource<IProcessTree, IProcessInforma
 	}
 }
 
+function createRow(container: HTMLElement) {
+	const row = append(container, $('.row'));
+
+	const name = append(row, $('.cell.name'));
+	const cpu = append(row, $('.cell.cpu'));
+	const memory = append(row, $('.cell.memory'));
+	const pid = append(row, $('.cell.pid'));
+
+	return { name, cpu, memory, pid };
+}
+
 class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, void, IProcessItemTemplateData> {
 
 	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const row = append(container, $('.row.header'));
-		const name = append(row, $('.cell.name'));
-		const cpu = append(row, $('.cell.cpu'));
-		const memory = append(row, $('.cell.memory'));
-		const pid = append(row, $('.cell.pid'));
-
-		return { name, cpu, memory, pid };
+		return createRow(container);
 	}
 
 	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
@@ -173,8 +182,7 @@ class MachineRenderer implements ITreeRenderer<IMachineProcessInformation, void,
 	readonly templateId: string = 'machine';
 
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		const row = append(container, $('.row'));
-		const name = append(row, $('.name'));
+		const { name } = createRow(container);
 
 		return { name };
 	}
@@ -193,8 +201,7 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 	readonly templateId: string = 'error';
 
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		const row = append(container, $('.row'));
-		const name = append(row, $('.name'));
+		const { name } = createRow(container);
 
 		return { name };
 	}
@@ -215,14 +222,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	constructor(private totalMem: number, private mapPidToName: Map<number, string>) { }
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const row = append(container, $('.row'));
-
-		const name = append(row, $('.cell.name'));
-		const cpu = append(row, $('.cell.cpu'));
-		const memory = append(row, $('.cell.memory'));
-		const pid = append(row, $('.cell.pid'));
-
-		return { name, cpu, pid, memory };
+		return createRow(container);
 	}
 
 	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
@@ -307,6 +307,7 @@ export class ProcessExplorerControl extends Disposable {
 	private dimensions: Dimension | undefined = undefined;
 
 	private tree: WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError> | undefined;
+	private readonly model = new ProcessExplorerModel(this.productService);
 
 	constructor(
 		container: HTMLElement,
@@ -321,7 +322,7 @@ export class ProcessExplorerControl extends Disposable {
 		this.init(container);
 	}
 
-	private init(container: HTMLElement): void {
+	private async init(container: HTMLElement): Promise<void> {
 		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
 			this.mapPidToName.clear();
 
@@ -331,19 +332,10 @@ export class ProcessExplorerControl extends Disposable {
 		});
 
 		ipcRenderer.on('vscode:listProcessesResponse', async (event: unknown, processRoots: IMachineProcessInformation[]) => {
-			processRoots.forEach((info, index) => {
-				if (isProcessItem(info.rootProcess)) {
-					info.rootProcess.name = index === 0 ? `${this.productService.applicationName} main` : 'remote agent';
-				}
-			});
+			this.model.update(processRoots);
 
-			if (!this.tree) {
-				const { totalmem } = await this.nativeHostService.getOSStatistics();
-				this.createProcessTree(container, processRoots, totalmem);
-			} else {
-				this.tree.setInput({ processes: { processRoots } });
-				this.layoutTree();
-			}
+			this.tree?.updateChildren();
+			this.layoutTree();
 
 			this.requestProcessList(0);
 		});
@@ -351,9 +343,12 @@ export class ProcessExplorerControl extends Disposable {
 		this.lastRequestTime = Date.now();
 		ipcRenderer.send('vscode:pidToNameRequest');
 		ipcRenderer.send('vscode:listProcesses');
+
+		const { totalmem } = await this.nativeHostService.getOSStatistics();
+		this.createProcessTree(container, totalmem);
 	}
 
-	private createProcessTree(container: HTMLElement, processRoots: IMachineProcessInformation[], totalmem: number): void {
+	private createProcessTree(container: HTMLElement, totalmem: number): void {
 		container.classList.add('process-explorer');
 		container.id = 'process-explorer';
 
@@ -375,13 +370,14 @@ export class ProcessExplorerControl extends Disposable {
 				accessibilityProvider: new ProcessAccessibilityProvider(),
 				identityProvider: new ProcessIdentityProvider(),
 				expandOnlyOnTwistieClick: true,
-				renderIndentGuides: RenderIndentGuides.OnHover
+				renderIndentGuides: RenderIndentGuides.OnHover,
+				enableStickyScroll: false
 			}));
 
-		this._register(this.tree.onKeyDown(async e => this.onTreeKeyDown(e)));
+		this._register(this.tree.onKeyDown(e => this.onTreeKeyDown(e)));
 		this._register(this.tree.onContextMenu(e => this.onTreeContextMenu(container, e)));
 
-		this.tree.setInput({ processes: { processRoots } });
+		this.tree.setInput(this.model);
 		this.layoutTree();
 	}
 
@@ -390,8 +386,6 @@ export class ProcessExplorerControl extends Disposable {
 		if (event.keyCode === KeyCode.KeyE && event.altKey) {
 			const selectionPids = this.getSelectedPids();
 			await Promise.all(selectionPids.map(pid => this.nativeHostService.killProcess(pid, 'SIGTERM')));
-
-			this.tree?.refresh();
 		}
 	}
 
@@ -519,5 +513,22 @@ export class ProcessExplorerControl extends Disposable {
 		if (this.dimensions && this.tree) {
 			this.tree.layout(this.dimensions.height, this.dimensions.width);
 		}
+	}
+}
+
+class ProcessExplorerModel implements IProcessTree {
+
+	processes: IProcessInformation = { processRoots: [] };
+
+	constructor(@IProductService private productService: IProductService) { }
+
+	update(processRoots: IMachineProcessInformation[]): void {
+		processRoots.forEach((info, index) => {
+			if (isProcessItem(info.rootProcess)) {
+				info.rootProcess.name = index === 0 ? `${this.productService.applicationName} main` : 'remote agent';
+			}
+		});
+
+		this.processes = { processRoots };
 	}
 }
