@@ -1,0 +1,163 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { createTextModel } from '../../testTextModel.js';
+import { randomTokens } from '../testUtils/randomTokens.js';
+import { Stream } from '../../../../common/codecs/utils/stream.js';
+import { BaseToken } from '../../../../common/codecs/baseToken.js';
+import { assertDefined } from '../../../../../base/common/types.js';
+import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { randomInt } from '../../../../../base/common/numbers.js';
+
+suite('Stream', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('• fromArray()', () => {
+		test('• sends tokens in the array', async () => {
+			const tokens = randomTokens();
+
+			const stream = disposables.add(Stream.fromArray(tokens));
+			const receivedTokens = await consume(stream);
+
+			assertTokensEqual(receivedTokens, tokens);
+		});
+	});
+
+	suite('• fromTextModel()', () => {
+		test('• sends data in text model', async () => {
+			const initialContents = [
+				'some contents',
+				'with some line breaks',
+				'and some more contents',
+				'and even more contents',
+			];
+
+			// both line endings should yield the same results
+			const lineEnding = (randomBoolean()) ? '\r\n' : '\n';
+
+			const model = disposables.add(
+				createTextModel(
+					initialContents.join(lineEnding),
+					'unknown',
+					undefined,
+					URI.file('/foo.js'),
+				),
+			);
+			const stream = disposables.add(Stream.fromTextModel(model));
+
+			const receivedData = await consume(stream);
+
+			assert.strictEqual(
+				receivedData.join(''),
+				initialContents.join(lineEnding),
+				'Received data must be equal to the initial contents.',
+			);
+		});
+	});
+
+	suite('• cancellation token', () => {
+		test('• can be cancelled', async () => {
+			const initialContents = [
+				'some contents',
+				'with some line breaks',
+				'and some more contents',
+				'and even more contents',
+				'some contents',
+				'with some line breaks',
+				'and some more contents',
+				'and even more contents',
+			];
+
+			// both line endings should yield the same results
+			const lineEnding = (randomBoolean()) ? '\r\n' : '\n';
+
+			const model = disposables.add(
+				createTextModel(
+					initialContents.join(lineEnding),
+					'unknown',
+					undefined,
+					URI.file('/foo.js'),
+				),
+			);
+
+			const stopAtLine = randomInt(5, 2);
+			const cancellation = disposables.add(new CancellationTokenSource());
+
+			// override the `getLineContent` method to cancel the stream
+			// when a specific line number is being read from the model
+			const originalGetLineContent = model.getLineContent.bind(model);
+			model.getLineContent = (lineNumber: number) => {
+				// cancel the stream when we reach this specific line number
+				if (lineNumber === stopAtLine) {
+					cancellation.cancel();
+				}
+
+				return originalGetLineContent(lineNumber);
+			};
+
+			const stream = disposables.add(
+				Stream.fromTextModel(model, cancellation.token),
+			);
+
+			const receivedData = await consume(stream);
+			const expectedData = initialContents
+				.slice(0, stopAtLine - 1)
+				.join(lineEnding);
+
+			assert.strictEqual(
+				receivedData.join(''),
+				// because the stream is cancelled before the last line,
+				// the last message always ends with the line ending
+				expectedData + lineEnding,
+				'Received data must be equal to the contents before cancel.',
+			);
+		});
+	});
+});
+
+/**
+ * TODO: @legomushroom
+ */
+const assertTokensEqual = (
+	receivedTokens: BaseToken[],
+	expectedTokens: BaseToken[],
+): void => {
+	for (let i = 0; i < expectedTokens.length; i++) {
+		const receivedToken = receivedTokens[i];
+
+		assertDefined(
+			receivedToken,
+			`Expected token #${i} to be '${expectedTokens[i]}', got 'undefined'.`,
+		);
+
+		assert.ok(
+			expectedTokens[i].equals(receivedTokens[i]),
+			`Expected token #${i} to be '${expectedTokens[i]}', got '${receivedToken}'.`,
+		);
+	}
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const consume = <T extends object>(stream: Stream<T>): Promise<T[]> => {
+	return new Promise((resolve, reject) => {
+		const receivedData: T[] = [];
+		stream.on('data', (token) => {
+			receivedData.push(token);
+		});
+
+		stream.on('end', () => {
+			resolve(receivedData);
+		});
+		stream.on('error', (error) => {
+			reject(error);
+		});
+	});
+};

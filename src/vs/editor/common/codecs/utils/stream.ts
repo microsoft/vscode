@@ -13,8 +13,6 @@ import { newWriteableStream, WriteableStream, ReadableStream } from '../../../..
 /**
  * A readable stream of provided tokens.
  */
-// TODO: @legomushroom - add cancellation token support
-// TODO: @legomushroom - add unit tests
 export class Stream<T extends object> extends ObservableDisposable implements ReadableStream<T> {
 	/**
 	 * TODO: @legomushroom
@@ -223,7 +221,6 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	): Stream<VSBuffer> {
 		return new Stream(modelToGenerator(model), cancellationToken);
 	}
-
 }
 
 /**
