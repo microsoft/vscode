@@ -24,14 +24,14 @@ export class NewLine extends SimpleToken<'\n'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '\n' {
 		return NewLine.symbol;
 	}
 
 	/**
 	 * The byte representation of the token.
 	 */
-	public get byte() {
+	public get byte(): VSBuffer {
 		return NewLine.byte;
 	}
 
