@@ -189,6 +189,28 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/platform/simpleBrowserElements/common/simpleBrowserElements.ts
+	{
+		target: '**/vs/platform/simpleBrowserElements/common/simpleBrowserElements.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/simpleBrowserElements/common/nativeSimpleBrowserElementsService.ts
+	{
+		target: '**/vs/platform/simpleBrowserElements/common/nativeSimpleBrowserElementsService.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/platform/native/common/native.ts
 	{
 		target: '**/vs/platform/native/common/native.ts',
