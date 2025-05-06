@@ -228,12 +228,12 @@ suite('CompositeToken', () => {
 				// ensure there is at least one composite token
 				const lastToken = tokens[tokens.length - 1];
 				const compositeToken1 = new TestToken(randomTokens(
-					randomInt(5, 2),
+					randomInt(3, 1),
 					lastToken.range.endLineNumber,
 					lastToken.range.endColumn,
 				));
 				const compositeToken2 = new TestToken(randomTokens(
-					randomInt(5, 2),
+					randomInt(6, 4),
 					lastToken.range.endLineNumber,
 					lastToken.range.endColumn,
 				));
