@@ -48,7 +48,11 @@ suite(`ipynb Clear Outputs`, () => {
 		];
 		const notebook = jupyterNotebookModelToNotebookData({ cells }, 'python');
 
-		const notebookDocument = await vscode.workspace.openNotebookDocument('jupyter-notebook', notebook);
+		const notebookDocumentPromise = vscode.workspace.openNotebookDocument('jupyter-notebook', notebook);
+		await raceTimeout(notebookDocumentPromise, 5000, () => {
+			throw new Error('Timeout waiting for notebook to open');
+		});
+		const notebookDocument = await notebookDocumentPromise;
 		await raceTimeout(vscode.window.showNotebookDocument(notebookDocument), 20000, () => {
 			throw new Error('Timeout waiting for notebook to open');
 		});
