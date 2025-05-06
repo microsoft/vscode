@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../baseToken.js';
-import { assert, assertNever } from '../../../../base/common/assert.js';
+import { assertNever } from '../../../../base/common/assert.js';
+import { assertDefined } from '../../../../base/common/types.js';
 import { ObservableDisposable } from '../../../../base/common/observableDisposable.js';
 import { newWriteableStream, WriteableStream, ReadableStream } from '../../../../base/common/stream.js';
 
 /**
  * A readable stream of provided tokens.
  */
+// TODO: @legomushroom - add unit tests
 export class TokenStream<T extends BaseToken> extends ObservableDisposable implements ReadableStream<T> {
 	/**
 	 * Underlying writable stream instance.
@@ -18,64 +20,55 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	private readonly stream: WriteableStream<T>;
 
 	/**
-	 * Index of the next token to be sent.
-	 */
-	private index: number;
-
-	/**
 	 * Interval reference that is used to periodically send
 	 * tokens to the stream in the background.
 	 */
-	private interval: ReturnType<typeof setInterval> | undefined;
+	private interval: ReturnType<typeof setImmediate> | undefined;
 
 	/**
-	 * Number of tokens left to be sent.
+	 * TODO: @legomushroom
 	 */
-	private get tokensLeft(): number {
-		return this.tokens.length - this.index;
-	}
+	private readonly tokens: T[];
 
 	constructor(
-		private readonly tokens: readonly T[],
+		tokens: readonly T[],
 	) {
 		super();
 
 		this.stream = newWriteableStream<T>(null);
-		this.index = 0;
 
+		// copy and reverse the tokens list so we can pop items from its e end
+		this.tokens = [...tokens].reverse();
 		// send couple of tokens immediately
-		this.sendTokens();
+		this.send(false);
 	}
 
 	/**
-	 * Start periodically sending tokens to the stream
-	 * asynchronously in the background.
+	 * TODO: @legomushroom
 	 */
-	public startStream(): this {
-		// already running, noop
-		if (this.interval !== undefined) {
-			return this;
-		}
+	public send(
+		play: boolean = true,
+	): void {
+		this.sendTokens()
+			.then(() => {
+				if (this.tokens.length === 0) {
+					this.stream.end();
+					this.stopStream();
+					return;
+				}
 
-		// no tokens to send, end the stream immediately
-		if (this.tokens.length === 0) {
-			this.stream.end();
-			return this;
-		}
+				if (play === false) {
+					this.stopStream();
+					return;
+				}
 
-		// periodically send tokens to the stream
-		this.interval = setInterval(async () => {
-			if (this.tokensLeft === 0) {
-				clearInterval(this.interval);
-				delete this.interval;
-
-				return;
-			}
-
-			await this.sendTokens();
-		}, 1);
-
-		return this;
+				this.interval = setImmediate(this.send.bind(this));
+			})
+			.catch(() => {
+				this.stream.destroy();
+				this.stream.end();
+				this.stopStream();
+			});
 	}
 
 	/**
@@ -86,7 +79,7 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 			return this;
 		}
 
-		clearInterval(this.interval);
+		clearImmediate(this.interval);
 		delete this.interval;
 
 		return this;
@@ -98,31 +91,27 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	private async sendTokens(
 		tokensCount: number = 25,
 	): Promise<void> {
-		if (this.tokensLeft <= 0) {
-			return;
-		}
+		// if (this.tokens.length === 0) {
+		// 	return;
+		// }
 
-		// send up to 10 tokens at a time
-		let tokensToSend = Math.min(this.tokensLeft, tokensCount);
-		while (tokensToSend > 0) {
-			assert(
-				this.index < this.tokens.length,
-				`Token index '${this.index}' is out of bounds.`,
-			);
-
+		// send up to 'tokensCount' tokens at a time
+		while ((tokensCount > 0) && (this.tokens.length > 0)) {
 			try {
-				await this.stream.write(this.tokens[this.index]);
-				this.index++;
-				tokensToSend--;
+				const token = this.tokens.pop();
+
+				assertDefined(
+					token,
+					`Token must be defined. Tokens left: ${this.tokens.length}.`,
+				);
+
+				await this.stream.write(token);
 			} catch {
+				this.stream.destroy();
+				this.stream.end();
 				this.stopStream();
 				return;
 			}
-		}
-
-		// if sent all tokens, end the stream immediately
-		if (this.tokensLeft === 0) {
-			this.stream.end();
 		}
 	}
 
@@ -134,7 +123,7 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	}
 
 	public resume(): void {
-		this.startStream();
+		this.send();
 		this.stream.resume();
 
 		return;
@@ -158,7 +147,7 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 			this.stream.on(event, callback);
 			// this is the convention of the readable stream, - when
 			// the `data` event is registered, the stream is started
-			this.startStream();
+			this.send();
 
 			return;
 		}

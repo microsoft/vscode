@@ -260,7 +260,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 				seenReferences,
 			);
 			this._onUpdate.fire();
-			this.firstParseResult.complete();
+			this.firstParseResult.end();
 
 			return this;
 		}
@@ -276,7 +276,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 				this.onContentsChanged(streamOrError, seenReferences);
 
 				// indicate that we've received at least one `onContentChanged` event
-				this.firstParseResult.complete();
+				this.firstParseResult.end();
 			}),
 		);
 
@@ -978,8 +978,14 @@ class FirstParseResult extends DeferredPromise<void> {
 	/**
 	 * Complete the underlying promise.
 	 */
-	public override complete(): Promise<void> {
+	public end(): void {
 		this._gotResult = true;
-		return super.complete(void 0);
+		super.complete(void 0)
+			.catch(() => {
+				// noop
+				// TODO: @legomushroom
+			});
+
+		return;
 	}
 }
