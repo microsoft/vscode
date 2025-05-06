@@ -2238,7 +2238,7 @@
         },
         {
           "command": "git.unstageChange",
-          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22HEAD%22%7D$/"
+          "when": "false"
         }
       ],
       "timeline/item/context": [
