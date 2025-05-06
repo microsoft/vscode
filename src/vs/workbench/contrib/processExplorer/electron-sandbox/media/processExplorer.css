@@ -24,22 +24,22 @@
 	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
-.process-explorer .name {
+.process-explorer .row .cell.name {
 	text-align: left;
 	flex-grow: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.process-explorer .cpu {
+.process-explorer .row .cell.cpu {
 	flex: 0 0 60px;
 }
 
-.process-explorer .memory {
+.process-explorer .row .cell.memory {
 	flex: 0 0 90px;
 }
 
-.process-explorer .pid {
+.process-explorer .row .cell.pid {
 	flex: 0 0 50px;
 }
 

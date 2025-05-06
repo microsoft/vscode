@@ -14,7 +14,7 @@ import { ProcessExplorerEditorInput } from './processExplorerEditoInput.js';
 import { ProcessExplorerEditor } from './processExplorerEditor.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(ProcessExplorerEditor, ProcessExplorerEditor.ID, localize('runtimeExtension', "Running Extensions")),
+	EditorPaneDescriptor.create(ProcessExplorerEditor, ProcessExplorerEditor.ID, localize('processExplorer', "Process Explorer")),
 	[new SyncDescriptor(ProcessExplorerEditorInput)]
 );
 

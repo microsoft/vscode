@@ -32,6 +32,10 @@ export class ProcessExplorerEditor extends EditorPane {
 		this.processExplorerControl = this._register(this.instantiationService.createInstance(ProcessExplorerControl, parent));
 	}
 
+	override focus(): void {
+		this.processExplorerControl?.focus();
+	}
+
 	override layout(dimension: Dimension): void {
 		this.processExplorerControl?.layout(dimension);
 	}

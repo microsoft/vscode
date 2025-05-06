@@ -472,6 +472,10 @@ export class ProcessExplorerControl extends Disposable {
 		this.delayer.trigger(() => this.update());
 	}
 
+	focus(): void {
+		this.tree?.domFocus();
+	}
+
 	layout(dimension: Dimension): void {
 		this.dimensions = dimension;
 
