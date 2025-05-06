@@ -9,7 +9,7 @@ import { PromptApplyToMetadata } from './metadata/applyTo.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
 import { TokenStream } from '../../../../../../../editor/common/codecs/utils/tokenStream.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
