@@ -88,6 +88,25 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
+	const myTerm = vscode.window.createTerminal();
+	const handler = vscode.window.onDidChangeTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
+		console.log('onDidChangeTerminalShellIntegration', shellIntegration);
+		if (terminal === myTerm) {
+			handler.dispose();
+			const execution = shellIntegration.executeCommand('echo `Hello world`');
+			console.log('Execution started', execution);
+			vscode.window.onDidStartTerminalShellExecution(event => {
+				console.log('onDidStartTerminalShellExecution', event);
+			});
+			// Wait for the command to finish
+			vscode.window.onDidEndTerminalShellExecution(event => {
+				console.log('onDidEndTerminalShellExecution', event);
+				if (event.execution === execution) {
+					console.log(`Command exited with code ${event.exitCode}`);
+				}
+			});
+		}
+	});
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',

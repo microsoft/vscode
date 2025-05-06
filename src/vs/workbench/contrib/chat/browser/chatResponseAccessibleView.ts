@@ -79,7 +79,6 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					}
 					responseContent += `\n${message}\n`;
 				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
-					responseContent += `\nTool calls used in this response:\n`;
 					responseContent += toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
 					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
 				}
