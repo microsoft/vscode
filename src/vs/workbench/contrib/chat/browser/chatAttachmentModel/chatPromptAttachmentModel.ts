@@ -8,9 +8,9 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
+import { ObservableDisposable } from '../../../../../base/common/observableDisposable.js';
 import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ObservableDisposable } from '../../../../../base/common/observableDisposable.js';
 
 /**
  * Type for a generic prompt parser object.
