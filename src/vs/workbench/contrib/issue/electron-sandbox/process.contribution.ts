@@ -44,7 +44,7 @@ class OpenProcessExplorer extends Action2 {
 			return processService.openProcessExplorer();
 		}
 
-		editorService.openEditor(ProcessExplorerEditorInput.instance, { pinned: true, auxiliary: { compact: true, bounds: { width: 800, height: 500 }, alwaysOnTop: true } }, AUX_WINDOW_GROUP);
+		editorService.openEditor({ resource: ProcessExplorerEditorInput.RESOURCE, options: { pinned: true, auxiliary: { compact: true, bounds: { width: 800, height: 500 }, alwaysOnTop: true } } }, AUX_WINDOW_GROUP);
 	}
 }
 registerAction2(OpenProcessExplorer);

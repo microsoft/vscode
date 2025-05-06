@@ -17,6 +17,11 @@ export class ProcessExplorerEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.editors.processEditorInput';
 
+	static readonly RESOURCE = URI.from({
+		scheme: 'process-explorer',
+		path: 'default'
+	});
+
 	private static _instance: ProcessExplorerEditorInput;
 	static get instance() {
 		if (!ProcessExplorerEditorInput._instance || ProcessExplorerEditorInput._instance.isDisposed()) {
@@ -30,10 +35,7 @@ export class ProcessExplorerEditorInput extends EditorInput {
 
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton; }
 
-	readonly resource = URI.from({
-		scheme: 'process-explorer',
-		path: 'default'
-	});
+	readonly resource = ProcessExplorerEditorInput.RESOURCE;
 
 	override getName(): string {
 		return localize('processExplorerInputName', "Process Explorer");
