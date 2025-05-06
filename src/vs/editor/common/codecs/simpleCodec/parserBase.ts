@@ -111,7 +111,7 @@ export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
  *
  * @throws the resulting decorated method throws if the parser object was already consumed.
  */
-export function assertNotConsumed<T extends ParserBase<any, any>>(
+export function assertNotConsumed<T extends ParserBase<BaseToken, unknown>>(
 	_target: T,
 	propertyKey: 'accept',
 	descriptor: PropertyDescriptor,

@@ -1487,32 +1487,27 @@ export default tseslint.config(
 			'@typescript-eslint/no-base-to-string': 'error',
 			'@typescript-eslint/no-confusing-non-null-assertion': 'error',
 			'@typescript-eslint/no-confusing-void-expression': 'error',
-			// '@typescript-eslint/no-duplicate-enum-values': 'error',
-			// '@typescript-eslint/no-dynamic-delete': 'error',
-			// 'no-empty-function': 'off', '@typescript-eslint/no-empty-function': [
-			// 	'error',
-			// 	{
-			// 		'allow': [
-			// 			'private-constructors'
-			// 		]
-			// 	}
-			// ],
-			// '@typescript-eslint/no-empty-object-type': 'error',
-			// '@typescript-eslint/no-explicit-any': 'error',
-			// '@typescript-eslint/no-extra-non-null-assertion': 'error',
-			// '@typescript-eslint/no-extraneous-class': 'error',
+			'@typescript-eslint/no-duplicate-enum-values': 'error',
+			'@typescript-eslint/no-dynamic-delete': 'error',
+			'no-empty-function': 'off', '@typescript-eslint/no-empty-function': [
+				'error', { 'allow': ['private-constructors'] }
+			],
+			'@typescript-eslint/no-empty-object-type': 'error',
+			'@typescript-eslint/no-explicit-any': ['error', { 'ignoreRestArgs': true }],
+			'@typescript-eslint/no-extra-non-null-assertion': 'error',
+			'@typescript-eslint/no-extraneous-class': 'error',
+			'@typescript-eslint/no-for-in-array': 'error',
+			'no-implied-eval': 'off', '@typescript-eslint/no-implied-eval': 'error',
+			'@typescript-eslint/no-invalid-void-type': 'error',
+			'no-loop-func': 'off', '@typescript-eslint/no-loop-func': 'error',
+			'@typescript-eslint/no-misused-new': 'warn',
+			'@typescript-eslint/no-mixed-enums': 'error',
 			// '@typescript-eslint/no-floating-promises': 'error',
-			// '@typescript-eslint/no-for-in-array': 'error',
-			// 'no-implied-eval': 'off', '@typescript-eslint/no-implied-eval': 'error',
-			// '@typescript-eslint/no-invalid-void-type': 'error',
-			// 'no-loop-func': 'off', '@typescript-eslint/no-loop-func': 'error',
-			// '@typescript-eslint/no-misused-new': 'warn',
 			// '@typescript-eslint/no-misused-promises': 'error',
-			// '@typescript-eslint/no-mixed-enums': 'error',
-			// '@typescript-eslint/no-non-null-asserted-nullish-coalescing': 'error',
-			// '@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
-			// '@typescript-eslint/no-non-null-assertion': 'error',
-			// '@typescript-eslint/no-redundant-type-constituents': 'error',
+			'@typescript-eslint/no-non-null-asserted-nullish-coalescing': 'error',
+			'@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
+			'@typescript-eslint/no-non-null-assertion': 'error',
+			'@typescript-eslint/no-redundant-type-constituents': 'error',
 			'@typescript-eslint/naming-convention': [
 				'warn',
 				{ 'selector': 'variable', 'format': ['camelCase', 'UPPER_CASE', 'PascalCase'] },

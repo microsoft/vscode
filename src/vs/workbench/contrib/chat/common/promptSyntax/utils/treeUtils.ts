@@ -127,14 +127,14 @@ export const map = <
  * Type for a rest parameters of function, excluding
  * the first argument.
  */
-type TRestParameters<T extends (...args: any[]) => any> =
-	T extends (first: any, ...rest: infer R) => any ? R : never;
+type TRestParameters<T extends (...args: any[]) => unknown> =
+	T extends (first: Parameters<T>[0], ...rest: infer R) => unknown ? R : never;
 
 /**
  * Type for a curried function.
  * See {@link curry} for more info.
  */
-type TCurriedFunction<T extends (...args: any[]) => any> = ((...args: TRestParameters<T>) => ReturnType<T>);
+type TCurriedFunction<T extends (...args: any[]) => unknown> = ((...args: TRestParameters<T>) => ReturnType<T>);
 
 /**
  * Curry a provided function with the first argument.

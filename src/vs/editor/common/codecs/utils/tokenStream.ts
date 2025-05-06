@@ -64,7 +64,7 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 		}
 
 		// periodically send tokens to the stream
-		this.interval = setInterval(() => {
+		this.interval = setInterval(async () => {
 			if (this.tokensLeft === 0) {
 				clearInterval(this.interval);
 				delete this.interval;
@@ -72,7 +72,7 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 				return;
 			}
 
-			this.sendTokens();
+			await this.sendTokens();
 		}, 1);
 
 		return this;
@@ -95,9 +95,9 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	/**
 	 * Sends a provided number of tokens to the stream.
 	 */
-	private sendTokens(
+	private async sendTokens(
 		tokensCount: number = 25,
-	): void {
+	): Promise<void> {
 		if (this.tokensLeft <= 0) {
 			return;
 		}
@@ -110,9 +110,14 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 				`Token index '${this.index}' is out of bounds.`,
 			);
 
-			this.stream.write(this.tokens[this.index]);
-			this.index++;
-			tokensToSend--;
+			try {
+				await this.stream.write(this.tokens[this.index]);
+				this.index++;
+				tokensToSend--;
+			} catch {
+				this.stopStream();
+				return;
+			}
 		}
 
 		// if sent all tokens, end the stream immediately
@@ -148,7 +153,7 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	public on(event: 'data', callback: (data: T) => void): void;
 	public on(event: 'error', callback: (err: Error) => void): void;
 	public on(event: 'end', callback: () => void): void;
-	public on(event: 'data' | 'error' | 'end', callback: (arg?: any) => void): void {
+	public on(event: 'data' | 'error' | 'end', callback: (...args: any[]) => void): void {
 		if (event === 'data') {
 			this.stream.on(event, callback);
 			// this is the convention of the readable stream, - when

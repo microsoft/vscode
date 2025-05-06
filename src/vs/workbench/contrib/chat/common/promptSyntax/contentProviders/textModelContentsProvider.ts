@@ -79,7 +79,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		// to avoid blocking the main thread and save system resources used
 		let i = 1;
 		const linesCount = this.model.getLineCount();
-		const interval = setInterval(() => {
+		const interval = setInterval(async () => {
 			// if we have written all lines or lines count is zero,
 			// end the stream and stop the interval timer
 			if (i >= linesCount) {
@@ -99,14 +99,14 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 			try {
 				// write the current line to the stream
-				stream.write(
+				await stream.write(
 					VSBuffer.fromString(this.model.getLineContent(i)),
 				);
 
 				// for all lines except the last one, write the EOL character
 				// to separate the lines in the stream
 				if (i !== linesCount) {
-					stream.write(
+					await stream.write(
 						VSBuffer.fromString(this.model.getEOL()),
 					);
 				}
