@@ -41,16 +41,6 @@ interface IProcessInformation {
 	readonly processRoots: IMachineProcessInformation[];
 }
 
-interface IProcessRowTemplateData {
-	readonly name: HTMLElement;
-}
-
-interface IProcessItemTemplateData extends IProcessRowTemplateData {
-	readonly cpu: HTMLElement;
-	readonly memory: HTMLElement;
-	readonly pid: HTMLElement;
-}
-
 interface IMachineProcessInformation {
 	readonly name: string;
 	readonly rootProcess: ProcessItem | IRemoteDiagnosticError;
@@ -155,6 +145,16 @@ function createRow(container: HTMLElement) {
 	return { name, cpu, memory, pid };
 }
 
+interface IProcessRowTemplateData {
+	readonly name: HTMLElement;
+}
+
+interface IProcessItemTemplateData extends IProcessRowTemplateData {
+	readonly cpu: HTMLElement;
+	readonly memory: HTMLElement;
+	readonly pid: HTMLElement;
+}
+
 class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, void, IProcessItemTemplateData> {
 
 	readonly templateId: string = 'header';
@@ -184,9 +184,7 @@ class MachineRenderer implements ITreeRenderer<IMachineProcessInformation, void,
 	readonly templateId: string = 'machine';
 
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		const { name } = createRow(container);
-
-		return { name };
+		return createRow(container);
 	}
 
 	renderElement(node: ITreeNode<IMachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
@@ -203,9 +201,7 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 	readonly templateId: string = 'error';
 
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		const { name } = createRow(container);
-
-		return { name };
+		return createRow(container);
 	}
 
 	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
@@ -255,11 +251,7 @@ class ProcessAccessibilityProvider implements IListAccessibilityProvider<IMachin
 	}
 
 	getAriaLabel(element: IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError): string | null {
-		if (isProcessItem(element)) {
-			return element.name;
-		}
-
-		if (isMachineProcessInformation(element)) {
+		if (isProcessItem(element) || isMachineProcessInformation(element)) {
 			return element.name;
 		}
 
@@ -300,8 +292,8 @@ export class ProcessExplorerControl extends Disposable {
 
 	private dimensions: Dimension | undefined = undefined;
 
-	private tree: WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError> | undefined;
 	private readonly model = new ProcessExplorerModel(this.productService);
+	private tree: WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError> | undefined;
 
 	private readonly delayer = this._register(new Delayer(1000));
 
