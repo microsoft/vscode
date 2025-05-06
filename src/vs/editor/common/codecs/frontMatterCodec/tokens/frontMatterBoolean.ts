@@ -7,7 +7,6 @@ import { BaseToken } from '../../baseToken.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
-import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 
 /**
  * Token that represents a `boolean` value in a Front Matter header.

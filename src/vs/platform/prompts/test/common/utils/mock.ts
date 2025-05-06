@@ -35,7 +35,7 @@ export function mockObject<TObject extends object>(
 				key: string | number | Symbol,
 			): TObject[T] => {
 				assert(
-					isOneOf(KeyedTaskIdentifier, keys),
+					isOneOf(key, keys),
 					`The '${key}' is not mocked.`,
 				);
 

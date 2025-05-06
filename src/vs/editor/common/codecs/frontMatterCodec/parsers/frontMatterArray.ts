@@ -126,10 +126,13 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 		// once we found a valid start value token, create a new value parser
 		if ((this.arrayItemAllowed === true) && PartialFrontMatterValue.isValueStartToken(token)) {
 			this.currentValueParser = new PartialFrontMatterValue(
-				(token) => {
+				(currentToken) => {
 					// comma or a closing square bracket must stop the parsing
 					// process of the value represented by a generic sequence of tokens
-					return ((token instanceof RightBracket) || (token instanceof Comma));
+					return (
+						(currentToken instanceof RightBracket)
+						|| (currentToken instanceof Comma)
+					);
 				},
 			);
 			this.arrayItemAllowed = false;

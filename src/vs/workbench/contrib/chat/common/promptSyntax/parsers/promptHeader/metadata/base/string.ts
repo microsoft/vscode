@@ -48,7 +48,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
 						this.recordName,
 						'string',
-						valueToken.valueTypeName,
+						valueToken.valueTypeName.toString(),
 					),
 				),
 			);
