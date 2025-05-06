@@ -19,9 +19,11 @@ import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
@@ -43,7 +45,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private readonly fileLocator: PromptFilesLocator;
 
+	/**
+	 * Function used by the `@logTime` decorator to log
+	 * execution time of some of the decorated methods.
+	 */
+	public logTime: TLogFunction;
+
 	constructor(
+		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly initService: IInstantiationService,
@@ -52,6 +61,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
+		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
 		// for the provided model, if no active non-disposed parser exists
@@ -169,6 +179,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
+	@logTime()
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
@@ -211,6 +222,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return [...new ResourceSet(result)];
 	}
 
+	@logTime()
 	public async getAllMetadata(
 		promptUris: readonly URI[],
 	): Promise<IMetadata[]> {
@@ -236,6 +248,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metadata;
 	}
 
+	@logTime()
 	public async getCombinedToolsMetadata(
 		promptUris: readonly URI[],
 	): Promise<TCombinedToolsMetadata | null> {
