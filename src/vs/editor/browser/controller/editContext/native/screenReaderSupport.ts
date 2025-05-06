@@ -285,14 +285,22 @@ export class ScreenReaderSupport {
 		const selectionOffsetEnd = screenReaderState.selectionOffsetEnd;
 		console.log('selectionOffsetStart : ', selectionOffsetStart);
 		console.log('selectionOffsetEnd : ', selectionOffsetEnd);
+		console.log('prelineDom : ', preLineDom);
+		console.log('activeLineDom : ', activeLineDom);
+		console.log('postLineDom : ', postLineDom);
 
 		const pretext = screenReaderState.prePositionLineText;
 		const lineText = screenReaderState.positionLineText;
 		const posttext = screenReaderState.postPositionLineText;
 
 		if (selectionOffsetStart <= pretext.length) {
-			const textContent = preLineDom.firstChild!;
-			range.setStart(textContent, selectionOffsetStart);
+			const textContent = preLineDom.firstChild;
+			console.log('textContent : ', textContent);
+			if (textContent) {
+				range.setStart(textContent, selectionOffsetStart);
+			} else {
+				range.setStart(preLineDom, 0);
+			}
 		} else if (selectionOffsetStart > pretext.length && selectionOffsetStart <= pretext.length + lineText.length) {
 			const spans = activeLineDom.firstChild!.childNodes;
 			const rawSpanOffsets = renderLineOutput.rawSpanOffsets;
@@ -302,12 +310,20 @@ export class ScreenReaderSupport {
 			const character = charOffsets[selectionOffsetStart];
 			range.setStart(span, character);
 		} else if (selectionOffsetStart > pretext.length + lineText.length && selectionOffsetStart <= pretext.length + lineText.length + posttext.length) {
-			const textContent = postLineDom.firstChild!;
-			range.setStart(textContent, selectionOffsetStart);
+			const textContent = postLineDom.firstChild;
+			if (textContent) {
+				range.setStart(textContent, selectionOffsetStart);
+			} else {
+				range.setStart(preLineDom, 0);
+			}
 		}
 		if (selectionOffsetEnd <= pretext.length) {
-			const textContent = preLineDom.firstChild!;
-			range.setEnd(textContent, selectionOffsetEnd);
+			const textContent = preLineDom.firstChild;
+			if (textContent) {
+				range.setStart(textContent, selectionOffsetEnd);
+			} else {
+				range.setStart(preLineDom, 0);
+			}
 		} else if (selectionOffsetEnd > pretext.length && selectionOffsetEnd <= pretext.length + lineText.length) {
 			const spans = activeLineDom.firstChild!.childNodes;
 			const rawSpanOffsets = renderLineOutput.rawSpanOffsets;
@@ -318,7 +334,11 @@ export class ScreenReaderSupport {
 			range.setEnd(span, character);
 		} else if (selectionOffsetEnd > pretext.length + lineText.length && selectionOffsetEnd <= pretext.length + lineText.length + posttext.length) {
 			const textContent = postLineDom.firstChild!;
-			range.setEnd(textContent, selectionOffsetEnd);
+			if (textContent) {
+				range.setStart(textContent, selectionOffsetEnd);
+			} else {
+				range.setStart(preLineDom, 0);
+			}
 		}
 		this.setIgnoreSelectionChangeTime('setRange');
 		activeDocumentSelection.removeAllRanges();
