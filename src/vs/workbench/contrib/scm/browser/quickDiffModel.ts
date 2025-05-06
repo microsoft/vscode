@@ -412,7 +412,15 @@ export class QuickDiffModel extends Disposable {
 				.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
 					change.change.modifiedStartLineNumber > lineNumber);
 
-			return nextChange !== -1 ? nextChange : 0;
+			if (nextChange !== -1) {
+				return nextChange;
+			}
+
+			// First visible change
+			const firstChange = this.changes
+				.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
+
+			return firstChange !== -1 ? firstChange : 0;
 		}
 
 		const primaryQuickDiffId = this.quickDiffs
@@ -427,12 +435,20 @@ export class QuickDiffModel extends Disposable {
 			return primaryInclusiveChangeIndex;
 		}
 
-		const inclusiveChangeIndex = this.changes
+		const inclusiveChange = this.changes
 			.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
 				change.change.modifiedStartLineNumber <= lineNumber &&
 				getModifiedEndLineNumber(change.change) >= lineNumber);
 
-		return inclusiveChangeIndex !== -1 ? inclusiveChangeIndex : 0;
+		if (inclusiveChange !== -1) {
+			return inclusiveChange;
+		}
+
+		// First visible change
+		const firstChange = this.changes
+			.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
+
+		return firstChange !== -1 ? firstChange : 0;
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {
