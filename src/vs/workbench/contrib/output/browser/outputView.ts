@@ -54,7 +54,7 @@ export class OutputViewPane extends FilterViewPane {
 
 	private readonly editor: OutputEditor;
 	private channelId: string | undefined;
-	private editorPromise: CancelablePromise<OutputEditor> | null = null;
+	private editorPromise: CancelablePromise<void> | null = null;
 
 	private readonly scrollLockContextKey: IContextKey<boolean>;
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
@@ -180,8 +180,7 @@ export class OutputViewPane extends FilterViewPane {
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
 			this.editorPromise?.cancel();
-			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token)
-				.then(() => this.editor));
+			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token));
 		}
 
 	}

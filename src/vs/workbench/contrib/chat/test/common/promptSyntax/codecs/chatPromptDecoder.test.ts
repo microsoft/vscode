@@ -7,7 +7,6 @@ import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
-import { FileReference } from '../../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
 import { PromptAtMention } from '../../../../common/promptSyntax/codecs/tokens/promptAtMention.js';
 import { PromptSlashCommand } from '../../../../common/promptSyntax/codecs/tokens/promptSlashCommand.js';
@@ -32,8 +31,9 @@ import { At, Dash, ExclamationMark, FormFeed, Hash, Space, Tab, VerticalTab, Wor
  * await test.run(
  *   ' hello #file:./some-file.md world\n',
  *   [
- *     new FileReference(
+ *     new PromptVariableWithData(
  *       new Range(1, 8, 1, 28),
+ *       'file',
  *       './some-file.md',
  *     ),
  *   ]
@@ -91,8 +91,9 @@ suite('ChatPromptDecoder', () => {
 				new Space(new Range(3, 12, 3, 13)),
 				new Word(new Range(3, 13, 3, 20), 'message'),
 				new Space(new Range(3, 20, 3, 21)),
-				new FileReference(
+				new PromptVariableWithData(
 					new Range(3, 21, 3, 21 + 24),
+					'file',
 					'./path/to/file1.md',
 				),
 				new NewLine(new Range(3, 45, 3, 46)),
@@ -110,15 +111,17 @@ suite('ChatPromptDecoder', () => {
 				// sixth line
 				new Space(new Range(6, 1, 6, 2)),
 				new Tab(new Range(6, 2, 6, 3)),
-				new FileReference(
+				new PromptVariableWithData(
 					new Range(6, 3, 6, 3 + 24),
+					'file',
 					'a/b/c/filename2.md',
 				),
 				new Tab(new Range(6, 27, 6, 28)),
 				new Word(new Range(6, 28, 6, 30), '🖖'),
 				new Tab(new Range(6, 30, 6, 31)),
-				new FileReference(
+				new PromptVariableWithData(
 					new Range(6, 31, 6, 31 + 19),
+					'file',
 					'other-file.md',
 				),
 				new NewLine(new Range(6, 50, 6, 51)),
@@ -134,8 +137,9 @@ suite('ChatPromptDecoder', () => {
 				new Space(new Range(7, 42, 7, 43)),
 				new Word(new Range(7, 43, 7, 43 + 4), 'text'),
 				new Space(new Range(7, 47, 7, 48)),
-				new FileReference(
+				new PromptVariableWithData(
 					new Range(7, 48, 7, 48 + 38),
+					'file',
 					'/some/file/with/absolute/path.md',
 				),
 				new NewLine(new Range(7, 86, 7, 87)),
@@ -149,8 +153,9 @@ suite('ChatPromptDecoder', () => {
 				new Space(new Range(8, 10, 8, 11)),
 				new Word(new Range(8, 11, 8, 11 + 4), 'text'),
 				new Space(new Range(8, 15, 8, 16)),
-				new FileReference(
+				new PromptVariableWithData(
 					new Range(8, 16, 8, 16 + 6),
+					'file',
 					'',
 				),
 				new Space(new Range(8, 22, 8, 23)),

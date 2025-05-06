@@ -9,7 +9,7 @@ import { SimpleToken } from './simpleToken.js';
  * Token that represent a `form feed` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class FormFeed extends SimpleToken {
+export class FormFeed extends SimpleToken<'\f'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
