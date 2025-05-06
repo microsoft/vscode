@@ -17,7 +17,7 @@ export class ProcessExplorerEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.editors.processEditorInput';
 
-	static _instance: ProcessExplorerEditorInput;
+	private static _instance: ProcessExplorerEditorInput;
 	static get instance() {
 		if (!ProcessExplorerEditorInput._instance || ProcessExplorerEditorInput._instance.isDisposed()) {
 			ProcessExplorerEditorInput._instance = new ProcessExplorerEditorInput();
