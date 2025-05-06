@@ -1435,14 +1435,8 @@ export default tseslint.config(
 			'@typescript-eslint/prefer-readonly': 'warn',
 		}
 	},
-	// TODO: @lego
+	// Prompt files related code
 	{
-		// TODO: @lego
-		// extends: [
-		// 	...tseslint.configs.recommendedTypeChecked,
-		// 	// TODO: @lego
-		// 	// ...tseslint.configs.strictTypeChecked,
-		// ],
 		files: [
 			'src/vs/platform/prompts/**/*.ts',
 			'src/vs/editor/common/codecs/**/*.ts',
@@ -1451,8 +1445,8 @@ export default tseslint.config(
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
-				// TODO: @lego
 				project: [
+					// TODO: @lego - check if needed
 					'src/tsconfig.strict.json',
 				],
 			}
@@ -1517,10 +1511,6 @@ export default tseslint.config(
 				{ 'selector': 'interface', 'format': ['PascalCase'], 'prefix': ['I'] }
 			],
 			'comma-dangle': ['warn', 'only-multiline'],
-			// // // // TODO: @lego
-			// // // '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
-			// // // TODO: @lego - comes from 'tseslint.configs.recommendedTypeChecked', but does not allow objects with `toString()` implementations
-			// // '@typescript-eslint/restrict-template-expressions': 'off',
 		}
 	},
 );

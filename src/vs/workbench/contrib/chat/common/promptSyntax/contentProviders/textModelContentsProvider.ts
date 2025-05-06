@@ -17,33 +17,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 
 /**
- * TODO: @legomushroom
- */
-export const modelToGenerator = (model: ITextModel): Generator<VSBuffer, undefined> => {
-	return (function* (): Generator<VSBuffer, undefined> {
-		const totalLines = model.getLineCount();
-		let currentLine = 1;
-
-		while (currentLine <= totalLines) {
-			if (model.isDisposed()) {
-				return undefined;
-			}
-
-			yield VSBuffer.fromString(
-				model.getLineContent(currentLine),
-			);
-			if (currentLine !== totalLines) {
-				yield VSBuffer.fromString(
-					model.getEOL(),
-				);
-			}
-
-			currentLine++;
-		}
-	})();
-};
-
-/**
  * Prompt contents provider for a {@link ITextModel} instance.
  */
 export class TextModelContentsProvider extends PromptContentsProviderBase<IModelContentChangedEvent> {
@@ -66,6 +39,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		private readonly model: ITextModel,
 		options: Partial<IPromptContentsProviderOptions>,
 		@IInstantiationService private readonly initService: IInstantiationService,
+		// TODO: @legomushroom - use the log service?
 		// @ILogService private readonly logService: ILogService,
 	) {
 		super(options);
@@ -89,7 +63,8 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<ReadableStream<VSBuffer>> {
-		return new Stream(modelToGenerator(this.model));
+		// TODO: @legomushroom - do we need `IModelContentChangedEvent` here?
+		return Stream.fromTextModel(this.model, cancellationToken);
 	}
 
 	public override createNew(

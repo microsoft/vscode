@@ -3,26 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ITextModel } from '../../model.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { ObservableDisposable } from '../../../../base/common/observableDisposable.js';
 import { newWriteableStream, WriteableStream, ReadableStream } from '../../../../base/common/stream.js';
 
 /**
- * TODO: @legomushroom
- */
-export const arrayToGenerator = <T extends NonNullable<unknown>>(array: readonly T[]): Generator<T, undefined> => {
-	return (function* (): Generator<T, undefined> {
-		for (const item of array) {
-			yield item;
-		}
-	})();
-};
-
-/**
  * A readable stream of provided tokens.
  */
+// TODO: @legomushroom - add cancellation token support
 // TODO: @legomushroom - add unit tests
 export class Stream<T extends object> extends ObservableDisposable implements ReadableStream<T> {
+	/**
+	 * TODO: @legomushroom
+	 */
+	private ended: boolean = false;
+
 	/**
 	 * Underlying writable stream instance.
 	 */
@@ -34,24 +32,19 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 	 */
 	private interval: ReturnType<typeof setImmediate> | undefined;
 
-	// TODO: @legomushroom
-	private ended: boolean = false;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public static fromArray<T extends object>(
-		array: readonly T[],
-	): Stream<T> {
-		return new Stream(arrayToGenerator(array));
-	}
-
 	constructor(
 		private readonly data: Generator<T, undefined>,
+		private readonly cancellationToken?: CancellationToken,
 	) {
 		super();
 
 		this.stream = newWriteableStream<T>(null);
+
+		if (cancellationToken?.isCancellationRequested) {
+			this.end();
+
+			return;
+		}
 
 		// send couple of tokens immediately
 		this.send(false);
@@ -70,9 +63,15 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 
 		this.sendTokens()
 			.then(() => {
+				if (this.cancellationToken?.isCancellationRequested) {
+					this.end();
+
+					return;
+				}
+
 				if (this.ended) {
-					this.stream.end();
-					this.stopStream();
+					this.end();
+
 					return;
 				}
 
@@ -111,15 +110,13 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 		tokensCount: number = 25,
 	): Promise<void> {
 		// send up to 'tokensCount' tokens at a time
-		// let token = this.data.read();
 		while (tokensCount > 0) {
 			try {
 				const token = this.data.next();
-				if (token.done) {
-					this.ended = true;
-					this.stopStream();
-					this.stream.end();
-					break;
+				if (token.done || this.cancellationToken?.isCancellationRequested) {
+					this.end();
+
+					return;
 				}
 
 				await this.stream.write(token.value);
@@ -132,6 +129,16 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 				return;
 			}
 		}
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private end(): this {
+		this.ended = true;
+		this.stream.end();
+		this.stopStream();
+		return this;
 	}
 
 	public pause(): void {
@@ -152,7 +159,7 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 		this.dispose();
 	}
 
-	public removeListener(event: string, callback: Function): void {
+	public removeListener(event: string, callback: (...args: any[]) => void): void {
 		this.stream.removeListener(event, callback);
 
 		return;
@@ -196,4 +203,63 @@ export class Stream<T extends object> extends ObservableDisposable implements Re
 
 		super.dispose();
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public static fromArray<T extends object>(
+		array: T[],
+		cancellationToken?: CancellationToken,
+	): Stream<T> {
+		return new Stream(arrayToGenerator(array), cancellationToken);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public static fromTextModel(
+		model: ITextModel,
+		cancellationToken?: CancellationToken,
+	): Stream<VSBuffer> {
+		return new Stream(modelToGenerator(model), cancellationToken);
+	}
+
 }
+
+/**
+ * TODO: @legomushroom
+ */
+export const arrayToGenerator = <T extends NonNullable<unknown>>(array: T[]): Generator<T, undefined> => {
+	return (function* (): Generator<T, undefined> {
+		for (const item of array) {
+			yield item;
+		}
+	})();
+};
+
+/**
+ * TODO: @legomushroom
+ */
+export const modelToGenerator = (model: ITextModel): Generator<VSBuffer, undefined> => {
+	return (function* (): Generator<VSBuffer, undefined> {
+		const totalLines = model.getLineCount();
+		let currentLine = 1;
+
+		while (currentLine <= totalLines) {
+			if (model.isDisposed()) {
+				return undefined;
+			}
+
+			yield VSBuffer.fromString(
+				model.getLineContent(currentLine),
+			);
+			if (currentLine !== totalLines) {
+				yield VSBuffer.fromString(
+					model.getEOL(),
+				);
+			}
+
+			currentLine++;
+		}
+	})();
+};

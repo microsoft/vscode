@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mockService } from './mock.js';
+import { mockObject, mockService } from './mock.js';
 import { typeCheck } from '../../../../../base/common/types.js';
 import { randomInt } from '../../../../../base/common/numbers.js';
 import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
