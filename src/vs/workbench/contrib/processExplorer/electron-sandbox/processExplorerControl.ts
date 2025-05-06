@@ -140,7 +140,7 @@ class ProcessTreeDataSource implements IDataSource<IProcessTree, IProcessInforma
 			return [element.rootProcess];
 		}
 
-		return [element.processes];
+		return coalesce([element.processes]);
 	}
 }
 

@@ -57,7 +57,3 @@
 .process-explorer .monaco-list-row:first-of-type {
 	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
-
-.process-explorer .centered {
-	text-align: center;
-}
