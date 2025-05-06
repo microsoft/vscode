@@ -252,7 +252,7 @@ async function expandAll(accessor: ServicesAccessor) {
 			if (searchView.model.hasAIResults) {
 				await forcedExpandRecursively(viewer, undefined);
 			} else {
-				await forcedExpandRecursively(viewer, searchView.model.searchResult.plainTextSearchResult);
+				await forcedExpandRecursively(viewer, undefined);
 			}
 		} else {
 			await forcedExpandRecursively(viewer, undefined);
