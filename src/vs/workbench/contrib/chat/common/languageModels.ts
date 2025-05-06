@@ -36,6 +36,12 @@ export interface IChatMessageImagePart {
 	value: IChatImageURLPart;
 }
 
+export interface IChatMessageDataPart {
+	type: 'data';
+	mimeType: string;
+	data: VSBuffer;
+}
+
 export interface IChatImageURLPart {
 	/**
 	 * The image's MIME type (e.g., "image/png", "image/jpeg").
@@ -75,7 +81,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
