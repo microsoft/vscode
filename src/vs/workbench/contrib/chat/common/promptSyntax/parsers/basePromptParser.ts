@@ -135,10 +135,8 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
 	 * @param callback The callback function to be called on updates.
 	 */
-	public onUpdate(callback: () => void): this {
-		this._register(this._onUpdate.event(callback));
-
-		return this;
+	public onUpdate(callback: () => void): IDisposable {
+		return this._onUpdate.event(callback);
 	}
 
 	/**
@@ -281,7 +279,9 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		);
 
 		// dispose self when contents provider is disposed
-		this.promptContentsProvider.onDispose(this.dispose.bind(this));
+		this._register(
+			this.promptContentsProvider.onDispose(this.dispose.bind(this)),
+		);
 	}
 
 	/**
@@ -399,13 +399,15 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		const reference = this.instantiationService
 			.createInstance(PromptReference, contentProvider, token, { seenReferences });
 
-		// the content provider is exclusively owned by the reference
-		// hence dispose it when the reference is disposed
-		reference.onDispose(contentProvider.dispose.bind(contentProvider));
-
 		this._references.push(reference);
 
-		reference.onUpdate(this._onUpdate.fire);
+		reference.addDisposable(
+			// the content provider is exclusively owned by the reference
+			// hence dispose it when the reference is disposed
+			reference.onDispose(contentProvider.dispose.bind(contentProvider)),
+			reference.onUpdate(this._onUpdate.fire),
+
+		);
 		this._onUpdate.fire();
 
 		reference.start();
@@ -864,10 +866,8 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
 	 * @param callback The callback function to be called on updates.
 	 */
-	public onUpdate(callback: () => void): this {
-		this.parser.onUpdate(callback);
-
-		return this;
+	public onUpdate(callback: () => void): IDisposable {
+		return this.parser.onUpdate(callback);
 	}
 
 	public get range(): Range {

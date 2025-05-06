@@ -54,7 +54,7 @@ suite('ObservableDisposable', () => {
 			);
 
 			const onDisposeSpy = spy(() => { });
-			object.onDispose(onDisposeSpy);
+			disposables.add(object.onDispose(onDisposeSpy));
 
 			assert(
 				onDisposeSpy.notCalled,
@@ -117,7 +117,7 @@ suite('ObservableDisposable', () => {
 			await wait(1);
 
 			const onDisposeSpy = spy(() => { });
-			object.onDispose(onDisposeSpy);
+			disposables.add(object.onDispose(onDisposeSpy));
 
 			assert(
 				onDisposeSpy.calledOnce,
@@ -126,7 +126,7 @@ suite('ObservableDisposable', () => {
 
 			await waitRandom(10);
 
-			object.onDispose(onDisposeSpy);
+			disposables.add(object.onDispose(onDisposeSpy));
 
 			assert(
 				onDisposeSpy.calledTwice,

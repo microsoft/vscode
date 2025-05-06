@@ -23,7 +23,7 @@ export abstract class ObservableDisposable extends Disposable {
 	 *
 	 * @param callback The callback function to be called on updates.
 	 */
-	public onDispose(callback: () => void): this {
+	public onDispose(callback: () => void): IDisposable {
 		// if already disposed, execute the callback immediately
 		if (this.disposed) {
 			callback();
@@ -31,16 +31,17 @@ export abstract class ObservableDisposable extends Disposable {
 			return this;
 		}
 
-		// otherwise subscribe to the event
-		this._register(this._onDispose.event(callback));
-		return this;
+		return this._onDispose.event(callback);
 	}
 
 	/**
 	 * TODO: @legomushroom
 	 */
-	public addDisposable(disposable: IDisposable): this {
-		this._register(disposable);
+	public addDisposable(...disposables: IDisposable[]): this {
+		for (const disposable of disposables) {
+			this._register(disposable);
+		}
+
 		return this;
 	}
 

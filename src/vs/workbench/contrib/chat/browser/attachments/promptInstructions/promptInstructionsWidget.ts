@@ -69,7 +69,7 @@ export class InstructionsAttachmentWidget extends ObservableDisposable {
 		this.dispose = this.dispose.bind(this);
 
 		this._register(this.model.onUpdate(this.render));
-		this.model.onDispose(this.dispose);
+		this._register(this.model.onDispose(this.dispose));
 
 		this.render();
 	}

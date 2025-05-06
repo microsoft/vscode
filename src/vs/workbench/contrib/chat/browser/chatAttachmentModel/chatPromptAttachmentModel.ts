@@ -117,9 +117,9 @@ export class ChatPromptAttachmentModel extends ObservableDisposable {
 			)
 		);
 
-		this._reference.onUpdate(
+		this._register(this._reference.onUpdate(
 			this._onUpdate.fire.bind(this._onUpdate),
-		);
+		));
 	}
 
 	/**
