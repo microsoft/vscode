@@ -13,7 +13,7 @@ import { assertNotDisposed, ObservableDisposable } from '../../common/observable
 suite('ObservableDisposable', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('tracks `disposed` state', () => {
+	test('• tracks `disposed` state', () => {
 		// this is an abstract class, so we have to create
 		// an anonymous class that extends it
 		const object = new class extends ObservableDisposable { }();
@@ -42,8 +42,8 @@ suite('ObservableDisposable', () => {
 		);
 	});
 
-	suite('onDispose', () => {
-		test('fires the event on dispose', async () => {
+	suite('• onDispose()', () => {
+		test('• fires the event on dispose', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
 			const object = new class extends ObservableDisposable { }();
@@ -107,7 +107,7 @@ suite('ObservableDisposable', () => {
 			);
 		});
 
-		test('executes callback immediately if already disposed', async () => {
+		test('• executes callback immediately if already disposed', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
 			const object = new class extends ObservableDisposable { }();
@@ -145,8 +145,8 @@ suite('ObservableDisposable', () => {
 		});
 	});
 
-	suite('addDisposable()', () => {
-		test('disposes provided object with itself', async () => {
+	suite('• addDisposable()', () => {
+		test('• disposes provided object with itself', async () => {
 			class TestDisposable implements IDisposable {
 				private _disposed = false;
 				public get disposed() {
@@ -204,7 +204,7 @@ suite('ObservableDisposable', () => {
 			);
 		});
 
-		test('disposes the entire tree of disposables', async () => {
+		test('• disposes the entire tree of disposables', async () => {
 			class TestDisposable extends ObservableDisposable { }
 
 			/**
@@ -286,8 +286,8 @@ suite('ObservableDisposable', () => {
 		});
 	});
 
-	suite('asserts', () => {
-		test('not disposed (method)', async () => {
+	suite('• asserts', () => {
+		test('• not disposed (method)', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
 			const object: ObservableDisposable = new class extends ObservableDisposable { }();
@@ -318,7 +318,7 @@ suite('ObservableDisposable', () => {
 			});
 		});
 
-		test('not disposed (function)', async () => {
+		test('• not disposed (function)', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
 			const object: ObservableDisposable = new class extends ObservableDisposable { }();
