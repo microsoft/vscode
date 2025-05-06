@@ -104,7 +104,7 @@ const NATIVE_TYPES = [
     'ICommonNativeHostService',
     'INativeHostService',
     'IMainProcessService',
-    'INativeSimpleBrowserElementsService',
+	'INativeSimpleBrowserElementsService',
 ];
 const RULES = [
     // Tests: skip
