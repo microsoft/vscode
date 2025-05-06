@@ -355,7 +355,7 @@ export class RenderLineOutput {
 	}
 }
 
-export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
+export function renderViewLine(input: RenderLineInput, sb: StringBuilder, renderNewLine: boolean = false): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {
@@ -398,7 +398,11 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		}
 
 		// completely empty line
-		sb.appendString('<span><span></span></span>');
+		if (renderNewLine) {
+			sb.appendString('<span><span>\n</span></span>');
+		} else {
+			sb.appendString('<span><span></span></span>');
+		}
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
 			false,

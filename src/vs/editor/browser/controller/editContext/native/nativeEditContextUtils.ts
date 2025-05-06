@@ -170,7 +170,9 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		}
 		const textRange = new Range(positionLineNumber, 1, positionLineNumber, context.getLineMaxColumn(positionLineNumber));
 		const positionLineText = context.getValueInRange(textRange, EndOfLinePreference.LF);
-		const characterOffsetOfPositionWithinText = context.getCharacterCountInRange(new Range(positionLineNumber, 1, positionLineNumber, positionColumn));
+		const tempRange = new Range(positionLineNumber, 1, positionLineNumber, positionColumn);
+		console.log('tempRange : ', tempRange);
+		const characterOffsetOfPositionWithinText = context.getCharacterCountInRange(tempRange);
 
 		let pretextRange = new Range(1, 1, 1, 1);
 		if (positionLineNumber > 1) {
@@ -188,21 +190,27 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 				posttextRange = Range.fromPositions(posttextRange.getStartPosition(), posttextEnd);
 			}
 		}
-		console.log('pretextRange : ', pretextRange);
-		console.log('posttextRange : ', posttextRange);
-		const prePositionLineText = context.getValueInRange(pretextRange, EndOfLinePreference.LF) + (isClipped ? String.fromCharCode(8230) : '');
+
+		let prePositionLineText = context.getValueInRange(pretextRange, EndOfLinePreference.LF) + (isClipped ? String.fromCharCode(8230) : '');
+		const prePositionLineEndsOnEmptyLine = pretextRange.getEndPosition().column === 1;
+		if (prePositionLineEndsOnEmptyLine) {
+			prePositionLineText += '\n';
+		}
+
 		let postPositionLineText = (isClipped ? String.fromCharCode(8230) : '') + context.getValueInRange(posttextRange, EndOfLinePreference.LF);
 		const startPositionWithinEditor = pretextRange.getStartPosition();
 		const newlineCountBeforeSelection = pretextRange.endLineNumber - pretextRange.startLineNumber;
 		switch (direction) {
 			case (SelectionDirection.LTR): {
+				console.log('LTR');
 				selectionOffsetEnd = prePositionLineText.length + characterOffsetOfPositionWithinText;
-				selectionOffsetStart = context.getCharacterCountInRange(Range.fromPositions(pretextRange.getStartPosition(), viewSelection.getStartPosition()));
+				selectionOffsetStart = context.getCharacterCountInRange(Range.fromPositions(pretextRange.getStartPosition(), viewSelection.getStartPosition()));  // + (prePositionLineEndsOnEmptyLine ? 0 : -1);
 				break;
 			}
 			case (SelectionDirection.RTL): {
+				console.log('RTL');
 				selectionOffsetStart = prePositionLineText.length + characterOffsetOfPositionWithinText;
-				selectionOffsetEnd = context.getCharacterCountInRange(Range.fromPositions(posttextRange.getStartPosition(), viewSelection.getEndPosition()));
+				selectionOffsetEnd = context.getCharacterCountInRange(Range.fromPositions(posttextRange.getStartPosition(), viewSelection.getEndPosition())); // + (prePositionLineEndsOnEmptyLine ? 0 : -1);
 				break;
 			}
 		}
@@ -212,7 +220,12 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		}
 		console.log('prePositionLineText : ', prePositionLineText);
 		console.log('postPositionLineText : ', postPositionLineText);
+		console.log('prePositionLineEndsOnEmptyLine : ', prePositionLineEndsOnEmptyLine);
+		console.log('pretextRange : ', pretextRange);
+		console.log('posttextRange : ', posttextRange);
 		console.log('positionLineText : ', positionLineText);
+		console.log('viewSelection :', viewSelection);
+		console.log('characterOffsetOfPositionWithinText : ', characterOffsetOfPositionWithinText);
 		console.log('selectionOffsetStart : ', selectionOffsetStart);
 		console.log('selectionOffsetEnd : ', selectionOffsetEnd);
 		const state = new NativeEditContextScreenReaderContentState(
