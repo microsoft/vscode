@@ -143,7 +143,7 @@ export function isPointWithinTriangle(
  * );
  * ```
  */
-export const randomInt = (max: number, min: number = 0): number => {
+export function randomInt(max: number, min: number = 0): number {
 	assert(!isNaN(min), '"min" param is not a number.');
 	assert(!isNaN(max), '"max" param is not a number.');
 
@@ -156,7 +156,7 @@ export const randomInt = (max: number, min: number = 0): number => {
 	const randomFloat = delta * Math.random();
 
 	return Math.round(min + randomFloat);
-};
+}
 
 export function randomChance(p: number): boolean {
 	assert(p >= 0 && p <= 1, 'p must be between 0 and 1');
