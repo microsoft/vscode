@@ -12,6 +12,7 @@ import { getFriendlyResourcePath } from '../helpers/uri';
 import { SettingsIds } from '../constants';
 import * as filesystem from 'fs';
 import * as path from 'path';
+import { TerminalShellType } from '../terminalSuggestMain';
 
 const isWindows = osIsWindows();
 
@@ -45,7 +46,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		this._cachedPathValue = undefined;
 	}
 
-	async getExecutablesInPath(env: ITerminalEnvironment = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
+	async getExecutablesInPath(env: ITerminalEnvironment = process.env, shellType?: TerminalShellType): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 		// Create cache key
 		let pathValue: string | undefined;
 		if (isWindows) {
@@ -66,12 +67,20 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 
 		// Extract executables from PATH
-		const paths = pathValue.split(isWindows ? ';' : ':');
+		const paths = pathValue.split(isWindows && shellType !== TerminalShellType.GitBash ? ';' : ':');
 		const pathSeparator = isWindows ? '\\' : '/';
+
 		const promises: Promise<Set<ICompletionResource> | undefined>[] = [];
 		const labels: Set<string> = new Set<string>();
 		for (const path of paths) {
-			promises.push(this._getFilesInPath(path, pathSeparator, labels));
+			if (shellType === TerminalShellType.GitBash) {
+				// Git Bash uses a different path separator
+				//remove last two chars, ;C
+				const gitBashPath = path.slice(0, -2);
+				promises.push(this._getFilesInPath(gitBashPath, '/', labels));
+			} else {
+				promises.push(this._getFilesInPath(path, pathSeparator, labels));
+			}
 		}
 
 		// Merge all results
