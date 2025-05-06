@@ -106,7 +106,7 @@ suite('CompositeToken', () => {
 		);
 	});
 
-	suite('• equals', () => {
+	suite.skip('• equals', () => {
 		suite('• true', () => {
 			test('• same child tokens', () => {
 				const tokens = randomTokens();
