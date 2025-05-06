@@ -45,7 +45,7 @@ import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/c
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
-import { IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
@@ -2329,12 +2329,14 @@ export namespace LanguageModelChatMessage {
 					}
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
-			} else if (c.type === 'image_url' || c.type === 'extra_data') {
+			} else if (c.type === 'image_url') {
 				// Non-stable types
 				return undefined;
-			} else {
+			} else if (c.type === 'tool_use') {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
+
+			return undefined;
 		}).filter(c => c !== undefined);
 
 		const role = LanguageModelChatMessageRole.to(message.role);
@@ -2426,8 +2428,8 @@ export namespace LanguageModelChatMessage2 {
 				return new types.LanguageModelToolResultPart2(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
 				return new types.LanguageModelDataPart(c.value.data.buffer, c.value.mimeType);
-			} else if (c.type === 'extra_data') {
-				return new types.LanguageModelExtraDataPart(c.kind, c.data);
+			} else if (c.type === 'data') {
+				return new types.LanguageModelDataPart(c.data.buffer, c.mimeType);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2479,15 +2481,23 @@ export namespace LanguageModelChatMessage2 {
 					isError: c.isError
 				};
 			} else if (c instanceof types.LanguageModelDataPart) {
-				const value: chatProvider.IChatImageURLPart = {
-					mimeType: c.mimeType as chatProvider.ChatImageMimeType,
-					data: VSBuffer.wrap(c.data),
-				};
+				if (isImageDataPart(c)) {
+					const value: chatProvider.IChatImageURLPart = {
+						mimeType: c.mimeType as chatProvider.ChatImageMimeType,
+						data: VSBuffer.wrap(c.data),
+					};
 
-				return {
-					type: 'image_url',
-					value: value
-				};
+					return {
+						type: 'image_url',
+						value: value
+					};
+				} else {
+					return {
+						type: 'data',
+						mimeType: c.mimeType,
+						data: VSBuffer.wrap(c.data),
+					} satisfies IChatMessageDataPart;
+				}
 			} else if (c instanceof types.LanguageModelToolCallPart) {
 				return {
 					type: 'tool_use',
@@ -2500,12 +2510,6 @@ export namespace LanguageModelChatMessage2 {
 					type: 'text',
 					value: c.value
 				};
-			} else if (c instanceof types.LanguageModelExtraDataPart) {
-				return {
-					type: 'extra_data',
-					kind: c.kind,
-					data: c.data
-				} satisfies chatProvider.IChatMessagePart;
 			} else {
 				if (typeof c !== 'string') {
 					throw new Error('Unexpected chat message content type llm 2');
@@ -2523,6 +2527,19 @@ export namespace LanguageModelChatMessage2 {
 			name,
 			content
 		};
+	}
+}
+
+function isImageDataPart(part: types.LanguageModelDataPart): boolean {
+	switch (part.mimeType) {
+		case types.ChatImageMimeType.PNG:
+		case types.ChatImageMimeType.JPEG:
+		case types.ChatImageMimeType.GIF:
+		case types.ChatImageMimeType.WEBP:
+		case types.ChatImageMimeType.BMP:
+			return true;
+		default:
+			return false;
 	}
 }
 
