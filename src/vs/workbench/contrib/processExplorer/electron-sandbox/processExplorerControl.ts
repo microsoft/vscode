@@ -5,7 +5,6 @@
 
 import './media/processExplorer.css';
 import { localize } from '../../../../nls.js';
-import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { $, append, Dimension, getDocument } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -26,6 +25,8 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { IProcessMainService } from '../../../../platform/process/common/process.js';
+import { Delayer } from '../../../../base/common/async.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -302,13 +303,13 @@ class ProcessIdentityProvider implements IIdentityProvider<IMachineProcessInform
 
 export class ProcessExplorerControl extends Disposable {
 
-	private lastRequestTime: number | undefined = undefined;
-
 	private readonly mapPidToName = new Map<number, string>();
 	private dimensions: Dimension | undefined = undefined;
 
 	private tree: WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError> | undefined;
 	private readonly model = new ProcessExplorerModel(this.productService);
+
+	private readonly delayer = this._register(new Delayer(1000));
 
 	constructor(
 		container: HTMLElement,
@@ -316,37 +317,19 @@ export class ProcessExplorerControl extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IProcessMainService private readonly processMainService: IProcessMainService
 	) {
 		super();
 
-		this.init(container);
+		this.create(container);
 	}
 
-	private async init(container: HTMLElement): Promise<void> {
-		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
-			this.mapPidToName.clear();
-
-			for (const [pid, name] of pidToNames) {
-				this.mapPidToName.set(pid, name);
-			}
-		});
-
-		ipcRenderer.on('vscode:listProcessesResponse', async (event: unknown, processRoots: IMachineProcessInformation[]) => {
-			this.model.update(processRoots);
-
-			this.tree?.updateChildren();
-			this.layoutTree();
-
-			this.requestProcessList(0);
-		});
-
-		this.lastRequestTime = Date.now();
-		ipcRenderer.send('vscode:pidToNameRequest');
-		ipcRenderer.send('vscode:listProcesses');
-
+	private async create(container: HTMLElement): Promise<void> {
 		const { totalmem } = await this.nativeHostService.getOSStatistics();
 		this.createProcessTree(container, totalmem);
+
+		this.update();
 	}
 
 	private createProcessTree(container: HTMLElement, totalmem: number): void {
@@ -475,25 +458,6 @@ export class ProcessExplorerControl extends Disposable {
 		this.commandService.executeCommand('debug.startFromConfig', config);
 	}
 
-	private requestProcessList(totalWaitTime: number): void {
-		setTimeout(() => {
-			if (this._store.isDisposed) {
-				return;
-			}
-
-			const nextRequestTime = Date.now();
-			const waited = totalWaitTime + nextRequestTime - (this.lastRequestTime ?? 0);
-			this.lastRequestTime = nextRequestTime;
-
-			if (waited > 1000 /* Wait at least a second between requests */) {
-				ipcRenderer.send('vscode:pidToNameRequest');
-				ipcRenderer.send('vscode:listProcesses');
-			} else {
-				this.requestProcessList(waited);
-			}
-		}, 200);
-	}
-
 	private getSelectedPids(): number[] {
 		return coalesce(this.tree?.getSelection()?.map(e => {
 			if (!isProcessItem(e)) {
@@ -502,6 +466,23 @@ export class ProcessExplorerControl extends Disposable {
 
 			return e.pid;
 		}) ?? []);
+	}
+
+	private async update(): Promise<void> {
+		const { processes, pidToNames } = await this.processMainService.resolve();
+
+		this.mapPidToName.clear();
+
+		for (const [pid, name] of pidToNames) {
+			this.mapPidToName.set(pid, name);
+		}
+
+		this.model.update(processes);
+
+		this.tree?.updateChildren();
+		this.layoutTree();
+
+		this.delayer.trigger(() => this.update());
 	}
 
 	layout(dimension: Dimension): void {
