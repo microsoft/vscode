@@ -105,6 +105,9 @@ Components: main
 Architectures: amd64,arm64,armhf
 Signed-By: $CODE_TRUSTED_PART
 EOF
+			if [ -f "$CODE_SOURCE_PART" ]; then
+				rm -f "$CODE_SOURCE_PART"
+			fi
 		else
 			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
