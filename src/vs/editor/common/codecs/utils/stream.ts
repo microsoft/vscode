@@ -3,17 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../baseToken.js';
 import { assertNever } from '../../../../base/common/assert.js';
-import { assertDefined } from '../../../../base/common/types.js';
 import { ObservableDisposable } from '../../../../base/common/observableDisposable.js';
 import { newWriteableStream, WriteableStream, ReadableStream } from '../../../../base/common/stream.js';
+
+/**
+ * TODO: @legomushroom
+ */
+export const arrayToGenerator = <T extends NonNullable<unknown>>(array: readonly T[]): Generator<T, undefined> => {
+	return (function* (): Generator<T, undefined> {
+		for (const item of array) {
+			yield item;
+		}
+	})();
+};
 
 /**
  * A readable stream of provided tokens.
  */
 // TODO: @legomushroom - add unit tests
-export class TokenStream<T extends BaseToken> extends ObservableDisposable implements ReadableStream<T> {
+export class Stream<T extends object> extends ObservableDisposable implements ReadableStream<T> {
 	/**
 	 * Underlying writable stream instance.
 	 */
@@ -25,20 +34,25 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	 */
 	private interval: ReturnType<typeof setImmediate> | undefined;
 
+	// TODO: @legomushroom
+	private ended: boolean = false;
+
 	/**
 	 * TODO: @legomushroom
 	 */
-	private readonly tokens: T[];
+	public static fromArray<T extends object>(
+		array: readonly T[],
+	): Stream<T> {
+		return new Stream(arrayToGenerator(array));
+	}
 
 	constructor(
-		tokens: readonly T[],
+		private readonly data: Generator<T, undefined>,
 	) {
 		super();
 
 		this.stream = newWriteableStream<T>(null);
 
-		// copy and reverse the tokens list so we can pop items from its e end
-		this.tokens = [...tokens].reverse();
 		// send couple of tokens immediately
 		this.send(false);
 	}
@@ -49,9 +63,14 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	public send(
 		play: boolean = true,
 	): void {
+		// TODO: @legomushroom - throw instead?
+		if (this.ended) {
+			return;
+		}
+
 		this.sendTokens()
 			.then(() => {
-				if (this.tokens.length === 0) {
+				if (this.ended) {
 					this.stream.end();
 					this.stopStream();
 					return;
@@ -91,25 +110,25 @@ export class TokenStream<T extends BaseToken> extends ObservableDisposable imple
 	private async sendTokens(
 		tokensCount: number = 25,
 	): Promise<void> {
-		// if (this.tokens.length === 0) {
-		// 	return;
-		// }
-
 		// send up to 'tokensCount' tokens at a time
-		while ((tokensCount > 0) && (this.tokens.length > 0)) {
+		// let token = this.data.read();
+		while (tokensCount > 0) {
 			try {
-				const token = this.tokens.pop();
+				const token = this.data.next();
+				if (token.done) {
+					this.ended = true;
+					this.stopStream();
+					this.stream.end();
+					break;
+				}
 
-				assertDefined(
-					token,
-					`Token must be defined. Tokens left: ${this.tokens.length}.`,
-				);
-
-				await this.stream.write(token);
+				await this.stream.write(token.value);
+				tokensCount--;
 			} catch {
-				this.stream.destroy();
-				this.stream.end();
 				this.stopStream();
+				this.stream.destroy();
+				// TODO: @legomushroom - needed?
+				this.stream.end();
 				return;
 			}
 		}
