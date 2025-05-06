@@ -27,7 +27,11 @@ suite('CompositeToken', () => {
 		}
 
 		public override toString(): string {
-			throw new Error('Method not implemented.');
+			const tokenStrings = this.tokens.map((token) => {
+				return token.toString();
+			});
+
+			return `CompositeToken:\n${tokenStrings.join('\n')})`;
 		}
 	}
 
@@ -253,7 +257,6 @@ suite('CompositeToken', () => {
 		});
 	});
 });
-
 
 /**
  * Token type for the {@link cloneTokens} and {@link randomTokens} functions.
