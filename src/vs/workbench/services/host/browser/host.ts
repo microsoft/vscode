@@ -53,8 +53,12 @@ export interface IHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode. It may not be supported
 	 * in all environments.
+	 *
+	 * Pass `notify: true` if you want to notify the user that the window is
+	 * active without bringing it to the foreground. In macOS, this makes the
+	 * icon bounce, and on Windows it flashes the taskbar icon.
 	 */
-	focus(targetWindow: Window, options?: { force: boolean }): Promise<void>;
+	focus(targetWindow: Window, options?: { force?: boolean; notify?: boolean }): Promise<void>;
 
 	//#endregion
 

@@ -173,7 +173,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		if (this._configurationService.getValue<boolean>('chat.focusWindowOnConfirmation')) {
 			const targetWindow = dom.getWindow(element);
 			if (!targetWindow.document.hasFocus()) {
-				this._hostService.focus(targetWindow, { force: true /* Application may not be active */ });
+				this._hostService.focus(targetWindow, { notify: true });
 			}
 		}
 	}

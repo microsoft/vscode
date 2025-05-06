@@ -287,11 +287,26 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return !!this.documentEdited;
 	}
 
-	focus(options?: { force: boolean }): void {
-		if (isMacintosh && options?.force) {
-			electron.app.focus({ steal: true });
-		}
+	focus(options?: { force: boolean; notify: boolean }): void {
+		const hasAnyFocusedWindow = electron.BrowserWindow.getAllWindows().some(w => w.isFocused());
 
+		if (hasAnyFocusedWindow) {
+			this._focusWindow();
+		} else if (options?.notify) {
+			if (isMacintosh) {
+				electron.app.dock.bounce('informational');
+			} else if (isWindows) {
+				// On Windows, this just flashes the taskbar icon, which is desired
+				// https://github.com/electron/electron/issues/2867
+				this.win?.focus();
+			}
+		} else if (options?.force) {
+			electron.app.focus({ steal: true });
+			this._focusWindow();
+		}
+	}
+
+	private _focusWindow() {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -1054,7 +1069,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
-					this.focus({ force: true });
+					this.focus({ force: true, notify: false });
 					this._win.webContents.openDevTools();
 				}
 			}, 10000)).schedule();

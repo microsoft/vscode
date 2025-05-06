@@ -26,7 +26,7 @@ export interface IBaseWindow extends IDisposable {
 	readonly win: electron.BrowserWindow | null;
 
 	readonly lastFocusTime: number;
-	focus(options?: { force: boolean }): void;
+	focus(options?: { force: boolean; notify: boolean }): void;
 
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string | undefined;

@@ -351,9 +351,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
-	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { force?: boolean }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { force?: boolean; notify?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.focus({ force: options?.force ?? false });
+		window?.focus({ force: options?.force ?? false, notify: options?.notify ?? false });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {

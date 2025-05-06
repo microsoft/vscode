@@ -122,8 +122,12 @@ export interface ICommonNativeHostService {
 	 * focus even if the application does not have focus currently. This option
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
+	 *
+	 * Pass `notify: true` if you want to notify the user that the window is
+	 * active without bringing it to the foreground. In macOS, this makes the
+	 * icon bounce, and on Windows it flashes the taskbar icon.
 	 */
-	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeHostOptions & { notify?: boolean; force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
