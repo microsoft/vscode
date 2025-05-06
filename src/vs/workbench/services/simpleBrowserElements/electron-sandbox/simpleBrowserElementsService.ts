@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeSimpleBrowserElementsService, NativeSimpleBrowserElementsService } from '../../../../platform/simpleBrowserElements/common/nativeSimpleBrowserElementsService.js';
+import { IElementData, INativeSimpleBrowserElementsService } from '../../../../platform/simpleBrowserElements/common/simpleBrowserElements.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -11,6 +11,7 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { ISimpleBrowserElementsService } from '../browser/simpleBrowserElementsService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { NativeSimpleBrowserElementsService } from '../../../../platform/simpleBrowserElements/common/nativeSimpleBrowserElementsService.js';
 
 class WorkbenchNativeSimpleBrowserElementsService extends NativeSimpleBrowserElementsService {
 

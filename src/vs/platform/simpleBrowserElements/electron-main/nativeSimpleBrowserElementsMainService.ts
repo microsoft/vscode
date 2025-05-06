@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeSimpleBrowserElementsService } from '../common/nativeSimpleBrowserElementsService.js';
+import { IElementData, INativeSimpleBrowserElementsService } from '../common/simpleBrowserElements.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRectangle } from '../../window/common/window.js';
 import { BrowserWindow, webContents } from 'electron';
@@ -18,7 +18,6 @@ import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 
 export const INativeSimpleBrowserElementsMainService = createDecorator<INativeSimpleBrowserElementsMainService>('simpleBrowserElementsMainService');
 export interface INativeSimpleBrowserElementsMainService extends AddFirstParameterToFunctions<INativeSimpleBrowserElementsService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
-
 
 interface NodeDataResponse {
 	outerHTML: string;
@@ -35,7 +34,6 @@ export class NativeSimpleBrowserElementsMainService extends Disposable implement
 
 	) {
 		super();
-
 	}
 
 	get windowId(): never { throw new Error('Not implemented in electron-main'); }
