@@ -562,14 +562,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * Get list of all valid child references as URIs.
-	 */
-	public get allValidReferencesUris(): readonly URI[] {
-		return this.allValidReferences
-			.map(child => child.uri);
-	}
-
-	/**
 	 * Valid metadata records defined in the prompt header.
 	 */
 	public get metadata(): IPromptMetadata {
