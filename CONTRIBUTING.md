@@ -93,7 +93,12 @@ PearAI consists of several components:
    ```bash
    yarn watch
    ```
-   Wait for it to compile everything (approximately 2 minutes) until it shows "finished compiling". Keep this terminal running.
+   Wait for it to compile everything (approximately 2 minutes) until it shows:
+   ```bash
+   [watch-extensions] [17:45:16] Finished compilation extensions with 0 errors after 24750 ms
+   [watch-client    ] [17:45:43] Finished compilation with 0 errors after 51228 ms
+   ```
+      Keep this terminal running.
 
 2. Open another terminal to run the app:
 

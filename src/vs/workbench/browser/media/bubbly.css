@@ -1,0 +1,356 @@
+/* Bubbly parts */
+.bubbly-part {
+	box-sizing: border-box;
+}
+
+:root {
+	--bubbly-radius-s: 4px;
+	--bubbly-radius-base: 6px;/* The main radius - used on most elements */
+	--bubbly-radius-l: 8px;
+	--bubbly-radius-xl: 10px;/* Used for radius on bubbly part containers */
+	--bubbly-text-transform: uppercase;
+}
+
+.split-view-view:has(> .bubbly-part) {
+	background: var(--vscode-sideBar-background);
+}
+
+.bubbly-part .bubbly-editor-content {
+	border-radius: var(--bubbly-radius-xl);
+	box-sizing: border-box;
+}
+
+/* Global UI elements */
+.monaco-inputbox {
+	border-radius: var(--bubbly-radius-base);
+}
+
+.monaco-pane-view .pane > .pane-header > .title {
+	text-transform: var(--bubbly-text-transform) !important;
+}
+
+.monaco-select-box {
+	border: none !important;
+	border-color: transparent !important;
+	border-radius: var(--bubbly-radius-base);
+}
+
+.monaco-split-view2 > .sash-container > .monaco-sash {/* Globally, we will hide the sash */
+	color: transparent;
+	background: transparent;
+	--vscode-sash-hoverBorder: var(--vscode-charts-blue);
+}
+
+.bubbly-part .pane-header {
+	background-color: transparent !important;
+}
+
+.bubbly-part {
+	border: none !important;
+}
+
+.bubbly-part .composite {
+	border: none !important;
+}
+
+.bubbly-part/*.sidebar*/ .scrollbar > .slider {
+	border-radius: var(--bubbly-radius-base);
+}
+
+.bubbly-part .monaco-list-row {
+	border-radius: var(--bubbly-radius-s);
+}
+
+/* Notifications */
+.monaco-workbench > .notifications-toasts .notifications-list-container,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast, .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:before,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
+	border-radius: var(--bubbly-radius-xl) !important;
+}
+
+.notification-list-item-buttons-container .monaco-button {
+	border-radius: var(--bubbly-radius-base);
+}
+
+/* Panel (bottom bar) */
+.bubbly-part.panel .composite.title .composite-bar-container .monaco-action-bar .action-label {/* panel buttons (Problems, Output, Debug Console)*/
+	text-transform: var(--bubbly-text-transform) !important;
+	border-bottom-color: transparent !important;
+}
+
+.bubbly-part.panel .action-item > .active-item-indicator::before {
+	border-top-width: 0 !important;
+}
+
+.bubbly-part.panel .composite-bar-container .action-item {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--bubbly-radius-base);
+	box-sizing: border-box;
+	height: 100% !important;
+	transition: background-color 0.05s linear;
+	display: flex;
+	align-items: center;
+}
+
+.bubbly-part.panel .title-actions {
+	margin-right: 2px;
+}
+
+.bubbly-part.panel .composite-bar-container .action-item {
+	background-color: transparent;
+}
+
+.bubbly-part.panel .action-item:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.bubbly-part.panel .action-item.checked {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.bubbly-part.panel .composite-bar .actions-container {
+	gap: 4px;
+}
+
+.bubbly-part.panel .actions-container {
+	gap: 2px;
+}
+
+.bubbly-part.panel .action-item:has(.monaco-select-box), .action-item:has(.monaco-inputbox) {
+	padding: 0 !important;
+	background: none !important;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.bubbly-part.panel .action-item .monaco-select-box, .action-item .monaco-inputbox {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.bubbly-part.panel {
+	background: var(--vscode-editor-background) !important;
+	--vscode-panel-background: var(--vscode-editor-background);
+}
+
+.bubbly-part.panel .composite.title {
+	padding: 8px;
+	padding-right: 10px;
+	height: 46px;/* updated title size to account for padding, see layoutService.ts*/
+}
+
+.bubbly-part.panel .title-actions {
+	align-self: center;
+}
+
+/* Terminal */
+.bubbly-part .terminal .xterm-scrollable-element {
+	background-color: var(--vscode-editor-background) !important;
+}
+
+.bubbly-part .terminal-wrapper {
+	background: var(--vscode-editor-background);
+}
+
+/* Editor - tabs/files */
+.bubbly-part .bubbly-editor-parent {
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+}
+
+.monaco-workbench .bubbly-part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
+	align-items: center;
+	gap: 3px;/* this adds a gap between the left side and right side when there are many editors open */
+}
+
+.monaco-workbench .bubbly-part.editor > .content .editor-group-container > .title .tabs-container {
+	padding-top: var(--editor-group-tab-padding);
+	padding-bottom: var(--editor-group-tab-padding);
+	align-items: center;
+	margin-left: 8px;
+	margin-right: 2px;
+	gap: 8px;
+}
+
+.monaco-workbench .bubbly-part.editor > .content .editor-group-container > .title .tabs-and-actions-container.wrapping .tabs-container {
+	row-gap: 8px;
+}
+
+.bubbly-part.editor .tabs-and-actions-container.wrapping .tabs-container .tab.last-in-row:not(:last-child) {
+	flex-grow: 0 !important;
+}
+
+.bubbly-part.editor .tabs-and-actions-container.wrapping .editor-actions {
+	bottom: 8px !important;
+}
+
+.bubbly-part.editor .tabs-and-actions-container .actions-container {
+	gap: 6px;
+}
+
+.bubbly-part.editor .tabs-and-actions-container .actions-container .action-item {
+	margin-right: 0 !important;
+}
+
+.bubbly-part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	border-radius: var(--bubbly-radius-xl);
+	align-items: center;
+	border: 1px solid transparent !important;
+}
+
+.bubbly-part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	border: 0.5px solid var(--vscode-tab-unfocusedInactiveForeground, transparent) !important;
+}
+
+.bubbly-part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active {
+	background: transparent;
+}
+
+.bubbly-part.editor > .content .editor-group-container > .title .editor-actions {
+	padding-left: 6px;
+	padding-right: 6px;
+	gap: 3px;
+	border-radius: var(--bubbly-radius-base);
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	margin-right: 8px;
+}
+
+.bubbly-part.editor .tab-border-top-container {
+	background: none !important;
+}
+
+.bubbly-part.editor .tab-border-bottom-container {
+	background: none !important;
+}
+
+.bubbly-part.editor .tabs-and-actions-container {
+	background: var(--vscode-editor-background);
+}
+
+.bubbly-part.editor .tab {
+	border-right: none !important;
+}
+
+/* Sidebar */
+.bubbly-part.sidebar .composite.title {
+	align-items: center;
+}
+
+.bubbly-part.sidebar > .composite.title > .title-label > h2 {
+	line-height: 28px;
+	font-size: 11.5px;
+	text-transform: var(--bubbly-text-transform);
+}
+
+.bubbly-part.sidebar > .composite.title .title-actions {
+	height: 25px;
+}
+
+.bubbly-part.sidebar .pane-header {
+	height: 26px;
+}
+
+/* Activity bar (when on sidebar) */
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar  .actions-container {
+	gap: 0px;
+}
+
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .codicon {
+	width: 28px;
+	height: 28px;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	border-radius: var(--bubbly-radius-base);
+}
+
+.bubbly-part.pane-composite-part.sidebar > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon,
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
+	padding: 0 0px;
+}
+
+.bubbly-part.pane-composite-part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content,
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
+	margin-right: 2px;
+}
+
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .codicon {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
+	height: 0;
+	width: 0;
+}
+
+.bubbly-part.pane-composite-part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
+	left: 0;
+	position: relative;
+}
+
+.bubbly-part.sidebar .composite.header {
+	height: 42px;
+	align-items: center;
+}
+
+/* Activity bar (when on left side of screen, detached from sidebar) */
+.monaco-workbench .bubbly-part.activitybar {
+	color: transparent !important;
+}
+
+.monaco-workbench .part.activitybar {/* Updated width in code, see activitybarPart.ts */
+	width: 56px;
+}
+
+.bubbly-part.activitybar .actions-container {
+	display: flex;
+	gap: 1px;
+	flex-direction: column;
+	margin-top: 8px;
+	margin-bottom: 6px;
+}
+
+.bubbly-part.activitybar .action-item {
+	box-sizing: border-box;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+}
+
+.bubbly-part.activitybar .action-item .action-label.codicon {
+	font-size: 18px !important;
+	border-radius: var(--bubbly-radius-l);
+	border: 1px solid transparent;
+	overflow: visible !important;
+	box-sizing: border-box;
+	width: 32px !important;
+	height: 32px !important;
+}
+
+.bubbly-part.activitybar .action-item.checked .action-label.codicon {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.bubbly-part.activitybar .active-item-indicator::before {
+	border-left-color: transparent !important;
+}
+
+.bubbly-part.activitybar .actions-container .action-item {
+	align-items: center;
+	justify-content: center;
+	display: flex !important;
+}
+
+/* Remove borders from some of the parts which aren't bubbly */
+.part.statusbar.status-border-top::after {
+	background-color: transparent !important;
+}
+
+.part.auxiliarybar {
+	border-left: none !important;
+}
+
+.part.titlebar {
+	border-bottom: none !important;
+}
