@@ -30,7 +30,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 			FileAccess.asFileUri('bootstrap-fork').fsPath,
 			{
 				serverName: 'File Watcher',
-				args: ['--type=fileWatcher'],
+				args: ['--type=file-watcher'],
 				env: {
 					VSCODE_ESM_ENTRYPOINT: 'vs/platform/files/node/watcher/watcherMain',
 					VSCODE_PIPE_LOGGING: 'true',

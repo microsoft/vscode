@@ -140,7 +140,7 @@ class ProcessTreeDataSource implements IDataSource<IProcessTree, IProcessInforma
 			return [element.rootProcess];
 		}
 
-		return coalesce([element.processes]);
+		return element.processes ? [element.processes] : [];
 	}
 }
 
@@ -221,7 +221,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 	readonly templateId: string = 'process';
 
-	constructor(private totalMem: number, private mapPidToName: Map<number, string>) { }
+	constructor(private totalMem: number, private model: ProcessExplorerModel) { }
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		return createRow(container);
@@ -232,12 +232,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 		const pid = element.pid.toFixed(0);
 
-		let name = element.name;
-		if (this.mapPidToName.has(element.pid)) {
-			name = this.mapPidToName.get(element.pid)!;
-		}
-
-		templateData.name.textContent = name;
+		templateData.name.textContent = this.model.getName(element.pid, element.name);
 		templateData.name.title = element.cmd;
 
 		templateData.cpu.textContent = element.load.toFixed(0);
@@ -303,7 +298,6 @@ class ProcessIdentityProvider implements IIdentityProvider<IMachineProcessInform
 
 export class ProcessExplorerControl extends Disposable {
 
-	private readonly mapPidToName = new Map<number, string>();
 	private dimensions: Dimension | undefined = undefined;
 
 	private tree: WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError> | undefined;
@@ -337,7 +331,7 @@ export class ProcessExplorerControl extends Disposable {
 		container.id = 'process-explorer';
 
 		const renderers = [
-			new ProcessRenderer(totalmem, this.mapPidToName),
+			new ProcessRenderer(totalmem, this.model),
 			new ProcessHeaderTreeRenderer(),
 			new MachineRenderer(),
 			new ErrorRenderer()
@@ -354,8 +348,7 @@ export class ProcessExplorerControl extends Disposable {
 				accessibilityProvider: new ProcessAccessibilityProvider(),
 				identityProvider: new ProcessIdentityProvider(),
 				expandOnlyOnTwistieClick: true,
-				renderIndentGuides: RenderIndentGuides.OnHover,
-				enableStickyScroll: false
+				renderIndentGuides: RenderIndentGuides.OnHover
 			}));
 
 		this._register(this.tree.onKeyDown(e => this.onTreeKeyDown(e)));
@@ -471,13 +464,7 @@ export class ProcessExplorerControl extends Disposable {
 	private async update(): Promise<void> {
 		const { processes, pidToNames } = await this.processMainService.resolve();
 
-		this.mapPidToName.clear();
-
-		for (const [pid, name] of pidToNames) {
-			this.mapPidToName.set(pid, name);
-		}
-
-		this.model.update(processes);
+		this.model.update(processes, pidToNames);
 
 		this.tree?.updateChildren();
 		this.layoutTree();
@@ -502,9 +489,20 @@ class ProcessExplorerModel implements IProcessTree {
 
 	processes: IProcessInformation = { processRoots: [] };
 
+	private readonly mapPidToName = new Map<number, string>();
+
 	constructor(@IProductService private productService: IProductService) { }
 
-	update(processRoots: IMachineProcessInformation[]): void {
+	update(processRoots: IMachineProcessInformation[], pidToNames: [number, string][]): void {
+
+		// PID to Names
+		this.mapPidToName.clear();
+
+		for (const [pid, name] of pidToNames) {
+			this.mapPidToName.set(pid, name);
+		}
+
+		// Processes
 		processRoots.forEach((info, index) => {
 			if (isProcessItem(info.rootProcess)) {
 				info.rootProcess.name = index === 0 ? `${this.productService.applicationName} main` : 'remote agent';
@@ -512,5 +510,9 @@ class ProcessExplorerModel implements IProcessTree {
 		});
 
 		this.processes = { processRoots };
+	}
+
+	getName(pid: number, fallback: string): string {
+		return this.mapPidToName.get(pid) ?? fallback;
 	}
 }

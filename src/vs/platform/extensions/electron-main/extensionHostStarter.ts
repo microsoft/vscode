@@ -107,7 +107,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		const extHost = this._getExtHost(id);
 		extHost.start({
 			...opts,
-			type: 'extensionHost',
+			type: 'extension-host',
 			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
 			args: ['--skipWorkspaceStorageLock'],
 			execArgv: opts.execArgv,

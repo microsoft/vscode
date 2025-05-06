@@ -265,7 +265,7 @@ export class ExtensionHostConnection extends Disposable {
 			opts.execArgv.unshift('--dns-result-order=ipv4first');
 
 			// Run Extension Host as fork of current process
-			const args = ['--type=extensionHost', `--transformURIs`];
+			const args = ['--type=extension-host', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
 			args.push(`--useHostProxy=${useHostProxy ? 'true' : 'false'}`);
 			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork').fsPath, args, opts);

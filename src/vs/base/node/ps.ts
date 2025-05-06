@@ -80,8 +80,6 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					}
 
 					return 'utility-process';
-				} else if (matches[1] === 'extensionHost') {
-					return 'extension-host'; // normalize remote extension host type
 				}
 				return matches[1];
 			}
