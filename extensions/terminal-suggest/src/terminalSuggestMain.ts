@@ -105,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value);
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
 			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
@@ -114,7 +114,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Order is important here, add shell globals first so they are prioritized over path commands
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-			const pathSeparator = isWindows ? '\\' : '/';
+			const pathSeparator = isWindows && terminalShellType !== TerminalShellType.GitBash ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
 			const result = await Promise.race([
 				getCompletionItemsFromSpecs(
