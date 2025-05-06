@@ -49,6 +49,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { verifiedPublisherIcon } from './extensionsIcons.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { CommontExtensionManagementService } from '../../../../platform/extensionManagement/common/abstractExtensionManagementService.js';
 
 const TrustedPublishersStorageKey = 'extensions.trustedPublishers';
 
@@ -56,7 +57,7 @@ function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): 
 	return extension.type === 'gallery';
 }
 
-export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
+export class ExtensionManagementService extends CommontExtensionManagementService implements IWorkbenchExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -98,7 +99,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IProductService protected readonly productService: IProductService,
+		@IProductService productService: IProductService,
 		@IDownloadService protected readonly downloadService: IDownloadService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -108,11 +109,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
-		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super();
+		super(productService, allowedExtensionsService);
 
 		this.defaultTrustedPublishers = productService.trustedExtensionPublishers ?? [];
 		this.workspaceExtensionManagementService = this._register(this.instantiationService.createInstance(WorkspaceExtensionsManagementService));
@@ -382,7 +383,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject('No Servers');
 	}
 
-	async canInstall(extension: IGalleryExtension | IResourceExtension): Promise<true | IMarkdownString> {
+	override async canInstall(extension: IGalleryExtension | IResourceExtension): Promise<true | IMarkdownString> {
 		if (isGalleryExtension(extension)) {
 			return this.canInstallGalleryExtension(extension);
 		}
@@ -1112,10 +1113,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.cleanUp()));
 	}
 
-	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+	toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
-			return server.extensionManagementService.toggleAppliationScope(extension, fromProfileLocation);
+			return server.extensionManagementService.toggleApplicationScope(extension, fromProfileLocation);
 		}
 		throw new Error('Not Supported');
 	}

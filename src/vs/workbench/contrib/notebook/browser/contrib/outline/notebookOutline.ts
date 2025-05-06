@@ -38,7 +38,6 @@ import { OutlineEntry } from '../../viewModel/OutlineEntry.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelDeltaDecoration } from '../../../../../../editor/common/model.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { Action2, IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -54,6 +53,7 @@ import { NotebookOutlineConstants } from '../../viewModel/notebookOutlineEntryFa
 import { INotebookCellOutlineDataSourceFactory } from '../../viewModel/notebookOutlineDataSourceFactory.js';
 import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
 
 class NotebookOutlineTemplate {
 
@@ -485,7 +485,7 @@ export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<Outli
 
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
-	private readonly _collator = new DOM.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = safeIntl.Collator(undefined, { numeric: true });
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;

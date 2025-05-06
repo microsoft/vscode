@@ -18,6 +18,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
@@ -46,6 +47,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
@@ -60,9 +62,18 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		const markdownContent = renderer.render(new MarkdownString(errorDetails.message));
 		dom.append(messageContainer, markdownContent.element);
 
-		const button1 = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
-		button1.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
-		button1.element.classList.add('chat-quota-error-button');
+		let button1Label = '';
+		switch (chatEntitlementService.entitlement) {
+			case ChatEntitlement.Pro:
+			case ChatEntitlement.ProPlus:
+				button1Label = localize('enableAdditionalUsage', "Manage paid premium requests");
+				break;
+			case ChatEntitlement.Limited:
+				button1Label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
+				break;
+			default:
+				button1Label = '';
+		}
 
 		let hasAddedWaitWarning = false;
 		const addWaitWarningIfNeeded = () => {
@@ -71,7 +82,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			}
 
 			hasAddedWaitWarning = true;
-			dom.append(messageContainer, $('.chat-quota-wait-warning', undefined, localize('waitWarning', "Signing up may take a few minutes to take effect.")));
+			dom.append(messageContainer, $('.chat-quota-wait-warning', undefined, localize('waitWarning', "Changes may take a few minutes to take effect.")));
 		};
 
 		let hasAddedRetryButton = false;
@@ -86,7 +97,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 				buttonForeground: asCssVariable(textLinkForeground)
 			}));
 			button2.element.classList.add('chat-quota-error-secondary-button');
-			button2.label = localize('signedUpClickToContinue', "Signed up? Click to retry.");
+			button2.label = localize('clickToContinue', "Click to retry.");
 			this._onDidChangeHeight.fire();
 			this._register(button2.onDidClick(() => {
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
@@ -101,14 +112,19 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			}));
 		};
 
-		this._register(button1.onDidClick(async () => {
-			const commandId = 'workbench.action.chat.upgradePlan';
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
-			await commandService.executeCommand(commandId);
+		if (button1Label) {
+			const button1 = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
+			button1.label = button1Label;
+			button1.element.classList.add('chat-quota-error-button');
+			this._register(button1.onDidClick(async () => {
+				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Limited ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageOverages';
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
+				await commandService.executeCommand(commandId);
 
-			shouldShowRetryButton = true;
-			addRetryButtonIfNeeded();
-		}));
+				shouldShowRetryButton = true;
+				addRetryButtonIfNeeded();
+			}));
+		}
 
 		addRetryButtonIfNeeded();
 		addWaitWarningIfNeeded();

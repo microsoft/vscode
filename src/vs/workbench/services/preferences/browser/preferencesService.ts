@@ -123,7 +123,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
 	}
 
-	createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {
+	private createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {
 		if (!this._cachedSettingsEditor2Input || this._cachedSettingsEditor2Input.isDisposed()) {
 			// Recreate the input if the user never opened the Settings editor,
 			// or if they closed it and want to reopen it.

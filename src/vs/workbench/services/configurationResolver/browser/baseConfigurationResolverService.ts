@@ -17,7 +17,7 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } f
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, IWorkspaceFolderData, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -44,7 +44,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
-		private readonly workspaceContextService: IWorkspaceContextService,
+		workspaceContextService: IWorkspaceContextService,
 		private readonly quickInputService: IQuickInputService,
 		private readonly labelService: ILabelService,
 		private readonly pathService: IPathService,
@@ -144,10 +144,6 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	}
 
 	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
-		// First resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAsync(folder, config);
-
-		// Then resolve input variables in the order in which they are encountered
 		const parsed = ConfigurationResolverExpression.parse(config);
 		await this.resolveWithInteraction(folder, parsed, section, variables, target);
 
@@ -180,9 +176,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			else if (this._contributedVariables.has(variable.inner)) {
 				result = { value: await this._contributedVariables.get(variable.inner)!() };
 			}
-			// Not something we can handle
 			else {
-				continue;
+				// Fallback to parent evaluation
+				const resolvedValue = await this.evaluateSingleVariable(variable, folder?.uri);
+				if (resolvedValue === undefined) {
+					// Not something we can handle
+					continue;
+				}
+				result = typeof resolvedValue === 'string' ? { value: resolvedValue } : resolvedValue;
 			}
 
 			if (result === undefined) {
@@ -197,7 +198,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	}
 
 	private async resolveInputs(folder: IWorkspaceFolderData | undefined, section: string, target?: ConfigurationTarget): Promise<ConfiguredInput[] | undefined> {
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !section) {
+		if (!section) {
 			return undefined;
 		}
 
@@ -276,7 +277,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						if (typeof resolvedInput === 'string') {
 							this.storeInputLru(defaultValueMap.set(defaultValueKey, resolvedInput));
 						}
-						return resolvedInput ? { value: resolvedInput as string, input: info } : undefined;
+						return resolvedInput !== undefined ? { value: resolvedInput as string, input: info } : undefined;
 					});
 				}
 

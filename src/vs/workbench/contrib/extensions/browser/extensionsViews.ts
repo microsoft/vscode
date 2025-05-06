@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
-import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
 import { PagedModel, IPagedModel, DelayedPagedModel, IPager } from '../../../../base/common/paging.js';
 import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -17,7 +16,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Delegate, Renderer } from './extensionsList.js';
 import { ExtensionResultsListFocused, ExtensionState, IExtension, IExtensionsViewState, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
 import { Query } from '../common/extensionQuery.js';
 import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
@@ -25,7 +23,6 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
-import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from './extensionsActions.js';
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -33,23 +30,19 @@ import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from '../../../browse
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { coalesce, distinct, range } from '../../../../base/common/arrays.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { IAction, Action, Separator, ActionRunner } from '../../../../base/common/actions.js';
+import { ActionRunner } from '../../../../base/common/actions.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, IExtensionIdentifier, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isOfflineError } from '../../../../base/parts/request/common/request.js';
 import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -59,6 +52,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isString } from '../../../../base/common/types.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ExtensionsList } from './extensionsViewer.js';
 
 export const NONE_CATEGORY = 'none';
 
@@ -156,11 +150,9 @@ export class ExtensionsListView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService
@@ -196,46 +188,10 @@ export class ExtensionsListView extends ViewPane {
 		const messageSeverityIcon = append(messageContainer, $(''));
 		const messageBox = append(messageContainer, $('.message'));
 		const extensionsList = append(container, $('.extensions-list'));
-		const delegate = new Delegate();
-		this.extensionsViewState = new ExtensionsViewState();
-		const renderer = this.instantiationService.createInstance(Renderer, this.extensionsViewState, {
-			hoverOptions: {
-				position: () => {
-					const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
-					if (viewLocation === ViewContainerLocation.Sidebar) {
-						return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
-					}
-					if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
-						return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-					}
-					return HoverPosition.RIGHT;
-				}
-			}
-		});
-		this.list = this.instantiationService.createInstance(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
-			multipleSelectionSupport: false,
-			setRowLineHeight: false,
-			horizontalScrolling: false,
-			accessibilityProvider: {
-				getAriaLabel(extension: IExtension | null): string {
-					return getAriaLabelForExtension(extension);
-				},
-				getWidgetAriaLabel(): string {
-					return localize('extensions', "Extensions");
-				}
-			},
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			openOnSingleClick: true
-		}) as WorkbenchPagedList<IExtension>;
+		this.extensionsViewState = this._register(new ExtensionsViewState());
+		this.list = this._register(this.instantiationService.createInstance(ExtensionsList, extensionsList, this.id, {}, this.extensionsViewState)).list;
 		ExtensionResultsListFocused.bindTo(this.list.contextKeyService);
-		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
 		this._register(this.list.onDidChangeFocus(e => this.extensionsViewState?.onFocusChange(coalesce(e.elements)), this));
-		this._register(this.list);
-		this._register(this.extensionsViewState);
-
-		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
-			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
-		}));
 
 		this.bodyTemplate = {
 			extensionsList,
@@ -325,44 +281,6 @@ export class ExtensionsListView extends ViewPane {
 		const emptyModel = new PagedModel([]);
 		this.setModel(emptyModel);
 		return Promise.resolve(emptyModel);
-	}
-
-	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
-		if (e.element) {
-			const disposables = new DisposableStore();
-			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageExtensionAction));
-			const extension = e.element ? this.extensionsWorkbenchService.local.find(local => areSameExtensions(local.identifier, e.element!.identifier) && (!e.element!.server || e.element!.server === local.server)) || e.element
-				: e.element;
-			manageExtensionAction.extension = extension;
-			let groups: IAction[][] = [];
-			if (manageExtensionAction.enabled) {
-				groups = await manageExtensionAction.getActionGroups();
-			} else if (extension) {
-				groups = await getContextMenuActions(extension, this.contextKeyService, this.instantiationService);
-				groups.forEach(group => group.forEach(extensionAction => {
-					if (extensionAction instanceof ExtensionAction) {
-						extensionAction.extension = extension;
-					}
-				}));
-			}
-			const actions: IAction[] = [];
-			for (const menuActions of groups) {
-				for (const menuAction of menuActions) {
-					actions.push(menuAction);
-					if (isDisposable(menuAction)) {
-						disposables.add(menuAction);
-					}
-				}
-				actions.push(new Separator());
-			}
-			actions.pop();
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
-				getActions: () => actions,
-				actionRunner: this.contextMenuActionRunner,
-				onHide: () => disposables.dispose()
-			});
-		}
 	}
 
 	private async query(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IQueryResult> {
@@ -1194,30 +1112,6 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	private openExtension(extension: IExtension, options: { sideByside?: boolean; preserveFocus?: boolean; pinned?: boolean }): void {
-		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
-		this.extensionsWorkbenchService.open(extension, options).then(undefined, err => this.onError(err));
-	}
-
-	private onError(err: any): void {
-		if (isCancellationError(err)) {
-			return;
-		}
-
-		const message = err && err.message || '';
-
-		if (/ECONNREFUSED/.test(message)) {
-			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), [
-				new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openUserSettings())
-			]);
-
-			this.notificationService.error(error);
-			return;
-		}
-
-		this.notificationService.error(err);
-	}
-
 	override dispose(): void {
 		super.dispose();
 		if (this.queryRequest) {
@@ -1454,11 +1348,9 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
-		@IPreferencesService preferencesService: IPreferencesService,
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IExtensionFeaturesManagementService extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService
@@ -1466,7 +1358,7 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 		super(options, viewletViewOptions, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService,
 			extensionsWorkbenchService, extensionRecommendationsService, telemetryService, hoverService, configurationService, contextService, extensionManagementServerService,
 			extensionManifestPropertiesService, extensionManagementService, workspaceService, productService, contextKeyService, viewDescriptorService, openerService,
-			preferencesService, storageService, workspaceTrustManagementService, extensionEnablementService, layoutService, extensionFeaturesManagementService,
+			storageService, workspaceTrustManagementService, extensionEnablementService, extensionFeaturesManagementService,
 			uriIdentityService, logService);
 	}
 

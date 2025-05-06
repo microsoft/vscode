@@ -7,7 +7,7 @@ import { EditorContributionInstantiation, registerEditorContribution } from '../
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController, InlineChatController1, InlineChatController2 } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -28,8 +28,11 @@ registerEditorContribution(InlineChatController2.ID, InlineChatController2, Edit
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController1, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
-registerAction2(InlineChatActions.StopSessionAction2);
+registerAction2(InlineChatActions.KeepSessionAction2);
+registerAction2(InlineChatActions.UndoSessionAction2);
+registerAction2(InlineChatActions.CloseSessionAction2);
 registerAction2(InlineChatActions.RevealWidget);
+registerAction2(InlineChatActions.CancelRequestAction);
 
 // --- browser
 
@@ -53,7 +56,8 @@ const editActionMenuItem: IMenuItem = {
 	when: ContextKeyExpr.and(
 		ChatContextKeys.inputHasText,
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-		CTX_INLINE_CHAT_EDITING
+		CTX_INLINE_CHAT_EDITING,
+		CTX_INLINE_CHAT_HAS_AGENT
 	),
 };
 
@@ -67,7 +71,8 @@ const generateActionMenuItem: IMenuItem = {
 	when: ContextKeyExpr.and(
 		ChatContextKeys.inputHasText,
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-		CTX_INLINE_CHAT_EDITING.toNegated()
+		CTX_INLINE_CHAT_EDITING.toNegated(),
+		CTX_INLINE_CHAT_HAS_AGENT
 	),
 };
 
