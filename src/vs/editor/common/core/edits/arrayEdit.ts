@@ -33,7 +33,7 @@ export class ArrayEdit<T> extends BaseEdit<ArrayReplacement<T>, ArrayEdit<T>> {
 		return new ArrayEdit([new ArrayReplacement(range, [])]);
 	}
 
-	override _createNew(replacements: readonly ArrayReplacement<T>[]): ArrayEdit<T> {
+	protected override _createNew(replacements: readonly ArrayReplacement<T>[]): ArrayEdit<T> {
 		return new ArrayEdit(replacements);
 	}
 

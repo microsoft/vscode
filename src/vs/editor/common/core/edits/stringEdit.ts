@@ -33,7 +33,7 @@ export class StringEdit extends BaseEdit<StringReplacement, StringEdit> {
 		return new StringEdit([new StringReplacement(range, '')]);
 	}
 
-	override _createNew(replacements: readonly StringReplacement[]): StringEdit {
+	protected override _createNew(replacements: readonly StringReplacement[]): StringEdit {
 		return new StringEdit(replacements);
 	}
 
