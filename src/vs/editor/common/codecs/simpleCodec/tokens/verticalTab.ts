@@ -18,7 +18,7 @@ export class VerticalTab extends SimpleToken<'\v'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '\v' {
 		return VerticalTab.symbol;
 	}
 

@@ -6,14 +6,12 @@
 import assert from 'assert';
 import { Range } from '../../../../common/core/range.js';
 import { randomRange } from '../testUtils/randomRange.js';
-import { Text } from '../../../../common/codecs/textToken.js';
 import { randomInt } from '../../../../../base/common/numbers.js';
 import { BaseToken } from '../../../../common/codecs/baseToken.js';
-import { assertNever } from '../../../../../base/common/assert.js';
+import { cloneTokens, randomTokens } from '../testUtils/randomTokens.js';
 import { CompositeToken } from '../../../../common/codecs/compositeToken.js';
 import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
-import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
-import { Space, Word } from '../../../../common/codecs/simpleCodec/tokens/index.js';
+import { Word } from '../../../../common/codecs/simpleCodec/tokens/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('CompositeToken', () => {
@@ -27,7 +25,11 @@ suite('CompositeToken', () => {
 		}
 
 		public override toString(): string {
-			throw new Error('Method not implemented.');
+			const tokenStrings = this.tokens.map((token) => {
+				return token.toString();
+			});
+
+			return `CompositeToken:\n${tokenStrings.join('\n')})`;
 		}
 	}
 
@@ -224,12 +226,12 @@ suite('CompositeToken', () => {
 				// ensure there is at least one composite token
 				const lastToken = tokens[tokens.length - 1];
 				const compositeToken1 = new TestToken(randomTokens(
-					randomInt(5, 2),
+					randomInt(3, 1),
 					lastToken.range.endLineNumber,
 					lastToken.range.endColumn,
 				));
 				const compositeToken2 = new TestToken(randomTokens(
-					randomInt(5, 2),
+					randomInt(6, 4),
 					lastToken.range.endLineNumber,
 					lastToken.range.endColumn,
 				));
@@ -253,144 +255,3 @@ suite('CompositeToken', () => {
 		});
 	});
 });
-
-
-/**
- * Token type for the {@link cloneTokens} and {@link randomTokens} functions.
- */
-type TToken = NewLine | Space | Word | Text<TToken[]>;
-
-/**
- * Test utility to clone a list of provided tokens.
- */
-const cloneTokens = (
-	tokens: TToken[],
-): TToken[] => {
-	const clonedTokens: TToken[] = [];
-
-	for (const token of tokens) {
-		if (token instanceof NewLine) {
-			clonedTokens.push(new NewLine(token.range));
-			continue;
-		}
-
-		if (token instanceof Space) {
-			clonedTokens.push(new Space(token.range));
-			continue;
-		}
-
-		if (token instanceof Word) {
-			clonedTokens.push(new Word(token.range, token.text));
-
-			continue;
-		}
-
-		if (token instanceof Text) {
-			clonedTokens.push(new Text(cloneTokens(token.tokens)));
-			continue;
-		}
-
-		assertNever(
-			token,
-			`Unexpected token type '${token}'.`,
-		);
-	}
-
-	for (let i = 0; i < tokens.length; i++) {
-		assert(
-			tokens[i].equals(clonedTokens[i]),
-			`Original and cloned tokens #${i} must be equal.`,
-		);
-
-		assert(
-			tokens[i] !== clonedTokens[i],
-			`Original and cloned tokens #${i} must not be strict equal.`,
-		);
-	}
-
-	return clonedTokens;
-};
-
-/**
- * Test utility to generate a number of random tokens.
- */
-const randomTokens = (
-	tokenCount: number = randomInt(20, 10),
-	startLine: number = randomInt(100, 1),
-	startColumn: number = randomInt(100, 1),
-): TToken[] => {
-	const tokens = [];
-
-	let tokensLeft = tokenCount;
-	while (tokensLeft > 0) {
-		const caseNumber = randomInt(7, 1);
-		switch (caseNumber) {
-			case 1:
-			case 2: {
-				tokens.push(
-					new NewLine(new Range(
-						startLine,
-						startColumn,
-						startLine,
-						startColumn + 1,
-					)),
-				);
-				startLine++;
-				startColumn = 1;
-				break;
-			}
-			case 3:
-			case 4: {
-				tokens.push(
-					new Space(new Range(
-						startLine,
-						startColumn,
-						startLine,
-						startColumn + 1,
-					)),
-				);
-				startColumn++;
-				break;
-			}
-
-			case 5:
-			case 6: {
-				const text = `word${randomInt(Number.MAX_SAFE_INTEGER, 1)}`;
-				const endColumn = startColumn + text.length;
-
-				tokens.push(
-					new Word(
-						new Range(
-							startLine, startColumn,
-							startLine, endColumn,
-						),
-						text,
-					),
-				);
-
-				startColumn = endColumn;
-				break;
-			}
-
-			case 7: {
-				const token = new Text(
-					randomTokens(randomInt(3, 1), startLine, startColumn),
-				);
-
-				tokens.push(token);
-
-				startLine = token.range.endLineNumber;
-				startColumn = token.range.endColumn;
-				break;
-			}
-
-			default: {
-				throw new Error(`Unexpected random token generation case number: '${caseNumber}'`);
-			}
-		}
-
-		tokensLeft--;
-	}
-
-	return tokens;
-};

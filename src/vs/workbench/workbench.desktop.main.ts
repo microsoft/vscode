@@ -54,6 +54,7 @@ import './services/path/electron-sandbox/pathService.js';
 import './services/themes/electron-sandbox/nativeHostColorSchemeService.js';
 import './services/extensionManagement/electron-sandbox/extensionManagementService.js';
 import './services/encryption/electron-sandbox/encryptionService.js';
+import './services/browserElements/electron-sandbox/browserElementsService.js';
 import './services/secrets/electron-sandbox/secretStorageService.js';
 import './services/localization/electron-sandbox/languagePackService.js';
 import './services/telemetry/electron-sandbox/telemetryService.js';
@@ -122,6 +123,7 @@ import './contrib/issue/electron-sandbox/issue.contribution.js';
 
 // Process
 import './contrib/issue/electron-sandbox/process.contribution.js';
+import './contrib/processExplorer/electron-sandbox/processExplorer.contribution.js';
 
 // Remote
 import './contrib/remote/electron-sandbox/remote.contribution.js';

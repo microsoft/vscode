@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from '../../../base/common/errors.js';
-import { OffsetRange } from './offsetRange.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { OffsetRange } from '../offsetRange.js';
 
 /**
  * Describes an edit to a (0-based) string.
@@ -28,17 +28,11 @@ export class OffsetEdit {
 		return new OffsetEdit(data.map(SingleOffsetEdit.fromJson));
 	}
 
-	public static replace(
-		range: OffsetRange,
-		newText: string,
-	): OffsetEdit {
+	public static replace(range: OffsetRange, newText: string): OffsetEdit {
 		return new OffsetEdit([new SingleOffsetEdit(range, newText)]);
 	}
 
-	public static insert(
-		offset: number,
-		insertText: string,
-	): OffsetEdit {
+	public static insert(offset: number, insertText: string): OffsetEdit {
 		return OffsetEdit.replace(OffsetRange.emptyAt(offset), insertText);
 	}
 

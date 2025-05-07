@@ -5,7 +5,7 @@
 import assert from 'assert';
 import { Position } from '../../../../common/core/position.js';
 import { getSecondaryEdits } from '../../browser/model/inlineCompletionsModel.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { Range } from '../../../../common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';

@@ -18,7 +18,7 @@ export class LeftCurlyBrace extends SimpleToken<'{'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '{' {
 		return LeftCurlyBrace.symbol;
 	}
 
@@ -43,7 +43,7 @@ export class RightCurlyBrace extends SimpleToken<'}'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '}' {
 		return RightCurlyBrace.symbol;
 	}
 
