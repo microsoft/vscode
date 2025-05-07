@@ -312,8 +312,8 @@ export function lineRangeMappingFromRangeMappings(alignments: readonly RangeMapp
 	for (const g of groupAdjacentBy(
 		alignments.map(a => getLineRangeMapping(a, originalLines, modifiedLines)),
 		(a1, a2) =>
-			a1.original.overlapOrTouch(a2.original)
-			|| a1.modified.overlapOrTouch(a2.modified)
+			a1.original.intersectsOrTouches(a2.original)
+			|| a1.modified.intersectsOrTouches(a2.modified)
 	)) {
 		const first = g[0];
 		const last = g[g.length - 1];
