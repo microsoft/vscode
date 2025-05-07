@@ -263,7 +263,7 @@ export default class FileConfigurationManager extends Disposable {
 
 	private getMaximumHoverLength(document: vscode.TextDocument): number {
 		const defaultMaxLength = 500;
-		const maximumHoverLength = vscode.workspace.getConfiguration('js/ts', document).get<number>('maximumHoverLength', defaultMaxLength);
+		const maximumHoverLength = vscode.workspace.getConfiguration('js/ts', document).get<number>('hover.maximumLength', defaultMaxLength);
 		if (!Number.isSafeInteger(maximumHoverLength) || maximumHoverLength <= 0) {
 			return defaultMaxLength;
 		}
