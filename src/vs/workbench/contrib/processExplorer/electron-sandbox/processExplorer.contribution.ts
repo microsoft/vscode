@@ -100,7 +100,9 @@ class OpenProcessExplorer extends Action2 {
 		editorService.openEditor({ resource: ProcessExplorerEditorInput.RESOURCE, options: { pinned: true, auxiliary: { compact: true, bounds: { width: 800, height: 500 }, alwaysOnTop: true } } }, AUX_WINDOW_GROUP);
 	}
 }
+
 registerAction2(OpenProcessExplorer);
+
 MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '5_tools',
 	command: {
