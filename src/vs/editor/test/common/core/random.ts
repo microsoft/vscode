@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { numberComparator } from '../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { OffsetEdit, SingleOffsetEdit } from '../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../common/core/offsetRange.js';
 import { Position } from '../../../common/core/position.js';
 import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
@@ -11,25 +13,37 @@ import { Range } from '../../../common/core/range.js';
 import { AbstractText, SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
 
 export abstract class Random {
-	public static basicAlphabet: string = '      abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-	public static basicAlphabetMultiline: string = '      \n\n\nabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+	public static readonly alphabetSmallLowercase = 'abcdefgh';
+	public static readonly alphabetSmallUppercase = 'ABCDEFGH';
+	public static readonly alphabetLowercase = 'abcdefghijklmnopqrstuvwxyz';
+	public static readonly alphabetUppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+	public static readonly basicAlphabet: string = '      abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+	public static readonly basicAlphabetMultiline: string = '      \n\n\nabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 	public static create(seed: number): Random {
 		return new MersenneTwister(seed);
 	}
 
+	public stringGenerator(alphabet: string): IGenerator<string> {
+		return {
+			next: () => {
+				const characterIndex = this.nextIntRange(0, alphabet.length);
+				return alphabet.charAt(characterIndex);
+			}
+		};
+	}
+
 	public abstract nextIntRange(start: number, endExclusive: number): number;
 
-	public nextString(length: number, alphabet = Random.basicAlphabet): string {
+	public nextString(length: number, alphabet = this.stringGenerator(Random.basicAlphabet)): string {
 		let randomText: string = '';
 		for (let i = 0; i < length; i++) {
-			const characterIndex = this.nextIntRange(0, alphabet.length);
-			randomText += alphabet.charAt(characterIndex);
+			randomText += alphabet.next();
 		}
 		return randomText;
 	}
 
-	public nextMultiLineString(lineCount: number, lineLengthRange: OffsetRange, alphabet = Random.basicAlphabet): string {
+	public nextMultiLineString(lineCount: number, lineLengthRange: OffsetRange, alphabet = this.stringGenerator(Random.basicAlphabet)): string {
 		const lines: string[] = [];
 		for (let i = 0; i < lineCount; i++) {
 			const lineLength = this.nextIntRange(lineLengthRange.start, lineLengthRange.endExclusive);
@@ -38,10 +52,15 @@ export abstract class Random {
 		return lines.join('\n');
 	}
 
+	public nextConsecutiveOffsets(range: OffsetRange, count: number): number[] {
+		const offsets = OffsetRange.ofLength(count).map(() => this.nextIntRange(range.start, range.endExclusive));
+		offsets.sort(numberComparator);
+		return offsets;
+	}
+
 	public nextConsecutivePositions(source: AbstractText, count: number): Position[] {
 		const t = new PositionOffsetTransformer(source.getValue());
-		const offsets = OffsetRange.ofLength(count).map(() => this.nextIntRange(0, t.text.length));
-		offsets.sort(numberComparator);
+		const offsets = this.nextConsecutiveOffsets(new OffsetRange(0, t.text.length), count);
 		return offsets.map(offset => t.getPosition(offset));
 	}
 
@@ -58,12 +77,53 @@ export abstract class Random {
 		for (let i = 0; i < singleTextEditCount; i++) {
 			const start = positions[i * 2];
 			const end = positions[i * 2 + 1];
-			const newText = this.nextString(end.column - start.column, Random.basicAlphabetMultiline);
+			const newText = this.nextString(end.column - start.column, this.stringGenerator(Random.basicAlphabetMultiline));
 			singleTextEdits.push(new SingleTextEdit(Range.fromPositions(start, end), newText));
 		}
 
 		return new TextEdit(singleTextEdits).normalize();
 	}
+
+	public nextOffsetEdit(target: string, singleTextEditCount: number, newTextAlphabet = Random.basicAlphabetMultiline): OffsetEdit {
+		const singleTextEdits: SingleOffsetEdit[] = [];
+
+		const positions = this.nextConsecutiveOffsets(new OffsetRange(0, target.length), singleTextEditCount * 2);
+
+		for (let i = 0; i < singleTextEditCount; i++) {
+			const start = positions[i * 2];
+			const end = positions[i * 2 + 1];
+			const range = new OffsetRange(start, end);
+
+			const newTextLen = this.nextIntRange(range.isEmpty ? 1 : 0, 10);
+			const newText = this.nextString(newTextLen, this.stringGenerator(newTextAlphabet));
+			singleTextEdits.push(new SingleOffsetEdit(range, newText));
+		}
+
+		return new OffsetEdit(singleTextEdits).normalize();
+	}
+
+	public nextSingleOffsetEdit(target: string, newTextAlphabet = Random.basicAlphabetMultiline): SingleOffsetEdit {
+		const edit = this.nextOffsetEdit(target, 1, newTextAlphabet);
+		return edit.edits[0];
+	}
+}
+
+export function sequenceGenerator<T>(sequence: T[]): IGenerator<T> {
+	let index = 0;
+	return {
+		next: () => {
+			if (index >= sequence.length) {
+				throw new BugIndicatingError('End of sequence');
+			}
+			const element = sequence[index];
+			index++;
+			return element;
+		}
+	};
+}
+
+export interface IGenerator<T> {
+	next(): T;
 }
 
 class MersenneTwister extends Random {
