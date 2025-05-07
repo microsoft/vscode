@@ -33,6 +33,8 @@ export class ProcessExplorerEditorInput extends EditorInput {
 
 	override get typeId(): string { return ProcessExplorerEditorInput.ID; }
 
+	override get editorId(): string | undefined { return ProcessExplorerEditorInput.ID; }
+
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton; }
 
 	readonly resource = ProcessExplorerEditorInput.RESOURCE;
