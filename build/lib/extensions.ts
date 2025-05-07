@@ -14,7 +14,6 @@ import { Stream } from 'stream';
 import File from 'vinyl';
 import { createStatsStream } from './stats';
 import * as util2 from './util';
-const vzip = require('gulp-vinyl-zip');
 import filter from 'gulp-filter';
 import rename from 'gulp-rename';
 import fancyLog from 'fancy-log';
@@ -26,6 +25,7 @@ import { getProductionDependencies } from './dependencies';
 import { IExtensionDefinition, getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
 import { fetchUrls, fetchGithub } from './fetch';
+const vzip = require('gulp-vinyl-zip');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
@@ -62,7 +62,12 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 }
 
 function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolean): Stream {
-	const webpackConfigFileName = forWeb ? 'extension-browser.webpack.config.js' : 'extension.webpack.config.js';
+
+	const esm = JSON.parse(fs.readFileSync(path.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
+
+	const webpackConfigFileName = forWeb
+		? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
+		: `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
 
 	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
 	let input = isWebPacked

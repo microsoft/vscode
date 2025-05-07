@@ -13,5 +13,15 @@ module.exports = withDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/extension.ts'
+	},
+	output: {
+		libraryTarget: 'module',
+		chunkFormat: 'module',
+	},
+	externals: {
+		'vscode': 'module vscode',
+	},
+	experiments: {
+		outputModule: true
 	}
 });
