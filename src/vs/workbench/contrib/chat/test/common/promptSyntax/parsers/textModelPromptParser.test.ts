@@ -158,7 +158,7 @@ class TextModelPromptParserTest extends Disposable {
 /**
  * TODO: @legomushroom
  */
-const assertReferencesEqual = (
+export const assertReferencesEqual = (
 	actual: readonly IPromptFileReference[],
 	expected: readonly ExpectedReference[],
 	errorPrefix: string = '',

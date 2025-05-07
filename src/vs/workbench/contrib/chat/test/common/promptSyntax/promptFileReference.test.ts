@@ -216,26 +216,26 @@ const createTestFileReference = (
 };
 
 suite('PromptFileReference', function () {
-	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let instantiationService: TestInstantiationService;
+	let instaService: TestInstantiationService;
 	setup(async () => {
 		const nullPolicyService = new NullPolicyService();
-		const nullLogService = testDisposables.add(new NullLogService());
-		const nullFileService = testDisposables.add(new FileService(nullLogService));
-		const nullConfigService = testDisposables.add(new ConfigurationService(
+		const nullLogService = disposables.add(new NullLogService());
+		const nullFileService = disposables.add(new FileService(nullLogService));
+		const nullConfigService = disposables.add(new ConfigurationService(
 			URI.file('/config.json'),
 			nullFileService,
 			nullPolicyService,
 			nullLogService,
 		));
-		instantiationService = testDisposables.add(new TestInstantiationService());
+		instaService = disposables.add(new TestInstantiationService());
 
-		instantiationService.stub(IFileService, nullFileService);
-		instantiationService.stub(ILogService, nullLogService);
-		instantiationService.stub(IConfigurationService, nullConfigService);
-		instantiationService.stub(IModelService, { getModel() { return null; } });
-		instantiationService.stub(ILanguageService, {
+		instaService.stub(IFileService, nullFileService);
+		instaService.stub(ILogService, nullLogService);
+		instaService.stub(IConfigurationService, nullConfigService);
+		instaService.stub(IModelService, { getModel() { return null; } });
+		instaService.stub(ILanguageService, {
 			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
 				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
 					return PROMPT_LANGUAGE_ID;
@@ -255,7 +255,7 @@ suite('PromptFileReference', function () {
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
 
-		const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+		const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
@@ -405,7 +405,7 @@ suite('PromptFileReference', function () {
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
 
-		const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+		const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
@@ -555,7 +555,7 @@ suite('PromptFileReference', function () {
 			const rootFolder = `/${rootFolderName}`;
 			const rootUri = URI.file(rootFolder);
 
-			const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+			const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 				/**
 				 * The file structure to be created on the disk for the test.
 				 */
@@ -707,7 +707,7 @@ suite('PromptFileReference', function () {
 			const rootFolder = `/${rootFolderName}`;
 			const rootUri = URI.file(rootFolder);
 
-			const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+			const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 				/**
 				 * The file structure to be created on the disk for the test.
 				 */
@@ -921,7 +921,7 @@ suite('PromptFileReference', function () {
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
 
-				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 					/**
 					 * The file structure to be created on the disk for the test.
 					 */
@@ -1053,7 +1053,7 @@ suite('PromptFileReference', function () {
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
 
-				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 					/**
 					 * The file structure to be created on the disk for the test.
 					 */
@@ -1186,7 +1186,7 @@ suite('PromptFileReference', function () {
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
 
-				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 					/**
 					 * The file structure to be created on the disk for the test.
 					 */
@@ -1306,7 +1306,7 @@ suite('PromptFileReference', function () {
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
 
-				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 					/**
 					 * The file structure to be created on the disk for the test.
 					 */
@@ -1425,7 +1425,7 @@ suite('PromptFileReference', function () {
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
 
-				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 					/**
 					 * The file structure to be created on the disk for the test.
 					 */
@@ -1548,7 +1548,7 @@ suite('PromptFileReference', function () {
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
 
-				const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
+				const test = disposables.add(instaService.createInstance(TestPromptFileReference,
 					/**
 					 * The file structure to be created on the disk for the test.
 					 */

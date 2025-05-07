@@ -86,7 +86,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
-	private readonly _references: TPromptReference[] = [];
+	protected readonly _references: TPromptReference[] = [];
 
 	/**
 	 * Reference to the prompt header object that holds metadata associated
