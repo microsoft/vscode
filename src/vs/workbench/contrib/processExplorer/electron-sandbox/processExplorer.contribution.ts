@@ -18,11 +18,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProcessMainService } from '../../../../platform/process/common/process.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 //#region --- process explorer
 
@@ -115,47 +111,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	},
 	order: 2
 });
-
-class StopTracing extends Action2 {
-
-	static readonly ID = 'workbench.action.stopTracing';
-
-	constructor() {
-		super({
-			id: StopTracing.ID,
-			title: localize2('stopTracing', 'Stop Tracing'),
-			category: Categories.Developer,
-			f1: true
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const processService = accessor.get(IProcessMainService);
-		const environmentService = accessor.get(INativeEnvironmentService);
-		const dialogService = accessor.get(IDialogService);
-		const nativeHostService = accessor.get(INativeHostService);
-		const progressService = accessor.get(IProgressService);
-
-		if (!environmentService.args.trace) {
-			const { confirmed } = await dialogService.confirm({
-				message: localize('stopTracing.message', "Tracing requires to launch with a '--trace' argument"),
-				primaryButton: localize({ key: 'stopTracing.button', comment: ['&& denotes a mnemonic'] }, "&&Relaunch and Enable Tracing"),
-			});
-
-			if (confirmed) {
-				return nativeHostService.relaunch({ addArgs: ['--trace'] });
-			}
-		}
-
-		await progressService.withProgress({
-			location: ProgressLocation.Dialog,
-			title: localize('stopTracing.title', "Creating trace file..."),
-			cancellable: false,
-			detail: localize('stopTracing.detail', "This can take up to one minute to complete.")
-		}, () => processService.stopTracing());
-	}
-}
-registerAction2(StopTracing);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return accessor.get(IProcessMainService).getSystemStatus();

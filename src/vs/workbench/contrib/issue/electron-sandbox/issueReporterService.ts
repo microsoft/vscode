@@ -53,7 +53,7 @@ export class IssueReporter extends BaseIssueReporterService {
 	) {
 		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
 		this.processMainService = processMainService;
-		this.processMainService.$getSystemInfo().then(info => {
+		this.processMainService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -61,7 +61,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			this.updatePreviewButtonState();
 		});
 		if (this.data.issueType === IssueType.PerformanceIssue) {
-			this.processMainService.$getPerformanceInfo().then(info => {
+			this.processMainService.getPerformanceInfo().then(info => {
 				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 			});
 		}
@@ -95,7 +95,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.issueReporterModel.update({ issueType: issueType });
 			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				this.processMainService.$getPerformanceInfo().then(info => {
+				this.processMainService.getPerformanceInfo().then(info => {
 					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 				});
 			}

@@ -40,12 +40,9 @@ export interface IProcessMainService {
 
 	readonly _serviceBrand: undefined;
 
-	getSystemStatus(): Promise<string>;
-	stopTracing(): Promise<void>;
-
 	resolve(): Promise<IResolvedProcessInformation>;
 
-	// Used by the process explorer
-	$getSystemInfo(): Promise<SystemInfo>;
-	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	getSystemStatus(): Promise<string>;
+	getSystemInfo(): Promise<SystemInfo>;
+	getPerformanceInfo(): Promise<PerformanceInfo>;
 }
