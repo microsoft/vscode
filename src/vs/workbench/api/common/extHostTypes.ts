@@ -4708,6 +4708,13 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 	}
 }
 
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edit: vscode.WorkspaceEdit;
+	constructor(edit: vscode.WorkspaceEdit) {
+		this.edit = edit;
+	}
+}
+
 export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebookEditPart {
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];

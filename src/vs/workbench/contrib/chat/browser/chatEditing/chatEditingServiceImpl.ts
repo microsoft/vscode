@@ -36,7 +36,7 @@ import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
-import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
+import { ChatModel, IChatResponseModel, IChatWorkspaceEdit, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -270,6 +270,49 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (part.kind === 'undoStop') {
 					undoStop = part.id;
+					continue;
+				}
+
+				if (part.kind === 'workspaceEdit') {
+					// Handle workspace edit parts which can affect multiple files at once
+					const workspaceEdit = part as IChatWorkspaceEdit;
+
+					if (workspaceEdit.edit && workspaceEdit.edit.edits) {
+						// Process each edit in the workspace edit
+						for (const edit of workspaceEdit.edit.edits) {
+							// Handle text edits
+							if ('resource' in edit && 'textEdit' in edit) {
+								const resource = edit.resource;
+								ensureEditorOpen(resource);
+
+								// Start streaming edits for this resource
+								const streamingEdits = session.startStreamingEdits(
+									CellUri.parse(resource)?.notebook ?? resource,
+									responseModel,
+									undoStop
+								);
+
+								// Convert to TextEdit objects and push
+								streamingEdits.pushText([edit.textEdit]);
+								streamingEdits.complete();
+							}
+							// Handle file edits (delete, rename)
+							else if ('oldResource' in edit || 'newResource' in edit) {
+								// Ensure the new resource is opened if it's a rename/move operation
+								if (edit.newResource) {
+									ensureEditorOpen(edit.newResource);
+								}
+
+								// TODO@joyceerhl support rendering file delete/rename
+								session._bulkEditService.apply({
+									edits: [edit]
+								}, {
+									respectAutoSaveConfig: true,
+									showPreview: false
+								});
+							}
+						}
+					}
 					continue;
 				}
 
