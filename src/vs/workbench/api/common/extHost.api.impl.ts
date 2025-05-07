@@ -1528,13 +1528,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
 			},
 			registerMcpServerDefinitionProvider(id, provider) {
-				checkProposedApiEnabled(extension, 'mcpConfigurationProvider');
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			}
 		};
-
-		// todo@connor4312: proposed API back-compat
-		(lm as any).registerMcpConfigurationProvider = lm.registerMcpServerDefinitionProvider;
 
 		// namespace: speech
 		const speech: typeof vscode.speech = {
