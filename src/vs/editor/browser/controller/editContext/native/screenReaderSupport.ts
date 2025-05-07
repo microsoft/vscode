@@ -202,6 +202,7 @@ export class ScreenReaderSupport {
 			const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 			const inlineDecorations = viewModel.getInlineDecorationsInModelRange(modelRange);
 			const actualInlineDecorations = LineDecoration.filter(inlineDecorations, modelRange.startLineNumber, 0, Infinity);
+			console.log('actualInlineDecorations: ', actualInlineDecorations);
 			const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 			const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
 			const sb = new StringBuilder(10000);
