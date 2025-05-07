@@ -9,7 +9,7 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { ThemeColor } from '../../base/common/themables.js';
 import { URI, UriComponents } from '../../base/common/uri.js';
 import { IEditorOptions } from './config/editorOptions.js';
-import { IDimension } from './core/dimension.js';
+import { IDimension } from './core/2d/dimension.js';
 import { IPosition, Position } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { ISelection, Selection } from './core/selection.js';

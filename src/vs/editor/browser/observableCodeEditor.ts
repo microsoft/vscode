@@ -15,7 +15,7 @@ import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
-import { Point } from './point.js';
+import { Point } from '../common/core/2d/point.js';
 
 /**
  * Returns a facade for the code editor that provides observables for various states/events.

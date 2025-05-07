@@ -16,8 +16,8 @@ import { asCssVariable } from '../../../../../../../platform/theme/common/colorU
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
 import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
 import { EditorOption, RenderLineNumbersType } from '../../../../../../common/config/editorOptions.js';
