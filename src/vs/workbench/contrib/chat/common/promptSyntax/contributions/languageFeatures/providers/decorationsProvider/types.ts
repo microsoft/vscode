@@ -28,12 +28,12 @@ export enum DecorationClassNames {
 	/**
 	 * CSS class name for `default` prompt syntax decoration.
 	 */
-	default = 'prompt-decoration',
+	Default = 'prompt-decoration',
 
 	/**
 	 * CSS class name for `file reference` prompt syntax decoration.
 	 */
-	fileReference = DecorationClassNames.default,
+	FileReference = DecorationClassNames.Default,
 }
 
 /**
@@ -44,5 +44,5 @@ export enum CssClassModifiers {
 	 * CSS class modifier for `active` state of
 	 * a `reactive` prompt syntax decoration.
 	 */
-	inactive = '.prompt-decoration-inactive',
+	Inactive = '.prompt-decoration-inactive',
 }

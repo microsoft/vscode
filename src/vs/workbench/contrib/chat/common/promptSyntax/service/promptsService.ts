@@ -8,32 +8,32 @@ import { localize } from '../../../../../../nls.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { flatten, forEach } from '../utils/treeUtils.js';
 import { PromptParser } from '../parsers/promptParser.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { IPromptFileReference } from '../parsers/types.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { pick } from '../../../../../../base/common/arrays.js';
+import { type URI } from '../../../../../../base/common/uri.js';
+import { type IPromptFileReference } from '../parsers/types.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { logTime } from '../../../../../../base/common/decorators/logTime.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { IChatPromptSlashCommand, TCombinedToolsMetadata, IMetadata, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import type { IChatPromptSlashCommand, TCombinedToolsMetadata, IMetadata, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
 
 /**
  * Provides prompt services.
  */
 export class PromptsService extends Disposable implements IPromptsService {
-	declare readonly _serviceBrand: undefined;
+	public declare readonly _serviceBrand: undefined;
 
 	/**
 	 * Cache of text model content prompt parsers.
@@ -45,6 +45,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private readonly fileLocator: PromptFilesLocator;
 
+	/**
+	 * Function used by the `@logTime` decorator to log
+	 * execution time of some of the decorated methods.
+	 */
+	public logTime: TLogFunction;
+
 	constructor(
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -55,6 +61,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
+		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
 		// for the provided model, if no active non-disposed parser exists
@@ -153,9 +160,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (result) {
 			return result;
 		}
-		const model = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getPromptCommandName(model.uri.path) === command);
-		if (model) {
-			return { uri: model.uri, storage: 'local', type: 'prompt' };
+		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getPromptCommandName(model.uri.path) === command);
+		if (textModel) {
+			return { uri: textModel.uri, storage: 'local', type: 'prompt' };
 		}
 		return undefined;
 	}
@@ -293,7 +300,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					return false;
 				}, fileMetadata);
 
-				if ((<ChatMode>chatMode) === ChatMode.Agent) {
+				if (chatMode === ChatMode.Agent) {
 					return {
 						tools: (hasTools)
 							? [...new Set(result)]
@@ -403,8 +410,7 @@ const collectMetadata = (
 	};
 };
 
-
-export function getPromptCommandName(path: string) {
+export function getPromptCommandName(path: string): string {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
 	return name;
 }

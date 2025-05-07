@@ -16,6 +16,9 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IProcessMainService } from '../../../../platform/process/common/process.js';
 import './processService.js';
 import './processMainService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { ProcessExplorerEditorInput } from '../../processExplorer/electron-sandbox/processExplorerEditoInput.js';
 
 //#region Commands
 
@@ -34,8 +37,14 @@ class OpenProcessExplorer extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const processService = accessor.get(IWorkbenchProcessService);
+		const configurationService = accessor.get(IConfigurationService);
+		const editorService = accessor.get(IEditorService);
 
-		return processService.openProcessExplorer();
+		if (configurationService.getValue('application.useNewProcessExplorer') !== true) {
+			return processService.openProcessExplorer();
+		}
+
+		editorService.openEditor({ resource: ProcessExplorerEditorInput.RESOURCE, options: { pinned: true, auxiliary: { compact: true, bounds: { width: 800, height: 500 }, alwaysOnTop: true } } }, AUX_WINDOW_GROUP);
 	}
 }
 registerAction2(OpenProcessExplorer);

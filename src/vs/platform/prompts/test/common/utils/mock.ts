@@ -3,7 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mockObject } from '../../../../../base/test/common/testUtils.js';
+import { assertOneOf } from '../../../../../base/common/types.js';
+
+/**
+ * Mocks an `TObject` with the provided `overrides`.
+ *
+ * If you need to mock an `Service`, please use {@link mockService}
+ * instead which provides better type safety guarantees for the case.
+ *
+ * @throws Reading non-overridden property or function on `TObject` throws an error.
+ */
+export function mockObject<TObject extends object>(
+	overrides: Partial<TObject>,
+): TObject {
+	// ensure that the overrides object cannot be modified afterward
+	overrides = Object.freeze(overrides);
+
+	const keys: (keyof Partial<TObject>)[] = [];
+	for (const key in overrides) {
+		if (Object.hasOwn(overrides, key)) {
+			keys.push(key);
+		}
+	}
+
+	const service: object = new Proxy(
+		{},
+		{
+			get: <T extends keyof TObject>(
+				_target: TObject,
+				key: string | number | Symbol,
+			): TObject[T] => {
+
+				assertOneOf(
+					key,
+					keys,
+					`The '${key}' is not mocked.`,
+				);
+
+				// note! it's ok to type assert here, because of the explicit runtime
+				//       assertion  above
+				// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+				return overrides[key as T] as TObject[T];
+			},
+		});
+
+	// note! it's ok to type assert here, because of the runtime checks in
+	//       the `Proxy` getter
+	// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+	return service as TObject;
+}
 
 /**
  * Type for any service.
