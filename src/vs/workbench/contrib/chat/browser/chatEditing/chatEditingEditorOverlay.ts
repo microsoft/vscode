@@ -64,7 +64,7 @@ class ChatEditorOverlayWidget extends Disposable {
 				: undefined;
 
 			return lastResponse
-				? observableFromEvent(this, lastResponse.onDidChange, () => !lastResponse.isPendingConfirmation && !lastResponse.isComplete).read(r)
+				? observableFromEvent(this, lastResponse.onDidChange, () => !lastResponse.isPendingConfirmation && !lastResponse.shouldBeRemovedOnSend && !lastResponse.isComplete).read(r)
 				: false;
 		});
 
@@ -378,7 +378,7 @@ class ChatEditingOverlayController {
 			if (!response) {
 				return false;
 			}
-			return observableFromEvent(this, response.onDidChange, () => !response.isComplete && !response.isPendingConfirmation).read(r);
+			return observableFromEvent(this, response.onDidChange, () => !response.isComplete && !response.shouldBeRemovedOnSend && !response.isPendingConfirmation).read(r);
 		});
 
 		this._store.add(autorun(r => {

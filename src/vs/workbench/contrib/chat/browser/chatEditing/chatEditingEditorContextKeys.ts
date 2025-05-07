@@ -118,7 +118,7 @@ class ContextKeyGroup {
 				: undefined;
 
 			const isRequestInProgress = lastResponse
-				? observableFromEvent(this, lastResponse.onDidChange, () => !lastResponse.isPendingConfirmation && !lastResponse.isComplete)
+				? observableFromEvent(this, lastResponse.onDidChange, () => !lastResponse.isPendingConfirmation && !lastResponse.shouldBeRemovedOnSend && !lastResponse.isComplete)
 				: constObservable(false);
 
 			this._ctxHasEditorModification.set(entry?.state.read(r) === ModifiedFileEntryState.Modified);

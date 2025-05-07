@@ -1339,6 +1339,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			return false;
 		}
 
+		if (lastRequest.shouldBeRemovedOnSend) {
+			return false;
+		}
+
 		return !lastRequest.response.isComplete;
 	}
 
