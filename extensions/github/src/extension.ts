@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { TelemetryReporter } from '@vscode/extension-telemetry';
 import { GithubRemoteSourceProvider } from './remoteSourceProvider.js';
 import { API, GitExtension } from './typings/git.js';
 import { registerCommands } from './commands.js';
