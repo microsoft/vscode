@@ -24,7 +24,7 @@ suite('StackTraceHelper', () => {
 		return text.replace(formatSequence, '');
 	}
 
-	test('IPython stack line numbers are linkified', () => {
+	test('IPython stack line numbers are linkified for IPython 8.3.6', () => {
 		const stack =
 			'\u001b[1;31m---------------------------------------------------------------------------\u001b[0m\n' +
 			'\u001b[1;31mException\u001b[0m                                 Traceback (most recent call last)\n' +
@@ -42,6 +42,24 @@ suite('StackTraceHelper', () => {
 		assert.ok(cleanStack.indexOf('Cell In[3], <a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
 		assert.ok(cleanStack.indexOf('<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
 		assert.ok(cleanStack.indexOf('<a href=\'C:\\venvs\\myLib.py:2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
+		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
+	});
+
+	test('IPython stack line numbers are linkified for IPython 9.0.0', () => {
+		const stack =
+			'\u001b[31m---------------------------------------------------------------------------\u001b[39m\n' +
+			'\u001b[31mTypeError\u001b[39m                                 Traceback (most recent call last)\n' +
+			'\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[3]\u001b[39m\u001b[32m, line 2\u001b[39m\n' +
+			'\u001b[32m      1\u001b[39m x = firstItem((\u001b[32m1\u001b[39m, \u001b[32m2\u001b[39m, \u001b[32m3\u001b[39m, \u001b[32m5\u001b[39m))\n' +
+			'\u001b[32m----> \u001b[39m\u001b[32m2\u001b[39m y = \u001b[43mx\u001b[49m\u001b[43m \u001b[49m\u001b[43m+\u001b[49m\u001b[43m \u001b[49m\u001b[32;43m1\u001b[39;49m\n' +
+			'\u001b[32m      3\u001b[39m \u001b[38;5;28mprint\u001b[39m(y)\n' +
+			'\n' +
+			'\u001b[31mTypeError\u001b[39m: unsupported operand type(s) for +: "NoneType" and "int"\n';
+
+		const { formattedStack, errorLocation } = formatStackTrace(stack);
+		const cleanStack = stripAsciiFormatting(formattedStack);
+		assert.ok(cleanStack.indexOf('Cell In[3], <a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
+		assert.ok(cleanStack.indexOf('<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
 		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
 	});
 
