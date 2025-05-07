@@ -243,7 +243,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 				const lineNumber = event.target.position.lineNumber;
 				const model = this._diffModel.get();
 				if (!model) { return; }
-				const region = model.unchangedRegions.get().find(r => r.modifiedUnchangedRange.includes(lineNumber));
+				const region = model.unchangedRegions.get().find(r => r.modifiedUnchangedRange.contains(lineNumber));
 				if (!region) { return; }
 				region.collapseAll(undefined);
 				event.event.stopPropagation();
@@ -256,7 +256,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 				const lineNumber = event.target.position.lineNumber;
 				const model = this._diffModel.get();
 				if (!model) { return; }
-				const region = model.unchangedRegions.get().find(r => r.originalUnchangedRange.includes(lineNumber));
+				const region = model.unchangedRegions.get().find(r => r.originalUnchangedRange.contains(lineNumber));
 				if (!region) { return; }
 				region.collapseAll(undefined);
 				event.event.stopPropagation();
