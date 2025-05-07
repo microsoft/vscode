@@ -121,8 +121,7 @@ import './contrib/extensions/electron-sandbox/extensions.contribution.js';
 // Issues
 import './contrib/issue/electron-sandbox/issue.contribution.js';
 
-// Process
-import './contrib/issue/electron-sandbox/process.contribution.js';
+// Process Explorer
 import './contrib/processExplorer/electron-sandbox/processExplorer.contribution.js';
 
 // Remote

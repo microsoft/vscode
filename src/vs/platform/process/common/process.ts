@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProcessItem } from '../../../base/common/processes.js';
-import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { IRemoteDiagnosticError, PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -30,32 +29,6 @@ export interface ISettingSearchResult {
 	score: number;
 }
 
-export interface ProcessExplorerStyles extends WindowStyles {
-	listHoverBackground?: string;
-	listHoverForeground?: string;
-	listFocusBackground?: string;
-	listFocusForeground?: string;
-	listFocusOutline?: string;
-	listActiveSelectionBackground?: string;
-	listActiveSelectionForeground?: string;
-	listHoverOutline?: string;
-	scrollbarShadowColor?: string;
-	scrollbarSliderBackgroundColor?: string;
-	scrollbarSliderHoverBackgroundColor?: string;
-	scrollbarSliderActiveBackgroundColor?: string;
-}
-
-export interface ProcessExplorerData extends WindowData {
-	pid: number;
-	styles: ProcessExplorerStyles;
-	platform: string;
-	applicationName: string;
-}
-
-export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
-	data: ProcessExplorerData;
-}
-
 export const IProcessMainService = createDecorator<IProcessMainService>('processService');
 
 export interface IResolvedProcessInformation {
@@ -69,7 +42,6 @@ export interface IProcessMainService {
 
 	getSystemStatus(): Promise<string>;
 	stopTracing(): Promise<void>;
-	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 
 	resolve(): Promise<IResolvedProcessInformation>;
 

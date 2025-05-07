@@ -1019,7 +1019,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Process
-		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService, [this.userEnv]));
+		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService));
 
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
