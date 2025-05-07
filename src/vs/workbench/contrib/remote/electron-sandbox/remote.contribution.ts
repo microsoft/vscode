@@ -270,7 +270,7 @@ registerAction2(class extends Action2 {
 		// collect all forwarded ports and filter out those who do not have a process running
 		const forwarded = remoteExplorerService.tunnelModel.forwarded;
 		for (const [_, tunnel] of forwarded) {
-			if (!tunnel.hasRunningProcess) {
+			if (tunnel.hasRunningProcess === false) {
 				ports.push(tunnel);
 			}
 		}
