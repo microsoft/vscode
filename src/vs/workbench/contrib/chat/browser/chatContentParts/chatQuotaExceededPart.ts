@@ -117,7 +117,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			button1.label = button1Label;
 			button1.element.classList.add('chat-quota-error-button');
 			this._register(button1.onDidClick(async () => {
-				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Limited ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.enableOverages';
+				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Limited ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageOverages';
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
 				await commandService.executeCommand(commandId);
 

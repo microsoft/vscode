@@ -11,7 +11,7 @@ import { IRange, Range } from '../../../editor/common/core/range.js';
  * Base class for all tokens with a `range` that reflects
  * token position in the original text.
  */
-export abstract class BaseToken {
+export abstract class BaseToken<TText extends string = string> {
 	constructor(
 		private tokenRange: Range,
 	) { }
@@ -24,9 +24,9 @@ export abstract class BaseToken {
 	}
 
 	/**
-	 * Return text representation of the token.
+	 * Text representation of the token.
 	 */
-	public abstract get text(): string;
+	public abstract get text(): TText;
 
 	/**
 	 * Check if this token has the same range as another one.
@@ -114,6 +114,7 @@ export abstract class BaseToken {
 			firstToken.range.startLineNumber <= lastToken.range.startLineNumber,
 			'First token must start on previous or the same line as the last token.',
 		);
+
 		if ((firstToken !== lastToken) && (firstToken.range.startLineNumber === lastToken.range.startLineNumber)) {
 			assert(
 				firstToken.range.endColumn <= lastToken.range.startColumn,
@@ -143,46 +144,5 @@ export abstract class BaseToken {
 		}
 
 		return `${this.text.slice(0, maxLength - 1)}...`;
-	}
-}
-
-/**
- * Tokens that represent a sequence of tokens that does not
- * hold an additional meaning in the text.
- */
-export class Text<TToken extends BaseToken = BaseToken> extends BaseToken {
-	public get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-
-	constructor(
-		range: Range,
-		public readonly tokens: readonly TToken[],
-	) {
-		super(range);
-	}
-
-	/**
-	 * Create new instance of the token from a provided list of tokens.
-	 *
-	 * @throws if the provided tokens list is empty because this function
-	 *         automatically infers the range of the resulting token based
-	 *         on the first and last token in the list.
-	 */
-	public static fromTokens<TToken extends BaseToken = BaseToken>(
-		tokens: readonly TToken[],
-	): Text<TToken> {
-		assert(
-			tokens.length > 0,
-			'Cannot infer range from an empty list of tokens.',
-		);
-
-		const range = BaseToken.fullRange(tokens);
-
-		return new Text(range, tokens);
-	}
-
-	public override toString(): string {
-		return `text(${this.shortText()})${this.range}`;
 	}
 }

@@ -408,19 +408,19 @@ export class QuickDiffModel extends Disposable {
 
 		if (!inclusive) {
 			// Next visible change
-			const nextChange = this.changes
+			let nextChangeIndex = this.changes
 				.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
 					change.change.modifiedStartLineNumber > lineNumber);
 
-			if (nextChange !== -1) {
-				return nextChange;
+			if (nextChangeIndex !== -1) {
+				return nextChangeIndex;
 			}
 
 			// First visible change
-			const firstChange = this.changes
+			nextChangeIndex = this.changes
 				.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
 
-			return firstChange !== -1 ? firstChange : 0;
+			return nextChangeIndex !== -1 ? nextChangeIndex : 0;
 		}
 
 		const primaryQuickDiffId = this.quickDiffs
@@ -435,20 +435,21 @@ export class QuickDiffModel extends Disposable {
 			return primaryInclusiveChangeIndex;
 		}
 
-		const inclusiveChange = this.changes
+		// Next visible change
+		let nextChangeIndex = this.changes
 			.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
 				change.change.modifiedStartLineNumber <= lineNumber &&
 				getModifiedEndLineNumber(change.change) >= lineNumber);
 
-		if (inclusiveChange !== -1) {
-			return inclusiveChange;
+		if (nextChangeIndex !== -1) {
+			return nextChangeIndex;
 		}
 
 		// First visible change
-		const firstChange = this.changes
+		nextChangeIndex = this.changes
 			.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
 
-		return firstChange !== -1 ? firstChange : 0;
+		return nextChangeIndex !== -1 ? nextChangeIndex : 0;
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {

@@ -1404,12 +1404,18 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container {
 	margin-top: 2rem;
-	margin-left: 16px
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .multi-step-container .button-container,
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .multi-step-container .button-container {
 	margin-top: 1rem;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .action-message{
+	display: flex;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	margin-top: 12px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .sub-step-title {

@@ -8,67 +8,13 @@ import { Range } from '../../../../common/core/range.js';
 import { randomInt } from '../../../../../base/common/numbers.js';
 import { BaseToken } from '../../../../common/codecs/baseToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
-import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
 import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
+import { randomRange, randomRangeNotEqualTo } from '../testUtils/randomRange.js';
 import { CarriageReturn } from '../../../../common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TSimpleToken, WELL_KNOWN_TOKENS } from '../../../../common/codecs/simpleCodec/simpleDecoder.js';
 import { ISimpleTokenClass, SimpleToken } from '../../../../common/codecs/simpleCodec/tokens/simpleToken.js';
 import { At, Colon, DollarSign, ExclamationMark, Hash, LeftAngleBracket, LeftBracket, LeftCurlyBrace, RightAngleBracket, RightBracket, RightCurlyBrace, Slash, Space, Word } from '../../../../common/codecs/simpleCodec/tokens/index.js';
-
-/**
- * Generates a random {@link Range} object.
- *
- * @throws if {@link maxNumber} argument is less than `2`,
- *         is equal to `NaN` or is `infinite`.
- */
-const randomRange = (
-	maxNumber: number = 1_000,
-): Range => {
-	assert(
-		maxNumber > 1,
-		`Max number must be greater than 1, got '${maxNumber}'.`,
-	);
-
-	const startLineNumber = randomInt(maxNumber, 1);
-	const endLineNumber = (randomBoolean() === true)
-		? startLineNumber
-		: randomInt(2 * maxNumber, startLineNumber);
-
-	const startColumnNumber = randomInt(maxNumber, 1);
-	const endColumnNumber = (randomBoolean() === true)
-		? startColumnNumber + 1
-		: randomInt(2 * maxNumber, startColumnNumber + 1);
-
-	return new Range(
-		startLineNumber,
-		startColumnNumber,
-		endLineNumber,
-		endColumnNumber,
-	);
-};
-
-/**
- * Generates a random {@link Range} object that is different
- * from the provided one.
- */
-const randomRangeNotEqualTo = (
-	differentFrom: Range,
-	maxTries: number = 10,
-): Range => {
-	let retriesLeft = maxTries;
-
-	while (retriesLeft-- > 0) {
-		const range = randomRange();
-		if (range.equalsRange(differentFrom) === false) {
-			return range;
-		}
-	}
-
-	throw new Error(
-		`Failed to generate a random range different from '${differentFrom}' in ${maxTries} tries.`,
-	);
-};
 
 /**
  * List of simple tokens to randomly select from

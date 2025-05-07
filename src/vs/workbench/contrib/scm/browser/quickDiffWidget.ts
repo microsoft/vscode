@@ -565,7 +565,7 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 		}
 
 		let index: number;
-		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.providerId)) {
 			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.providerId);
 		} else {
 			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.providerId) ?? this.model.quickDiffChanges.values().next().value!;
