@@ -9,7 +9,7 @@ import { BugIndicatingError } from '../../../base/common/errors.js';
 import { LineRange } from '../core/ranges/lineRange.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
-import { AbstractText, SingleTextEdit, TextEdit } from '../core/textEdit.js';
+import { AbstractText, SingleTextEdit, TextEdit } from '../core/edits/textEdit.js';
 import { IChange } from './legacyLinesDiffComputer.js';
 
 /**

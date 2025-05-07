@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from '../../../base/common/arrays.js';
-import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
-import { BugIndicatingError } from '../../../base/common/errors.js';
-import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../base/common/strings.js';
-import { ISingleEditOperation } from './editOperation.js';
-import { LineRange } from './ranges/lineRange.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { assert, assertFn, checkAdjacentItems } from '../../../../base/common/assert.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../base/common/strings.js';
+import { ISingleEditOperation } from '../editOperation.js';
+import { LineRange } from '../ranges/lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
-import { Position } from './position.js';
-import { PositionOffsetTransformer } from './positionToOffset.js';
-import { Range } from './range.js';
-import { TextLength } from './textLength.js';
+import { Position } from '../position.js';
+import { PositionOffsetTransformer } from '../positionToOffset.js';
+import { Range } from '../range.js';
+import { TextLength } from '../textLength.js';
 
 export class TextEdit {
 	public static fromOffsetEdit(edit: OffsetEdit, initialState: AbstractText): TextEdit {

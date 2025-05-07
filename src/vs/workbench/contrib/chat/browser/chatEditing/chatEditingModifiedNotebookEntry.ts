@@ -15,7 +15,7 @@ import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { OffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
