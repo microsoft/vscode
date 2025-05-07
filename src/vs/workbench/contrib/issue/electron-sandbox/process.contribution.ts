@@ -18,7 +18,7 @@ import './processService.js';
 import './processMainService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { ProcessExplorerEditorInput } from '../../processExplorer/electron-sandbox/processExplorerEditoInput.js';
+import { ProcessExplorerEditorInput } from '../../processExplorer/electron-sandbox/processExplorerEditorInput.js';
 
 //#region Commands
 
