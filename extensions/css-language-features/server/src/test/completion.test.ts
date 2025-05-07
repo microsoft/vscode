@@ -214,7 +214,7 @@ suite('Completions', () => {
 
 		// Cursor is after the comment
 		await assertCompletions(`/* some comment */\nbody { |`, {
-			items: [{ label: 'color', resultText: `/* some comment */\nbody { color` }]
+			items: [{ label: '::after', resultText: `/* some comment */\nbody { ::after` }]
 		}, testUri, folders);
 		});
 });
