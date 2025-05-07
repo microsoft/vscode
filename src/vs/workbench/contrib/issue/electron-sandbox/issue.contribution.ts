@@ -11,7 +11,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProcessMainService } from '../../../../platform/process/common/process.js';
+import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -96,7 +96,7 @@ class ReportPerformanceIssueUsingReporterAction extends Action2 {
 }
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
-	return accessor.get(IProcessMainService).getSystemStatus();
+	return accessor.get(IProcessService).getSystemStatus();
 });
 
 // #endregion

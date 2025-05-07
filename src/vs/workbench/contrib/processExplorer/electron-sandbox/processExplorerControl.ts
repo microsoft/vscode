@@ -25,7 +25,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { IProcessMainService } from '../../../../platform/process/common/process.js';
+import { IProcessService } from '../../../../platform/process/common/process.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
@@ -345,7 +345,7 @@ export class ProcessExplorerControl extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IProcessMainService private readonly processMainService: IProcessMainService
+		@IProcessService private readonly processService: IProcessService
 	) {
 		super();
 
@@ -496,7 +496,7 @@ export class ProcessExplorerControl extends Disposable {
 	}
 
 	private async update(): Promise<void> {
-		const { processes, pidToNames } = await this.processMainService.resolve();
+		const { processes, pidToNames } = await this.processService.resolve();
 
 		this.model.update(processes, pidToNames);
 

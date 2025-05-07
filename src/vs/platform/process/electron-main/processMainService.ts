@@ -7,12 +7,12 @@ import { listProcesses } from '../../../base/node/ps.js';
 import { localize } from '../../../nls.js';
 import { IDiagnosticsService, IRemoteDiagnosticError, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
 import { IDiagnosticsMainService } from '../../diagnostics/electron-main/diagnosticsMainService.js';
-import { IProcessMainService, IResolvedProcessInformation } from '../common/process.js';
+import { IProcessService, IResolvedProcessInformation } from '../common/process.js';
 import { ILogService } from '../../log/common/log.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { ProcessItem } from '../../../base/common/processes.js';
 
-export class ProcessMainService implements IProcessMainService {
+export class ProcessMainService implements IProcessService {
 
 	declare readonly _serviceBrand: undefined;
 

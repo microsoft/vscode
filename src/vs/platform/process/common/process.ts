@@ -29,14 +29,14 @@ export interface ISettingSearchResult {
 	score: number;
 }
 
-export const IProcessMainService = createDecorator<IProcessMainService>('processService');
+export const IProcessService = createDecorator<IProcessService>('processService');
 
 export interface IResolvedProcessInformation {
 	readonly pidToNames: [number, string][];
 	readonly processes: { name: string; rootProcess: ProcessItem | IRemoteDiagnosticError }[];
 }
 
-export interface IProcessMainService {
+export interface IProcessService {
 
 	readonly _serviceBrand: undefined;
 
