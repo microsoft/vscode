@@ -251,7 +251,7 @@ export class Edit<T extends BaseReplacement<T>> extends BaseEdit<T, Edit<T>> {
 		return new Edit([replacement]);
 	}
 
-	override _createNew(replacements: readonly T[]): Edit<T> {
+	protected override _createNew(replacements: readonly T[]): Edit<T> {
 		return new Edit(replacements);
 	}
 }

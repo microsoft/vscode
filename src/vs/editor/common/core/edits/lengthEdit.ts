@@ -23,7 +23,7 @@ export class LengthEdit extends BaseEdit<LengthReplacement, LengthEdit> {
 		return new LengthEdit(edits);
 	}
 
-	override _createNew(replacements: readonly LengthReplacement[]): LengthEdit {
+	protected override _createNew(replacements: readonly LengthReplacement[]): LengthEdit {
 		return new LengthEdit(replacements);
 	}
 }
