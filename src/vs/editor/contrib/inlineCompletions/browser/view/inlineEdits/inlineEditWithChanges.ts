@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { AbstractText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { Command } from '../../../../../common/languages.js';

@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ColumnRange } from './columnRange.js';
-import { Range } from './range.js';
+import { Range } from '../range.js';
 
+/**
+ * Represents a column range in a single line.
+*/
 export class RangeSingleLine {
 	public static fromRange(range: Range): RangeSingleLine | undefined {
 		if (range.endLineNumber !== range.startLineNumber) {

@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { AbstractText, SingleTextEdit, StringText } from '../../../../../common/core/textEdit.js';

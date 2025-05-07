@@ -8,7 +8,7 @@ import { BugIndicatingError, onUnexpectedError } from '../../../base/common/erro
 import { setTimeout0 } from '../../../base/common/platform.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { countEOL } from '../core/misc/eolCounter.js';
-import { LineRange } from '../core/lineRange.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 import { OffsetRange } from '../core/offsetRange.js';
 import { Position } from '../core/position.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';

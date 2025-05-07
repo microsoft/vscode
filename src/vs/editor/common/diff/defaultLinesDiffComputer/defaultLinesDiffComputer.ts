@@ -5,7 +5,7 @@
 
 import { equals } from '../../../../base/common/arrays.js';
 import { assertFn } from '../../../../base/common/assert.js';
-import { LineRange } from '../../core/lineRange.js';
+import { LineRange } from '../../core/ranges/lineRange.js';
 import { OffsetRange } from '../../core/offsetRange.js';
 import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';

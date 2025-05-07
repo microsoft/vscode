@@ -6,7 +6,7 @@
 import { compareBy, groupAdjacentBy, numberComparator } from '../../../base/common/arrays.js';
 import { assert, checkAdjacentItems } from '../../../base/common/assert.js';
 import { splitLines } from '../../../base/common/strings.js';
-import { LineRange } from './lineRange.js';
+import { LineRange } from './ranges/lineRange.js';
 import { OffsetEdit, SingleOffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
 import { Range } from './range.js';

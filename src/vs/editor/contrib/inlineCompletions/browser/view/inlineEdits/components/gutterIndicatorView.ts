@@ -21,7 +21,7 @@ import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
 import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
 import { EditorOption, RenderLineNumbersType } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';

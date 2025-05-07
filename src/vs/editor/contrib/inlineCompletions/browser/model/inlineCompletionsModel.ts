@@ -19,7 +19,7 @@ import { observableCodeEditor } from '../../../../browser/observableCodeEditor.j
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
