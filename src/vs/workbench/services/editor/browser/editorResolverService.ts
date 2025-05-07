@@ -432,7 +432,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const selectedViewType = possibleEditors[0].editorInfo.priority === RegisteredEditorPriority.exclusive ?
 			possibleEditors[0].editorInfo.id :
 			associationsFromSetting[0]?.viewType ||
-			(possibleEditors.find(editor => (!editor.options?.canSupportResource || editor.options.canSupportResource(resource)))?.editorInfo.id || possibleEditors[0].editorInfo.id);
+			(possibleEditors.find(editor => (!editor.options?.canSupportResource || editor.options.canSupportResource(resource)))?.editorInfo.id) ||
+			possibleEditors[0].editorInfo.id;
 
 		let conflictingDefault = false;
 
