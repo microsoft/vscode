@@ -60,12 +60,12 @@ const findFileReference = (
 
 		// ignore any other types of references
 		if (reference.type !== 'file') {
-			return undefined;
+			continue;
 		}
 
 		// this ensures that we handle only the `#file:` references for now
 		if (reference.subtype !== 'prompt') {
-			return undefined;
+			continue;
 		}
 
 		// reference must match the provided position
@@ -116,7 +116,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 		token: CancellationToken,
 	): Promise<CompletionList | undefined> {
 		assert(
-			!token.isCancellationRequested,
+			token.isCancellationRequested === false,
 			new CancellationError(),
 		);
 
@@ -147,12 +147,12 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 
 		// validate that the cancellation was not yet requested
 		assert(
-			!token.isCancellationRequested,
+			token.isCancellationRequested === false,
 			new CancellationError(),
 		);
 
 		const fileReference = findFileReference(references, position);
-		if (!fileReference) {
+		if (fileReference === undefined) {
 			return undefined;
 		}
 
