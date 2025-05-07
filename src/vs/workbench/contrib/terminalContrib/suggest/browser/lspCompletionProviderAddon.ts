@@ -21,7 +21,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	readonly isBuiltin = true;
 	// TODO: Define this, it's determined by the language features that we don't get until later currently?
 	//	- Depending on the providerthat gets passed into constructor & shell info, use different triggerCharacters
-	readonly triggerCharacters?: string[] | undefined;
+	readonly triggerCharacters?: string[];
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
@@ -37,6 +37,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
+		this.triggerCharacters = provider.triggerCharacters;
 	}
 
 	activate(terminal: Terminal): void {
@@ -84,6 +85,9 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		// call to get replacement index
 		const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, undefined, undefined, undefined);
+		// console.log('completionItemTemp replacementIndex: ', completionItemTemp.replacementIndex + "\n");
+		// console.log('completionItemTemp replacementLength: ', completionItemTemp.replacementLength + "\n");
+		// console.log('completionItemTemp detail is: ', completionItemTemp.detail + "\n");
 
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 
@@ -91,7 +95,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-			console.log('position of virtual document is: ', positionVirtualDocument);
+			// console.log('position of virtual document is: ', positionVirtualDocument);
 
 
 			// TODO: Discard duplicates (i.e. language should take precendence over word based completions)
@@ -114,8 +118,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 			console.log(result?.suggestions);
 		}
-		const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();
-		console.log('what is in this file: \n', whatIsIntheFile);
+		// const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();
 
 		return completions;
 	}
