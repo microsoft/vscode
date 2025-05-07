@@ -233,7 +233,8 @@
 	overflow: hidden;
 }
 
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
+.scm-view .monaco-list-row .history-item-change .monaco-icon-label::after {
 	margin-right: 3px;
 }
 
@@ -626,6 +627,12 @@
 }
 
 .scm-view .monaco-list-row .history-item-change .label-container {
+	display: flex;
+	flex: 1;
+	overflow: hidden;
+}
+
+.scm-view .monaco-list-row .history-item-change .label-container > .monaco-icon-label {
 	flex-grow: 1;
 }
 
