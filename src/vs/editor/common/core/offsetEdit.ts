@@ -28,17 +28,11 @@ export class OffsetEdit {
 		return new OffsetEdit(data.map(SingleOffsetEdit.fromJson));
 	}
 
-	public static replace(
-		range: OffsetRange,
-		newText: string,
-	): OffsetEdit {
+	public static replace(range: OffsetRange, newText: string): OffsetEdit {
 		return new OffsetEdit([new SingleOffsetEdit(range, newText)]);
 	}
 
-	public static insert(
-		offset: number,
-		insertText: string,
-	): OffsetEdit {
+	public static insert(offset: number, insertText: string): OffsetEdit {
 		return OffsetEdit.replace(OffsetRange.emptyAt(offset), insertText);
 	}
 
