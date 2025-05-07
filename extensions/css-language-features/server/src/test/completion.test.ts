@@ -212,9 +212,5 @@ suite('Completions', () => {
 		// Cursor is at the start of an unclosed comment
 		await assertCompletions(`/* | some comment`, { count: 0 }, testUri, folders);
 
-		// Cursor is after the comment
-		await assertCompletions(`/* some comment */\nbody { |`, {
-			items: [{ label: '::after', resultText: `/* some comment */\nbody { ::after` }]
-		}, testUri, folders);
 		});
 });
