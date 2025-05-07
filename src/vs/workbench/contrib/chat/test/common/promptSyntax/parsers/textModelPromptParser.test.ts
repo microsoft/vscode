@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { ChatMode } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -14,8 +15,9 @@ import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
+import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { randomBoolean, wait } from '../../../../../../../base/test/common/testUtils.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
@@ -25,6 +27,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { randomInt } from '../../../../../../../base/common/numbers.js';
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -43,8 +46,10 @@ class TextModelPromptParserTest extends Disposable {
 
 	constructor(
 		uri: URI,
-		initialContents: string[],
+		initialContents: readonly string[],
 		languageId: string = PROMPT_LANGUAGE_ID,
+		// TODO: @legomushroom
+		seenReferences: readonly string[] = [],
 		@IFileService fileService: IFileService,
 		@IInstantiationService initService: IInstantiationService,
 	) {
@@ -69,7 +74,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			initService.createInstance(TextModelPromptParser, this.model, {}),
+			initService.createInstance(TextModelPromptParser, this.model, { seenReferences }),
 		).start();
 	}
 
@@ -88,22 +93,10 @@ class TextModelPromptParserTest extends Disposable {
 	) {
 		await this.parser.allSettled();
 
-		const { references } = this.parser;
-		for (let i = 0; i < expectedReferences.length; i++) {
-			const reference = references[i];
-
-			assertDefined(
-				reference,
-				`Expected reference #${i} be ${expectedReferences[i]}, got 'undefined'.`,
-			);
-
-			expectedReferences[i].validateEqual(reference);
-		}
-
-		assert.strictEqual(
-			expectedReferences.length,
-			references.length,
-			`[${this.model.uri}] Unexpected number of references.`,
+		assertReferencesEqual(
+			this.parser.references,
+			expectedReferences,
+			this.model.uri.path,
 		);
 	}
 
@@ -145,7 +138,52 @@ class TextModelPromptParserTest extends Disposable {
 			`Expected '${expectedDiagnostics.length}' diagnostic objects, got '${diagnostics.length}'.`,
 		);
 	}
+
+	/**
+	 * Set contents of the underlying model.
+	 */
+	public setContents(
+		newContents: string[] | string,
+	): this {
+		const contents = (Array.isArray(newContents))
+			? newContents.join(this.model.getEOL())
+			: newContents;
+
+		this.model.setValue(contents);
+
+		return this;
+	}
 }
+
+/**
+ * TODO: @legomushroom
+ */
+const assertReferencesEqual = (
+	actual: readonly IPromptFileReference[],
+	expected: readonly ExpectedReference[],
+	errorPrefix: string = '',
+): void => {
+	for (let i = 0; i < expected.length; i++) {
+		const reference = actual[i];
+
+		assertDefined(
+			reference,
+			`Expected reference #${i} be ${expected[i]}, got 'undefined'.`,
+		);
+
+		expected[i].validateEqual(reference);
+	}
+
+	const prefix = (errorPrefix.length > 0)
+		? `[${errorPrefix}] `
+		: '';
+
+	assert.strictEqual(
+		expected.length,
+		actual.length,
+		`${prefix}Unexpected number of references.`,
+	);
+};
 
 suite('TextModelPromptParser', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -165,6 +203,8 @@ suite('TextModelPromptParser', () => {
 		uri: URI,
 		initialContents: string[],
 		languageId: string = PROMPT_LANGUAGE_ID,
+		// TODO: @legomushroom
+		seenReferences: readonly string[] = [],
 	): TextModelPromptParserTest => {
 		return disposables.add(
 			instantiationService.createInstance(
@@ -172,6 +212,7 @@ suite('TextModelPromptParser', () => {
 				uri,
 				initialContents,
 				languageId,
+				seenReferences,
 			),
 		);
 	};
@@ -1020,6 +1061,233 @@ suite('TextModelPromptParser', () => {
 			test.parser.isDisposed,
 			'The parser should be disposed with its model.',
 		);
+	});
+
+	suite(`• 'onSettled' event`, () => {
+		test('• called after every prompt parse (step-by-step)', async () => {
+			const test = createTest(
+				URI.file('/foo/bar.md'),
+				[
+				/* 01 */"The quick brown fox tries #file:/abs/path/to/some/file.md online yoga for the first time.",
+				/* 02 */"Maria discovered a stray turtle roaming in her kitchen.",
+				],
+			);
+
+			const onSettled = spy();
+			disposables.add(test.parser.onSettled(onSettled));
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: URI.file('/abs/path/to/some/file.md'),
+					text: '#file:/abs/path/to/some/file.md',
+					path: '/abs/path/to/some/file.md',
+					startLine: 1,
+					startColumn: 27,
+					pathStartColumn: 33,
+					childrenOrError: new OpenFailed(URI.file('/abs/path/to/file.md'), 'File not found.'),
+				}),
+			]);
+
+			assert(
+				onSettled.getCalls().length === 1,
+				'The `onSettled` event must be called 1 time.',
+			);
+
+			assert.deepStrictEqual(
+				onSettled.getCalls()[0].args,
+				[undefined],
+				'First `onSettled` event must have correct arguments.',
+			);
+
+			test.setContents([
+				/* 01 */"The quick brown fox #file:/abs/path/to/some/file-2.md tries online yoga for the first time.",
+				/* 02 */"Maria discovered a stray turtle roaming in her kitchen.",
+			]);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: URI.file('/abs/path/to/some/file-2.md'),
+					text: '#file:/abs/path/to/some/file-2.md',
+					path: '/abs/path/to/some/file-2.md',
+					startLine: 1,
+					startColumn: 21,
+					pathStartColumn: 27,
+					childrenOrError: new OpenFailed(URI.file('/abs/path/to/file-2.md'), 'File not found.'),
+				}),
+			]);
+
+			assert(
+				onSettled.getCalls().length === 2,
+				'The `onSettled` event must be called 2 times.',
+			);
+
+			assert.deepStrictEqual(
+				onSettled.getCalls()[1].args,
+				[undefined],
+				'Second `onSettled` event must have correct arguments.',
+			);
+
+			test.setContents([
+				/* 01 */"Maria discovered a stray turtle roaming in her kitchen.",
+				/* 02 */"The quick brown fox #file:/abs/path/to/some/file-2.md tries online yoga for the first time.",
+			]);
+
+			await test.validateReferences([
+				new ExpectedReference({
+					uri: URI.file('/abs/path/to/some/file-2.md'),
+					text: '#file:/abs/path/to/some/file-2.md',
+					path: '/abs/path/to/some/file-2.md',
+					startLine: 2,
+					startColumn: 21,
+					pathStartColumn: 27,
+					childrenOrError: new OpenFailed(URI.file('/abs/path/to/file-2.md'), 'File not found.'),
+				}),
+			]);
+
+			assert(
+				onSettled.getCalls().length === 3,
+				'The `onSettled` event must be called 3 times.',
+			);
+
+			assert.deepStrictEqual(
+				onSettled.getCalls()[1].args,
+				[undefined],
+				'Third `onSettled` event must have correct arguments.',
+			);
+		});
+
+		test('• called after every prompt parse (quick)', async () => {
+			const contentList = [
+				[
+				/* 01 */"The quick brown fox tries #file:/abs/path/to/some/file.md online yoga for the first time.",
+				/* 02 */"Maria discovered a stray turtle roaming in her kitchen.",
+				],
+				[
+				/* 01 */"The quick brown fox #file:/abs/path/to/some/file-2.md tries online yoga for the first time.",
+				/* 02 */"Maria discovered a stray turtle roaming in her kitchen.",
+				],
+				[
+				/* 01 */"Maria discovered a stray turtle roaming in her kitchen.",
+				/* 02 */"The quick brown fox #file:/abs/path/to/some/file-2.md tries online yoga for the first time.",
+				],
+			];
+
+			const test = createTest(URI.file('/foo/bar.md'), []);
+			const receivedReferences = [];
+			await wait(5);
+
+			const onSettled = spy();
+			for (let i = 0; i < contentList.length; i++) {
+				if (i === 0) {
+					disposables.add(test.parser.onSettled(onSettled));
+					await wait(5);
+
+					assert.strictEqual(
+						onSettled.getCalls().length,
+						1,
+						`The 'onSettled' event must be called immediately.`,
+					);
+				}
+
+				assert.strictEqual(
+					onSettled.getCalls().length,
+					i + 1,
+					`The 'onSettled' event must be called number of times before contents update.`,
+				);
+
+				test.setContents(contentList[i]);
+
+				await wait(5);
+
+				receivedReferences.push(test.parser.references);
+
+				assert.strictEqual(
+					onSettled.getCalls().length,
+					i + 2,
+					`The 'onSettled' event must be called number of times.`,
+				);
+
+				assert.deepStrictEqual(
+					onSettled.getCalls()[i].args,
+					[undefined],
+					`'onSettled' event #${i} must have correct arguments.`,
+				);
+			}
+
+			const expectedReferencesList = [
+				[
+					new ExpectedReference({
+						uri: URI.file('/abs/path/to/some/file.md'),
+						text: '#file:/abs/path/to/some/file.md',
+						path: '/abs/path/to/some/file.md',
+						startLine: 1,
+						startColumn: 27,
+						pathStartColumn: 33,
+						childrenOrError: new OpenFailed(URI.file('/abs/path/to/file.md'), 'File not found.'),
+					}),
+				],
+				[
+					new ExpectedReference({
+						uri: URI.file('/abs/path/to/some/file-2.md'),
+						text: '#file:/abs/path/to/some/file-2.md',
+						path: '/abs/path/to/some/file-2.md',
+						startLine: 1,
+						startColumn: 21,
+						pathStartColumn: 27,
+						childrenOrError: new OpenFailed(URI.file('/abs/path/to/file-2.md'), 'File not found.'),
+					}),
+				],
+				[
+					new ExpectedReference({
+						uri: URI.file('/abs/path/to/some/file-2.md'),
+						text: '#file:/abs/path/to/some/file-2.md',
+						path: '/abs/path/to/some/file-2.md',
+						startLine: 2,
+						startColumn: 21,
+						pathStartColumn: 27,
+						childrenOrError: new OpenFailed(URI.file('/abs/path/to/file-2.md'), 'File not found.'),
+					}),
+				],
+			];
+
+			for (let i = 0; i < receivedReferences.length; i++) {
+				assertReferencesEqual(
+					receivedReferences[i],
+					expectedReferencesList[i],
+					`step #${i}`,
+				);
+			}
+		});
+
+		test('• called with an error', async () => {
+			const fileUri = URI.file('/foo/bar.md');
+			const test = createTest(fileUri, [], PROMPT_LANGUAGE_ID, [fileUri.path]);
+
+			assert.strictEqual(
+				test.parser.errorCondition?.errorType,
+				'RecursiveReferenceError',
+				'The parser must already have correct error condition.',
+			);
+
+			const onSettled = spy();
+
+			for (let i = 0; i < randomInt(10, 5); i++) {
+				disposables.add(test.parser.onSettled(onSettled));
+				await wait(5);
+
+				assert.strictEqual(
+					onSettled.getCalls().length,
+					i + 1,
+					`The 'onSettled' event must be called number of times.`,
+				);
+
+				assert.deepStrictEqual(
+					onSettled.getCalls()[i].args,
+					[test.parser.errorCondition],
+					`'onSettled' event #${i} must have correct arguments.`,
+				);
+			}
+		});
 	});
 
 	test('• toString()', async () => {

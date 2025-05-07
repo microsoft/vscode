@@ -147,14 +147,16 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	): IDisposable {
 		let cancellation = new CancellationTokenSource();
 
-		return this._onSettled.event((error) => {
+		return this.onSettled((error) => {
+			// cancel the previous cancellation token on the new event
 			cancellation.cancel();
 			cancellation = new CancellationTokenSource();
 
 			// TODO: @legomushroom - unit test
 			this.allSettled()
 				.then(() => {
-					// TODO: @legomushroom
+					// if token is already cancelled by a new 'onSettled' event,
+					// don't invoke the callback
 					if (cancellation.token.isCancellationRequested) {
 						return;
 					}
