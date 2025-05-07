@@ -8,7 +8,7 @@ declare module 'vscode' {
 
 	/**
 	 * McpStdioServerDefinition represents an MCP server available by running
-	 * a local process and listening to its stdin and stdout streams. The process
+	 * a local process and operating on its stdin and stdout streams. The process
 	 * will be spawned as a child process of the extension host and by default
 	 * will not run in a shell environment.
 	 */
@@ -28,6 +28,7 @@ declare module 'vscode' {
 		 * `process.execPath` to use the editor's version of Node.js to run the script.
 		 */
 		command: string;
+
 		/**
 		 * Additional command-line arguments passed to the server.
 		 */
@@ -36,7 +37,7 @@ declare module 'vscode' {
 		/**
 		 * Optional additional environment information for the server. Variables
 		 * in this environment will overwrite or remove (if null) the default
-		 * environment variables.
+		 * environment variables of the editor's extension host.
 		 */
 		env: Record<string, string | number | null>;
 
@@ -91,21 +92,22 @@ declare module 'vscode' {
 		constructor(label: string, uri: Uri, headers?: Record<string, string>, version?: string);
 	}
 
+	/**
+	 * Definitions that describe different types of Model Context Protocol servers,
+	 * which can be returned from the {@link McpServerDefinitionProvider}.
+	 */
 	export type McpServerDefinition = McpStdioServerDefinition | McpHttpServerDefinition;
 
 	/**
-	 * A type that can provide server configurations. This may only be used in
-	 * conjunction with `contributes.modelContextServerCollections` in the
-	 * extension's package.json.
-	 *
-	 * To allow the editor to cache available servers, extensions should register
-	 * this before `activate()` resolves.
+	 * A type that can provide Model Context Protocol server definitions. This
+	 * should be registered using {@link lm.registerMcpServerDefinitionProvider}
+	 * during extension activation.
 	 */
 	export interface McpServerDefinitionProvider<T extends McpServerDefinition = McpServerDefinition> {
 		/**
 		 * Optional event fired to signal that the set of available servers has changed.
 		 */
-		onDidChangeServerDefinitions?: Event<void>;
+		onDidChangeMcpServerDefinitions?: Event<void>;
 
 		/**
 		 * Provides available MCP servers. The editor will call this method eagerly
@@ -121,19 +123,45 @@ declare module 'vscode' {
 		/**
 		 * This function will be called when the editor needs to start MCP server.
 		 * At this point, the extension may take any actions which may require user
-		 * interaction, such as authentication.
+		 * interaction, such as authentication. Any non-`readonly` property of the
+		 * server may be modified, and the extension may return a new server.
 		 *
-		 * The extension may return undefined on error to indicate that the server
-		 * should not be started.
+		 * The extension may return undefined to indicate that the server
+		 * should not be started, or throw an error. If there is a pending tool
+		 * call, the editor will cancel it and return an error message to the
+		 * language model.
 		 *
 		 * @param server The MCP server to resolve
 		 * @param token A cancellation token.
-		 * @returns The given, resolved server or thenable that resolves to such.
+		 * @returns The resolved server or thenable that resolves to such.
 		 */
 		resolveMcpServerDefinition?(server: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	namespace lm {
+		/**
+		 * Registers a provider that publishes Model Context Protocol servers for the editor to
+		 * consume. This allows MCP servers to be dynamically provided to the editor in
+		 * addition to those the user creates in their configuration files.
+		 *
+		 * Before calling this method, extensions must register the `contributes.mcpServerDefinitionProviders`
+		 * extension point with the corresponding {@link id}, for example:
+		 *
+		 * ```js
+		 * 	"contributes": {
+		 * 		"mcpServerDefinitionProviders": [
+		 * 			{
+		 * 				"id": "cool-cloud-registry.mcp-servers",
+		 * 				"label": "Cool Cloud Registry",
+		 * 			}
+		 * 		]
+		 * 	}
+		 * ```
+		 *
+		 * When a new McpServerDefinitionProvider is available, the editor will present a 'refresh'
+		 * action to the user to discover new servers. To enable this flow, extensions should
+		 * call `registerMcpServerDefinitionProvider` during activation.
+		 */
 		export function registerMcpServerDefinitionProvider(id: string, provider: McpServerDefinitionProvider): Disposable;
 	}
 }

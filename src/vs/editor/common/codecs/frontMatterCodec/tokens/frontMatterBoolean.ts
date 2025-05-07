@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from '../../../core/range.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
@@ -11,33 +10,31 @@ import { assertDefined } from '../../../../../base/common/types.js';
 /**
  * Token that represents a `boolean` value in a Front Matter header.
  */
-export class FrontMatterBoolean extends FrontMatterValueToken<'boolean'> {
+export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonly [Word]> {
 	/**
 	 * Name of the `boolean` value type.
 	 */
 	public override readonly valueTypeName = 'boolean';
 
+	/**
+	 * Value of the `boolean` token.
+	 */
+	public readonly value: boolean;
+
 	constructor(
-		range: Range,
-		public readonly value: boolean,
+		token: Word,
 	) {
-		super(range);
-	}
-
-	public static fromToken(token: Word): FrontMatterBoolean {
 		const value = asBoolean(token);
-
 		assertDefined(
 			value,
 			`Cannot convert '${token}' to a boolean value.`,
 		);
 
-		return new FrontMatterBoolean(token.range, value);
+		super([token]);
+
+		this.value = value;
 	}
 
-	public override get text(): string {
-		return `${this.value}`;
-	}
 
 	public override toString(): string {
 		return `front-matter-boolean(${this.shortText()})${this.range}`;

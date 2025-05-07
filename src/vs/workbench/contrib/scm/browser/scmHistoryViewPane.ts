@@ -1304,9 +1304,8 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		// @ICommandService private readonly _commandService: ICommandService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IConfigurationService configurationService: IConfigurationService,
