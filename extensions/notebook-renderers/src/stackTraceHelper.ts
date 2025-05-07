@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function formatStackTrace(stack: string): { formattedStack: string; errorLocation?: string } {
+export function formatStackTrace(stack: string, trustHtml: boolean): { formattedStack: string; errorLocation?: string } {
 	let cleaned: string;
 	// Ansi colors are described here:
 	// https://en.wikipedia.org/wiki/ANSI_escape_code under the SGR section
@@ -23,7 +23,7 @@ export function formatStackTrace(stack: string): { formattedStack: string; error
 		return `${prefix}${num}${suffix}\n`;
 	});
 
-	if (isIpythonStackTrace(cleaned)) {
+	if (isIpythonStackTrace(cleaned) && trustHtml) {
 		return linkifyStack(cleaned);
 	}
 
