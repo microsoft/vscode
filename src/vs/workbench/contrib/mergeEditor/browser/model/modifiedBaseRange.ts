@@ -11,7 +11,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { LineRangeEdit, RangeEdit } from './editing.js';
-import { LineRange } from './lineRange.js';
+import { MergeEditorLineRange } from './lineRange.js';
 import { DetailedLineRangeMapping, MappingAlignment } from './mapping.js';
 
 /**
@@ -49,16 +49,16 @@ export class ModifiedBaseRange {
 	public readonly isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
 
 	constructor(
-		public readonly baseRange: LineRange,
+		public readonly baseRange: MergeEditorLineRange,
 		public readonly baseTextModel: ITextModel,
-		public readonly input1Range: LineRange,
+		public readonly input1Range: MergeEditorLineRange,
 		public readonly input1TextModel: ITextModel,
 
 		/**
 		 * From base to input1
 		*/
 		public readonly input1Diffs: readonly DetailedLineRangeMapping[],
-		public readonly input2Range: LineRange,
+		public readonly input2Range: MergeEditorLineRange,
 		public readonly input2TextModel: ITextModel,
 
 		/**
@@ -71,7 +71,7 @@ export class ModifiedBaseRange {
 		}
 	}
 
-	public getInputRange(inputNumber: 1 | 2): LineRange {
+	public getInputRange(inputNumber: 1 | 2): MergeEditorLineRange {
 		return inputNumber === 1 ? this.input1Range : this.input2Range;
 	}
 
@@ -199,7 +199,7 @@ export class ModifiedBaseRange {
 	}
 }
 
-function editsToLineRangeEdit(range: LineRange, sortedEdits: RangeEdit[], textModel: ITextModel): LineRangeEdit | undefined {
+function editsToLineRangeEdit(range: MergeEditorLineRange, sortedEdits: RangeEdit[], textModel: ITextModel): LineRangeEdit | undefined {
 	let text = '';
 	const startsLineBefore = range.startLineNumber > 1;
 	let currentPosition = startsLineBefore

@@ -27,6 +27,9 @@ import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTre
 import { isWindows } from '../../../../base/common/platform.js';
 import { IProcessMainService } from '../../../../platform/process/common/process.js';
 import { Delayer } from '../../../../base/common/async.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -134,8 +137,11 @@ class ProcessTreeDataSource implements IDataSource<IProcessTree, IProcessInforma
 	}
 }
 
-function createRow(container: HTMLElement) {
+function createRow(container: HTMLElement, extraClass?: string) {
 	const row = append(container, $('.row'));
+	if (extraClass) {
+		row.classList.add(extraClass);
+	}
 
 	const name = append(row, $('.cell.name'));
 	const cpu = append(row, $('.cell.cpu'));
@@ -153,6 +159,7 @@ interface IProcessItemTemplateData extends IProcessRowTemplateData {
 	readonly cpu: HTMLElement;
 	readonly memory: HTMLElement;
 	readonly pid: HTMLElement;
+	readonly hover?: ProcessItemHover;
 }
 
 class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, void, IProcessItemTemplateData> {
@@ -160,7 +167,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		return createRow(container);
+		return createRow(container, 'header');
 	}
 
 	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
@@ -213,14 +220,48 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 	}
 }
 
+class ProcessItemHover extends Disposable {
+
+	private hover: IManagedHover;
+	private content = '';
+
+	constructor(
+		container: HTMLElement,
+		@IHoverService hoverService: IHoverService
+	) {
+		super();
+
+		this.hover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), container, this.content));
+	}
+
+	update(content: string): void {
+		if (this.content !== content) {
+			this.content = content;
+			this.hover.update(content);
+		}
+	}
+}
+
 class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData> {
 
 	readonly templateId: string = 'process';
 
-	constructor(private totalMem: number, private model: ProcessExplorerModel) { }
+	constructor(
+		private totalMem: number,
+		private model: ProcessExplorerModel,
+		@IHoverService private readonly hoverService: IHoverService
+	) { }
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		return createRow(container);
+		const row = createRow(container);
+
+		return {
+			name: row.name,
+			cpu: row.cpu,
+			memory: row.memory,
+			pid: row.pid,
+			hover: new ProcessItemHover(row.name, this.hoverService)
+		};
 	}
 
 	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
@@ -229,18 +270,18 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 		const pid = element.pid.toFixed(0);
 
 		templateData.name.textContent = this.model.getName(element.pid, element.name);
-		templateData.name.title = element.cmd;
-
 		templateData.cpu.textContent = element.load.toFixed(0);
 		templateData.pid.textContent = pid;
 		templateData.pid.parentElement!.id = `pid-${pid}`;
+
+		templateData.hover?.update(element.cmd);
 
 		const memory = isWindows ? element.mem : (this.totalMem * (element.mem / 100));
 		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
 	}
 
 	disposeTemplate(templateData: IProcessItemTemplateData): void {
-		// Nothing to do
+		templateData.hover?.dispose();
 	}
 }
 
@@ -324,7 +365,7 @@ export class ProcessExplorerControl extends Disposable {
 		container.id = 'process-explorer';
 
 		const renderers = [
-			new ProcessRenderer(totalmem, this.model),
+			this.instantiationService.createInstance(ProcessRenderer, totalmem, this.model),
 			new ProcessHeaderTreeRenderer(),
 			new MachineRenderer(),
 			new ErrorRenderer()

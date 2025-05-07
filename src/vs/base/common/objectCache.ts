@@ -126,9 +126,10 @@ export class ObjectCache<
 		);
 
 		// remove it from the cache automatically on dispose
-		object.onDispose(() => {
-			this.cache.deleteAndLeak(key);
-		});
+		object.addDisposable(
+			object.onDispose(() => {
+				this.cache.deleteAndLeak(key);
+			}));
 		this.cache.set(key, object);
 
 		return object;

@@ -54,6 +54,7 @@ import './services/path/electron-sandbox/pathService.js';
 import './services/themes/electron-sandbox/nativeHostColorSchemeService.js';
 import './services/extensionManagement/electron-sandbox/extensionManagementService.js';
 import './services/encryption/electron-sandbox/encryptionService.js';
+import './services/browserElements/electron-sandbox/browserElementsService.js';
 import './services/secrets/electron-sandbox/secretStorageService.js';
 import './services/localization/electron-sandbox/languagePackService.js';
 import './services/telemetry/electron-sandbox/telemetryService.js';

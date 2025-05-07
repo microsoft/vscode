@@ -12,7 +12,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IEditorSerializer, EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { ProcessExplorerEditorInput } from './processExplorerEditoInput.js';
+import { ProcessExplorerEditorInput } from './processExplorerEditorInput.js';
 import { ProcessExplorerEditor } from './processExplorerEditor.js';
 
 class ProcessExplorerEditorContribution implements IWorkbenchContribution {

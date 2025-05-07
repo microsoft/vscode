@@ -30,7 +30,6 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-sandbox/window.js';
 import { DefaultAccountManagementContribution } from '../services/accounts/common/defaultAccount.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
-import product from '../../platform/product/common/product.js';
 
 // Actions
 (function registerActions(): void {
@@ -151,7 +150,7 @@ import product from '../../platform/product/common/product.js';
 			},
 			'application.useNewProcessExplorer': {
 				'type': 'boolean',
-				'default': product.quality !== 'stable', // TODO@bpasero decide on a default
+				'default': true, // TODO@bpasero remove me when done
 				'description': localize('useNewProcessExplorer', "Controls whether a the process explorer opens in a floating window."),
 			},
 		}

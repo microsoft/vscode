@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, groupAdjacentBy, numberComparator } from '../../../base/common/arrays.js';
-import { assert, checkAdjacentItems } from '../../../base/common/assert.js';
-import { splitLines } from '../../../base/common/strings.js';
-import { LineRange } from './lineRange.js';
+import { compareBy, groupAdjacentBy, numberComparator } from '../../../../base/common/arrays.js';
+import { assert, checkAdjacentItems } from '../../../../base/common/assert.js';
+import { splitLines } from '../../../../base/common/strings.js';
+import { LineRange } from '../ranges/lineRange.js';
 import { OffsetEdit, SingleOffsetEdit } from './offsetEdit.js';
-import { Position } from './position.js';
-import { Range } from './range.js';
+import { Position } from '../position.js';
+import { Range } from '../range.js';
 import { AbstractText, SingleTextEdit, TextEdit } from './textEdit.js';
-
 
 export class LineEdit {
 	public static readonly empty = new LineEdit([]);

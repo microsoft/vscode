@@ -19,7 +19,7 @@ interface IGettingStartedContentProvider {
 	(): string;
 }
 
-export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
+export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
 
 class GettingStartedContentProviderRegistry {
 
@@ -702,7 +702,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
 					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
 					media: {
-						type: 'svg', altText: 'Personalize', path: 'multi-file-edits.svg'
+						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
 					},
 				},
 				{
