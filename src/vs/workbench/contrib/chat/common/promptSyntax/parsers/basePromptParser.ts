@@ -119,6 +119,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Event that is fired when the current prompt parser is settled.
 	 */
+	// TODO: @legomushroom - unit test?
 	public onSettled(
 		callback: (error?: Error) => void,
 	): IDisposable {
@@ -134,6 +135,25 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		return disposable;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - unit test?
+	public onAllSettled(
+		callback: (error?: Error) => void,
+	): IDisposable {
+		return this._onSettled.event((error) => {
+			this.allSettled()
+				.then(() => {
+					callback(error);
+				})
+				.catch(() => {
+					// TODO: @legomushroom
+					// noop
+				});
+		});
 	}
 
 	/**
