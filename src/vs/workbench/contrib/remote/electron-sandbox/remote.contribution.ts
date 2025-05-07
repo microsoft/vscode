@@ -32,9 +32,10 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IRemoteExplorerService } from '../../../services/remote/common/remoteExplorerService.js';
+import { IRemoteExplorerService, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT } from '../../../services/remote/common/remoteExplorerService.js';
 import { Tunnel, TunnelCloseReason } from '../../../services/remote/common/tunnelModel.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize } from '../../../../nls.js';
+import { RemoteNameContext } from '../../../common/contextkeys.js';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	constructor(
@@ -250,32 +251,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: SaveLocalFileCommand.handler()
 });
 
-// --- Close Unused Forwarded Ports Action ---
-
-const REMOTE_CATEGORY = localize2('remote.category', 'Remote');
-
-namespace RemoteCommandIds {
-	export const closeUnusedPorts = 'workbench.remote.action.closeUnusedPorts';
-}
-
-namespace RemoteCommandLabels {
-	export const closeUnusedPorts = localize('remote.actions.closeUnusedPorts', 'Close Unused Forwarded Ports');
-}
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: RemoteCommandIds.closeUnusedPorts,
-			title: RemoteCommandLabels.closeUnusedPorts,
-			category: REMOTE_CATEGORY,
+			id: 'workbench.remote.action.closeUnusedPorts',
+			title: localize('remote.actions.closeUnusedPorts', 'Close Unused Forwarded Ports'),
+			category: localize('remote.category', 'Remote'),
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('isLinux', true),
-					ContextKeyExpr.notEquals('config.remote.autoForwardPortsSource', 'output')
-				)
+				id: MenuId.CommandPalette
 			}],
-			precondition: ContextKeyExpr.equals('isWindows', false)
+			precondition: ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${PORT_AUTO_SOURCE_SETTING}`, PORT_AUTO_SOURCE_SETTING_OUTPUT), RemoteNameContext)
 		});
 	}
 
