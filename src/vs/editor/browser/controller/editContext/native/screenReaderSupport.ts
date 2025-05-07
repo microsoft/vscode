@@ -156,8 +156,6 @@ export class ScreenReaderSupport {
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 		this._domNode.setLineHeight(height);
-		console.log('top : ', top);
-		console.log('scrollTop : ', scrollTop);
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
 
@@ -199,12 +197,12 @@ export class ScreenReaderSupport {
 			const fontLigatures = options.get(EditorOption.fontLigatures);
 			const disableMonospaceOptimizations = options.get(EditorOption.disableMonospaceOptimizations);
 			const viewLineNumber = this._screenReaderContentState.viewSelection.positionLineNumber;
-			// const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewLineNumber);
 			const viewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
 			const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 			const actualInlineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, modelRange.startLineNumber, 0, Infinity);
 			const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 			const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
+			const renderWhitespace = options.get(EditorOption.renderWhitespace);
 			const sb = new StringBuilder(10000);
 			const renderLineInput = new RenderLineInput(
 				useMonospaceOptimizations,
@@ -222,7 +220,7 @@ export class ScreenReaderSupport {
 				fontInfo.middotWidth,
 				fontInfo.wsmiddotWidth,
 				stopRenderingLineAfter,
-				'none',
+				renderWhitespace,
 				renderControlCharacters,
 				useFontLigatures,
 				null
@@ -232,7 +230,6 @@ export class ScreenReaderSupport {
 			const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 			const activeLineDom = document.createElement('div');
 			activeLineDom.innerHTML = trustedhtml as string;
-			// activeLineDom.style.lineHeight = `${String(lineHeight)}px`;
 			const preLineDom = document.createElement('div');
 			preLineDom.textContent = prePositionLineText;
 			const postLineDom = document.createElement('div');
