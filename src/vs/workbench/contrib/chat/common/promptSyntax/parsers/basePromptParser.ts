@@ -24,6 +24,7 @@ import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -144,14 +145,24 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	public onAllSettled(
 		callback: (error?: Error) => void,
 	): IDisposable {
+		let cancellation = new CancellationTokenSource();
+
 		return this._onSettled.event((error) => {
+			cancellation.cancel();
+			cancellation = new CancellationTokenSource();
+
+			// TODO: @legomushroom - unit test
 			this.allSettled()
 				.then(() => {
+					// TODO: @legomushroom
+					if (cancellation.token.isCancellationRequested) {
+						return;
+					}
+
 					callback(error);
 				})
 				.catch(() => {
 					// TODO: @legomushroom
-					// noop
 				});
 		});
 	}

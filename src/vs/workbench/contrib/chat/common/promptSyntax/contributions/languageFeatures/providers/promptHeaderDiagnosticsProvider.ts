@@ -32,7 +32,6 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	// TODO: @legomushroom add '@cancelPreviousCalls'?
 	protected override onPromptSettled(
 		target: TSettleTarget,
 	): this {

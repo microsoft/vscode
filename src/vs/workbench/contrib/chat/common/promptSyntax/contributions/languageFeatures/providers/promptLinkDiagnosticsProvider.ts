@@ -34,7 +34,6 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	// TODO: @legomushroom add '@cancelPreviousCalls'?
 	protected override onPromptSettled(
 		target: TSettleTarget,
 		_settleError: Error | undefined,

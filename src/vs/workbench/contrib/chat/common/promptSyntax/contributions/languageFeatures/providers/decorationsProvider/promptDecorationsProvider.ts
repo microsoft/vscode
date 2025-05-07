@@ -45,7 +45,6 @@ export class PromptDecorator extends ProviderInstanceBase {
 		this.watchCursorPosition();
 	}
 
-	// TODO: @legomushroom add '@cancelPreviousCalls'?
 	protected override onPromptSettled(
 		target: TSettleTarget,
 		_error?: Error,
