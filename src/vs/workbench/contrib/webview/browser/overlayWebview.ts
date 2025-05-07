@@ -75,7 +75,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _isDisposed = false;
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
-	public onDidDispose = this._onDidDispose.event;
+	public readonly onDidDispose = this._onDidDispose.event;
 
 	override dispose() {
 		this._isDisposed = true;

@@ -31,6 +31,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: { requester: { name: "test" } },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -81,6 +82,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -105,7 +107,9 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined
     },
     {
       requestId: undefined,
@@ -148,6 +152,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ],
@@ -157,7 +162,9 @@
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined
     }
   ]
 }

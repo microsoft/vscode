@@ -12,7 +12,7 @@ import type { ITerminalCommand } from '../../../../common/capabilities/capabilit
 import { ok, notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
-import { PosixShellType } from '../../../../common/terminal.js';
+import { GeneralShellType, PosixShellType } from '../../../../common/terminal.js';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -381,6 +381,52 @@ suite('PromptInputModel', () => {
 			);
 
 			await assertPromptInput('STRIKE1 normal STRIKE2|'); // No ghost text expected
+		});
+		suite('With wrapping', () => {
+			test('Fish ghost text in long line with wrapped content', async () => {
+				promptInputModel.setShellType(PosixShellType.Fish);
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
+
+				// Write a command with ghost text that will wrap
+				await writePromise('find . -name');
+				await assertPromptInput(`find . -name|`);
+
+				// Add ghost text with dim style
+				await writePromise('\x1b[2m test\x1b[0m\x1b[4D');
+				await assertPromptInput(`find . -name |[test]`);
+
+				// Move cursor within the ghost text
+				await writePromise('\x1b[C');
+				await assertPromptInput(`find . -name t|[est]`);
+
+				// Accept ghost text
+				await writePromise('\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C');
+				await assertPromptInput(`find . -name test|`);
+			});
+			test('Pwsh ghost text in long line with wrapped content', async () => {
+				promptInputModel.setShellType(GeneralShellType.PowerShell);
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
+
+				// Write a command with ghost text that will wrap
+				await writePromise('find . -name');
+				await assertPromptInput(`find . -name|`);
+
+				// Add ghost text with dim style
+				await writePromise('\x1b[2m test\x1b[0m\x1b[4D');
+				await assertPromptInput(`find . -name |[test]`);
+
+				// Move cursor within the ghost text
+				await writePromise('\x1b[C');
+				await assertPromptInput(`find . -name t|[est]`);
+
+				// Accept ghost text
+				await writePromise('\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C');
+				await assertPromptInput(`find . -name test|`);
+			});
 		});
 	});
 

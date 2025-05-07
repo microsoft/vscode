@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
 import { Range } from '../../../core/range.js';
 import { MarkdownToken } from './markdownToken.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -33,24 +32,9 @@ export class MarkdownComment extends MarkdownToken {
 	}
 
 	/**
-	 * Check if this token is equal to another one.
-	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
-			return false;
-		}
-
-		if (!(other instanceof MarkdownComment)) {
-			return false;
-		}
-
-		return this.text === other.text;
-	}
-
-	/**
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-comment("${this.text}")${this.range}`;
+		return `md-comment("${this.shortText()}")${this.range}`;
 	}
 }

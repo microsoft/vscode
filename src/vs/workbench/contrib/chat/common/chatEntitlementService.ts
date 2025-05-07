@@ -8,7 +8,7 @@ import { Barrier } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -21,7 +21,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from './chatContextKeys.js';
@@ -31,6 +31,7 @@ import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { Mutable } from '../../../../base/common/types.js';
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
 
@@ -46,7 +47,13 @@ export enum ChatEntitlement {
 	/** Signed-up to Limited */
 	Limited,
 	/** Signed-up to Pro */
-	Pro
+	Pro,
+	/** Signed-up to Pro Plus */
+	ProPlus,
+	/** Signed-up to Business */
+	Business,
+	/** Signed-up to Enterprise */
+	Enterprise
 }
 
 export enum ChatSentiment {
@@ -56,18 +63,6 @@ export enum ChatSentiment {
 	Disabled = 2,
 	/** Extensions installed */
 	Installed = 3
-}
-
-export interface IChatQuotas {
-	readonly chatQuotaExceeded: boolean;
-	readonly completionsQuotaExceeded: boolean;
-	readonly quotaResetDate: Date | undefined;
-
-	readonly chatTotal?: number;
-	readonly completionsTotal?: number;
-
-	readonly chatRemaining?: number;
-	readonly completionsRemaining?: number;
 }
 
 export interface IChatEntitlementService {
@@ -81,13 +76,27 @@ export interface IChatEntitlementService {
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
 
-	readonly quotas: IChatQuotas;
+	readonly quotas: IQuotas;
 
 	update(token: CancellationToken): Promise<void>;
 
 	readonly onDidChangeSentiment: Event<void>;
 
 	readonly sentiment: ChatSentiment;
+}
+
+//#region Helper Functions
+
+/**
+ * Checks the chat entitlements to see if the user falls into the paid category
+ * @param chatEntitlement The chat entitlement to check
+ * @returns Whether or not they are a paid user
+ */
+export function isProUser(chatEntitlement: ChatEntitlement): boolean {
+	return chatEntitlement === ChatEntitlement.Pro ||
+		chatEntitlement === ChatEntitlement.ProPlus ||
+		chatEntitlement === ChatEntitlement.Business ||
+		chatEntitlement === ChatEntitlement.Enterprise;
 }
 
 //#region Service Implementation
@@ -108,7 +117,7 @@ const defaultChat = {
 
 interface IChatQuotasAccessor {
 	clearQuotas(): void;
-	acceptQuotas(quotas: IChatQuotas): void;
+	acceptQuotas(quotas: IQuotas): void;
 }
 
 export class ChatEntitlementService extends Disposable implements IChatEntitlementService {
@@ -133,6 +142,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatContextKeys.Entitlement.pro.key,
+					ChatContextKeys.Entitlement.business.key,
+					ChatContextKeys.Entitlement.enterprise.key,
+					ChatContextKeys.Entitlement.proPlus.key,
 					ChatContextKeys.Entitlement.limited.key,
 					ChatContextKeys.Entitlement.canSignUp.key,
 					ChatContextKeys.Entitlement.signedOut.key
@@ -173,6 +185,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	get entitlement(): ChatEntitlement {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.pro.key) === true) {
 			return ChatEntitlement.Pro;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.business.key) === true) {
+			return ChatEntitlement.Business;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.enterprise.key) === true) {
+			return ChatEntitlement.Enterprise;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.proPlus.key) === true) {
+			return ChatEntitlement.ProPlus;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.limited.key) === true) {
 			return ChatEntitlement.Limited;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.canSignUp.key) === true) {
@@ -194,7 +212,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
-	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
+	private _quotas: IQuotas = {};
 	get quotas() { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
@@ -206,77 +224,61 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	};
 
 	private registerListeners(): void {
-		const chatQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.chatQuotaExceeded]);
-		const completionsQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.completionsQuotaExceeded]);
+		const quotaExceededSet = new Set([this.ExtensionQuotaContextKeys.chatQuotaExceeded, this.ExtensionQuotaContextKeys.completionsQuotaExceeded]);
 
+		const cts = this._register(new MutableDisposable<CancellationTokenSource>());
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			let changed = false;
-			if (e.affectsSome(chatQuotaExceededSet)) {
-				const newChatQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.chatQuotaExceeded);
-				if (typeof newChatQuotaExceeded === 'boolean' && newChatQuotaExceeded !== this._quotas.chatQuotaExceeded) {
-					this._quotas = {
-						...this._quotas,
-						chatQuotaExceeded: newChatQuotaExceeded,
-					};
-					changed = true;
+			if (e.affectsSome(quotaExceededSet)) {
+				if (cts.value) {
+					cts.value.cancel();
 				}
-			}
-
-			if (e.affectsSome(completionsQuotaExceededSet)) {
-				const newCompletionsQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.completionsQuotaExceeded);
-				if (typeof newCompletionsQuotaExceeded === 'boolean' && newCompletionsQuotaExceeded !== this._quotas.completionsQuotaExceeded) {
-					this._quotas = {
-						...this._quotas,
-						completionsQuotaExceeded: newCompletionsQuotaExceeded,
-					};
-					changed = true;
-				}
-			}
-
-			if (changed) {
-				this.updateContextKeys();
-				this._onDidChangeQuotaExceeded.fire();
+				cts.value = new CancellationTokenSource();
+				this.update(cts.value.token);
 			}
 		}));
 	}
 
-	acceptQuotas(quotas: IChatQuotas): void {
+	acceptQuotas(quotas: IQuotas): void {
 		const oldQuota = this._quotas;
 		this._quotas = quotas;
 		this.updateContextKeys();
 
-		if (
-			oldQuota.chatQuotaExceeded !== this._quotas.chatQuotaExceeded ||
-			oldQuota.completionsQuotaExceeded !== this._quotas.completionsQuotaExceeded
-		) {
+		const { changed: chatChanged } = this.compareQuotas(oldQuota.chat, quotas.chat);
+		const { changed: completionsChanged } = this.compareQuotas(oldQuota.completions, quotas.completions);
+		const { changed: premiumChatChanged } = this.compareQuotas(oldQuota.premiumChat, quotas.premiumChat);
+
+		if (chatChanged.exceeded || completionsChanged.exceeded || premiumChatChanged.exceeded) {
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (
-			oldQuota.chatRemaining !== this._quotas.chatRemaining ||
-			oldQuota.completionsRemaining !== this._quotas.completionsRemaining
-		) {
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 	}
 
+	private compareQuotas(oldQuota: IQuotaSnapshot | undefined, newQuota: IQuotaSnapshot | undefined): { changed: { exceeded: boolean; remaining: boolean } } {
+		return {
+			changed: {
+				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
+				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
+			}
+		};
+	}
+
 	clearQuotas(): void {
-		if (this.quotas.chatQuotaExceeded || this.quotas.completionsQuotaExceeded) {
-			this.acceptQuotas({ chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined });
-		}
+		this.acceptQuotas({});
 	}
 
 	private updateContextKeys(): void {
-		this.chatQuotaExceededContextKey.set(this._quotas.chatQuotaExceeded);
-		this.completionsQuotaExceededContextKey.set(this._quotas.completionsQuotaExceeded);
+		this.chatQuotaExceededContextKey.set(this._quotas.chat?.percentRemaining === 0);
+		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
 	//#endregion
 
 	//#region --- Sentiment
 
-	private readonly _onDidChangeSentiment = this._register(new Emitter<void>());
-	readonly onDidChangeSentiment = this._onDidChangeSentiment.event;
+	readonly onDidChangeSentiment: Event<void>;
 
 	get sentiment(): ChatSentiment {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true) {
@@ -302,8 +304,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
-	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
-	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
+	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat requests available to the user' };
+	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat requests available to the user' };
+	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code completions available to the user' };
 	quotaResetDate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The date the quota will reset' };
 	owner: 'bpasero';
 	comment: 'Reporting chat entitlements';
@@ -313,16 +316,21 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
 	quotaChat: number | undefined;
+	quotaPremiumChat: number | undefined;
 	quotaCompletions: number | undefined;
 	quotaResetDate: string | undefined;
 };
 
-interface IEntitlementsResponse {
-	readonly access_type_sku: string;
-	readonly assigned_date: string;
-	readonly can_signup_for_limited: boolean;
-	readonly chat_enabled: boolean;
-	readonly analytics_tracking_id: string;
+interface IQuotaSnapshotResponse {
+	readonly entitlement: number;
+	readonly overage_count: number;
+	readonly overage_permitted: boolean;
+	readonly percent_remaining: number;
+	readonly remaining: number;
+	readonly unlimited: boolean;
+}
+
+interface ILegacyQuotaSnapshotResponse {
 	readonly limited_user_quotas?: {
 		readonly chat: number;
 		readonly completions: number;
@@ -331,7 +339,22 @@ interface IEntitlementsResponse {
 		readonly chat: number;
 		readonly completions: number;
 	};
-	readonly limited_user_reset_date: string;
+}
+
+interface IEntitlementsResponse extends ILegacyQuotaSnapshotResponse {
+	readonly access_type_sku: string;
+	readonly assigned_date: string;
+	readonly can_signup_for_limited: boolean;
+	readonly chat_enabled: boolean;
+	readonly copilot_plan: string;
+	readonly analytics_tracking_id: string;
+	readonly limited_user_reset_date?: string; 	// for Copilot Free
+	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
+	readonly quota_snapshots?: {
+		chat?: IQuotaSnapshotResponse;
+		completions?: IQuotaSnapshotResponse;
+		premium_interactions?: IQuotaSnapshotResponse;
+	};
 }
 
 interface IEntitlements {
@@ -339,14 +362,21 @@ interface IEntitlements {
 	readonly quotas?: IQuotas;
 }
 
+export interface IQuotaSnapshot {
+	readonly total: number;
+	readonly percentRemaining: number;
+
+	readonly overageEnabled: boolean;
+	readonly overageCount: number;
+
+	readonly unlimited: boolean;
+}
+
 interface IQuotas {
-	readonly chatTotal?: number;
-	readonly completionsTotal?: number;
-
-	readonly chatRemaining?: number;
-	readonly completionsRemaining?: number;
-
 	readonly resetDate?: string;
+	readonly chat?: IQuotaSnapshot;
+	readonly completions?: IQuotaSnapshot;
+	readonly premiumChat?: IQuotaSnapshot;
 }
 
 export class ChatEntitlementRequests extends Disposable {
@@ -466,8 +496,17 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doGetSessions(providerId: string): Promise<readonly AuthenticationSession[]> {
+		const preferredAccountName = this.authenticationExtensionsService.getAccountPreference(defaultChat.chatExtensionId, providerId) ?? this.authenticationExtensionsService.getAccountPreference(defaultChat.extensionId, providerId);
+		let preferredAccount: AuthenticationSessionAccount | undefined;
+		for (const account of await this.authenticationService.getAccounts(providerId)) {
+			if (account.label === preferredAccountName) {
+				preferredAccount = account;
+				break;
+			}
+		}
+
 		try {
-			return await this.authenticationService.getSessions(providerId);
+			return await this.authenticationService.getSessions(providerId, undefined, preferredAccount);
 		} catch (error) {
 			// ignore - errors can throw if a provider is not registered
 		}
@@ -512,9 +551,8 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat entitlement]: unexpected status code ${response.res.statusCode}`);
 			return (
-				response.res.statusCode === 401 ||
-				response.res.statusCode === 403 ||
-				response.res.statusCode === 404
+				response.res.statusCode === 401 || 	// oauth token being unavailable (expired/revoked)
+				response.res.statusCode === 404		// missing scopes/permissions, service pretends the endpoint doesn't exist
 			) ? { entitlement: ChatEntitlement.Unknown /* treat as signed out */ } : { entitlement: ChatEntitlement.Unresolved };
 		}
 
@@ -547,36 +585,95 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement = ChatEntitlement.Limited;
 		} else if (entitlementsResponse.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
+		} else if (entitlementsResponse.copilot_plan === 'individual') {
+			entitlement = ChatEntitlement.Pro;
+		} else if (entitlementsResponse.copilot_plan === 'individual_pro') {
+			entitlement = ChatEntitlement.ProPlus;
+		} else if (entitlementsResponse.copilot_plan === 'business') {
+			entitlement = ChatEntitlement.Business;
+		} else if (entitlementsResponse.copilot_plan === 'enterprise') {
+			entitlement = ChatEntitlement.Enterprise;
 		} else if (entitlementsResponse.chat_enabled) {
+			// This should never happen as we exhaustively list the plans above. But if a new plan is added in the future older clients won't break
 			entitlement = ChatEntitlement.Pro;
 		} else {
 			entitlement = ChatEntitlement.Unavailable;
 		}
 
-		const chatRemaining = entitlementsResponse.limited_user_quotas?.chat;
-		const completionsRemaining = entitlementsResponse.limited_user_quotas?.completions;
-
 		const entitlements: IEntitlements = {
 			entitlement,
-			quotas: {
-				chatTotal: entitlementsResponse.monthly_quotas?.chat,
-				completionsTotal: entitlementsResponse.monthly_quotas?.completions,
-				chatRemaining: typeof chatRemaining === 'number' ? Math.max(0, chatRemaining) : undefined,
-				completionsRemaining: typeof completionsRemaining === 'number' ? Math.max(0, completionsRemaining) : undefined,
-				resetDate: entitlementsResponse.limited_user_reset_date
-			}
+			quotas: this.toQuotas(entitlementsResponse)
 		};
 
 		this.logService.trace(`[chat entitlement]: resolved to ${entitlements.entitlement}, quotas: ${JSON.stringify(entitlements.quotas)}`);
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsResponse.analytics_tracking_id,
-			quotaChat: entitlementsResponse.limited_user_quotas?.chat,
-			quotaCompletions: entitlementsResponse.limited_user_quotas?.completions,
-			quotaResetDate: entitlementsResponse.limited_user_reset_date
+			quotaChat: entitlementsResponse?.quota_snapshots?.chat?.remaining,
+			quotaPremiumChat: entitlementsResponse?.quota_snapshots?.premium_interactions?.remaining,
+			quotaCompletions: entitlementsResponse?.quota_snapshots?.completions?.remaining,
+			quotaResetDate: entitlementsResponse.quota_reset_date ?? entitlementsResponse.limited_user_reset_date
 		});
 
 		return entitlements;
+	}
+
+	private toQuotas(response: IEntitlementsResponse): IQuotas {
+		const quotas: Mutable<IQuotas> = {
+			resetDate: response.quota_reset_date ?? response.limited_user_reset_date
+		};
+
+		// Legacy Free SKU Quota
+		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
+			quotas.chat = {
+				total: response.monthly_quotas.chat,
+				percentRemaining: (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100,
+				overageEnabled: false,
+				overageCount: 0,
+				unlimited: false
+			};
+		}
+
+		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
+			quotas.completions = {
+				total: response.monthly_quotas.completions,
+				percentRemaining: (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100,
+				overageEnabled: false,
+				overageCount: 0,
+				unlimited: false
+			};
+		}
+
+		// New Quota Snapshot
+		if (response.quota_snapshots) {
+			for (const quotaType of ['chat', 'completions', 'premium_interactions'] as const) {
+				const rawQuotaSnapshot = response.quota_snapshots[quotaType];
+				if (!rawQuotaSnapshot) {
+					continue;
+				}
+				const quotaSnapshot: IQuotaSnapshot = {
+					total: rawQuotaSnapshot.entitlement,
+					percentRemaining: rawQuotaSnapshot.percent_remaining,
+					overageEnabled: rawQuotaSnapshot.overage_permitted,
+					overageCount: rawQuotaSnapshot.overage_count,
+					unlimited: rawQuotaSnapshot.unlimited
+				};
+
+				switch (quotaType) {
+					case 'chat':
+						quotas.chat = quotaSnapshot;
+						break;
+					case 'completions':
+						quotas.completions = quotaSnapshot;
+						break;
+					case 'premium_interactions':
+						quotas.premiumChat = quotaSnapshot;
+						break;
+				}
+			}
+		}
+
+		return quotas;
 	}
 
 	private async request(url: string, type: 'GET', body: undefined, session: AuthenticationSession, token: CancellationToken): Promise<IRequestContext | undefined>;
@@ -607,15 +704,7 @@ export class ChatEntitlementRequests extends Disposable {
 		this.context.update({ entitlement: this.state.entitlement });
 
 		if (state.quotas) {
-			this.chatQuotasAccessor.acceptQuotas({
-				chatQuotaExceeded: typeof state.quotas.chatRemaining === 'number' ? state.quotas.chatRemaining <= 0 : false,
-				completionsQuotaExceeded: typeof state.quotas.completionsRemaining === 'number' ? state.quotas.completionsRemaining <= 0 : false,
-				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined,
-				chatTotal: state.quotas.chatTotal,
-				completionsTotal: state.quotas.completionsTotal,
-				chatRemaining: state.quotas.chatRemaining,
-				completionsRemaining: state.quotas.completionsRemaining
-			});
+			this.chatQuotasAccessor.acceptQuotas(state.quotas);
 		}
 	}
 
@@ -756,6 +845,7 @@ export interface IChatEntitlementContextState {
 	entitlement: ChatEntitlement;
 	hidden?: boolean;
 	installed?: boolean;
+	disabled?: boolean;
 	registered?: boolean;
 }
 
@@ -767,8 +857,12 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly signedOutContextKey: IContextKey<boolean>;
 	private readonly limitedContextKey: IContextKey<boolean>;
 	private readonly proContextKey: IContextKey<boolean>;
+	private readonly proPlusContextKey: IContextKey<boolean>;
+	private readonly businessContextKey: IContextKey<boolean>;
+	private readonly enterpriseContextKey: IContextKey<boolean>;
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
+	private readonly disabledContext: IContextKey<boolean>;
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
@@ -794,8 +888,12 @@ export class ChatEntitlementContext extends Disposable {
 		this.signedOutContextKey = ChatContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
 		this.limitedContextKey = ChatContextKeys.Entitlement.limited.bindTo(contextKeyService);
 		this.proContextKey = ChatContextKeys.Entitlement.pro.bindTo(contextKeyService);
+		this.proPlusContextKey = ChatContextKeys.Entitlement.proPlus.bindTo(contextKeyService);
+		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
+		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
+		this.disabledContext = ChatContextKeys.Setup.disabled.bindTo(contextKeyService);
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 
@@ -815,18 +913,23 @@ export class ChatEntitlementContext extends Disposable {
 			}
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-			this.update({ installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local) });
+			this.update({
+				// TODO@bpasero considering enablement state here as well for historic reasons, should revisit when Copilot can be enabled/disabled more generally
+				installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local),
+				disabled: !!defaultChatExtension?.local && !this.extensionEnablementService.isEnabled(defaultChatExtension.local)
+			});
 		}));
 	}
 
-	update(context: { installed: boolean }): Promise<void>;
+	update(context: { installed: boolean; disabled: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; hidden?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
-		if (typeof context.installed === 'boolean') {
+		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
 			this._state.installed = context.installed;
+			this._state.disabled = context.disabled;
 
 			if (context.installed) {
 				context.hidden = false; // allows to fallback if the extension is uninstalled
@@ -840,7 +943,7 @@ export class ChatEntitlementContext extends Disposable {
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
 
-			if (this._state.entitlement === ChatEntitlement.Limited || this._state.entitlement === ChatEntitlement.Pro) {
+			if (this._state.entitlement === ChatEntitlement.Limited || isProUser(this._state.entitlement)) {
 				this._state.registered = true;
 			} else if (this._state.entitlement === ChatEntitlement.Available) {
 				this._state.registered = false; // only reset when signed-in user can sign-up for limited
@@ -865,8 +968,12 @@ export class ChatEntitlementContext extends Disposable {
 		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);
 		this.limitedContextKey.set(this._state.entitlement === ChatEntitlement.Limited);
 		this.proContextKey.set(this._state.entitlement === ChatEntitlement.Pro);
+		this.proPlusContextKey.set(this._state.entitlement === ChatEntitlement.ProPlus);
+		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);
+		this.enterpriseContextKey.set(this._state.entitlement === ChatEntitlement.Enterprise);
 		this.hiddenContext.set(!!this._state.hidden);
 		this.installedContext.set(!!this._state.installed);
+		this.disabledContext.set(!!this._state.disabled);
 
 		this._onDidChange.fire();
 	}
@@ -884,3 +991,4 @@ export class ChatEntitlementContext extends Disposable {
 }
 
 //#endregion
+

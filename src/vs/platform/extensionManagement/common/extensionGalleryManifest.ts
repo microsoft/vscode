@@ -15,6 +15,7 @@ export const enum ExtensionGalleryResourceType {
 	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
 	ExtensionResourceUri = 'ExtensionResourceUriTemplate',
+	ContactSupportUri = 'ContactSupportUri',
 }
 
 export const enum Flag {
@@ -54,7 +55,12 @@ export interface IExtensionGalleryManifest {
 			readonly flags?: readonly ExtensionQueryCapabilityValue[];
 		};
 		readonly signing?: {
-			readonly allRepositorySigned: boolean;
+			readonly allPublicRepositorySigned: boolean;
+			readonly allPrivateRepositorySigned?: boolean;
+		};
+		readonly extensions?: {
+			readonly includePublicExtensions?: boolean;
+			readonly includePrivateExtensions?: boolean;
 		};
 	};
 }
@@ -69,10 +75,11 @@ export interface IExtensionGalleryManifestService {
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
 }
 
-export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: ExtensionGalleryResourceType, version?: string): string | undefined {
+export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: string): string | undefined {
+	const [name, version] = type.split('/');
 	for (const resource of manifest.resources) {
 		const [r, v] = resource.type.split('/');
-		if (r !== type) {
+		if (r !== name) {
 			continue;
 		}
 		if (!version || v === version) {

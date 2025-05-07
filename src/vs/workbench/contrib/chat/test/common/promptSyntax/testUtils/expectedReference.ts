@@ -8,7 +8,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { ResolveError } from '../../../../common/promptFileReferenceErrors.js';
-import { IPromptReference } from '../../../../common/promptSyntax/parsers/types.js';
+import { TPromptReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { TErrorCondition } from '../../../../common/promptSyntax/parsers/basePromptParser.js';
 
 /**
@@ -63,7 +63,7 @@ export class ExpectedReference {
 	/**
 	 * Validate that the provided reference is equal to this object.
 	 */
-	public validateEqual(other: IPromptReference) {
+	public validateEqual(other: TPromptReference) {
 		const { uri, text, path, childrenOrError = [] } = this.options;
 		const errorPrefix = `[${uri}] `;
 
@@ -155,7 +155,14 @@ export class ExpectedReference {
 		const { references } = other;
 
 		for (let i = 0; i < children.length; i++) {
-			children[i].validateEqual(references[i]);
+			const reference = references[i];
+
+			assertDefined(
+				reference,
+				`${errorPrefix} Expected reference #${i} be ${children[i]}, got 'undefined'.`,
+			);
+
+			children[i].validateEqual(reference);
 		}
 
 		if (references.length > children.length) {
@@ -181,5 +188,12 @@ export class ExpectedReference {
 
 			throw new Error(`${errorPrefix} Expected another reference '${expectedReference.options.text}', got 'undefined'.`);
 		}
+	}
+
+	/**
+	 * Returns a string representation of the reference.
+	 */
+	public toString(): string {
+		return `expected-reference/${this.options.text}`;
 	}
 }

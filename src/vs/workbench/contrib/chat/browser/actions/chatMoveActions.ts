@@ -8,17 +8,17 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
-import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatViewPane } from '../chatViewPane.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -32,7 +32,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInEditor`,
 				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask)),
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
@@ -55,7 +55,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInNewWindow`,
 				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask)),
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
@@ -101,15 +101,17 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
 	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
 	const sessionId = widget.viewModel.sessionId;
 	const viewState = widget.getViewState();
-	widget.clear();
 
-	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState: viewState };
+	widget.clear();
+	await widget.waitForReady();
+
+	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
 	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 

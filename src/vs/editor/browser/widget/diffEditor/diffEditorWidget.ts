@@ -17,7 +17,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { CursorChangeReason, ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';

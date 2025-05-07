@@ -17,7 +17,7 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } f
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, IWorkspaceFolderData, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -44,7 +44,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
-		private readonly workspaceContextService: IWorkspaceContextService,
+		workspaceContextService: IWorkspaceContextService,
 		private readonly quickInputService: IQuickInputService,
 		private readonly labelService: ILabelService,
 		private readonly pathService: IPathService,
@@ -138,13 +138,12 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return extensionService.getExtension(id);
 			},
 		}, labelService, pathService.userHome().then(home => home.path), envVariablesPromise);
+
+		this.resolvableVariables.add('command');
+		this.resolvableVariables.add('input');
 	}
 
 	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
-		// First resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAsync(folder, config);
-
-		// Then resolve input variables in the order in which they are encountered
 		const parsed = ConfigurationResolverExpression.parse(config);
 		await this.resolveWithInteraction(folder, parsed, section, variables, target);
 
@@ -171,15 +170,20 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			}
 			// Input
 			else if (variable.name === 'input') {
-				result = await this.showUserInput(section!, variable.arg!, await this.resolveInputs(folder, section!, target));
+				result = await this.showUserInput(section!, variable.arg!, await this.resolveInputs(folder, section!, target), variableToCommandMap);
 			}
 			// Contributed variable
 			else if (this._contributedVariables.has(variable.inner)) {
 				result = { value: await this._contributedVariables.get(variable.inner)!() };
 			}
-			// Not something we can handle
 			else {
-				continue;
+				// Fallback to parent evaluation
+				const resolvedValue = await this.evaluateSingleVariable(variable, folder?.uri);
+				if (resolvedValue === undefined) {
+					// Not something we can handle
+					continue;
+				}
+				result = typeof resolvedValue === 'string' ? { value: resolvedValue } : resolvedValue;
 			}
 
 			if (result === undefined) {
@@ -194,7 +198,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	}
 
 	private async resolveInputs(folder: IWorkspaceFolderData | undefined, section: string, target?: ConfigurationTarget): Promise<ConfiguredInput[] | undefined> {
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !section) {
+		if (!section) {
 			return undefined;
 		}
 
@@ -244,7 +248,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		this.storageService.store(LAST_INPUT_STORAGE_KEY, JSON.stringify(lru.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private async showUserInput(section: string, variable: string, inputInfos: ConfiguredInput[] | undefined): Promise<IResolvedValue | undefined> {
+	private async showUserInput(section: string, variable: string, inputInfos: ConfiguredInput[] | undefined, variableToCommandMap?: IStringDictionary<string>): Promise<IResolvedValue | undefined> {
 		if (!inputInfos) {
 			throw new VariableError(VariableKind.Input, localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'inputs'));
 		}
@@ -265,10 +269,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true, value: previousPickedValue };
-					if (info.default) {
-						inputOptions.value = info.default;
-					}
+					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true, value: variableToCommandMap?.[`input:${variable}`] ?? previousPickedValue ?? info.default };
 					if (info.password) {
 						inputOptions.password = info.password;
 					}
@@ -276,7 +277,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						if (typeof resolvedInput === 'string') {
 							this.storeInputLru(defaultValueMap.set(defaultValueKey, resolvedInput));
 						}
-						return resolvedInput ? { value: resolvedInput as string, input: info } : undefined;
+						return resolvedInput !== undefined ? { value: resolvedInput as string, input: info } : undefined;
 					});
 				}
 
@@ -307,10 +308,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 							value: value
 						};
 
+						const topValue = variableToCommandMap?.[`input:${variable}`] ?? previousPickedValue ?? info.default;
 						if (value === info.default) {
 							item.description = localize('inputVariable.defaultInputValue', "(Default)");
 							picks.unshift(item);
-						} else if (!info.default && value === previousPickedValue) {
+						} else if (value === topValue) {
 							picks.unshift(item);
 						} else {
 							picks.push(item);

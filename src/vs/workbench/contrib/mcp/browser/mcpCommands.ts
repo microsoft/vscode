@@ -8,12 +8,10 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { parse as jsoncParse } from '../../../../base/common/jsonc.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -22,7 +20,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -37,6 +35,7 @@ import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -45,10 +44,9 @@ const category: ILocalizedString = {
 };
 
 export class ListMcpServerCommand extends Action2 {
-	public static readonly id = 'workbench.mcp.listServer';
 	constructor() {
 		super({
-			id: ListMcpServerCommand.id,
+			id: McpCommandIds.ListServer,
 			title: localize2('mcp.list', 'List Servers'),
 			icon: Codicon.server,
 			category,
@@ -58,9 +56,9 @@ export class ListMcpServerCommand extends Action2 {
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
-				id: MenuId.ChatInputAttachmentToolbar,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 0
+				order: 101
 			},
 		});
 	}
@@ -77,18 +75,25 @@ export class ListMcpServerCommand extends Action2 {
 		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
 		store.add(pick);
+
 		store.add(autorun(reader => {
 			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
-			pick.items = Object.values(servers).flatMap(servers => {
-				return [
+			const firstRun = pick.items.length === 0;
+			pick.items = [
+				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
+				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
 					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
 					...servers.map(server => ({
 						id: server.definition.id,
 						label: server.definition.label,
 						description: McpConnectionState.toString(server.connectionState.read(reader)),
 					})),
-				];
-			});
+				]),
+			];
+
+			if (firstRun && pick.items.length > 3) {
+				pick.activeItems = pick.items.slice(2, 3) as ItemType[]; // select the first server by default
+			}
 		}));
 
 
@@ -104,20 +109,21 @@ export class ListMcpServerCommand extends Action2 {
 
 		store.dispose();
 
-		if (picked) {
-			commandService.executeCommand(McpServerOptionsCommand.id, picked.id);
+		if (!picked) {
+			// no-op
+		} else if (picked.id === '$add') {
+			commandService.executeCommand(AddConfigurationAction.ID);
+		} else {
+			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
 		}
 	}
 }
 
 
 export class McpServerOptionsCommand extends Action2 {
-
-	static readonly id = 'workbench.mcp.serverOptions';
-
 	constructor() {
 		super({
-			id: McpServerOptionsCommand.id,
+			id: McpCommandIds.ServerOptions,
 			title: localize2('mcp.options', 'Server Options'),
 			category,
 			f1: false,
@@ -212,8 +218,6 @@ export class McpServerOptionsCommand extends Action2 {
 }
 
 export class MCPServerActionRendering extends Disposable implements IWorkbenchContribution {
-	public static readonly ID = 'workbench.contrib.mcp.discovery';
-
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IMcpService mcpService: IMcpService,
@@ -238,6 +242,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				let thisState = DisplayedState.None;
 				switch (server.toolsState.read(reader)) {
 					case McpServerToolsState.Unknown:
+					case McpServerToolsState.Outdated:
 						if (server.trusted.read(reader) === false) {
 							thisState = DisplayedState.None;
 						} else {
@@ -267,7 +272,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, ListMcpServerCommand.id, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -315,17 +320,17 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 					const { state, servers } = displayedState.get();
 					if (state === DisplayedState.NewTools) {
-						servers.forEach(server => server.start());
+						servers.forEach(server => server.stop().then(() => server.start()));
 						mcpService.activateCollections();
 					} else if (state === DisplayedState.Refreshing) {
 						servers.at(-1)?.showOutput();
 					} else if (state === DisplayedState.Error) {
 						const server = servers.at(-1);
 						if (server) {
-							commandService.executeCommand(McpServerOptionsCommand.id, server.definition.id);
+							commandService.executeCommand(McpCommandIds.ServerOptions, server.definition.id);
 						}
 					} else {
-						commandService.executeCommand(ListMcpServerCommand.id);
+						commandService.executeCommand(McpCommandIds.ListServer);
 					}
 				}
 
@@ -353,11 +358,9 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 }
 
 export class ResetMcpTrustCommand extends Action2 {
-	static readonly ID = 'workbench.mcp.resetTrust';
-
 	constructor() {
 		super({
-			id: ResetMcpTrustCommand.ID,
+			id: McpCommandIds.ResetTrust,
 			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
@@ -373,11 +376,9 @@ export class ResetMcpTrustCommand extends Action2 {
 
 
 export class ResetMcpCachedTools extends Action2 {
-	static readonly ID = 'workbench.mcp.resetCachedTools';
-
 	constructor() {
 		super({
-			id: ResetMcpCachedTools.ID,
+			id: McpCommandIds.ResetCachedTools,
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: true,
@@ -420,11 +421,9 @@ export class AddConfigurationAction extends Action2 {
 
 
 export class RemoveStoredInput extends Action2 {
-	static readonly ID = 'workbench.mcp.removeStoredInput';
-
 	constructor() {
 		super({
-			id: RemoveStoredInput.ID,
+			id: McpCommandIds.RemoveStoredInput,
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: false,
@@ -437,11 +436,9 @@ export class RemoveStoredInput extends Action2 {
 }
 
 export class EditStoredInput extends Action2 {
-	static readonly ID = 'workbench.mcp.editStoredInput';
-
 	constructor() {
 		super({
-			id: EditStoredInput.ID,
+			id: McpCommandIds.EditStoredInput,
 			title: localize2('mcp.editStoredInput', "Edit Stored Input"),
 			category,
 			f1: false,
@@ -454,12 +451,41 @@ export class EditStoredInput extends Action2 {
 	}
 }
 
-export class ShowOutput extends Action2 {
-	static readonly ID = 'workbench.mcp.showOutput';
-
+export class ShowConfiguration extends Action2 {
 	constructor() {
 		super({
-			id: ShowOutput.ID,
+			id: McpCommandIds.ShowConfiguration,
+			title: localize2('mcp.command.showConfiguration', "Show Configuration"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, collectionId: string, serverId: string): void {
+		const collection = accessor.get(IMcpRegistry).collections.get().find(c => c.id === collectionId);
+		if (!collection) {
+			return;
+		}
+
+		const server = collection?.serverDefinitions.get().find(s => s.id === serverId);
+		const editorService = accessor.get(IEditorService);
+		if (server?.presentation?.origin) {
+			editorService.openEditor({
+				resource: server.presentation.origin.uri,
+				options: { selection: server.presentation.origin.range }
+			});
+		} else if (collection.presentation?.origin) {
+			editorService.openEditor({
+				resource: collection.presentation.origin,
+			});
+		}
+	}
+}
+
+export class ShowOutput extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.ShowOutput,
 			title: localize2('mcp.command.showOutput', "Show Output"),
 			category,
 			f1: false,
@@ -472,11 +498,9 @@ export class ShowOutput extends Action2 {
 }
 
 export class RestartServer extends Action2 {
-	static readonly ID = 'workbench.mcp.restartServer';
-
 	constructor() {
 		super({
-			id: RestartServer.ID,
+			id: McpCommandIds.RestartServer,
 			title: localize2('mcp.command.restartServer', "Restart Server"),
 			category,
 			f1: false,
@@ -487,16 +511,14 @@ export class RestartServer extends Action2 {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		s?.showOutput();
 		await s?.stop();
-		await s?.start();
+		await s?.start(true);
 	}
 }
 
 export class StartServer extends Action2 {
-	static readonly ID = 'workbench.mcp.startServer';
-
 	constructor() {
 		super({
-			id: StartServer.ID,
+			id: McpCommandIds.StartServer,
 			title: localize2('mcp.command.startServer', "Start Server"),
 			category,
 			f1: false,
@@ -505,16 +527,14 @@ export class StartServer extends Action2 {
 
 	async run(accessor: ServicesAccessor, serverId: string) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start();
+		await s?.start(true);
 	}
 }
 
 export class StopServer extends Action2 {
-	static readonly ID = 'workbench.mcp.stopServer';
-
 	constructor() {
 		super({
-			id: StopServer.ID,
+			id: McpCommandIds.StopServer,
 			title: localize2('mcp.command.stopServer', "Stop Server"),
 			category,
 			f1: false,
@@ -528,11 +548,9 @@ export class StopServer extends Action2 {
 }
 
 export class InstallFromActivation extends Action2 {
-	static readonly ID = 'workbench.mcp.installFromActivation';
-
 	constructor() {
 		super({
-			id: InstallFromActivation.ID,
+			id: McpCommandIds.InstallFromActivation,
 			title: localize2('mcp.command.installFromActivation', "Install..."),
 			category,
 			f1: false,
@@ -544,9 +562,7 @@ export class InstallFromActivation extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, uri: URI) {
-		const editorService = accessor.get(IModelService);
 		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
-
-		addConfigHelper.pickForUrlHandler(uri, jsoncParse(editorService.getModel(uri)!.getValue()));
+		addConfigHelper.pickForUrlHandler(uri);
 	}
 }

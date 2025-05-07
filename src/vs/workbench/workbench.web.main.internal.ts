@@ -67,6 +67,7 @@ import './services/userDataProfile/browser/userDataProfileStorageService.js';
 import './services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import './services/browserElements/browser/browserElementsService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -93,7 +94,7 @@ import { ITimerService, TimerService } from './services/timer/browser/timerServi
 import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnostics/common/diagnostics.js';
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
 import { WebLanguagePacksService } from '../platform/languagePacks/browser/languagePacks.js';
-import { IWebContentExtractorService, NullWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
 import { IDefaultAccountService, NullDefaultAccountService } from './services/accounts/common/defaultAccount.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
@@ -113,6 +114,7 @@ registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService,
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
+registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IDefaultAccountService, NullDefaultAccountService, InstantiationType.Delayed);
 
 //#endregion
@@ -137,9 +139,6 @@ import './contrib/debug/browser/extensionHostDebugService.js';
 
 // Welcome Banner
 import './contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
-
-// Welcome Dialog
-import './contrib/welcomeDialog/browser/welcomeDialog.contribution.js';
 
 // Webview
 import './contrib/webview/browser/webview.web.contribution.js';

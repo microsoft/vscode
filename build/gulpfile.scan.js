@@ -84,9 +84,8 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 				'**/*.node',
 				// Exclude these paths.
 				// We don't build the prebuilt node files so we don't scan them
-				'!**/prebuilds/**/*.node',
-				// These are 3rd party modules that we should ignore
-				'!**/@parcel/watcher/**/*']))
+				'!**/prebuilds/**/*.node'
+			]))
 			.pipe(gulp.dest(destinationExe));
 	};
 

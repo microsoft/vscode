@@ -13,7 +13,7 @@ import { URI as uri } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
-import { IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
+import { allVariableKinds, IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue, Replacement } from './configurationResolverExpression.js';
 
 interface IVariableResolveContext {
@@ -42,6 +42,8 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 	private _userHomePromise?: Promise<string>;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
+	public readonly resolvableVariables = new Set<string>(allVariableKinds);
+
 	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _userHomePromise?: Promise<string>, _envVariablesPromise?: Promise<IProcessEnvironment>) {
 		this._context = _context;
 		this._labelService = _labelService;
@@ -67,15 +69,11 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 
 	public async resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolderData | undefined, value: string): Promise<string> {
 		const expr = ConfigurationResolverExpression.parse(value);
-		const env: Environment = {
-			env: this.prepareEnv(environment),
-			userHome: undefined
-		};
 
 		for (const replacement of expr.unresolved()) {
-			const resolvedValue = await this.evaluateSingleVariable(env, replacement, folder?.uri);
+			const resolvedValue = await this.evaluateSingleVariable(replacement, folder?.uri, environment);
 			if (resolvedValue !== undefined) {
-				expr.resolve(replacement, resolvedValue);
+				expr.resolve(replacement, String(resolvedValue));
 			}
 		}
 
@@ -85,15 +83,10 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 	public async resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<T extends ConfigurationResolverExpression<infer R> ? R : T> {
 		const expr = ConfigurationResolverExpression.parse(config);
 
-		const environment: Environment = {
-			env: await this._envVariablesPromise,
-			userHome: await this._userHomePromise
-		};
-
 		for (const replacement of expr.unresolved()) {
-			const resolvedValue = await this.evaluateSingleVariable(environment, replacement, folder?.uri);
+			const resolvedValue = await this.evaluateSingleVariable(replacement, folder?.uri);
 			if (resolvedValue !== undefined) {
-				expr.resolve(replacement, resolvedValue);
+				expr.resolve(replacement, String(resolvedValue));
 			}
 		}
 
@@ -112,6 +105,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		if (this._contributedVariables.has(variable)) {
 			throw new Error('Variable ' + variable + ' is contributed twice.');
 		} else {
+			this.resolvableVariables.add(variable);
 			this._contributedVariables.set(variable, resolution);
 		}
 	}
@@ -120,7 +114,14 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
-	private async evaluateSingleVariable(environment: Environment, replacement: Replacement, folderUri: uri | undefined, commandValueMapping?: IStringDictionary<IResolvedValue>): Promise<IResolvedValue | string | undefined> {
+	protected async evaluateSingleVariable(replacement: Replacement, folderUri: uri | undefined, processEnvironment?: IProcessEnvironment, commandValueMapping?: IStringDictionary<IResolvedValue>): Promise<IResolvedValue | string | undefined> {
+
+
+		const environment: Environment = {
+			env: (processEnvironment !== undefined) ? this.prepareEnv(processEnvironment) : await this._envVariablesPromise,
+			userHome: (processEnvironment !== undefined) ? undefined : await this._userHomePromise
+		};
+
 		const { name: variable, arg: argument } = replacement;
 
 		// common error handling for all variables that require an open editor

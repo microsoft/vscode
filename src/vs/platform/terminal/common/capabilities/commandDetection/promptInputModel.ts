@@ -280,50 +280,43 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		const buffer = this._xterm.buffer.active;
 		let line = buffer.getLine(commandStartY);
+		const absoluteCursorY = buffer.baseY + buffer.cursorY;
+		let cursorIndex: number | undefined;
+
 		let commandLine = line?.translateToString(true, this._commandStartX);
-		if (!line || commandLine === undefined) {
-			if (this._shellType === PosixShellType.Fish) {
-				commandStartY += 1;
-				line = buffer.getLine(commandStartY);
-				if (line) {
-					commandLine = line.translateToString(true);
-				}
-				if (!commandLine || !line) {
-					return;
-				}
-			} else {
-				this._logService.trace(`PromptInputModel#_sync: no line`);
-				return;
+		if (this._shellType === PosixShellType.Fish && (!line || !commandLine)) {
+			commandStartY += 1;
+			line = buffer.getLine(commandStartY);
+			if (line) {
+				commandLine = line.translateToString(true);
+				cursorIndex = absoluteCursorY === commandStartY ? buffer.cursorX : commandLine?.trimEnd().length;
 			}
 		}
-
-		const absoluteCursorY = buffer.baseY + buffer.cursorY;
-		let value = commandLine;
-		let ghostTextIndex = -1;
-		let cursorIndex: number;
-		if (absoluteCursorY === commandStartY) {
-			cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
-		} else {
-			cursorIndex = commandLine.trimEnd().length;
+		if (line === undefined || commandLine === undefined) {
+			this._logService.trace(`PromptInputModel#_sync: no line`);
+			return;
 		}
 
-		// Detect ghost text by looking for italic or dim text in or after the cursor and
-		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
-		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
-			// Ghost text in pwsh only appears to happen on the cursor line
-			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
+		let value = commandLine;
+		let ghostTextIndex = -1;
+		if (cursorIndex === undefined) {
+			if (absoluteCursorY === commandStartY) {
+				cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
+			} else {
+				cursorIndex = commandLine.trimEnd().length;
+			}
 		}
 
 		// From command start line to cursor line
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
-			line = buffer.getLine(y);
-			const lineText = line?.translateToString(true);
-			if (lineText && line) {
+			const nextLine = buffer.getLine(y);
+			const lineText = nextLine?.translateToString(true);
+			if (lineText && nextLine) {
 				// Check if the line wrapped without a new line (continuation) or
 				// we're on the last line and the continuation prompt is not present, so we need to add the value
-				if (line.isWrapped || (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText))) {
+				if (nextLine.isWrapped || (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText))) {
 					value += `${lineText}`;
-					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, nextLine);
 					if (absoluteCursorY === y) {
 						cursorIndex += relativeCursorIndex;
 					} else {
@@ -352,8 +345,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					const trimmedLineText = this._trimContinuationPrompt(lineText);
 					value += `\n${trimmedLineText}`;
 					if (absoluteCursorY === y) {
-						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
-						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
+						const continuationCellWidth = this._getContinuationPromptCellWidth(nextLine, lineText);
+						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, nextLine);
 						cursorIndex += relativeCursorIndex + 1;
 					} else {
 						cursorIndex += trimmedLineText.length + 1;
@@ -364,13 +357,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		// Below cursor line
 		for (let y = absoluteCursorY + 1; y < buffer.baseY + this._xterm.rows; y++) {
-			line = buffer.getLine(y);
-			const lineText = line?.translateToString(true);
-			if (lineText && line) {
-				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
+			const belowCursorLine = buffer.getLine(y);
+			const lineText = belowCursorLine?.translateToString(true);
+			if (lineText && belowCursorLine) {
+				if (this._shellType === PosixShellType.Fish) {
+					value += `${lineText}`;
+				} else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
-					break;
+					value += lineText;
 				}
 			} else {
 				break;
@@ -441,6 +436,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);
 		}
 
+		ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
+
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
 			this._value = value;
 			this._cursorIndex = cursorIndex;
@@ -455,7 +452,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	/**
 	 * Detect ghost text by looking for italic or dim text in or after the cursor and
-	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
+	 * non-italic/dim text in the first non-whitespace cell following command start and before the cursor.
 	 */
 	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
 		if (!this.value.trim().length) {
@@ -555,7 +552,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 			// Calculate the ghost text start index
-			ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
+			if (buffer.baseY + buffer.cursorY === this._commandStartMarker?.line) {
+				ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
+			} else {
+				ghostTextIndex = positionsWithGhostStyle[0];
+			}
 		}
 
 		// Ensure no earlier cells in the line match `lastNonWhitespaceCell`'s style,

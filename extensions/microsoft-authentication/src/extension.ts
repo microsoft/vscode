@@ -48,14 +48,12 @@ export async function activate(context: ExtensionContext) {
 		env.uriScheme !== 'vscode', // isPreRelease
 	);
 	useMsal = shouldUseMsal(expService);
-	const clientIdVersion = workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion', 'v1');
-
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 		if (!e.affectsConfiguration('microsoft-authentication')) {
 			return;
 		}
 
-		if (useMsal === shouldUseMsal(expService) && clientIdVersion === workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion', 'v1')) {
+		if (useMsal === shouldUseMsal(expService)) {
 			return;
 		}
 
@@ -77,6 +75,7 @@ export async function activate(context: ExtensionContext) {
 	if (useMsal && typeof navigator === 'undefined') {
 		await extensionV2.activate(context, mainTelemetryReporter);
 	} else {
+		mainTelemetryReporter.sendActivatedWithClassicImplementationEvent();
 		await extensionV1.activate(context, mainTelemetryReporter.telemetryReporter);
 	}
 }

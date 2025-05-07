@@ -34,7 +34,6 @@
     "statusBarItemTooltip",
     "tabInputMultiDiff",
     "tabInputTextMerge",
-    "textDocumentEncoding",
     "textEditorDiffInformation",
     "timeline"
   ],
@@ -250,6 +249,13 @@
         "command": "git.unstageSelectedRanges",
         "title": "%command.unstageSelectedRanges%",
         "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.unstageChange",
+        "title": "%command.unstageChange%",
+        "category": "Git",
+        "icon": "$(remove)",
         "enablement": "!operationInProgress"
       },
       {
@@ -1077,6 +1083,10 @@
         {
           "command": "git.unstageSelectedRanges",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == git"
+        },
+        {
+          "command": "git.unstageChange",
+          "when": "false"
         },
         {
           "command": "git.clean",
@@ -2220,11 +2230,15 @@
       "scm/change/title": [
         {
           "command": "git.stageChange",
-          "when": "config.git.enabled && !git.missing && originalResourceScheme == git"
+          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22%22%7D$/"
         },
         {
           "command": "git.revertChange",
-          "when": "config.git.enabled && !git.missing && originalResourceScheme == git"
+          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22%22%7D$/"
+        },
+        {
+          "command": "git.unstageChange",
+          "when": "false"
         }
       ],
       "timeline/item/context": [
@@ -3298,13 +3312,13 @@
           "markdownDescription": "%config.commitShortHashLength%",
           "scope": "resource"
         },
-        "git.diagnosticsCommitHook.Enabled": {
+        "git.diagnosticsCommitHook.enabled": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%config.diagnosticsCommitHook.Enabled%",
+          "markdownDescription": "%config.diagnosticsCommitHook.enabled%",
           "scope": "resource"
         },
-        "git.diagnosticsCommitHook.Sources": {
+        "git.diagnosticsCommitHook.sources": {
           "type": "object",
           "additionalProperties": {
             "type": "string",
@@ -3319,7 +3333,7 @@
           "default": {
             "*": "error"
           },
-          "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
+          "markdownDescription": "%config.diagnosticsCommitHook.sources%",
           "scope": "resource"
         },
         "git.discardUntrackedChangesToTrash": {

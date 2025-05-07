@@ -11,13 +11,13 @@ import { constObservable, derived, IObservable, observableValue } from '../../..
 import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { SingleOffsetEdit } from '../../../../../../common/core/offsetEdit.js';
+import { SingleOffsetEdit } from '../../../../../../common/core/edits/offsetEdit.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
-import { SingleTextEdit } from '../../../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../../../common/core/edits/textEdit.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
@@ -78,9 +78,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 	private readonly _layout = derived(this, reader => {
 		this._renderTextEffect.read(reader);
 		const widgetStart = this._start.read(reader);
-		const widgetEnd = this._end.read(reader);//
+		const widgetEnd = this._end.read(reader);
 
-		if (!widgetStart || !widgetEnd || widgetStart.x > widgetEnd.x) {
+		// TODO@hediet better about widgetStart and widgetEnd in a single transaction!
+		if (!widgetStart || !widgetEnd || widgetStart.x > widgetEnd.x || widgetStart.y > widgetEnd.y) {
 			return undefined;
 		}
 
@@ -95,8 +96,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		const originalLine = Rect.fromPoints(widgetStart, widgetEnd).withHeight(lineHeight).translateX(-scrollLeft);
 		const modifiedLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._edit.text.length * w, originalLine.height));
 
-		const background = Rect.hull([originalLine, modifiedLine]);
-		const lowerBackground = background.intersectVertical(new OffsetRange(originalLine.bottom, Number.MAX_SAFE_INTEGER));
+		const lowerBackground = modifiedLine.withLeft(originalLine.left);
 
 		// debugView(debugLogRects({ lowerBackground }, this._editor.editor.getContainerDomNode()), reader);
 
@@ -118,6 +118,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			}
 
 			const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
+			const borderWidth = 1;
 
 			const originalBorderColor = getOriginalBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
 			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
@@ -137,7 +138,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 					n.div({
 						style: {
 							position: 'absolute',
-							...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(0, 2, 0, 0)),
+							...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(borderWidth, 2 * borderWidth, borderWidth, 0)),
 							background: asCssVariable(editorBackground),
 							//boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 							cursor: 'pointer',
@@ -162,7 +163,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							pointerEvents: 'none',
 							boxSizing: 'border-box',
 							borderRadius: '4px',
-							border: `1px solid ${modifiedBorderColor}`,
+							border: `${borderWidth}px solid ${modifiedBorderColor}`,
 
 							background: asCssVariable(modifiedChangedTextOverlayColor),
 							display: 'flex',
@@ -178,7 +179,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							...rectToProps(reader => layout.read(reader).originalLine.withMargin(1)),
 							boxSizing: 'border-box',
 							borderRadius: '4px',
-							border: `1px solid ${originalBorderColor}`,
+							border: `${borderWidth}px solid ${originalBorderColor}`,
 							background: asCssVariable(originalChangedTextOverlayColor),
 							pointerEvents: 'none',
 						}

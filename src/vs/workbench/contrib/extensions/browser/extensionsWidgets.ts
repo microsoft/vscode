@@ -109,10 +109,6 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (!this.small && !this.extension.url) {
-			return;
-		}
-
 		const parent = this.small ? this.container : append(this.container, $('span.install', { tabIndex: 0 }));
 		append(parent, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
 		const count = append(parent, $('span.count'));
@@ -126,7 +122,7 @@ export class InstallCountWidget extends ExtensionWidget {
 	static getInstallLabel(extension: IExtension, small: boolean): string | undefined {
 		const installCount = extension.installCount;
 
-		if (installCount === undefined) {
+		if (!installCount) {
 			return undefined;
 		}
 
@@ -279,7 +275,7 @@ export class PublisherWidget extends ExtensionWidget {
 		append(verifiedPublisher, $('span.extension-verified-publisher.clickable'), renderIcon(verifiedPublisherIcon));
 
 		if (this.small) {
-			if (this.extension.publisherDomain) {
+			if (this.extension.publisherDomain?.verified) {
 				append(this.element, verifiedPublisher);
 			}
 			append(this.element, publisherDisplayName);
@@ -291,7 +287,7 @@ export class PublisherWidget extends ExtensionWidget {
 			this.containerHover = this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, localize('publisher', "Publisher ({0})", this.extension.publisherDisplayName)));
 			append(this.element, publisherDisplayName);
 
-			if (this.extension.publisherDomain) {
+			if (this.extension.publisherDomain?.verified) {
 				append(this.element, verifiedPublisher);
 				const publisherDomainLink = URI.parse(this.extension.publisherDomain.link);
 				verifiedPublisher.tabIndex = 0;

@@ -16,6 +16,9 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	readonly _serviceBrand: undefined;
 
+	/** Variables the resolver is able to resolve. */
+	readonly resolvableVariables: ReadonlySet<string>;
+
 	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolderData | undefined, value: string): Promise<string>;
 
 	/**
@@ -102,6 +105,8 @@ export enum VariableKind {
 	PathSeparator = 'pathSeparator',
 	PathSeparatorAlias = '/'
 }
+
+export const allVariableKinds = Object.values(VariableKind).filter((value): value is VariableKind => typeof value === 'string');
 
 export class VariableError extends ErrorNoTelemetry {
 	constructor(public readonly variable: VariableKind, message?: string) {
