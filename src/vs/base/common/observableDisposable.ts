@@ -26,9 +26,13 @@ export abstract class ObservableDisposable extends Disposable {
 	public onDispose(callback: () => void): IDisposable {
 		// if already disposed, execute the callback immediately
 		if (this.disposed) {
-			callback();
+			const timeoutHandle = setTimeout(callback);
 
-			return this;
+			return {
+				dispose: () => {
+					clearTimeout(timeoutHandle);
+				},
+			};
 		}
 
 		return this._onDispose.event(callback);
