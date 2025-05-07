@@ -209,7 +209,7 @@ export default class FileConfigurationManager extends Disposable {
 			...getInlayHintsPreferences(config),
 			...this.getOrganizeImportsPreferences(preferencesConfig),
 			// @ts-expect-error until TS 5.9
-			maximumHoverLength: this.getMaximumHoverLength(config),
+			maximumHoverLength: this.getMaximumHoverLength(document),
 		};
 
 		return preferences;
@@ -261,9 +261,9 @@ export default class FileConfigurationManager extends Disposable {
 	}
 
 
-	private getMaximumHoverLength(configuration: vscode.WorkspaceConfiguration): number {
+	private getMaximumHoverLength(document: vscode.TextDocument): number {
 		const defaultMaxLength = 500;
-		const maximumHoverLength = configuration.get<number>('maximumHoverLength', defaultMaxLength);
+		const maximumHoverLength = vscode.workspace.getConfiguration('js/ts', document).get<number>('maximumHoverLength', defaultMaxLength);
 		if (!Number.isSafeInteger(maximumHoverLength) || maximumHoverLength <= 0) {
 			return defaultMaxLength;
 		}

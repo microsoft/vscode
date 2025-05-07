@@ -481,17 +481,11 @@
               "experimental"
             ]
           },
-          "typescript.maximumHoverLength": {
+          "js/ts.hover.maximumLength": {
             "type": "number",
             "default": 500,
-            "description": "%configuration.maximumHoverLength%",
-            "scope": "window"
-          },
-          "javascript.maximumHoverLength": {
-            "type": "number",
-            "default": 500,
-            "description": "%configuration.maximumHoverLength%",
-            "scope": "window"
+            "description": "%configuration.hover.maximumLength%",
+            "scope": "resource"
           }
         }
       },
