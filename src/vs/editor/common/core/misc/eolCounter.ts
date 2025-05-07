@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from '../../../base/common/charCode.js';
+import { CharCode } from '../../../../base/common/charCode.js';
 
 export const enum StringEOL {
 	Unknown = 0,
