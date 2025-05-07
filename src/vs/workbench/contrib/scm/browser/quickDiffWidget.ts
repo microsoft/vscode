@@ -380,10 +380,10 @@ class QuickDiffWidget extends PeekViewWidget {
 			fixedOverflowWidgets: true,
 			ignoreTrimWhitespace: false,
 			minimap: { enabled: false },
-			overviewRulerLanes: 2,
 			readOnly: false,
 			renderGutterMenu: false,
 			renderIndicators: false,
+			renderOverviewRuler: false,
 			renderSideBySide: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,
