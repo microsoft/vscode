@@ -96,9 +96,6 @@ const vscodeResourceIncludes = [
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 
-	// Process Explorer
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.html',
-
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
@@ -142,9 +139,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 				],
 				resources: vscodeResources,
 				fileContentMapper: filePath => {
-					if (
-						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
-						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
+					if (filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js')) {
 						return async (content) => {
 							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
 							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
@@ -152,9 +147,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					}
 					return undefined;
 				},
-				skipTSBoilerplateRemoval: entryPoint =>
-					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
-					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
+				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-sandbox/workbench/workbench'
 			}
 		}
 	)
