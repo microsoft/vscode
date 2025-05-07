@@ -137,8 +137,11 @@ class ProcessTreeDataSource implements IDataSource<IProcessTree, IProcessInforma
 	}
 }
 
-function createRow(container: HTMLElement) {
+function createRow(container: HTMLElement, extraClass?: string) {
 	const row = append(container, $('.row'));
+	if (extraClass) {
+		row.classList.add(extraClass);
+	}
 
 	const name = append(row, $('.cell.name'));
 	const cpu = append(row, $('.cell.cpu'));
@@ -164,7 +167,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		return createRow(container);
+		return createRow(container, 'header');
 	}
 
 	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
