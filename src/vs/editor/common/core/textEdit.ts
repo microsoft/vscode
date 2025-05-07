@@ -8,7 +8,7 @@ import { assert, assertFn, checkAdjacentItems } from '../../../base/common/asser
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
-import { LineRange } from './lineRange.js';
+import { LineRange } from './ranges/lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
 import { PositionOffsetTransformer } from './positionToOffset.js';

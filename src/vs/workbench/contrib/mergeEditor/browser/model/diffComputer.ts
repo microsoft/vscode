@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { LineRange } from './lineRange.js';
 import { DetailedLineRangeMapping, RangeMapping } from './mapping.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { LineRange as DiffLineRange } from '../../../../../editor/common/core/lineRange.js';
+import { LineRange as DiffLineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;

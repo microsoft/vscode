@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from '../../../base/common/errors.js';
-import { OffsetRange } from './offsetRange.js';
-import { Range } from './range.js';
-import { findFirstIdxMonotonousOrArrLen, findLastIdxMonotonous, findLastMonotonous } from '../../../base/common/arraysFind.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { OffsetRange } from '../offsetRange.js';
+import { Range } from '../range.js';
+import { findFirstIdxMonotonousOrArrLen, findLastIdxMonotonous, findLastMonotonous } from '../../../../base/common/arraysFind.js';
 
 /**
  * A range of lines (1-based).

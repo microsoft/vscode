@@ -27,8 +27,8 @@ import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../../../common/viewModel.js';
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
-import { RangeSingleLine } from '../../../../../common/core/rangeSingleLine.js';
-import { ColumnRange } from '../../../../../common/core/columnRange.js';
+import { RangeSingleLine } from '../../../../../common/core/ranges/rangeSingleLine.js';
+import { ColumnRange } from '../../../../../common/core/ranges/columnRange.js';
 import { addDisposableListener, getWindow, isHTMLElement, n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
