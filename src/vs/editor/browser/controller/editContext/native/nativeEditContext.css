@@ -9,8 +9,8 @@
 	position: absolute;
 	overflow-y: scroll;
 	scrollbar-width: none;
-	z-index: -10;
-	white-space: pre-wrap;
+	z-index: 10;
+	white-space: pre;
 }
 
 .monaco-editor .ime-text-area {

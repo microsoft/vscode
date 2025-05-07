@@ -37,7 +37,7 @@ export interface ILine {
 }
 
 export interface ILineFactory<T extends ILine> {
-	createLine(): T;
+	createLine(lineNumber: number): T;
 }
 
 export class RenderedLinesCollection<T extends ILine> {
@@ -206,7 +206,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		// insert inside the viewport, push out some lines, but not all remaining lines
 		const newLines: T[] = [];
 		for (let i = 0; i < insertCnt; i++) {
-			newLines[i] = this._lineFactory.createLine();
+			newLines[i] = this._lineFactory.createLine(insertFromLineNumber + i);
 		}
 		const insertIndex = insertFromLineNumber - this._rendLineNumberStart;
 		const beforeLines = this._lines.slice(0, insertIndex);
@@ -403,7 +403,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			ctx.linesLength = stopLineNumber - startLineNumber + 1;
 			ctx.lines = [];
 			for (let x = startLineNumber; x <= stopLineNumber; x++) {
-				ctx.lines[x - startLineNumber] = this._lineFactory.createLine();
+				ctx.lines[x - startLineNumber] = this._lineFactory.createLine(x);
 			}
 			this._finishRendering(ctx, true, deltaTop);
 			return ctx;
@@ -478,7 +478,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		const newLines: T[] = [];
 		let newLinesLen = 0;
 		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			newLines[newLinesLen++] = this._lineFactory.createLine();
+			newLines[newLinesLen++] = this._lineFactory.createLine(lineNumber);
 		}
 		ctx.lines = newLines.concat(ctx.lines);
 	}
@@ -495,7 +495,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		const newLines: T[] = [];
 		let newLinesLen = 0;
 		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			newLines[newLinesLen++] = this._lineFactory.createLine();
+			newLines[newLinesLen++] = this._lineFactory.createLine(lineNumber);
 		}
 		ctx.lines = ctx.lines.concat(newLines);
 	}

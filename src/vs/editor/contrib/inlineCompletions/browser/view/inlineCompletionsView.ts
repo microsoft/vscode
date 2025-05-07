@@ -15,6 +15,7 @@ import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { convertItemsToStableObservables } from '../utils.js';
 import { GhostTextView } from './ghostText/ghostTextView.js';
 import { InlineEditsViewAndDiffProducer } from './inlineEdits/inlineEditsViewProducer.js';
+import { Range } from '../../../../common/core/range.js';
 
 export class InlineCompletionsView extends Disposable {
 	private readonly _ghostTexts = derived(this, (reader) => {
@@ -66,12 +67,26 @@ export class InlineCompletionsView extends Disposable {
 
 		this._register(createStyleSheetFromObservable(derived(reader => {
 			const fontFamily = this._fontFamily.read(reader);
-			if (fontFamily === '' || fontFamily === 'default') { return ''; }
+			const cursorSelection = this._editorObs.cursorSelection.read(reader);
+			if (fontFamily === '' || fontFamily === 'default' || !cursorSelection) { return ''; }
+			let fontSize: number = this._editor.getOption(EditorOption.fontSize);
+			const endPosition = cursorSelection.getEndPosition();
+			const range = Range.fromPositions(endPosition, endPosition);
+			const decorationsInRange = this._editor.getDecorationsInRange(range);
+			if (decorationsInRange) {
+				for (const decoration of decorationsInRange) {
+					if (decoration.options.fontSize) {
+						fontSize = decoration.options.fontSize;
+						break;
+					}
+				}
+			}
 			return `
 .monaco-editor .ghost-text-decoration,
 .monaco-editor .ghost-text-decoration-preview,
 .monaco-editor .ghost-text {
 	font-family: ${fontFamily};
+	font-size: ${fontSize}px;
 }`;
 		})));
 
