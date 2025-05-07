@@ -15,13 +15,18 @@
 	padding-right: 10px;
 }
 
-.process-explorer .row:not(.header) .cell {
+.process-explorer .row .cell {
 	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
 }
 
 .process-explorer .row.header {
 	font-weight: 600;
 	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
+}
+
+.process-explorer .row.header .cell {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .process-explorer .row .cell.name {
