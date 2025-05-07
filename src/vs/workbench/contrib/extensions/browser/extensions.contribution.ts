@@ -8,10 +8,10 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, SortBy, FilterType } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, AutoRestartConfigurationKey } from '../common/extensions.js';
 import { InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
@@ -81,6 +81,8 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import product from '../../../../platform/product/common/product.js';
 import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
+import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/searchExtensionsTool.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -260,7 +262,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
 				default: true
 			},
-			'extensions.verifySignature': {
+			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
 				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),
 				default: true,
@@ -292,70 +294,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					minimumVersion: '1.99',
 				},
 			},
-			[AllowedExtensionsConfigKey]: {
-				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
-				type: 'object',
-				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
-				default: '*',
-				defaultSnippets: [{
-					body: {},
-					description: localize('extensions.allowed.none', "No extensions are allowed."),
-				}, {
-					body: {
-						'*': true
-					},
-					description: localize('extensions.allowed.all', "All extensions are allowed."),
-				}],
-				scope: ConfigurationScope.APPLICATION,
-				policy: {
-					name: 'AllowedExtensions',
-					minimumVersion: '1.96',
-					description: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
-				},
-				additionalProperties: false,
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						anyOf: [
-							{
-								type: ['boolean', 'string'],
-								enum: [true, false, 'stable'],
-								description: localize('extensions.allow.description', "Allow or disallow the extension."),
-								enumDescriptions: [
-									localize('extensions.allowed.enable.desc', "Extension is allowed."),
-									localize('extensions.allowed.disable.desc', "Extension is not allowed."),
-									localize('extensions.allowed.disable.stable.desc', "Allow only stable versions of the extension."),
-								],
-							},
-							{
-								type: 'array',
-								items: {
-									type: 'string',
-								},
-								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
-							},
-						]
-					},
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						type: ['boolean', 'string'],
-						enum: [true, false, 'stable'],
-						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
-						enumDescriptions: [
-							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
-							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
-							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
-						],
-					},
-					'\\*': {
-						type: 'boolean',
-						enum: [true, false],
-						description: localize('extensions.allow.all.description', "Allow or disallow all extensions."),
-						enumDescriptions: [
-							localize('extensions.allow.all.enable', "Allow all extensions."),
-							localize('extensions.allow.all.disable', "Disallow all extensions.")
-						],
-					}
-				}
-			}
 		}
 	});
 
@@ -510,7 +448,7 @@ CommandsRegistry.registerCommand({
 			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
 		}
 		if (extensionToUninstall.isBuiltin) {
-			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
+			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
 		}
 
 		try {
@@ -562,7 +500,8 @@ export const CONTEXT_HAS_REMOTE_SERVER = new RawContextKey<boolean>('hasRemoteSe
 export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer', false);
 const CONTEXT_GALLERY_SORT_CAPABILITIES = new RawContextKey<string>('gallerySortCapabilities', '');
 const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFilterCapabilities', '');
-const CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllRepositorySigned', false);
+const CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPublicRepositorySigned', false);
+const CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPrivateRepositorySigned', false);
 const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 
 async function runAction(action: IAction): Promise<void> {
@@ -583,6 +522,7 @@ type IExtensionActionOptions = IAction2Options & {
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
 	constructor(
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
@@ -629,7 +569,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 	private async registerGalleryCapabilitiesContexts(extensionGalleryManifest: IExtensionGalleryManifest | null): Promise<void> {
 		CONTEXT_GALLERY_SORT_CAPABILITIES.bindTo(this.contextKeyService).set(`_${extensionGalleryManifest?.capabilities.extensionQuery.sorting?.map(s => s.name)?.join('_')}_UpdateDate_`);
 		CONTEXT_GALLERY_FILTER_CAPABILITIES.bindTo(this.contextKeyService).set(`_${extensionGalleryManifest?.capabilities.extensionQuery.filtering?.map(s => s.name)?.join('_')}_`);
-		CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(!!extensionGalleryManifest?.capabilities?.signing?.allRepositorySigned);
+		CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(!!extensionGalleryManifest?.capabilities?.signing?.allPublicRepositorySigned);
+		CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(!!extensionGalleryManifest?.capabilities?.signing?.allPrivateRepositorySigned);
 		CONTEXT_GALLERY_HAS_EXTENSION_LINK.bindTo(this.contextKeyService).set(!!(extensionGalleryManifest && getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionDetailsViewUri)));
 	}
 
@@ -1554,7 +1495,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned'), CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned'),
+					ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED, ContextKeyExpr.not('extensionIsPrivate')), ContextKeyExpr.and(CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED, ContextKeyExpr.has('extensionIsPrivate')))),
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1562,7 +1504,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases });
+					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
 					return action.run();
 				}
@@ -1584,7 +1526,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, {
-						installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases,
+						installPreReleaseVersion: this.extensionManagementService.preferPreReleases,
 						isMachineScoped: true,
 					});
 					action.extension = extension;
@@ -2027,6 +1969,21 @@ class TrustedPublishersInitializer implements IWorkbenchContribution {
 	}
 }
 
+class ExtensionToolsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'extensions.chat.toolsContribution';
+
+	constructor(
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		const searchExtensionsTool = instantiationService.createInstance(SearchExtensionsTool);
+		this._register(toolsService.registerToolData(SearchExtensionsToolData));
+		this._register(toolsService.registerToolImplementation(SearchExtensionsToolData.id, searchExtensionsTool));
+	}
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Eventually);
@@ -2042,6 +1999,8 @@ workbenchRegistry.registerWorkbenchContribution(TrustedPublishersInitializer, Li
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }
+
+registerWorkbenchContribution2(ExtensionToolsContribution.ID, ExtensionToolsContribution, WorkbenchPhase.AfterRestored);
 
 
 // Running Extensions

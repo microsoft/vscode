@@ -68,15 +68,13 @@ export class Resource implements SourceControlResourceState {
 				return 'U';
 			case Status.IGNORED:
 				return 'I';
-			case Status.DELETED_BY_THEM:
-				return 'D';
-			case Status.DELETED_BY_US:
-				return 'D';
 			case Status.INDEX_COPIED:
 				return 'C';
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
 			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
@@ -892,6 +890,7 @@ export class Repository implements Disposable {
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
 		this._sourceControl.quickDiffProvider = this;
+		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
 
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
@@ -1022,10 +1021,12 @@ export class Repository implements Disposable {
 	 * Quick diff label
 	 */
 	get label(): string {
-		return l10n.t('Git local changes (working tree)');
+		return l10n.t('Git Local Changes (Working Tree)');
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
+		this.logger.trace(`[Repository][provideOriginalResource] Resource: ${uri.toString()}`);
+
 		if (uri.scheme !== 'file') {
 			return;
 		}
@@ -1063,7 +1064,10 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
-		return toGitUri(uri, '', { replaceFileExtension: true });
+		const originalResource = toGitUri(uri, '', { replaceFileExtension: true });
+		this.logger.trace(`[Repository][provideOriginalResource] Original resource: ${originalResource.toString()}`);
+
+		return originalResource;
 	}
 
 	async getInputTemplate(): Promise<string> {
@@ -1222,7 +1226,7 @@ export class Repository implements Disposable {
 
 	async stage(resource: Uri, contents: string, encoding: string): Promise<void> {
 		await this.run(Operation.Stage, async () => {
-			const data = await workspace.encode(contents, resource, { encoding });
+			const data = await workspace.encode(contents, { encoding });
 			await this.repository.stage(resource.fsPath, data);
 
 			this._onDidChangeOriginalResource.fire(resource);
@@ -1235,6 +1239,9 @@ export class Repository implements Disposable {
 			Operation.RevertFiles(!this.optimisticUpdateEnabled()),
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
+				for (const resource of resources) {
+					this._onDidChangeOriginalResource.fire(resource);
+				}
 				this.closeDiffEditors([...resources.length !== 0 ?
 					resources.map(r => r.fsPath) :
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
@@ -1974,12 +1981,12 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Show, async () => {
 			try {
 				const content = await this.repository.buffer(ref, filePath);
-				return await workspace.decode(content, Uri.file(filePath));
+				return await workspace.decode(content, { uri: Uri.file(filePath) });
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
 					const gitFilePath = await this.repository.getGitFilePath(ref, filePath);
 					const content = await this.repository.buffer(ref, gitFilePath);
-					return await workspace.decode(content, Uri.file(filePath));
+					return await workspace.decode(content, { uri: Uri.file(filePath) });
 				}
 
 				throw err;
@@ -2798,30 +2805,24 @@ export class Repository implements Disposable {
 }
 
 export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
-	readonly visible: boolean = false;
+	readonly label = l10n.t('Git Local Changes (Index)');
 
-	private _disposables: IDisposable[] = [];
-
-	constructor(private readonly _repositoryResolver: IRepositoryResolver) {
-		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (working tree + index)')));
-	}
+	constructor(
+		private readonly _repository: Repository,
+		private readonly logger: LogOutputChannel
+	) { }
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
-		// Ignore resources outside a repository
-		const repository = this._repositoryResolver.getRepository(uri);
-		if (!repository) {
-			return undefined;
-		}
+		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource: ${uri.toString()}`);
 
 		// Ignore resources that are not in the index group
-		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
 			return undefined;
 		}
 
-		return toGitUri(uri, 'HEAD', { replaceFileExtension: true });
-	}
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
+		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
+		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
+		return originalResource;
 	}
 }

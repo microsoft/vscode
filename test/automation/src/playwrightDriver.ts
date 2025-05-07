@@ -198,7 +198,7 @@ export class PlaywrightDriver {
 		try {
 			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
 		} catch (error) {
-			this.options.logger.log(`Error closing appliction (${error})`);
+			this.options.logger.log(`Error closing application (${error})`);
 		}
 
 		// Server: via `teardown`

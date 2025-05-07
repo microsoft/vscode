@@ -188,6 +188,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				persistence: {
 					hideOnKeyDown: true,
 					sticky: focus
+				},
+				appearance: {
+					maxHeightRatio: 0.9
 				}
 			}
 		)));

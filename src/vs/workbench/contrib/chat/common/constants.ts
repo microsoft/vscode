@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 export enum ChatConfiguration {
-	UnifiedChatView = 'chat.unifiedChatView',
 	UseFileStorage = 'chat.useFileStorage',
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
@@ -15,6 +14,18 @@ export enum ChatMode {
 	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
+}
+
+export function modeToString(mode: ChatMode) {
+	switch (mode) {
+		case ChatMode.Agent:
+			return 'Agent';
+		case ChatMode.Edit:
+			return 'Edit';
+		case ChatMode.Ask:
+		default:
+			return 'Ask';
+	}
 }
 
 export function validateChatMode(mode: unknown): ChatMode | undefined {
@@ -35,7 +46,6 @@ export enum ChatAgentLocation {
 	Terminal = 'terminal',
 	Notebook = 'notebook',
 	Editor = 'editor',
-	EditingSession = 'editing-session',
 }
 
 export namespace ChatAgentLocation {
@@ -45,7 +55,6 @@ export namespace ChatAgentLocation {
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
 			case 'editor': return ChatAgentLocation.Editor;
-			case 'editing-session': return ChatAgentLocation.EditingSession;
 		}
 		return ChatAgentLocation.Panel;
 	}

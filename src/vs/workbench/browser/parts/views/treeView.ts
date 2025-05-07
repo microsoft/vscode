@@ -63,7 +63,7 @@ import { IActivityService, NumberBadge } from '../../../services/activity/common
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { CodeDataTransfers, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { toExternalVSDataTransfer } from '../../../../editor/browser/dnd.js';
+import { toExternalVSDataTransfer } from '../../../../editor/browser/dataTransfer.js';
 import { CheckboxStateHandler, TreeItemCheckbox } from './checkbox.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
@@ -460,6 +460,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	set title(name: string) {
 		this._title = name;
+		if (this.tree) {
+			this.tree.ariaLabel = this._title;
+		}
 		this._onDidChangeTitle.fire(this._title);
 	}
 
@@ -829,6 +832,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 		return command;
 	}
+
 
 	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>, actionRunner: MultipleSelectionActionRunner): void {
 		this.hoverService.hideHover();

@@ -39,9 +39,9 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
-import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
+import { hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
+import { chatAttachmentResourceContextKey } from './chatContentParts/chatAttachmentsContentPart.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 type ContentRefData =
@@ -228,14 +228,12 @@ registerAction2(class AddFileToChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const variablesService = accessor.get(IChatVariablesService);
 
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
-		}
+		if (widget) {
+			widget.attachmentModel.addFile(resource);
 
-		variablesService.attachContext('file', resource, widget.location);
+		}
 	}
 });
 

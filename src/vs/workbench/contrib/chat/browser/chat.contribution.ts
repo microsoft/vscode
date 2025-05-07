@@ -9,19 +9,17 @@ import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlCo
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import product from '../../../../platform/product/common/product.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { DEFAULT_SOURCE_FOLDER as PROMPT_FILES_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -34,7 +32,6 @@ import { allDiscoverySources, discoverySourceLabel, mcpConfigurationSection, mcp
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { chatVariableLeader } from '../common/chatParserTypes.js';
@@ -49,18 +46,16 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
-import '../common/promptSyntax/languageFeatures/promptLinkDiagnosticsProvider.js';
-import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
-import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
+import { registerPromptFileContributions } from '../common/promptSyntax/contributions/index.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
-import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
+import { CopilotTitleBarMenuRendering, registerChatActions, ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
+import { registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { registerChatCopyActions } from './actions/chatCopyActions.js';
@@ -74,6 +69,7 @@ import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
+import { SAVE_TO_PROMPT_SLASH_COMMAND_NAME, runSaveToPromptAction } from './actions/promptActions/chatSaveToPromptAction.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
@@ -85,6 +81,7 @@ import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorCon
 import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay.js';
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
+import { SimpleBrowserOverlay } from './chatEditing/simpleBrowserEditorOverlay.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
@@ -103,8 +100,8 @@ import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
+import './promptSyntax/contributions/attachInstructionsCommand.js';
 import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
-import './promptSyntax/contributions/usePromptCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 
 // Register configuration
@@ -161,7 +158,6 @@ configurationRegistry.registerConfiguration({
 			},
 			default: {
 				'panel': 'always',
-				'editing-session': 'first'
 			}
 		},
 		'chat.editing.autoAcceptDelay': {
@@ -199,12 +195,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
-		'chat.setupFromDialog': { // TODO@bpasero remove this eventually
-			type: 'boolean',
-			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
-			default: product.quality !== 'stable',
-			tags: ['experimental', 'onExp']
-		},
 		'chat.focusWindowOnConfirmation': {
 			type: 'boolean',
 			description: nls.localize('chat.focusWindowOnConfirmation', "Controls whether the Copilot window should be focused when a confirmation is needed."),
@@ -212,7 +202,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.autoApprove': {
 			default: false,
-			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved ('YOLO mode')."),
+			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved."),
 			type: 'boolean',
 			tags: ['experimental'],
 			policy: {
@@ -221,6 +211,24 @@ configurationRegistry.registerConfiguration({
 				previewFeature: true,
 				defaultValue: false
 			}
+		},
+		'chat.sendElementsToChat.enabled': {
+			default: true,
+			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
+			type: 'boolean',
+			tags: ['experimental']
+		},
+		'chat.sendElementsToChat.attachCSS': {
+			default: true,
+			markdownDescription: nls.localize('chat.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat. {0} must be enabled.", '`#chat.sendElementsToChat.enabled#`'),
+			type: 'boolean',
+			tags: ['experimental']
+		},
+		'chat.sendElementsToChat.attachImages': {
+			default: true,
+			markdownDescription: nls.localize('chat.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat. {0} must be enabled.", '`#chat.sendElementsToChat.enabled#`'),
+			type: 'boolean',
+			tags: ['experimental']
 		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
@@ -243,12 +251,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
 			$ref: mcpSchemaId
 		},
-		[ChatConfiguration.UnifiedChatView]: {
-			type: 'boolean',
-			description: nls.localize('chat.unifiedChatView', "Enables the unified view with Ask, Edit, and Agent modes in one view."),
-			default: true,
-			tags: ['preview'],
-		},
 		[ChatConfiguration.UseFileStorage]: {
 			type: 'boolean',
 			description: nls.localize('chat.useFileStorage', "Enables storing chat sessions on disk instead of in the storage service. Enabling this does a one-time per-workspace migration of existing sessions to the new format."),
@@ -263,13 +265,25 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
 				minimumVersion: '1.99',
-				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
 				previewFeature: true,
+				defaultValue: false
+			}
+		},
+		[ChatConfiguration.AgentEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
+			default: true,
+			tags: ['onExp'],
+			policy: {
+				name: 'ChatAgentMode',
+				minimumVersion: '1.99',
+				previewFeature: false,
 				defaultValue: false
 			}
 		},
@@ -296,9 +310,10 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.enabled.description',
-				"Enable reusable prompt files (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
+				"Enable reusable prompt (`*{0}`) and instruction files in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
 				PROMPT_FILE_EXTENSION,
-				DOCUMENTATION_URL,
+				INSTRUCTION_FILE_EXTENSION,
+				PROMPT_DOCUMENTATION_URL,
 			),
 			default: true,
 			restricted: true,
@@ -307,12 +322,40 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt files in Chat, Edits, and Inline Chat sessions."),
+				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat, Edits, and Inline Chat sessions."),
 				previewFeature: true,
 				defaultValue: false
 			}
 		},
-		[PromptsConfig.LOCATIONS_KEY]: {
+		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
+			type: 'object',
+			title: nls.localize(
+				'chat.instructions.config.locations.title',
+				"Instructions File Locations",
+			),
+			markdownDescription: nls.localize(
+				'chat.instructions.config.locations.description',
+				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
+				INSTRUCTION_FILE_EXTENSION,
+				INSTRUCTIONS_DOCUMENTATION_URL,
+			),
+			default: {
+				[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+			},
+			additionalProperties: { type: 'boolean' },
+			restricted: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			examples: [
+				{
+					[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+				},
+				{
+					[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+					'/Users/vscode/repos/instructions': true,
+				},
+			],
+		},
+		[PromptsConfig.PROMPT_LOCATIONS_KEY]: {
 			type: 'object',
 			title: nls.localize(
 				'chat.reusablePrompts.config.locations.title',
@@ -320,12 +363,12 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.locations.description',
-				"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
+				"Specify location(s) of reusable prompt files (`*{0}`) that can be run in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				PROMPT_FILE_EXTENSION,
-				DOCUMENTATION_URL,
+				PROMPT_DOCUMENTATION_URL,
 			),
 			default: {
-				[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
+				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
@@ -333,10 +376,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
-					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
@@ -397,68 +440,14 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 
 	static readonly ID = 'workbench.contrib.chatAgentSetting';
 
-	private registeredNode: IConfigurationNode | undefined;
-
 	constructor(
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 	) {
 		super();
-
-		if (this.productService.quality !== 'stable') {
-			this.registerEnablementSetting();
-		}
-
-		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
-		experimentService.getTreatment<boolean>('chatAgentEnabled').then(enabled => {
-			if (enabled) {
-				this.registerEnablementSetting();
-				expDisabledKey.set(false);
-			} else if (this.productService.quality === 'stable' || typeof enabled === 'boolean') {
-				// If undefined treatment, on stable, fall back to disabled.
-				// Other qualities fall back to enabled.
-				this.deregisterSetting();
-				expDisabledKey.set(true);
-			}
-		});
-
 		this.registerMaxRequestsSetting();
 	}
 
-	private registerEnablementSetting() {
-		if (this.registeredNode) {
-			return;
-		}
-
-		this.registeredNode = configurationRegistry.registerConfiguration({
-			id: 'chatAgent',
-			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
-			type: 'object',
-			properties: {
-				[ChatConfiguration.AgentEnabled]: {
-					type: 'boolean',
-					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the view to toggle agent mode.", 'Copilot Chat'),
-					default: this.productService.quality !== 'stable',
-					tags: ['onExp'],
-					policy: {
-						name: 'ChatAgentMode',
-						minimumVersion: '1.99',
-						previewFeature: false,
-						defaultValue: false
-					}
-				},
-			}
-		});
-	}
-
-	private deregisterSetting() {
-		if (this.registeredNode) {
-			configurationRegistry.deregisterConfigurations([this.registeredNode]);
-			this.registeredNode = undefined;
-		}
-	}
 
 	private registerMaxRequestsSetting(): void {
 		let lastNode: IConfigurationNode | undefined;
@@ -475,7 +464,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					properties: {
 						'chat.agent.maxRequests': {
 							type: 'number',
-							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working. \n\n> **Note**: For users on the Copilot Free plan, note that each agent mode request currently uses one chat request."),
+							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working."),
 							default: defaultValue,
 						},
 					}
@@ -504,7 +493,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
 		@ICommandService commandService: ICommandService,
 		@IChatAgentService chatAgentService: IChatAgentService,
-		@IChatVariablesService chatVariablesService: IChatVariablesService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -516,6 +505,22 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Panel]
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: SAVE_TO_PROMPT_SLASH_COMMAND_NAME,
+			detail: nls.localize('save-chat-to-prompt-file', "Save chat to a prompt file"),
+			sortText: `z3_${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`,
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Panel]
+		}, async () => {
+			const { lastFocusedWidget } = chatWidgetService;
+			assertDefined(
+				lastFocusedWidget,
+				'No currently active chat widget found.',
+			);
+
+			runSaveToPromptAction({ chat: lastFocusedWidget }, commandService);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
@@ -606,9 +611,10 @@ registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingSta
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 
@@ -654,3 +660,5 @@ registerSingleton(IChatEntitlementService, ChatEntitlementService, Instantiation
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
+
+registerPromptFileContributions();

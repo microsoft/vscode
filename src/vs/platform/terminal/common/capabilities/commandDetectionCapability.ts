@@ -28,7 +28,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
 	private _promptTerminator: string | undefined;
-	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
+	private _currentCommand: PartialTerminalCommand;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
@@ -75,6 +75,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+	private readonly _onPromptTypeChanged = this._register(new Emitter<string | undefined>());
+	readonly onPromptTypeChanged = this._onPromptTypeChanged.event;
 	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
 	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
@@ -83,7 +85,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
@@ -236,6 +238,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	setPromptType(value: string): void {
 		this._promptType = value;
+		this._onPromptTypeChanged.fire(value);
 	}
 
 	setIsCommandStorageDisabled(): void {
@@ -351,7 +354,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		// Command executed may not have happened yet, if not handle it now so the expected events
-		// properly propogate. This may cause the output to show up in the computed command line,
+		// properly propagate. This may cause the output to show up in the computed command line,
 		// but the command line confidence will be low in the extension host for example and
 		// therefore cannot be trusted anyway.
 		if (!this._currentCommand.commandExecutedMarker) {
@@ -537,24 +540,7 @@ class UnixPtyHeuristics extends Disposable {
 			return;
 		}
 
-		// Calculate the command
-		currentCommand.command = this._hooks.isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(currentCommand.commandStartMarker.line)?.translateToString(true, currentCommand.commandStartX, currentCommand.commandRightPromptStartX).trim();
-		let y = currentCommand.commandStartMarker.line + 1;
-		const commandExecutedLine = currentCommand.commandExecutedMarker.line;
-		for (; y < commandExecutedLine; y++) {
-			const line = this._terminal.buffer.active.getLine(y);
-			if (line) {
-				const continuation = currentCommand.continuations?.find(e => e.marker.line === y);
-				if (continuation) {
-					currentCommand.command += '\n';
-				}
-				const startColumn = continuation?.end ?? 0;
-				currentCommand.command += line.translateToString(true, startColumn);
-			}
-		}
-		if (y === commandExecutedLine) {
-			currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, currentCommand.commandExecutedX) || '';
-		}
+		currentCommand.command = this._capability.promptInputModel.ghostTextIndex > -1 ? this._capability.promptInputModel.value.substring(0, this._capability.promptInputModel.ghostTextIndex) : this._capability.promptInputModel.value;
 		this._hooks.onCommandExecutedEmitter.fire(currentCommand as ITerminalCommand);
 	}
 }

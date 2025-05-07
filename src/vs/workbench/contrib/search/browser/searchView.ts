@@ -72,7 +72,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/edit
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
-import { TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
+import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -84,6 +84,7 @@ import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocati
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
 
@@ -200,7 +201,8 @@ export class SearchView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -1820,7 +1822,11 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
-			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
+			if (complete.aiKeywords && complete.aiKeywords.length > 0) {
+				this.updateKeywordSuggestion(complete.aiKeywords);
+			} else {
+				this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
+			}
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
@@ -1946,6 +1952,52 @@ export class SearchView extends ViewPane {
 		} else if (!msgWasHidden) {
 			dom.hide(this.messagesElement);
 		}
+	}
+
+	private handleKeywordClick(keyword: string, index: number, maxKeywords: number) {
+		this.searchWidget.searchInput?.setValue(keyword);
+		this.triggerQueryChange({ preserveFocus: false, triggeredOnType: false, shouldKeepAIResults: false });
+		type KeywordClickClassification = {
+			owner: 'osortega';
+			comment: 'Fired when the user clicks on a keyword suggestion';
+			index: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The index of the keyword clicked' };
+			maxKeywords: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total number of suggested keywords' };
+		};
+		type KeywordClickEvent = {
+			index: number;
+			maxKeywords: number;
+		};
+		this.telemetryService.publicLog2<KeywordClickEvent, KeywordClickClassification>('searchKeywordClick', {
+			index,
+			maxKeywords
+		});
+	}
+
+	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
+		const messageEl = this.clearMessage();
+		messageEl.classList.add('ai-keywords');
+
+		if (keywords.length === 0) {
+			// Do not display anything if there are no keywords
+			return;
+		}
+
+		// Add unclickable message
+		const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
+		dom.append(messageEl, resultMsg);
+
+		const topKeywords = keywords.slice(0, 3);
+		topKeywords.forEach((keyword, index) => {
+			if (index > 0 && index < topKeywords.length) {
+				dom.append(messageEl, ', ');
+			}
+			const button = this.messageDisposables.add(new SearchLinkButton(
+				keyword.keyword,
+				() => this.handleKeywordClick(keyword.keyword, index, topKeywords.length),
+				this.hoverService
+			));
+			dom.append(messageEl, button.element);
+		});
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {

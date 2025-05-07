@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, IsAuxiliaryTitleBarContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -173,7 +173,10 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	title: localize('configureLayout', "Configure Layout"),
 	icon: configureLayoutIcon,
 	group: '1_workbench_layout',
-	when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
+	when: ContextKeyExpr.and(
+		IsAuxiliaryTitleBarContext.negate(),
+		ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
+	)
 });
 
 
@@ -345,7 +348,13 @@ MenuRegistry.appendMenuItems([
 				icon: panelLeftOffIcon,
 				toggled: { condition: SideBarVisibleContext, icon: panelLeftIcon }
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
+			when: ContextKeyExpr.and(
+				IsAuxiliaryTitleBarContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
+			),
 			order: 0
 		}
 	}, {
@@ -358,7 +367,13 @@ MenuRegistry.appendMenuItems([
 				icon: panelRightOffIcon,
 				toggled: { condition: SideBarVisibleContext, icon: panelRightIcon }
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
+			when: ContextKeyExpr.and(
+				IsAuxiliaryTitleBarContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
+			),
 			order: 2
 		}
 	}
@@ -1433,7 +1448,10 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				},
 				{
 					id: MenuId.LayoutControlMenu,
-					when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
+					when: ContextKeyExpr.and(
+						IsAuxiliaryTitleBarContext.toNegated(),
+						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
+					),
 					group: '1_layout'
 				}
 			]

@@ -9,7 +9,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -24,35 +23,34 @@ import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
+import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertFileAction, SelectAndInsertFolderAction, SelectAndInsertProblemAction, SelectAndInsertSymAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, searchFilesAndFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService
+		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -97,7 +95,7 @@ class SlashCommandCompletions extends Disposable {
 							range,
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: widget.location === ChatAgentLocation.EditingSession ? ChatEditingSessionSubmitAction.ID : ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
 					})
 				};
@@ -138,7 +136,54 @@ class SlashCommandCompletions extends Disposable {
 							filterText: `${chatAgentLeader}${c.command}`,
 							sortText: c.sortText ?? 'z'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: widget.location === ChatAgentLocation.EditingSession ? ChatEditingSessionSubmitAction.ID : ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+						};
+					})
+				};
+			}
+		}));
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'promptSlashCommands',
+			triggerCharacters: ['/'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget || !widget.viewModel) {
+					return null;
+				}
+
+				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				if (!range) {
+					return null;
+				}
+
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
+				const parsedRequest = widget.parsedInput.parts;
+				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
+				if (usedAgent) {
+					// No (classic) global slash commands when an agent is used
+					return;
+				}
+
+				const promptCommands = await this.promptsService.findPromptSlashCommands();
+				if (promptCommands.length === 0) {
+					return null;
+				}
+
+				return {
+					suggestions: promptCommands.map((c, i): CompletionItem => {
+						const label = `/${c.command}`;
+						const description = c.promptPath?.storage === 'user' ? localize('promptFileDescription', 'User Prompt File') : localize('promptFileDescriptionWorkspace', 'Workspace Prompt File');
+						return {
+							label: { label, description },
+							insertText: `${label} `,
+							documentation: c.detail,
+							range,
+							sortText: 'a'.repeat(i + 1),
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 						};
 					})
 				};
@@ -179,8 +224,8 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				const usedSubcommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart);
-				if (usedSubcommand) {
+				const usedOtherCommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashPromptPart);
+				if (usedOtherCommand) {
 					// Only one allowed
 					return;
 				}
@@ -452,9 +497,8 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
-	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:]*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:-]*`, 'g'); // MUST be using `g`-flag
 
-	private readonly queryBuilder: QueryBuilder;
 
 	constructor(
 		@IHistoryService private readonly historyService: IHistoryService,
@@ -464,68 +508,23 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutlineModelService private readonly outlineService: IOutlineModelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
-		@IMarkerService markerService: IMarkerService,
 	) {
 		super();
 
-		// File completions
-		this.registerVariableCompletions('file', async ({ widget, range, position, model }, token) => {
+		// File/Folder completions in one go and m
+		const fileWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');
+		this.registerVariableCompletions('fileAndFolder', async ({ widget, range }, token) => {
 			if (!widget.supportsFileReferences) {
-				return null;
+				return;
 			}
-
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}file`,
-				insertText: `${chatVariableLeader}file:`,
-				documentation: localize('pickFileLabel', "Pick a file"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
-				sortText: 'z'
-			});
-
-			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
-			if (range2) {
-				await this.addFileEntries(widget, result, range2, token);
-			}
-
+			await this.addFileAndFolderEntries(widget, result, range, token);
 			return result;
-		});
 
-		// Folder completions
-		this.registerVariableCompletions('folder', async ({ widget, range, position, model }, token) => {
-			if (!widget.supportsFileReferences) {
-				return null;
-			}
-
-			const result: CompletionList = { suggestions: [] };
-
-			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#folder:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}folder`,
-				insertText: `${chatVariableLeader}folder:`,
-				documentation: localize('pickFolderLabel', "Pick a folder"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertFolderAction.ID, title: SelectAndInsertFolderAction.ID, arguments: [{ widget, range: afterRange }] },
-				sortText: 'z'
-			});
-
-			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
-			if (range2) {
-				await this.addFolderEntries(widget, result, range2, token);
-			}
-
-			return result;
-		});
+		}, fileWordPattern);
 
 		// Selection completion
 		this.registerVariableCompletions('selection', ({ widget, range }, token) => {
@@ -564,7 +563,6 @@ class BuiltinDynamicCompletions extends Disposable {
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.selection',
-						prefix: 'file',
 						isFile: true,
 						range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
 						data: { range: currentSelection, uri: currentResource } satisfies Location
@@ -581,18 +579,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			const result: CompletionList = { suggestions: [] };
-
-			const afterRangeSym = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#sym:'.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}sym`,
-				insertText: `${chatVariableLeader}sym:`,
-				documentation: localize('pickSymbolLabel', "Pick a symbol"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertSymAction.ID, title: SelectAndInsertSymAction.ID, arguments: [{ widget, range: afterRangeSym }] },
-				sortText: 'z'
-			});
-
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
 				this.addSymbolEntries(widget, result, range2, token);
@@ -601,36 +587,10 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		});
 
-		// Problems completions, we just attach all problems in this case
-		this.registerVariableCompletions(SelectAndInsertProblemAction.Name, ({ widget, range, position, model }, token) => {
-			const stats = markerService.getStatistics();
-			if (!stats.errors && !stats.warnings) {
-				return null;
-			}
-
-			const result: CompletionList = { suggestions: [] };
-
-			const completedText = `${chatVariableLeader}${SelectAndInsertProblemAction.Name}:`;
-			const afterTextRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + completedText.length);
-			result.suggestions.push({
-				label: `${chatVariableLeader}${SelectAndInsertProblemAction.Name}`,
-				insertText: completedText,
-				documentation: localize('pickProblemsLabel', "Problems in your workspace"),
-				range,
-				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertProblemAction.ID, title: SelectAndInsertProblemAction.ID, arguments: [{ widget, range: afterTextRange }] },
-				sortText: 'z'
-			});
-
-			return result;
-		});
-
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
-
-		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
 			triggerCharacters: [chatVariableLeader],
@@ -640,7 +600,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return;
 				}
 
-				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
+				const range = computeCompletionRanges(model, position, wordPattern, true);
 				if (range) {
 					return provider({ model, position, widget, range, context }, token);
 				}
@@ -652,9 +612,9 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private cacheKey?: { key: string; time: number };
 
-	private async addFileEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+	private async addFileAndFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const makeFileCompletionItem = (resource: URI, description?: string): CompletionItem => {
+		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string): CompletionItem => {
 
 			const basename = this.labelService.getUriBasenameLabel(resource);
 			const text = `${chatVariableLeader}file:${basename}`;
@@ -669,13 +629,13 @@ class BuiltinDynamicCompletions extends Disposable {
 				filterText: `${chatVariableLeader}${basename}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
-				kind: CompletionItemKind.File,
+				kind: kind === FileKind.FILE ? CompletionItemKind.File : CompletionItemKind.Folder,
 				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.file',
-						prefix: 'file',
-						isFile: true,
+						id: resource.toString(),
+						isFile: kind === FileKind.FILE,
+						isDirectory: kind === FileKind.FOLDER,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
 					})]
@@ -696,11 +656,10 @@ class BuiltinDynamicCompletions extends Disposable {
 			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
 			for (const relatedFileGroup of relatedFiles) {
 				for (const relatedFile of relatedFileGroup.files) {
-					if (seen.has(relatedFile.uri)) {
-						continue;
+					if (!seen.has(relatedFile.uri)) {
+						seen.add(relatedFile.uri);
+						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
 					}
-					seen.add(relatedFile.uri);
-					result.suggestions.push(makeFileCompletionItem(relatedFile.uri, relatedFile.description));
 				}
 			}
 		}
@@ -708,8 +667,8 @@ class BuiltinDynamicCompletions extends Disposable {
 		// HISTORY
 		// always take the last N items
 		for (const item of this.historyService.getHistory()) {
-			if (!item.resource || !this.workspaceContextService.getWorkspaceFolder(item.resource)) {
-				// ignore "forgein" editors
+			if (!item.resource || seen.has(item.resource)) {
+				// ignore editors without a resource
 				continue;
 			}
 
@@ -722,7 +681,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			seen.add(item.resource);
-			const newLen = result.suggestions.push(makeFileCompletionItem(item.resource));
+			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE));
 			if (newLen - len >= 5) {
 				break;
 			}
@@ -733,90 +692,22 @@ class BuiltinDynamicCompletions extends Disposable {
 		if (pattern) {
 
 			const cacheKey = this.updateCacheKey();
+			const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
-			const query = this.queryBuilder.file(this.workspaceContextService.getWorkspace().folders, {
-				filePattern: pattern,
-				sortByScore: true,
-				maxResults: 250,
-				cacheKey: cacheKey.key
-			});
-
-			const data = await this.searchService.fileSearch(query, token);
-			for (const match of data.results) {
-				if (seen.has(match.resource)) {
-					// already included via history
-					continue;
+			for (const workspace of workspaces) {
+				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
+				for (const file of files) {
+					if (!seen.has(file)) {
+						result.suggestions.push(makeCompletionItem(file, FileKind.FILE));
+						seen.add(file);
+					}
 				}
-				result.suggestions.push(makeFileCompletionItem(match.resource));
-			}
-		}
-
-		// mark results as incomplete because further typing might yield
-		// in more search results
-		result.incomplete = true;
-	}
-
-	private async addFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
-
-		const folderLeader = `${chatVariableLeader}folder:`;
-
-		const makeFolderCompletionItem = (resource: URI, description?: string): CompletionItem => {
-
-			const basename = this.labelService.getUriBasenameLabel(resource);
-			const text = `${folderLeader}${basename}`;
-			const uriLabel = this.labelService.getUriLabel(dirname(resource), { relative: true });
-			const labelDescription = description
-				? localize('folderEntryDescription', '{0} ({1})', uriLabel, description)
-				: uriLabel;
-			const sortText = description ? 'z' : '{'; // after `z`
-
-			return {
-				label: { label: basename, description: labelDescription },
-				filterText: `${folderLeader}${basename}`,
-				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
-				range: info,
-				kind: CompletionItemKind.Folder,
-				sortText,
-				command: {
-					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.folder',
-						prefix: 'folder',
-						isFile: false,
-						isDirectory: true,
-						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
-						data: resource
-					})]
+				for (const folder of folders) {
+					if (!seen.has(folder)) {
+						result.suggestions.push(makeCompletionItem(folder, FileKind.FOLDER));
+						seen.add(folder);
+					}
 				}
-			};
-		};
-
-		const seen = new ResourceSet();
-		const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
-
-		let pattern: string | undefined;
-		if (info.varWord?.word && info.varWord.word.startsWith(folderLeader)) {
-			pattern = info.varWord.word.toLowerCase().slice(folderLeader.length);
-
-			for (const folder of await getTopLevelFolders(workspaces, this.fileService)) {
-				result.suggestions.push(makeFolderCompletionItem(folder));
-				seen.add(folder);
-			}
-		}
-
-		// SEARCH
-		// use folder search when having a pattern
-		if (pattern) {
-
-			const cacheKey = this.updateCacheKey();
-
-			const folders = await Promise.all(workspaces.map(workspace => searchFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService)));
-			for (const resource of folders.flat()) {
-				if (seen.has(resource)) {
-					// already included via history
-					continue;
-				}
-				seen.add(resource);
-				result.suggestions.push(makeFolderCompletionItem(resource));
 			}
 		}
 
@@ -842,11 +733,11 @@ class BuiltinDynamicCompletions extends Disposable {
 				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.symbol',
-						prefix: 'sym',
+						id: `vscode.symbol/${JSON.stringify(symbolItem.location)}`,
 						fullName: symbolItem.name,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
-						data: symbolItem.location
+						data: symbolItem.location,
+						icon: SymbolKinds.toIcon(symbolItem.kind)
 					})]
 				}
 			};
@@ -859,29 +750,13 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		const symbolsToAdd: { symbol: DocumentSymbol; uri: URI }[] = [];
 		for (const outlineModel of this.outlineService.getCachedModels()) {
-			if (pattern) {
-				symbolsToAdd.push(...outlineModel.asListOfDocumentSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
-			} else {
-				symbolsToAdd.push(...outlineModel.getTopLevelSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
+			const symbols = outlineModel.asListOfDocumentSymbols();
+			for (const symbol of symbols) {
+				symbolsToAdd.push({ symbol, uri: outlineModel.uri });
 			}
 		}
 
-		const symbolsToAddFiltered = symbolsToAdd.filter(fileSymbol => {
-			switch (fileSymbol.symbol.kind) {
-				case SymbolKind.Enum:
-				case SymbolKind.Class:
-				case SymbolKind.Method:
-				case SymbolKind.Function:
-				case SymbolKind.Namespace:
-				case SymbolKind.Module:
-				case SymbolKind.Interface:
-					return true;
-				default:
-					return false;
-			}
-		});
-
-		for (const symbol of symbolsToAddFiltered) {
+		for (const symbol of symbolsToAdd) {
 			result.suggestions.push(makeSymbolCompletionItem({ ...symbol.symbol, location: { uri: symbol.uri, range: symbol.symbol.range } }, pattern ?? ''));
 		}
 
@@ -966,7 +841,6 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
 	) {
 		super();
 
@@ -987,16 +861,24 @@ class ToolCompletions extends Disposable {
 				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
 				const usedToolNames = new Set(usedTools.map(v => v.toolName));
 				const toolItems: CompletionItem[] = [];
-				toolItems.push(...Array.from(toolsService.getTools())
+				toolItems.push(...widget.input.selectedToolsModel.tools.get()
 					.filter(t => t.canBeReferencedInPrompt)
 					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
 					.map((t): CompletionItem => {
+						const source = t.source;
+						const detail = source.type === 'mcp'
+							? localize('desc', "MCP Server: {0}", source.label)
+							: source.type === 'extension'
+								? source.label
+								: undefined;
+
 						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
 						return {
 							label: withLeader,
 							range,
+							detail,
 							insertText: withLeader + ' ',
-							documentation: t.userDescription,
+							documentation: t.userDescription ?? t.modelDescription,
 							kind: CompletionItemKind.Text,
 							sortText: 'z'
 						};

@@ -168,13 +168,16 @@
 	"[github-issues]": {
 		"editor.wordWrap": "on"
 	},
+	"inlineChat.enableV2": true,
 	"css.format.spaceAroundSelectorSeparator": true,
-	"typescript.enablePromptUseWorkspaceTsdk": true,
 	"eslint.useFlatConfig": true,
 	"editor.occurrencesHighlightDelay": 0,
+	// "editor.experimental.preferTreeSitter.typescript": true,
+	// "editor.experimental.preferTreeSitter.regex": true,
+	// "editor.experimental.preferTreeSitter.css": true,
 	"typescript.experimental.expandableHover": true,
-	"git.diagnosticsCommitHook.Enabled": true,
-	"git.diagnosticsCommitHook.Sources": {
+	"git.diagnosticsCommitHook.enabled": true,
+	"git.diagnosticsCommitHook.sources": {
 		"*": "error",
 		"ts": "warning",
 		"eslint": "warning"
