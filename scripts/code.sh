@@ -7,13 +7,10 @@ set -e
 # ===========================================================================
 
 # Path to PearAI-Roo-Code extension
-# PEARAI_ROO_CODE_PATH="tmp/PearAI-Roo-Code"
-PEARAI_ROO_CODE_PATH="./../../Documents/PearAI/PearAI-Roo-Code"
-# PEARAI_ROO_CODE_PATH="/Users/acorn221/Documents/Documents/PearAI/PearAI-Roo-Code"
+PEARAI_ROO_CODE_PATH="./../PearAI-Roo-Code"
 
 # Path to pearai-submodule vscode extension
 PEARAI_SUBMODULE_PATH="./../pearai-submodule/extensions/vscode"
-# PEARAI_SUBMODULE_PATH="/Users/acorn221/Documents/tmp/pearai-app/tmp/pearai-submodule"
 
 # Enable/disable building pearai submodule before launch (uncomment to enable)
 # BUILD_PEARAI_SUBMODULE=true
