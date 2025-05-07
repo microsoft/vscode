@@ -802,7 +802,6 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 			} satisfies SCMHistoryItemChangeViewModelTreeElement)));
 		}
 
-		console.log('Children:', children);
 		return children;
 	}
 
