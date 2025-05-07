@@ -376,7 +376,15 @@ class QuickDiffWidget extends PeekViewWidget {
 
 	protected _fillBody(container: HTMLElement): void {
 		const options: IDiffEditorOptions = {
-			scrollBeyondLastLine: true,
+			diffAlgorithm: 'advanced',
+			fixedOverflowWidgets: true,
+			ignoreTrimWhitespace: false,
+			minimap: { enabled: false },
+			overviewRulerLanes: 2,
+			readOnly: false,
+			renderGutterMenu: false,
+			renderIndicators: false,
+			renderSideBySide: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,
 				horizontal: 'auto',
@@ -384,14 +392,7 @@ class QuickDiffWidget extends PeekViewWidget {
 				verticalHasArrows: false,
 				horizontalHasArrows: false
 			},
-			overviewRulerLanes: 2,
-			fixedOverflowWidgets: true,
-			minimap: { enabled: false },
-			renderSideBySide: false,
-			readOnly: false,
-			renderIndicators: false,
-			diffAlgorithm: 'advanced',
-			ignoreTrimWhitespace: false,
+			scrollBeyondLastLine: true,
 			stickyScroll: { enabled: false }
 		};
 
