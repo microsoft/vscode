@@ -129,7 +129,7 @@ export class ScreenReaderSupport {
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const positionLineNumber = this._primarySelection.positionLineNumber;
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) + 300 - editorScrollTop;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
@@ -156,6 +156,8 @@ export class ScreenReaderSupport {
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 		this._domNode.setLineHeight(height);
+		console.log('top : ', top);
+		console.log('scrollTop : ', scrollTop);
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
 
@@ -196,13 +198,11 @@ export class ScreenReaderSupport {
 			const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 			const fontLigatures = options.get(EditorOption.fontLigatures);
 			const disableMonospaceOptimizations = options.get(EditorOption.disableMonospaceOptimizations);
-			const viewLineNumber = this._screenReaderContentState.startPositionWithinEditor.lineNumber;
-			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewLineNumber);
+			const viewLineNumber = this._screenReaderContentState.viewSelection.positionLineNumber;
+			// const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewLineNumber);
 			const viewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
 			const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-			const inlineDecorations = viewModel.getInlineDecorationsInModelRange(modelRange);
-			const actualInlineDecorations = LineDecoration.filter(inlineDecorations, modelRange.startLineNumber, 0, Infinity);
-			console.log('actualInlineDecorations: ', actualInlineDecorations);
+			const actualInlineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, modelRange.startLineNumber, 0, Infinity);
 			const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 			const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
 			const sb = new StringBuilder(10000);
@@ -232,6 +232,7 @@ export class ScreenReaderSupport {
 			const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 			const activeLineDom = document.createElement('div');
 			activeLineDom.innerHTML = trustedhtml as string;
+			// activeLineDom.style.lineHeight = `${String(lineHeight)}px`;
 			const preLineDom = document.createElement('div');
 			preLineDom.textContent = prePositionLineText;
 			const postLineDom = document.createElement('div');
@@ -239,20 +240,12 @@ export class ScreenReaderSupport {
 			this.setIgnoreSelectionChangeTime('setValue');
 			const domNode = this._domNode.domNode;
 			domNode.classList.add('monaco-editor');
-			console.log('html : ', html);
-			// domNode.style.height = `${String(lineHeight)}px`;
-			// domNode.style.lineHeight = `${String(lineHeight)}px`;
-			domNode.style.height = `${500}px`;
-			domNode.style.lineHeight = `${String(lineHeight)}px`;
-			domNode.style.overflow = 'visible';
 			domNode.replaceChildren(preLineDom, activeLineDom, postLineDom);
-			console.log('activeLineDom : ', activeLineDom);
-			console.log('domNode : ', domNode);
 			this._setSelectionOfScreenReaderContent(renderLineOutput, this._screenReaderContentState, preLineDom, activeLineDom, postLineDom);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
-			this._domNode.domNode.innerHTML = '';
+			this._domNode.domNode.innerHTML = (ttPolicy?.createHTML('') ?? '') as string;
 		}
 	}
 
@@ -319,14 +312,20 @@ export class ScreenReaderSupport {
 			const rawSpanOffsets = renderLineOutput.rawSpanOffsets;
 			const charOffsets = renderLineOutput.rawCharacterOffsets;
 			const offsetWithinLine = selectionOffsetStart - pretext.length;
-			const span = spans.item(rawSpanOffsets[offsetWithinLine]).firstChild!;
+			const span = spans.item(rawSpanOffsets[offsetWithinLine]);
 			const character = charOffsets[offsetWithinLine];
+			const spanText = span.firstChild;
+			if (spanText) {
+				range.setStart(spanText, character);
+			} else {
+				range.setStart(span, character);
+			}
 			console.log('rawSpanOffsets : ', rawSpanOffsets);
 			console.log('charOffsets : ', charOffsets);
 			console.log('span : ', span);
+			console.log('spanText : ', spanText);
 			console.log('character : ', character);
 			console.log('offsetWithinLine: ', offsetWithinLine);
-			range.setStart(span, character);
 		} else if (selectionOffsetStart > pretext.length + lineText.length && selectionOffsetStart <= pretext.length + lineText.length + posttext.length) {
 			console.log('selectionOffsetStart > pretext.length + lineText.length && selectionOffsetStart <= pretext.length + lineText.length + posttext.length');
 			const textContent = postLineDom.firstChild;
@@ -350,14 +349,19 @@ export class ScreenReaderSupport {
 			const rawSpanOffsets = renderLineOutput.rawSpanOffsets;
 			const charOffsets = renderLineOutput.rawCharacterOffsets;
 			const offsetWithinLine = selectionOffsetEnd - pretext.length;
-			const span = spans.item(rawSpanOffsets[offsetWithinLine]).firstChild!;
+			const span = spans.item(rawSpanOffsets[offsetWithinLine]);
+			const spanText = span.firstChild;
 			const character = charOffsets[offsetWithinLine];
 			console.log('rawSpanOffsets : ', rawSpanOffsets);
 			console.log('charOffsets : ', charOffsets);
 			console.log('span : ', span);
 			console.log('character : ', character);
 			console.log('offsetWithinLine : ', offsetWithinLine);
-			range.setEnd(span, character);
+			if (spanText) {
+				range.setEnd(spanText, character);
+			} else {
+				range.setEnd(span, character);
+			}
 		} else if (selectionOffsetEnd > pretext.length + lineText.length && selectionOffsetEnd <= pretext.length + lineText.length + posttext.length) {
 			console.log('selectionOffsetEnd > pretext.length + lineText.length && selectionOffsetEnd <= pretext.length + lineText.length + posttext.length');
 			const textContent = postLineDom.firstChild!;

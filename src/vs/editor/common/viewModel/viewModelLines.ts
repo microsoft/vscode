@@ -19,7 +19,6 @@ import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaks
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { isModelDecorationVisible } from './viewModelDecorations.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -182,19 +181,20 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public getInlineDecorationsOnModelLine(modelLineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
+		console.log('getInlineDecorationsOnModelLine, modelLineNumber : ', modelLineNumber);
 		const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
 		return this.getInlineDecorationsInModelRange(modelRange, onlyMinimapDecorations, onlyMarginDecorations);
 	}
 
 	public getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		const modelDecorations = this._getDecorationsInModelRange(modelRange, this._editorId, filterValidationDecorations(this.config.options), onlyMinimapDecorations, onlyMarginDecorations);
+		console.log('ViewModelLinesFromProjectedModel');
+		console.log('getInlineDecorationsInModelRange', modelRange);
+		const modelDecorations = this.model.getDecorationsInRange(modelRange, this._editorId, filterValidationDecorations(this.config.options), onlyMinimapDecorations, onlyMarginDecorations);
+		console.log('modelDecorations : ', modelDecorations);
 		const inlineDecorations: InlineDecoration[] = [];
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
-			if (!isModelDecorationVisible(this.model, modelDecoration)) {
-				continue;
-			}
 			const modelRange = modelDecoration.range;
 			if (decorationOptions.inlineClassName) {
 				const inlineDecoration = new InlineDecoration(modelRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
@@ -965,12 +965,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
 		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
 		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
-		return this._getDecorationsInModelRange(Range.fromPositions(modelStart, modelEnd), ownerId, filterOutValidation, onlyMinimapDecorations, onlyMarginDecorations);
-	}
 
-	private _getDecorationsInModelRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
-		const modelStart = range.getStartPosition();
-		const modelEnd = range.getEndPosition();
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
 			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1

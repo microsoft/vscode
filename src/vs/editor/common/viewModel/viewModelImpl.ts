@@ -88,6 +88,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
+
 			this._lines = new ViewModelLinesFromModelAsIs(this.model, this._configuration.options.get(EditorOption.fontInfo));
 
 		} else {
@@ -877,10 +878,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getInlineDecorationsOnLine(modelLineNumber: number): InlineDecoration[] {
 		return this._lines.getInlineDecorationsOnModelLine(modelLineNumber);
-	}
-
-	public getInlineDecorationsInModelRange(modelRange: Range): InlineDecoration[] {
-		return this._lines.getInlineDecorationsInModelRange(modelRange);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
