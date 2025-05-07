@@ -6,7 +6,8 @@
 .monaco-workbench > .notifications-toasts {
 	position: absolute;
 	z-index: 1000;
-	right: 3px;
+	/* Moved notification to the left*/
+	right: 400px;
 	bottom: 25px; /* 22px status bar height + 3px */
 	display: none;
 	overflow: hidden;

@@ -26,6 +26,7 @@ import { IntervalCounter } from '../../../../base/common/async.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
 import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { NotificationViewItem } from '../../../common/notifications.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -91,6 +92,42 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
 		this.registerListeners();
+
+		setTimeout(() => {
+			console.log("[TEST] Forcing real toast");
+
+			const fakeNotification = {
+				id: 'test-toast',
+				severity: Severity.Info,
+				message: "Toast Notification test: checking overlap with Copilot",
+				sticky: false,
+				priority: 0 // NotificationPriority.DEFAULT
+			};
+
+			const filter = {
+				global: 0, // NotificationsFilter.OFF or ERROR, depending on what works
+				sources: new Map()
+			};
+
+			const item = NotificationViewItem.create(fakeNotification, filter);
+			if (item) {
+				this.addToast(item);
+			} else {
+				console.warn("Failed to create NotificationViewItem");
+			}
+		}, 3000);
+
+		const checkCopilotInterval = setInterval(() => {
+			const copilotChatInput = document.querySelector('.chat-input') || document.querySelector('.inline-chat-input');
+
+			const toasts = document.querySelector('.notifications-toasts');
+			if (copilotChatInput && toasts) {
+				toasts.classList.remove('visible');
+				console.log('[TEST] Copilot chat detected, hiding notifications.');
+				clearInterval(checkCopilotInterval); // only run once
+			}
+		}, 1000);
+
 	}
 
 	private registerListeners(): void {
