@@ -28,7 +28,7 @@ import { IEditorConstructionOptions } from '../../../../editor/browser/config/ed
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';

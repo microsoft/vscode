@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from '../../base/common/errors.js';
-import { OffsetRange } from '../common/core/offsetRange.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { OffsetRange } from '../offsetRange.js';
 import { Point } from './point.js';
 
 export class Rect {

@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 export class Point {
-
 	static equals(a: Point, b: Point): boolean {
 		return a.x === b.x && a.y === b.y;
 	}
 
 	constructor(
 		public readonly x: number,
-		public readonly y: number
+		public readonly y: number,
 	) { }
 
 	public add(other: Point): Point {

@@ -12,7 +12,7 @@ import { asCssVariable } from '../../../../../../../platform/theme/common/colorU
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
