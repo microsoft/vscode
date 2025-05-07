@@ -1024,7 +1024,7 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
-		// Simple Browser Elements
+		// Browser Elements
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
 		// Keyboard Layout
@@ -1169,7 +1169,7 @@ export class CodeApplication extends Disposable {
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
-		// Simple Browser Elements
+		// Browser Elements
 		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
 		mainProcessElectronServer.registerChannel('browserElements', browserElementsChannel);
 		sharedProcessClient.then(client => client.registerChannel('browserElements', browserElementsChannel));
