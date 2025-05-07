@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// @ts-check
-
 /// <reference lib="webworker" />
 
-const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
+const sw: ServiceWorkerGlobalScope = self as any as ServiceWorkerGlobalScope;
 
 const VERSION = 4;
 
@@ -27,46 +25,29 @@ const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority')
 
 const resolveTimeout = 30_000;
 
-/**
- * @template T
- * @typedef {{ status: 'ok'; value: T } | { status: 'timeout' }} RequestStoreResult
- */
+type RequestStoreResult<T> = {
+	status: 'ok';
+	value: T;
+} | {
+	status: 'timeout';
+};
 
-/**
- * @template T
- * @typedef {{
- *     resolve: (x: RequestStoreResult<T>) => void,
- *     promise: Promise<RequestStoreResult<T>>
- * }} RequestStoreEntry
- */
+interface RequestStoreEntry<T> {
+	resolve: (x: RequestStoreResult<T>) => void;
+	promise: Promise<RequestStoreResult<T>>;
+}
 
-/**
- * Caches
- * @template T
- */
-class RequestStore {
-	constructor() {
-		/** @type {Map<number, RequestStoreEntry<T>>} */
-		this.map = new Map();
+class RequestStore<T> {
+	private map: Map<number, RequestStoreEntry<T>> = new Map();
+	private requestPool: number = 0;
 
-		this.requestPool = 0;
-	}
-
-	/**
-	 * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
-	 */
-	create() {
+	create(): { requestId: number; promise: Promise<RequestStoreResult<T>> } {
 		const requestId = ++this.requestPool;
 
-		/** @type {undefined | ((x: RequestStoreResult<T>) => void)} */
-		let resolve;
+		let resolve: (x: RequestStoreResult<T>) => void;
+		const promise = new Promise<RequestStoreResult<T>>(r => resolve = r);
 
-		/** @type {Promise<RequestStoreResult<T>>} */
-		const promise = new Promise(r => resolve = r);
-
-		/** @type {RequestStoreEntry<T>} */
-		const entry = { resolve: /** @type {(x: RequestStoreResult<T>) => void} */ (resolve), promise };
-
+		const entry: RequestStoreEntry<T> = { resolve: resolve!, promise };
 		this.map.set(requestId, entry);
 
 		const dispose = () => {
@@ -75,19 +56,13 @@ class RequestStore {
 			if (existingEntry === entry) {
 				existingEntry.resolve({ status: 'timeout' });
 				this.map.delete(requestId);
-				return;
 			}
 		};
 		const timeout = setTimeout(dispose, resolveTimeout);
 		return { requestId, promise };
 	}
 
-	/**
-	 * @param {number} requestId
-	 * @param {T} result
-	 * @return {boolean}
-	 */
-	resolve(requestId, result) {
+	resolve(requestId: number, result: T): boolean {
 		const entry = this.map.get(requestId);
 		if (!entry) {
 			return false;
@@ -99,25 +74,14 @@ class RequestStore {
 }
 
 /**
- * @typedef {{ readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined; }
- * 		| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined }
- *		| { readonly status: 401; id: number; path: string }
- *		| { readonly status: 404; id: number; path: string }} ResourceResponse
- */
-
-/**
  * Map of requested paths to responses.
- *
- * @type {RequestStore<ResourceResponse>}
  */
-const resourceRequestStore = new RequestStore();
+const resourceRequestStore = new RequestStore<ResourceResponse>();
 
 /**
  * Map of requested localhost origins to optional redirects.
- *
- * @type {RequestStore<string | undefined>}
  */
-const localhostRequestStore = new RequestStore();
+const localhostRequestStore = new RequestStore<string | undefined>();
 
 const unauthorized = () =>
 	new Response('Unauthorized', { status: 401, });
@@ -131,10 +95,14 @@ const methodNotAllowed = () =>
 const requestTimeout = () =>
 	new Response('Request Timeout', { status: 408, });
 
-sw.addEventListener('message', async (event) => {
+sw.addEventListener('message', async (event: ExtendableMessageEvent) => {
+	if (!event.source) {
+		return;
+	}
+
+	const source = event.source as Client;
 	switch (event.data.channel) {
 		case 'version': {
-			const source = /** @type {Client} */ (event.source);
 			sw.clients.get(source.id).then(client => {
 				if (client) {
 					client.postMessage({
@@ -146,8 +114,7 @@ sw.addEventListener('message', async (event) => {
 			return;
 		}
 		case 'did-load-resource': {
-			/** @type {ResourceResponse} */
-			const response = event.data.data;
+			const response = event.data.data as ResourceResponse;
 			if (!resourceRequestStore.resolve(response.id, response)) {
 				console.log('Could not resolve unknown resource', response.path);
 			}
@@ -167,7 +134,7 @@ sw.addEventListener('message', async (event) => {
 	}
 });
 
-sw.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', (event: FetchEvent) => {
 	const requestUrl = new URL(event.request.url);
 	if (typeof resourceBaseAuthority === 'string' && requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 		switch (event.request.method) {
@@ -216,26 +183,27 @@ sw.addEventListener('fetch', (event) => {
 	}
 });
 
-sw.addEventListener('install', (event) => {
+sw.addEventListener('install', (event: ExtendableEvent) => {
 	event.waitUntil(sw.skipWaiting()); // Activate worker immediately
 });
 
-sw.addEventListener('activate', (event) => {
+sw.addEventListener('activate', (event: ExtendableEvent) => {
 	event.waitUntil(sw.clients.claim()); // Become available to all pages
 });
 
-/**
- * @param {FetchEvent} event
- * @param {{
- * 		scheme: string;
- * 		authority: string;
- * 		path: string;
- * 		query: string;
- * }} requestUrlComponents
- */
-async function processResourceRequest(event, requestUrlComponents) {
+interface ResourceRequestUrlComponents {
+	scheme: string;
+	authority: string;
+	path: string;
+	query: string;
+}
+
+async function processResourceRequest(
+	event: FetchEvent,
+	requestUrlComponents: ResourceRequestUrlComponents
+): Promise<Response> {
 	const client = await sw.clients.get(event.clientId);
-	let webviewId;
+	let webviewId: string | null | undefined;
 	if (!client) {
 		const workerClient = await getWorkerClientForId(event.clientId);
 		if (!workerClient) {
@@ -255,11 +223,10 @@ async function processResourceRequest(event, requestUrlComponents) {
 
 	const shouldTryCaching = (event.request.method === 'GET');
 
-	/**
-	 * @param {RequestStoreResult<ResourceResponse>} result
-	 * @param {Response | undefined} cachedResponse
-	 */
-	const resolveResourceEntry = (result, cachedResponse) => {
+	const resolveResourceEntry = (
+		result: RequestStoreResult<ResourceResponse>,
+		cachedResponse: Response | undefined
+	): Response => {
 		if (result.status === 'timeout') {
 			return requestTimeout();
 		}
@@ -281,8 +248,7 @@ async function processResourceRequest(event, requestUrlComponents) {
 			return notFound();
 		}
 
-		/** @type {Record<string, string>} */
-		const commonHeaders = {
+		const commonHeaders: Record<string, string> = {
 			'Access-Control-Allow-Origin': '*',
 		};
 
@@ -317,8 +283,7 @@ async function processResourceRequest(event, requestUrlComponents) {
 			}
 		}
 
-		/** @type {Record<string, string>} */
-		const headers = {
+		const headers: Record<string, string> = {
 			...commonHeaders,
 			'Content-Type': entry.mime,
 			'Content-Length': byteLength.toString(),
@@ -362,8 +327,7 @@ async function processResourceRequest(event, requestUrlComponents) {
 		return notFound();
 	}
 
-	/** @type {Response | undefined} */
-	let cached;
+	let cached: Response | undefined;
 	if (shouldTryCaching) {
 		const cache = await caches.open(resourceCacheName);
 		cached = await cache.match(event.request);
@@ -386,12 +350,10 @@ async function processResourceRequest(event, requestUrlComponents) {
 	return promise.then(entry => resolveResourceEntry(entry, cached));
 }
 
-/**
- * @param {FetchEvent} event
- * @param {URL} requestUrl
- * @return {Promise<Response>}
- */
-async function processLocalhostRequest(event, requestUrl) {
+async function processLocalhostRequest(
+	event: FetchEvent,
+	requestUrl: URL
+): Promise<Response> {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
@@ -406,11 +368,9 @@ async function processLocalhostRequest(event, requestUrl) {
 
 	const origin = requestUrl.origin;
 
-	/**
-	 * @param {RequestStoreResult<string | undefined>} result
-	 * @return {Promise<Response>}
-	 */
-	const resolveRedirect = async (result) => {
+	const resolveRedirect = async (
+		result: RequestStoreResult<string | undefined>
+	): Promise<Response> => {
 		if (result.status !== 'ok' || !result.value) {
 			return fetch(event.request);
 		}
@@ -443,11 +403,7 @@ async function processLocalhostRequest(event, requestUrl) {
 	return promise.then(resolveRedirect);
 }
 
-/**
- * @param {Client} client
- * @returns {string | null}
- */
-function getWebviewIdForClient(client) {
+function getWebviewIdForClient(client: Client): string | null {
 	// Refs https://github.com/microsoft/vscode/issues/244143
 	// With PlzDedicatedWorker, worker subresources and blob wokers
 	// will use clients different from the window client.
@@ -461,11 +417,7 @@ function getWebviewIdForClient(client) {
 	return requesterClientUrl.searchParams.get('id');
 }
 
-/**
- * @param {string} webviewId
- * @returns {Promise<Client[]>}
- */
-async function getOuterIframeClient(webviewId) {
+async function getOuterIframeClient(webviewId: string): Promise<Client[]> {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.filter(client => {
 		const clientUrl = new URL(client.url);
@@ -474,11 +426,7 @@ async function getOuterIframeClient(webviewId) {
 	});
 }
 
-/**
- * @param {string} clientId
- * @returns {Promise<Client|undefined>}
- */
-async function getWorkerClientForId(clientId) {
+async function getWorkerClientForId(clientId: string): Promise<Client | undefined> {
 	const allDedicatedWorkerClients = await sw.clients.matchAll({ type: 'worker' });
 	const allSharedWorkerClients = await sw.clients.matchAll({ type: 'sharedworker' });
 	const allWorkerClients = [...allDedicatedWorkerClients, ...allSharedWorkerClients];
@@ -486,3 +434,10 @@ async function getWorkerClientForId(clientId) {
 		return client.id === clientId;
 	});
 }
+
+type ResourceResponse =
+	| { readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined }
+	| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined }
+	| { readonly status: 401; id: number; path: string }
+	| { readonly status: 404; id: number; path: string }
+	;
