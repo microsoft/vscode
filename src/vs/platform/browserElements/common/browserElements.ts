@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IRectangle } from '../../window/common/window.js';
 
-export const INativeSimpleBrowserElementsService = createDecorator<INativeSimpleBrowserElementsService>('nativeSimpleBrowserElementsService');
+export const INativeBrowserElementsService = createDecorator<INativeBrowserElementsService>('nativeBrowserElementsService');
 
 export interface IElementData {
 	readonly outerHTML: string;
@@ -15,7 +15,7 @@ export interface IElementData {
 	readonly bounds: IRectangle;
 }
 
-export interface INativeSimpleBrowserElementsService {
+export interface INativeBrowserElementsService {
 
 	readonly _serviceBrand: undefined;
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeSimpleBrowserElementsService } from '../common/simpleBrowserElements.js';
+import { IElementData, INativeBrowserElementsService } from '../common/browserElements.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRectangle } from '../../window/common/window.js';
 import { BrowserWindow, webContents } from 'electron';
@@ -16,8 +16,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 
 
-export const INativeSimpleBrowserElementsMainService = createDecorator<INativeSimpleBrowserElementsMainService>('simpleBrowserElementsMainService');
-export interface INativeSimpleBrowserElementsMainService extends AddFirstParameterToFunctions<INativeSimpleBrowserElementsService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
+export const INativeBrowserElementsMainService = createDecorator<INativeBrowserElementsMainService>('browserElementsMainService');
+export interface INativeBrowserElementsMainService extends AddFirstParameterToFunctions<INativeBrowserElementsService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 interface NodeDataResponse {
 	outerHTML: string;
@@ -25,7 +25,7 @@ interface NodeDataResponse {
 	bounds: IRectangle;
 }
 
-export class NativeSimpleBrowserElementsMainService extends Disposable implements INativeSimpleBrowserElementsMainService {
+export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
 	_serviceBrand: undefined;
 
 	constructor(

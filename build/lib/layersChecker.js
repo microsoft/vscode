@@ -104,7 +104,7 @@ const NATIVE_TYPES = [
     'ICommonNativeHostService',
     'INativeHostService',
     'IMainProcessService',
-    'INativeSimpleBrowserElementsService',
+    'INativeBrowserElementsService',
 ];
 const RULES = [
     // Tests: skip
@@ -177,9 +177,9 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/simpleBrowserElements/common/simpleBrowserElements.ts
+    // Common: vs/platform/browserElements/common/browserElements.ts
     {
-        target: '**/vs/platform/simpleBrowserElements/common/simpleBrowserElements.ts',
+        target: '**/vs/platform/browserElements/common/browserElements.ts',
         allowedTypes: CORE_TYPES,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
@@ -187,9 +187,9 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/simpleBrowserElements/common/nativeSimpleBrowserElementsService.ts
+    // Common: vs/platform/browserElements/common/nativeBrowserElementsService.ts
     {
-        target: '**/vs/platform/simpleBrowserElements/common/nativeSimpleBrowserElementsService.ts',
+        target: '**/vs/platform/browserElements/common/nativeBrowserElementsService.ts',
         allowedTypes: CORE_TYPES,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [

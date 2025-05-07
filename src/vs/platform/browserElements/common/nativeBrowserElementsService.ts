@@ -5,10 +5,10 @@
 
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
-import { INativeSimpleBrowserElementsService } from './simpleBrowserElements.js';
+import { INativeBrowserElementsService } from './browserElements.js';
 
 // @ts-ignore: interface is implemented via proxy
-export class NativeSimpleBrowserElementsService implements INativeSimpleBrowserElementsService {
+export class NativeBrowserElementsService implements INativeBrowserElementsService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -16,7 +16,7 @@ export class NativeSimpleBrowserElementsService implements INativeSimpleBrowserE
 		readonly windowId: number,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		return ProxyChannel.toService<INativeSimpleBrowserElementsService>(mainProcessService.getChannel('simpleBrowserElements'), {
+		return ProxyChannel.toService<INativeBrowserElementsService>(mainProcessService.getChannel('browserElements'), {
 			context: windowId,
 			properties: (() => {
 				const properties = new Map<string, unknown>();

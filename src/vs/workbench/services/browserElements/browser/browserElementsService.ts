@@ -5,12 +5,12 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IElementData } from '../../../../platform/simpleBrowserElements/common/simpleBrowserElements.js';
+import { IElementData } from '../../../../platform/browserElements/common/browserElements.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 
-export const ISimpleBrowserElementsService = createDecorator<ISimpleBrowserElementsService>('simpleBrowserElementsService');
+export const IBrowserElementsService = createDecorator<IBrowserElementsService>('browserElementsService');
 
-export interface ISimpleBrowserElementsService {
+export interface IBrowserElementsService {
 	_serviceBrand: undefined;
 
 	// no browser implementation yet

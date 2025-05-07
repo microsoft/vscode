@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeSimpleBrowserElementsService } from '../../../../platform/simpleBrowserElements/common/simpleBrowserElements.js';
+import { IElementData, INativeBrowserElementsService } from '../../../../platform/browserElements/common/browserElements.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { ISimpleBrowserElementsService } from '../browser/simpleBrowserElementsService.js';
+import { IBrowserElementsService } from '../browser/browserElementsService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
-import { NativeSimpleBrowserElementsService } from '../../../../platform/simpleBrowserElements/common/nativeSimpleBrowserElementsService.js';
+import { NativeBrowserElementsService } from '../../../../platform/browserElements/common/nativeBrowserElementsService.js';
 
-class WorkbenchNativeSimpleBrowserElementsService extends NativeSimpleBrowserElementsService {
+class WorkbenchNativeBrowserElementsService extends NativeBrowserElementsService {
 
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
@@ -25,11 +25,11 @@ class WorkbenchNativeSimpleBrowserElementsService extends NativeSimpleBrowserEle
 
 let cancelSelectionIdPool = 0;
 
-class WorkbenchSimpleBrowserElementsService implements ISimpleBrowserElementsService {
+class WorkbenchBrowserElementsService implements IBrowserElementsService {
 	_serviceBrand: undefined;
 
 	constructor(
-		@INativeSimpleBrowserElementsService private readonly simpleBrowser: INativeSimpleBrowserElementsService
+		@INativeBrowserElementsService private readonly simpleBrowser: INativeBrowserElementsService
 	) { }
 
 	async getElementData(rect: IRectangle, token: CancellationToken): Promise<IElementData | undefined> {
@@ -50,5 +50,5 @@ class WorkbenchSimpleBrowserElementsService implements ISimpleBrowserElementsSer
 	}
 }
 
-registerSingleton(ISimpleBrowserElementsService, WorkbenchSimpleBrowserElementsService, InstantiationType.Delayed);
-registerSingleton(INativeSimpleBrowserElementsService, WorkbenchNativeSimpleBrowserElementsService, InstantiationType.Delayed);
+registerSingleton(IBrowserElementsService, WorkbenchBrowserElementsService, InstantiationType.Delayed);
+registerSingleton(INativeBrowserElementsService, WorkbenchNativeBrowserElementsService, InstantiationType.Delayed);
