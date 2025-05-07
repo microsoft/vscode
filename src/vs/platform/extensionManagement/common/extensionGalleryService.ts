@@ -637,7 +637,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			};
 		}
 
-		const value = await this.assignmentService?.getTreatment<'unpkg' | 'marketplace' | 'none'>('extensions.gallery.useResourceApi') ?? 'unpkg';
+		const value = await this.assignmentService?.getTreatment<'unpkg' | 'marketplace' | 'none'>('extensions.gallery.useResourceApi') ?? 'marketplace';
 
 		if (value === 'marketplace') {
 			return {
