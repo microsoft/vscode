@@ -90,7 +90,6 @@ interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private static readonly SCROLLBAR_SIZES = {
-		hidden: 0 as const,
 		default: 3 as const,
 		large: 10 as const
 	};
@@ -201,9 +200,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
+		const tabsScrollbarSizing = this.getTabsScrollbarSizing();
 		const tabsScrollbar = this._register(new ScrollableElement(scrollable, {
-			horizontal: ScrollbarVisibility.Auto,
-			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
+			horizontal: tabsScrollbarSizing[0],
+			horizontalScrollbarSize: tabsScrollbarSizing[1],
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false
@@ -219,8 +219,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private updateTabsScrollbarSizing(): void {
+		const tabsScrollbarSizing = this.getTabsScrollbarSizing();
 		this.tabsScrollbar?.updateOptions({
-			horizontalScrollbarSize: this.getTabsScrollbarSizing()
+			horizontal: tabsScrollbarSizing[0],
+			horizontalScrollbarSize: tabsScrollbarSizing[1],
 		});
 	}
 
@@ -264,13 +266,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		});
 	}
 
-	private getTabsScrollbarSizing(): number {
+	private getTabsScrollbarSizing(): [ScrollbarVisibility, number] {
 		if (this.groupsView.partOptions.titleScrollbarSizing === 'hidden') {
-			return MultiEditorTabsControl.SCROLLBAR_SIZES.hidden;
+			return [ScrollbarVisibility.Hidden, MultiEditorTabsControl.SCROLLBAR_SIZES.default];
 		} else if (this.groupsView.partOptions.titleScrollbarSizing === 'large') {
-			return MultiEditorTabsControl.SCROLLBAR_SIZES.large;
+			return [ScrollbarVisibility.Auto, MultiEditorTabsControl.SCROLLBAR_SIZES.large];
 		}
-		return MultiEditorTabsControl.SCROLLBAR_SIZES.default;
+		return [ScrollbarVisibility.Auto, MultiEditorTabsControl.SCROLLBAR_SIZES.default];
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
