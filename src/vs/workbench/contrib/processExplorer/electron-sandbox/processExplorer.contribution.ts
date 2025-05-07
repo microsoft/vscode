@@ -17,8 +17,6 @@ import { ProcessExplorerEditor } from './processExplorerEditor.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IProcessMainService } from '../../../../platform/process/common/process.js';
 
 //#region --- process explorer
 
@@ -110,10 +108,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		title: localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
 	},
 	order: 2
-});
-
-CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
-	return accessor.get(IProcessMainService).getSystemStatus();
 });
 
 //#endregion
