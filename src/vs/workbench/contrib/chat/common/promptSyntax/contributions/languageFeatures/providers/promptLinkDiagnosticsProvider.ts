@@ -5,11 +5,12 @@
 
 import { IPromptsService } from '../../../service/types.js';
 import { IPromptFileReference } from '../../../parsers/types.js';
-import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
 import { NotPromptFile } from '../../../../promptFileReferenceErrors.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
+import { ProviderInstanceBase, TSettleTarget } from './providerInstanceBase.js';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
 import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
 
@@ -33,7 +34,23 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override onPromptSettled(): this {
+	// TODO: @legomushroom add '@cancelPreviousCalls'?
+	protected override onPromptSettled(
+		target: TSettleTarget,
+		_settleError: Error | undefined,
+		cancellationToken?: CancellationToken,
+	): this {
+		// TODO: @legomushroom
+		if (target !== 'all') {
+			return this;
+		}
+
+		// by the time entire parser tree is settled, the token might
+		// have been already cancelled by a new 'onPromptSettled' call
+		if (cancellationToken?.isCancellationRequested) {
+			return this;
+		}
+
 		// clean up all previously added markers
 		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 

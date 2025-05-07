@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptsService } from '../../../../service/types.js';
-import { ProviderInstanceBase } from '../providerInstanceBase.js';
 import { ITextModel } from '../../../../../../../../../editor/common/model.js';
 import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
+import { ProviderInstanceBase, TSettleTarget } from '../providerInstanceBase.js';
 import { toDisposable } from '../../../../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
@@ -45,9 +45,16 @@ export class PromptDecorator extends ProviderInstanceBase {
 		this.watchCursorPosition();
 	}
 
+	// TODO: @legomushroom add '@cancelPreviousCalls'?
 	protected override onPromptSettled(
+		target: TSettleTarget,
 		_error?: Error,
 	): this {
+		// TODO: @legomushroom
+		if (target !== 'current') {
+			return this;
+		}
+
 		// by the time the promise above completes, either this object
 		// or the text model might be already has been disposed
 		if (this.isDisposed || this.model.isDisposed()) {

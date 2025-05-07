@@ -5,7 +5,13 @@
 
 import { IPromptsService, TSharedPrompt } from '../../../service/types.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
 import { ObservableDisposable } from '../../../../../../../../base/common/observableDisposable.js';
+
+/**
+ * TODO: @legomushroom
+ */
+export type TSettleTarget = 'current' | 'all';
 
 /**
  * Abstract base class for all reusable prompt file providers.
@@ -14,7 +20,11 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 	/**
 	 * Function that is called when the prompt parser is settled.
 	 */
-	protected abstract onPromptSettled(error: Error | undefined): this;
+	protected abstract onPromptSettled(
+		target: TSettleTarget,
+		settleError: Error | undefined,
+		cancellationToken?: CancellationToken,
+	): this;
 
 	/**
 	 * Returns a string representation of this object.
@@ -35,7 +45,11 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 		this.parser = promptsService.getSyntaxParserFor(model);
 
 		this._register(
-			this.parser.onSettled(this.onPromptSettled.bind(this)),
+			this.parser.onSettled(this.onPromptSettled.bind(this, 'current')),
+		);
+
+		this._register(
+			this.parser.onAllSettled(this.onPromptSettled.bind(this, 'all')),
 		);
 
 		this._register(

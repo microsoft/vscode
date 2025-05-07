@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptsService } from '../../../service/types.js';
-import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { assertNever } from '../../../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { ProviderInstanceBase, TSettleTarget } from './providerInstanceBase.js';
 import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
 import { TDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../../../parsers/promptHeader/diagnostics.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
@@ -32,7 +32,15 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override onPromptSettled(): this {
+	// TODO: @legomushroom add '@cancelPreviousCalls'?
+	protected override onPromptSettled(
+		target: TSettleTarget,
+	): this {
+		// TODO: @legomushroom
+		if (target !== 'current') {
+			return this;
+		}
+
 		// clean up all previously added markers
 		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
