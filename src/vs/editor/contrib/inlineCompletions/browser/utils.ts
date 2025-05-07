@@ -12,7 +12,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { Position } from '../../../common/core/position.js';
 import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
+import { SingleTextEdit, TextEdit } from '../../../common/core/edits/textEdit.js';
 
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {

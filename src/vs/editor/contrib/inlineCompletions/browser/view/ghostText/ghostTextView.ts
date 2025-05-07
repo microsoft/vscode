@@ -15,7 +15,7 @@ import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor, MouseTargetType } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
-import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/offsetEdit.js';
+import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/edits/offsetEdit.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
