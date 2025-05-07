@@ -10,7 +10,7 @@ import { URI } from '../../base/common/uri.js';
 import { CodeDataTransfers, getPathForFile } from '../../platform/dnd/browser/dnd.js';
 
 
-export function toVSDataTransfer(dataTransfer: DataTransfer) {
+export function toVSDataTransfer(dataTransfer: DataTransfer): VSDataTransfer {
 	const vsDataTransfer = new VSDataTransfer();
 	for (const item of dataTransfer.items) {
 		const type = item.type;

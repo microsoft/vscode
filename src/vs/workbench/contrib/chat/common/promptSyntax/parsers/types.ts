@@ -158,13 +158,13 @@ interface IPromptReferenceBase extends IDisposable {
 	/**
 	 * Direct references of the current reference.
 	 */
-	readonly references: readonly IPromptReference[];
+	readonly references: readonly TPromptReference[];
 
 	/**
 	 * All references that the current reference may have,
 	 * including all possible nested child references.
 	 */
-	readonly allReferences: readonly IPromptReference[];
+	readonly allReferences: readonly TPromptReference[];
 
 	/**
 	 * All *valid* references that the current reference may have,
@@ -174,7 +174,7 @@ interface IPromptReferenceBase extends IDisposable {
 	 * without creating a circular reference loop or having any other
 	 * issues that would make the reference resolve logic to fail.
 	 */
-	readonly allValidReferences: readonly IPromptReference[];
+	readonly allValidReferences: readonly TPromptReference[];
 
 	/**
 	 * Entire associated `tools` metadata for this reference and
@@ -221,4 +221,4 @@ export interface IPromptFileReference extends IPromptReferenceBase {
 /**
  * List of all known prompt reference types.
  */
-export type IPromptReference = IPromptFileReference;
+export type TPromptReference = IPromptFileReference;

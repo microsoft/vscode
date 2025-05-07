@@ -7,7 +7,7 @@ import { IPromptsService } from '../../../service/types.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { assertNever } from '../../../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
-import { ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
+import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
 import { TDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../../../parsers/promptHeader/diagnostics.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
 
@@ -32,10 +32,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override async onPromptSettled(): Promise<this> {
-		// ensure that parsing process is settled
-		await this.parser.allSettled();
-
+	protected override onPromptSettled(): this {
 		// clean up all previously added markers
 		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
@@ -61,7 +58,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `prompt-link-diagnostics:${this.model.uri.path}`;
 	}
 }
@@ -100,7 +97,7 @@ const toMarker = (
  * classes for each specific editor text model.
  */
 export class PromptHeaderDiagnosticsInstanceManager extends ProviderInstanceManagerBase<PromptHeaderDiagnosticsProvider> {
-	protected override get InstanceClass() {
+	protected override get InstanceClass(): TProviderClass<PromptHeaderDiagnosticsProvider> {
 		return PromptHeaderDiagnosticsProvider;
 	}
 }

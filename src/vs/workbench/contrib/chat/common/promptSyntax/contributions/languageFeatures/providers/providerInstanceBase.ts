@@ -14,7 +14,7 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 	/**
 	 * Function that is called when the prompt parser is settled.
 	 */
-	protected abstract onPromptSettled(error: Error | undefined): Promise<this>;
+	protected abstract onPromptSettled(error: Error | undefined): this;
 
 	/**
 	 * Returns a string representation of this object.
