@@ -125,7 +125,7 @@ suite('ObservableDisposable', () => {
 				'`onDispose` callback must be called immediately.',
 			);
 
-			await waitRandom(10);
+			await waitRandom(10, 5);
 
 			disposables.add(object.onDispose(onDisposeSpy));
 
