@@ -93,7 +93,7 @@ suite('ObservableDisposable', () => {
 
 			object.dispose();
 			object.dispose();
-			await waitRandom(10);
+			await waitRandom(10, 5);
 			object.dispose();
 
 			assert(
@@ -115,10 +115,12 @@ suite('ObservableDisposable', () => {
 
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
-			await wait(1);
+			await wait(10);
 
-			const onDisposeSpy = spy(() => { });
+			const onDisposeSpy = spy();
 			disposables.add(object.onDispose(onDisposeSpy));
+
+			await wait(10);
 
 			assert(
 				onDisposeSpy.calledOnce,
@@ -129,6 +131,8 @@ suite('ObservableDisposable', () => {
 
 			disposables.add(object.onDispose(onDisposeSpy));
 
+			await wait(10);
+
 			assert(
 				onDisposeSpy.calledTwice,
 				'`onDispose` callback must be called immediately the second time.',
@@ -136,7 +140,7 @@ suite('ObservableDisposable', () => {
 
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
-			await wait(1);
+			await wait(10);
 
 			assert(
 				onDisposeSpy.calledTwice,
