@@ -24,7 +24,7 @@ export class NativeProcessExplorerControl extends ProcessExplorerControl {
 		@IProcessService private readonly processService: IProcessService,
 		@IClipboardService clipboardService: IClipboardService
 	) {
-		super(container, instantiationService, productService, contextMenuService, commandService, clipboardService);
+		super(instantiationService, productService, contextMenuService, commandService, clipboardService);
 
 		this.create(container);
 	}

@@ -342,7 +342,6 @@ export abstract class ProcessExplorerControl extends Disposable {
 	private readonly delayer = this._register(new Delayer(1000));
 
 	constructor(
-		container: HTMLElement,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -574,7 +573,7 @@ export class BrowserProcessExplorerControl extends ProcessExplorerControl {
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
-		super(container, instantiationService, productService, contextMenuService, commandService, clipboardService);
+		super(instantiationService, productService, contextMenuService, commandService, clipboardService);
 
 		this.create(container);
 	}
