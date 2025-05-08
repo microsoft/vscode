@@ -114,7 +114,9 @@ class OpenProcessExplorer extends Action2 {
 		const pane = await editorService.openEditor({
 			resource: ProcessExplorerEditorInput.RESOURCE,
 			options: {
-				pinned: true, auxiliary: {
+				pinned: true,
+				revealIfOpened: true,
+				auxiliary: {
 					...this.loadState(storageService),
 					compact: true,
 					alwaysOnTop: true
