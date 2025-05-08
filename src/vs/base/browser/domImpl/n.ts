@@ -283,11 +283,11 @@ function hasObservable(value: ValueOrList<unknown>): boolean {
 	return false;
 }
 
-function convertCssValue(value: any): string {
+function convertCssValue(value: unknown): string {
 	if (typeof value === 'number') {
 		return value + 'px';
 	}
-	return value;
+	return String(value);
 }
 
 function childrenIsObservable(children: ValueOrList2<Element | string | ObserverNode | undefined>): boolean {
@@ -364,8 +364,8 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-function isObservable<T>(obj: any): obj is IObservable<T> {
-	return obj && typeof obj === 'object' && obj['read'] !== undefined && obj['reportChanges'] !== undefined;
+function isObservable<T>(obj: unknown): obj is IObservable<T> {
+	return !!obj && (<IObservable<T>>obj)?.read !== undefined && (<IObservable<T>>obj)?.reportChanges !== undefined;
 }
 
 type ElementAttributeKeys<T> = Partial<{

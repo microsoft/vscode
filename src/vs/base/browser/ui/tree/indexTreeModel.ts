@@ -27,8 +27,8 @@ export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFil
 	lastDiffIds?: string[];
 }
 
-export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
-	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
+export function isFilterResult<T>(obj: unknown): obj is ITreeFilterDataResult<T> {
+	return typeof !!obj === 'object' && (<ITreeFilterDataResult<T>>obj).visibility !== undefined && (<ITreeFilterDataResult<T>>obj).data !== undefined;
 }
 
 export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {

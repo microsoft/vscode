@@ -51,7 +51,7 @@ export class SnapshotContext {
 		this.snapshotsDir = URI.joinPath(src, ...[...parts.slice(0, -1), '__snapshots__']);
 	}
 
-	public async assert(value: any, options?: ISnapshotOptions) {
+	public async assert(value: unknown, options?: ISnapshotOptions) {
 		const originalStack = new Error().stack!; // save to make the stack nicer on failure
 		const nameOrIndex = (options?.name ? sanitizeName(options.name) : this.nextIndex++);
 		const fileName = this.namePrefix + nameOrIndex + '.' + (options?.extension || 'snap');
@@ -176,7 +176,7 @@ teardown(async function () {
  * in a `__snapshots__` directory next to the test file, which is expected to
  * be the first `.test.js` file in the callstack.
  */
-export function assertSnapshot(value: any, options?: ISnapshotOptions): Promise<void> {
+export function assertSnapshot(value: unknown, options?: ISnapshotOptions): Promise<void> {
 	if (!context) {
 		throw new Error('assertSnapshot can only be used in a test');
 	}
