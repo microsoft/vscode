@@ -59,10 +59,12 @@ export function openContextMenu(targetWindow: Window, event: MouseEvent, context
 
 	const context: InstanceContext[] = contextInstances ? asArray(contextInstances).map(e => new InstanceContext(e)) : [];
 
+	const actionRunner = new TerminalContextActionRunner();
 	contextMenuService.showContextMenu({
-		actionRunner: new TerminalContextActionRunner(),
+		actionRunner,
 		getAnchor: () => standardEvent,
 		getActions: () => actions,
 		getActionsContext: () => context,
+		onHide: () => actionRunner.dispose()
 	});
 }

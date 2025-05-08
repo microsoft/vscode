@@ -8,7 +8,6 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { Schemas } from '../../../../base/common/network.js';
 import { isBoolean, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import './media/preferences.css';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import * as nls from '../../../../nls.js';
@@ -24,14 +23,13 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceContextKey, RemoteNameContext, WorkbenchStateContext } from '../../../common/contextkeys.js';
 import { ExplorerFolderContext, ExplorerRootContext } from '../../files/common/files.js';
 import { KeybindingsEditor } from './keybindingsEditor.js';
 import { ConfigureLanguageBasedSettingsAction } from './preferencesActions.js';
-import { SettingsEditorContribution } from './preferencesEditor.js';
 import { preferencesOpenSettingsIcon } from './preferencesIcons.js';
 import { SettingsEditor2, SettingsFocusContext } from './settingsEditor2.js';
 import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from '../common/preferences.js';
@@ -39,14 +37,19 @@ import { PreferencesContribution } from '../common/preferencesContribution.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution, IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
 import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
+import { IPreferencesRenderer, WorkspaceSettingsRenderer, UserSettingsRenderer } from './preferencesRenderers.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -791,9 +794,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor, args: string | undefined) {
-				const query = typeof args === 'string' ? args : undefined;
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const query = typeof args[0] === 'string' ? args[0] : undefined;
+				const groupId = getEditorGroupFromArguments(accessor, args)?.id;
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query, groupId });
 			}
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -834,8 +838,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(true);
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const groupId = getEditorGroupFromArguments(accessor, args)?.id;
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(true, { groupId });
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {
@@ -852,8 +857,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const group = getEditorGroupFromArguments(accessor, args);
+				const editorPane = group?.activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.search('@source:system');
 				}
@@ -873,8 +879,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const group = getEditorGroupFromArguments(accessor, args);
+				const editorPane = group?.activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.search('@source:extension');
 				}
@@ -894,8 +901,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const group = getEditorGroupFromArguments(accessor, args);
+				const editorPane = group?.activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.search('@source:user');
 				}
@@ -1207,11 +1215,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const commandId = `_workbench.openFolderSettings.${folder.uri.toString()}`;
 			if (!CommandsRegistry.getCommand(commandId)) {
-				CommandsRegistry.registerCommand(commandId, () => {
+				CommandsRegistry.registerCommand(commandId, (accessor: ServicesAccessor, ...args: any[]) => {
+					const groupId = getEditorGroupFromArguments(accessor, args)?.id;
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-						return this.preferencesService.openWorkspaceSettings({ jsonEditor: false });
+						return this.preferencesService.openWorkspaceSettings({ jsonEditor: false, groupId });
 					} else {
-						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false });
+						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false, groupId });
 					}
 				});
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -1230,6 +1239,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 }
 
 class SettingsEditorTitleContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.settingsEditorTitleBarActions';
+
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
@@ -1240,13 +1252,14 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 
 	private registerSettingsEditorTitleActions() {
 		const registerOpenUserSettingsEditorFromJsonActionDisposables = this._register(new MutableDisposable());
-		const openUserSettingsEditorWhen = ContextKeyExpr.and(
-			ContextKeyExpr.or(
-				ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()),
-				ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString())),
-			ContextKeyExpr.not('isInDiffEditor'));
 		const registerOpenUserSettingsEditorFromJsonAction = () => {
-			registerOpenUserSettingsEditorFromJsonActionDisposables.value = undefined;
+			const openUserSettingsEditorWhen = ContextKeyExpr.and(
+				CONTEXT_SETTINGS_EDITOR.toNegated(),
+				ContextKeyExpr.or(
+					ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()),
+					ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString())),
+				ContextKeyExpr.not('isInDiffEditor'));
+			registerOpenUserSettingsEditorFromJsonActionDisposables.clear();
 			registerOpenUserSettingsEditorFromJsonActionDisposables.value = registerAction2(class extends Action2 {
 				constructor() {
 					super({
@@ -1261,9 +1274,10 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 						}]
 					});
 				}
-				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-					args = sanitizeOpenSettingsArgs(args);
-					return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
+				run(accessor: ServicesAccessor, ...args: unknown[]) {
+					const sanitizedArgs = sanitizeOpenSettingsArgs(args[0]);
+					const groupId = getEditorGroupFromArguments(accessor, args)?.id;
+					return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...sanitizedArgs, groupId });
 				}
 			});
 		};
@@ -1274,7 +1288,7 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 			registerOpenUserSettingsEditorFromJsonAction();
 		}));
 
-		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
+		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_JSON_EDITOR.toNegated(), CONTEXT_SETTINGS_EDITOR);
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -1289,8 +1303,9 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 					}]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const group = getEditorGroupFromArguments(accessor, args);
+				const editorPane = group?.activeEditorPane;
 				if (editorPane instanceof SettingsEditor2) {
 					return editorPane.switchToSettingsFile();
 				}
@@ -1300,10 +1315,59 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+class SettingsEditorContribution extends Disposable {
+	static readonly ID: string = 'editor.contrib.settings';
+
+	private currentRenderer: IPreferencesRenderer | undefined;
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	) {
+		super();
+		this._createPreferencesRenderer();
+		this._register(this.editor.onDidChangeModel(e => this._createPreferencesRenderer()));
+		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this._createPreferencesRenderer()));
+	}
+
+	private async _createPreferencesRenderer(): Promise<void> {
+		this.disposables.clear();
+		this.currentRenderer = undefined;
+
+		const model = this.editor.getModel();
+		if (model && /\.(json|code-workspace)$/.test(model.uri.path)) {
+			// Fast check: the preferences renderer can only appear
+			// in settings files or workspace files
+			const settingsModel = await this.preferencesService.createPreferencesEditorModel(model.uri);
+			if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
+				this.disposables.add(settingsModel);
+				switch (settingsModel.configurationTarget) {
+					case ConfigurationTarget.WORKSPACE:
+						this.currentRenderer = this.disposables.add(this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel));
+						break;
+					default:
+						this.currentRenderer = this.disposables.add(this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel));
+						break;
+				}
+			}
+
+			this.currentRenderer?.render();
+		}
+	}
+}
+
+
+function getEditorGroupFromArguments(accessor: ServicesAccessor, args: unknown[]): IEditorGroup | undefined {
+	const context = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+	return context.groupedEditors[0]?.group;
+}
+
 registerWorkbenchContribution2(PreferencesActionsContribution.ID, PreferencesActionsContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PreferencesContribution.ID, PreferencesContribution, WorkbenchPhase.BlockStartup);
-workbenchContributionsRegistry.registerWorkbenchContribution(SettingsEditorTitleContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SettingsEditorTitleContribution.ID, SettingsEditorTitleContribution, WorkbenchPhase.AfterRestored);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);
 

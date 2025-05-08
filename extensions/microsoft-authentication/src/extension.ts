@@ -35,11 +35,11 @@ function shouldUseMsal(expService: IExperimentationService): boolean {
 	}
 
 	Logger.info('Acquired MSAL enablement value from default. Value: false');
-	// If no setting or experiment value is found, default to false
-	return false;
+	// If no setting or experiment value is found, default to true
+	return true;
 }
-let useMsal: boolean | undefined;
 
+let useMsal: boolean | undefined;
 export async function activate(context: ExtensionContext) {
 	const mainTelemetryReporter = new MicrosoftAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey);
 	const expService = await createExperimentationService(
@@ -48,9 +48,12 @@ export async function activate(context: ExtensionContext) {
 		env.uriScheme !== 'vscode', // isPreRelease
 	);
 	useMsal = shouldUseMsal(expService);
-
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-		if (!e.affectsConfiguration('microsoft-authentication.implementation') || useMsal === shouldUseMsal(expService)) {
+		if (!e.affectsConfiguration('microsoft-authentication')) {
+			return;
+		}
+
+		if (useMsal === shouldUseMsal(expService)) {
 			return;
 		}
 
@@ -72,6 +75,7 @@ export async function activate(context: ExtensionContext) {
 	if (useMsal && typeof navigator === 'undefined') {
 		await extensionV2.activate(context, mainTelemetryReporter);
 	} else {
+		mainTelemetryReporter.sendActivatedWithClassicImplementationEvent();
 		await extensionV1.activate(context, mainTelemetryReporter.telemetryReporter);
 	}
 }

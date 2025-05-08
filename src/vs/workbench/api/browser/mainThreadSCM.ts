@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from '../../../base/common/async.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { IObservable, observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from '../../../base/common/lifecycle.js';
@@ -16,7 +16,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { IQuickDiffService, QuickDiffProvider } from '../../contrib/scm/common/quickDiff.js';
+import { IQuickDiffService } from '../../contrib/scm/common/quickDiff.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemRef, ISCMHistoryItemRefsChangeEvent, ISCMHistoryOptions, ISCMHistoryProvider } from '../../contrib/scm/common/history.js';
 import { ResourceTree } from '../../../base/common/resourceTree.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -34,10 +34,10 @@ import { ColorIdentifier } from '../../../platform/theme/common/colorUtils.js';
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
 		return undefined;
-	} else if (URI.isUri(iconDto)) {
-		return URI.revive(iconDto);
 	} else if (ThemeIcon.isThemeIcon(iconDto)) {
 		return iconDto;
+	} else if (isUriComponents(iconDto)) {
+		return URI.revive(iconDto);
 	} else {
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
@@ -45,15 +45,13 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 }
 
 function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
+	const authorIcon = getIconFromIconDto(historyItemDto.authorIcon);
+
 	const references = historyItemDto.references?.map(r => ({
 		...r, icon: getIconFromIconDto(r.icon)
 	}));
 
-	const newLineIndex = historyItemDto.message.indexOf('\n');
-	const subject = newLineIndex === -1 ?
-		historyItemDto.message : `${historyItemDto.message.substring(0, newLineIndex)}\u2026`;
-
-	return { ...historyItemDto, subject, references };
+	return { ...historyItemDto, authorIcon, references };
 }
 
 function toISCMHistoryItemRef(historyItemRefDto?: SCMHistoryItemRefDto, color?: ColorIdentifier): ISCMHistoryItemRef | undefined {
@@ -103,6 +101,8 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	readonly onDidChangeResources = this._onDidChangeResources.event;
 
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
+
+	get contextValue(): string | undefined { return this.features.contextValue; }
 
 	constructor(
 		private readonly sourceControlHandle: number,
@@ -214,8 +214,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return changes?.map(change => ({
 			uri: URI.revive(change.uri),
 			originalUri: change.originalUri && URI.revive(change.originalUri),
-			modifiedUri: change.modifiedUri && URI.revive(change.modifiedUri),
-			renameUri: change.renameUri && URI.revive(change.renameUri)
+			modifiedUri: change.modifiedUri && URI.revive(change.modifiedUri)
 		}));
 	}
 
@@ -236,7 +235,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}
 }
 
-class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
+class MainThreadSCMProvider implements ISCMProvider {
 
 	private static ID_HANDLE = 0;
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
@@ -288,8 +287,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get actionButton(): IObservable<ISCMActionButtonDescriptor | undefined> { return this._actionButton; }
 
 	private _quickDiff: IDisposable | undefined;
-	public readonly isSCM: boolean = true;
-	public readonly visible: boolean = true;
+	private _stagedQuickDiff: IDisposable | undefined;
 
 	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
 	get historyProvider() { return this._historyProvider; }
@@ -336,15 +334,42 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
 			this._quickDiff = this._quickDiffService.addQuickDiffProvider({
+				id: `${this._providerId}.quickDiffProvider`,
 				label: features.quickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
-				isSCM: this.isSCM,
-				visible: this.visible,
-				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
+				kind: 'primary',
+				getOriginalResource: async (uri: URI) => {
+					if (!this.features.hasQuickDiffProvider) {
+						return null;
+					}
+
+					const result = await this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None);
+					return result && URI.revive(result);
+				}
 			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {
 			this._quickDiff.dispose();
 			this._quickDiff = undefined;
+		}
+
+		if (features.hasSecondaryQuickDiffProvider && !this._stagedQuickDiff) {
+			this._stagedQuickDiff = this._quickDiffService.addQuickDiffProvider({
+				id: `${this._providerId}.secondaryQuickDiffProvider`,
+				label: features.secondaryQuickDiffLabel ?? this.label,
+				rootUri: this.rootUri,
+				kind: 'secondary',
+				getOriginalResource: async (uri: URI) => {
+					if (!this.features.hasSecondaryQuickDiffProvider) {
+						return null;
+					}
+
+					const result = await this.proxy.$provideSecondaryOriginalResource(this.handle, uri, CancellationToken.None);
+					return result && URI.revive(result);
+				}
+			});
+		} else if (features.hasSecondaryQuickDiffProvider === false && this._stagedQuickDiff) {
+			this._stagedQuickDiff.dispose();
+			this._stagedQuickDiff = undefined;
 		}
 
 		if (features.hasHistoryProvider && !this.historyProvider.get()) {
@@ -491,6 +516,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 
 	dispose(): void {
+		this._stagedQuickDiff?.dispose();
 		this._quickDiff?.dispose();
 	}
 }

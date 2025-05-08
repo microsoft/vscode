@@ -5,7 +5,7 @@
 
 import { deepStrictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { DecorationCssRuleExtractor } from '../../../browser/gpu/decorationCssRuleExtractor.js';
+import { DecorationCssRuleExtractor } from '../../../browser/gpu/css/decorationCssRuleExtractor.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { $, getActiveDocument } from '../../../../base/browser/dom.js';
 

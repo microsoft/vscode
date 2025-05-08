@@ -1081,6 +1081,21 @@ suite('Fuzzy Scorer', () => {
 		}
 	});
 
+	test('compareFilesByScore - skip preference on label match when using path sep', function () {
+		const resourceA = URI.file('djangosite/ufrela/def.py');
+		const resourceB = URI.file('djangosite/urls/default.py');
+
+		for (const query of ['url/def']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
+		}
+	});
+
 	test('compareFilesByScore - boost shorter prefix match if multiple queries are used (#99171)', function () {
 		const resourceA = URI.file('mesh_editor_lifetime_job.h');
 		const resourceB = URI.file('lifetime_job.h');

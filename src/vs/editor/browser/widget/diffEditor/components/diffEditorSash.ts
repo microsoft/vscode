@@ -62,7 +62,7 @@ export class DiffEditorSash extends Disposable {
 		private readonly _domNode: HTMLElement,
 		private readonly _dimensions: { height: IObservable<number>; width: IObservable<number> },
 		private readonly _enabled: IObservable<boolean>,
-		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined>,
 		public readonly sashLeft: ISettableObservable<number>,
 		private readonly _resetSash: () => void,
 	) {

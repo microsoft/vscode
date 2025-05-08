@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { LineRange } from './lineRange.js';
+import { LineRange } from './ranges/lineRange.js';
 import { Position } from './position.js';
 import { Range } from './range.js';
 
@@ -115,7 +115,7 @@ export class TextLength {
 	}
 
 	public toLineRange(): LineRange {
-		return LineRange.ofLength(1, this.lineCount);
+		return LineRange.ofLength(1, this.lineCount + 1);
 	}
 
 	public addToPosition(position: Position): Position {

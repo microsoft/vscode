@@ -9,6 +9,7 @@ import { IPosition } from '../core/position.js';
 import { ITextModel } from '../model.js';
 import { OffsetRange } from '../core/offsetRange.js';
 import { TokenArray, TokenArrayBuilder } from './tokenArray.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 
 
 export interface IViewLineTokens {
@@ -101,10 +102,18 @@ export class LineTokens implements IViewLineTokens {
 	) >>> 0;
 
 	constructor(tokens: Uint32Array, text: string, decoder: ILanguageIdCodec) {
+		const tokensLength = tokens.length > 1 ? tokens[tokens.length - 2] : 0;
+		if (tokensLength !== text.length) {
+			onUnexpectedError(new Error('Token length and text length do not match!'));
+		}
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
 		this.languageIdCodec = decoder;
+	}
+
+	public getTextLength(): number {
+		return this._text.length;
 	}
 
 	public equals(other: IViewLineTokens): boolean {
@@ -201,6 +210,10 @@ export class LineTokens implements IViewLineTokens {
 
 	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): IViewLineTokens {
 		return new SliceLineTokens(this, startOffset, endOffset, deltaOffset);
+	}
+
+	public sliceZeroCopy(range: OffsetRange): IViewLineTokens {
+		return this.sliceAndInflate(range.start, range.endExclusive, 0);
 	}
 
 	/**

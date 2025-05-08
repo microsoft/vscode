@@ -40,7 +40,7 @@ import { TaskTerminalStatus } from './taskTerminalStatus.js';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from '../common/problemCollectors.js';
 import { GroupKind } from '../common/taskConfiguration.js';
 import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from '../common/taskSystem.js';
-import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
+import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
@@ -50,6 +50,8 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { RerunForActiveTerminalCommandId, rerunTaskIcon } from './task.contribution.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -197,6 +199,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _reconnectedTerminals: ITerminalInstance[] | undefined;
+	private _terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
+	private _taskTerminalActive: IContextKey<boolean>;
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
@@ -231,6 +235,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private _viewDescriptorService: IViewDescriptorService,
 		private _logService: ILogService,
 		private _notificationService: INotificationService,
+		contextKeyService: IContextKeyService,
 		instantiationService: IInstantiationService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
 	) {
@@ -244,6 +249,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = instantiationService.createInstance(TaskTerminalStatus));
+		this._taskTerminalActive = TASK_TERMINAL_ACTIVE.bindTo(contextKeyService);
+		this._register(this._terminalService.onDidChangeActiveInstance((e) => this._taskTerminalActive.set(e?.shellLaunchConfig.type === 'Task')));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -424,7 +431,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _fireTaskEvent(event: ITaskEvent) {
-		if (event.kind !== TaskEventKind.Changed) {
+		if (event.kind !== TaskEventKind.Changed && event.kind !== TaskEventKind.ProblemMatcherEnded && event.kind !== TaskEventKind.ProblemMatcherStarted) {
 			const activeTask = this._activeTasks[event.__task.getMapKey()];
 			if (activeTask) {
 				activeTask.state = event.kind;
@@ -619,7 +626,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
 		const command = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
 		cwd = cwd ? await this._configurationResolverService.resolveAsync(workspaceFolder, cwd) : undefined;
-		const paths = envPath ? await Promise.all(envPath.split(path.delimiter).map(p => this._configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
+		const delimiter = (await this._pathService.path).delimiter;
+		const paths = envPath ? await Promise.all(envPath.split(delimiter).map(p => this._configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
 		const foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
 		if (foundExecutable) {
 			return foundExecutable;
@@ -834,6 +842,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 							(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+							this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 							const reveal = task.command.presentation!.reveal;
 							const revealProblems = task.command.presentation!.revealProblems;
 							if (revealProblems === RevealProblemKind.OnProblem) {
@@ -842,6 +851,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 								this._terminalService.setActiveInstance(terminal!);
 								this._terminalGroupService.showPanel(false);
 							}
+						} else {
+							this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
 						}
 					}
 				}
@@ -870,6 +881,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values));
 			let onData: IDisposable | undefined;
 			if (problemMatchers.length) {
+				// this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal.instanceId));
 				// prevent https://github.com/microsoft/vscode/issues/174511 from happening
 				onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);
@@ -973,7 +985,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
 			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
-
+			startStopProblemMatcher.onDidStateChange((event) => {
+				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
+					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
+				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
+					} else {
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+					}
+				}
+			});
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
 				if (!processStartedSignaled) {
@@ -1036,6 +1058,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						delete this._busyTasks[mapKey];
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.Inactive, task, terminal?.instanceId));
+					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
+					} else {
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task, terminal?.instanceId));
 					resolve({ exitCode: exitCode ?? undefined });
 				});
@@ -1052,7 +1079,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._terminalService.focusInstance(terminal);
 			}
 		}
-		this._activeTasks[task.getMapKey()].terminal = terminal;
+		if (this._activeTasks[task.getMapKey()]) {
+			this._activeTasks[task.getMapKey()].terminal = terminal;
+		} else {
+			console.warn('No active tasks found for the terminal.');
+		}
 		this._fireTaskEvent(TaskEvent.changed());
 		return promise;
 	}
@@ -1260,6 +1291,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
+		shellLaunchConfig.tabActions = this._terminalTabActions;
 		return shellLaunchConfig;
 	}
 
@@ -1460,6 +1492,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
 		this._terminals[terminalKey] = terminalData;
+		terminal.shellLaunchConfig.tabActions = this._terminalTabActions;
 		return [terminal, undefined];
 	}
 
@@ -1820,6 +1853,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return result;
 		}
 		return 'other';
+	}
+
+	public getTaskForTerminal(instanceId: number): Task | undefined {
+		for (const key in this._activeTasks) {
+			const activeTask = this._activeTasks[key];
+			if (activeTask.terminal?.instanceId === instanceId) {
+				return activeTask.task;
+			}
+		}
+		return undefined;
 	}
 
 	private _appendOutput(output: string): void {

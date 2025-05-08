@@ -29,10 +29,12 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/brow
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
-	title = 'window.title'
+	title = 'window.title',
 }
 
 export const defaultWindowTitle = (() => {
@@ -77,7 +79,9 @@ export class WindowTitle extends Disposable {
 	}
 
 	private title: string | undefined;
+
 	private titleIncludesFocusedView: boolean = false;
+	private titleIncludesEditorState: boolean = false;
 
 	private readonly editorService: IEditorService;
 
@@ -94,14 +98,17 @@ export class WindowTitle extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.windowId = targetWindow.vscodeWindowId;
 
-		this.updateTitleIncludesFocusedView();
+		this.checkTitleVariables();
+
 		this.registerListeners();
 	}
 
@@ -123,21 +130,26 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration(WindowSettingNames.title)) {
-			this.updateTitleIncludesFocusedView();
+		const affectsTitleConfiguration = event.affectsConfiguration(WindowSettingNames.title);
+		if (affectsTitleConfiguration) {
+			this.checkTitleVariables();
 		}
 
-		if (event.affectsConfiguration(WindowSettingNames.title) || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
+		if (affectsTitleConfiguration || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
 			this.titleUpdater.schedule();
 		}
 	}
 
-	private updateTitleIncludesFocusedView(): void {
+	private checkTitleVariables(): void {
 		const titleTemplate = this.configurationService.getValue<unknown>(WindowSettingNames.title);
-		this.titleIncludesFocusedView = typeof titleTemplate === 'string' && titleTemplate.includes('${focusedView}');
+		if (typeof titleTemplate === 'string') {
+			this.titleIncludesFocusedView = titleTemplate.includes('${focusedView}');
+			this.titleIncludesEditorState = titleTemplate.includes('${activeEditorState}');
+		}
 	}
 
 	private onActiveEditorChange(): void {
@@ -169,6 +181,11 @@ export class WindowTitle extends Disposable {
 				this.activeEditorListeners.add(textEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
 				this.activeEditorListeners.add(textEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
 			}
+		}
+
+		// Apply listener for decorations to track editor state
+		if (this.titleIncludesEditorState) {
+			this.activeEditorListeners.add(this.decorationsService.onDidChangeDecorations(() => this.titleUpdater.schedule()));
 		}
 	}
 
@@ -286,6 +303,7 @@ export class WindowTitle extends Disposable {
 	 * {dirty}: indicator
 	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
+	 * {activeEditorState}: e.g. Modified
 	 */
 	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
@@ -345,6 +363,8 @@ export class WindowTitle extends Disposable {
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
+		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
+
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
 			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
@@ -353,6 +373,10 @@ export class WindowTitle extends Disposable {
 		let titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 		if (typeof titleTemplate !== 'string') {
 			titleTemplate = defaultWindowTitle;
+		}
+
+		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
+			titleTemplate += '${separator}${activeEditorState}';
 		}
 
 		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
@@ -378,11 +402,15 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
+			activeEditorState,
 			separator: { label: separator }
 		});
 	}
 
 	isCustomTitleFormat(): boolean {
+		if (this.accessibilityService.isScreenReaderOptimized() || this.titleIncludesEditorState) {
+			return true;
+		}
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 

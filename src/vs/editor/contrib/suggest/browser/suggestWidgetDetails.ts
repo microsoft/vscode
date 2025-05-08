@@ -184,6 +184,8 @@ export class SuggestDetailsWidget {
 			this._renderDisposeable.add(renderedContents);
 		}
 
+		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
+
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
 

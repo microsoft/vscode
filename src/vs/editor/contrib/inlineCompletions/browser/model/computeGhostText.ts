@@ -7,7 +7,7 @@ import { IDiffChange, LcsDiff } from '../../../../../base/common/diff/diff.js';
 import { getLeadingWhitespace } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';
 import { ITextModel } from '../../../../common/model.js';
 import { GhostText, GhostTextPart } from './ghostText.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
@@ -159,7 +159,7 @@ function deletedCharacters(changes: readonly IDiffChange[]): number {
  *
  * The parenthesis are preprocessed to ensure that they match correctly.
  */
-function smartDiff(originalValue: string, newValue: string, smartBracketMatching: boolean): (readonly IDiffChange[]) | undefined {
+export function smartDiff(originalValue: string, newValue: string, smartBracketMatching: boolean): (readonly IDiffChange[]) | undefined {
 	if (originalValue.length > 5000 || newValue.length > 5000) {
 		// We don't want to work on strings that are too big
 		return undefined;

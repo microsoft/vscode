@@ -649,7 +649,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		});
 
 		return result.finally(() => {
-			disposable.dispose();
+			disposable?.dispose(); // Seen as undefined in tests.
 			this.activeRequests.delete(disposableWithRequestCancel);
 		});
 	}

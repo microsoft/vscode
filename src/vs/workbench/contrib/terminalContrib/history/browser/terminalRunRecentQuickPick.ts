@@ -84,7 +84,8 @@ export async function showRunRecentQuickPick(
 				.replace(/\s\s\s+/g, '\u22EF');
 		}
 		if (commands && commands.length > 0) {
-			for (const entry of commands) {
+			for (let i = commands.length - 1; i >= 0; i--) {
+				const entry = commands[i];
 				// Trim off any whitespace and/or line endings, replace new lines with the
 				// Downwards Arrow with Corner Leftwards symbol
 				const label = entry.command.trim();
@@ -120,7 +121,6 @@ export async function showRunRecentQuickPick(
 				});
 				commandMap.add(label);
 			}
-			items = items.reverse();
 		}
 		if (executingCommand) {
 			items.unshift({
@@ -335,11 +335,13 @@ export async function showRunRecentQuickPick(
 			text = result.rawLabel;
 		}
 		quickPick.hide();
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.clear();
+		instance.scrollToBottom();
 		instance.runCommand(text, !quickPick.keyMods.alt);
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
-		restoreScrollState();
 	}));
 	disposables.add(quickPick.onDidHide(() => restoreScrollState()));
 	if (value) {

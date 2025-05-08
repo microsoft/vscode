@@ -32,9 +32,11 @@ import { CompletionModel } from './completionModel.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest.js';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails.js';
-import { getAriaId, ItemRenderer } from './suggestWidgetRenderer.js';
+import { ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { CompletionItemKinds } from '../../../common/languages.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 /**
  * Suggest widget colors
@@ -230,23 +232,25 @@ export class SuggestWidget implements IDisposable {
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'option',
+				getRole: () => isWindows ? 'listitem' : 'option',
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: CompletionItem) => {
 
 					let label = item.textLabel;
+					const kindLabel = CompletionItemKinds.toLabel(item.completion.kind);
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}, {3}', label, detail, description, kindLabel);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0} {1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}, {2}', label, detail, kindLabel);
 						} else if (description) {
-							label = nls.localize('label.desc', '{0}, {1}', label, description);
+							label = nls.localize('label.desc', '{0}, {1}, {2}', label, description, kindLabel);
 						}
+					} else {
+						label = nls.localize('label', '{0}, {1}', label, kindLabel);
 					}
-
 					if (!item.isResolved || !this._isDetailsVisible()) {
 						return label;
 					}
@@ -434,7 +438,7 @@ export class SuggestWidget implements IDisposable {
 					this.element.domNode.classList.remove('docs-side');
 				}
 
-				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
+				this.editor.setAriaOptions({ activeDescendant: this._list.getElementID(index) });
 			}).catch(onUnexpectedError);
 		}
 
@@ -570,7 +574,7 @@ export class SuggestWidget implements IDisposable {
 		try {
 			this._list.splice(0, this._list.length, this._completionModel.items);
 			this._setState(isFrozen ? State.Frozen : State.Open);
-			this._list.reveal(selectionIndex, 0);
+			this._list.reveal(selectionIndex, 0, selectionIndex === 0 ? 0 : this.getLayoutInfo().itemHeight * 0.33);
 			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			this._onDidFocus.resume();
@@ -1041,3 +1045,4 @@ export class SuggestContentWidget implements IContentWidget {
 		this._position = position;
 	}
 }
+

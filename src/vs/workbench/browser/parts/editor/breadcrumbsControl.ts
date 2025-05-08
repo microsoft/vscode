@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { $ } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -25,7 +25,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { fillInSymbolsDragData } from '../../../../platform/dnd/browser/dnd.js';
+import { fillInSymbolsDragData, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { FileKind, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
@@ -39,7 +39,7 @@ import { EditorResourceAccessor, IEditorPartOptions, SideBySideEditor } from '..
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IOutline } from '../../../services/outline/browser/outline.js';
-import { fillEditorsDragData } from '../../dnd.js';
+import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../labels.js';
 import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
@@ -105,7 +105,7 @@ class OutlineItem extends BreadcrumbsItem {
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 
 		if (element instanceof OutlineElement && outline.uri) {
-			this._disposables.add(this._instantiationService.invokeFunction(accessor => createBreadcrumbDndObserver(accessor, container, element.symbol.name, { symbol: element.symbol, uri: outline.uri! })));
+			this._disposables.add(this._instantiationService.invokeFunction(accessor => createBreadcrumbDndObserver(accessor, container, element.symbol.name, { symbol: element.symbol, uri: outline.uri! }, this.model, this.options.dragEditor)));
 		}
 	}
 }
@@ -151,12 +151,12 @@ class FileItem extends BreadcrumbsItem {
 		container.classList.add(FileKind[this.element.kind].toLowerCase());
 		this._disposables.add(label);
 
-		this._disposables.add(this._instantiationService.invokeFunction(accessor => createBreadcrumbDndObserver(accessor, container, basename(this.element.uri), this.element.uri)));
+		this._disposables.add(this._instantiationService.invokeFunction(accessor => createBreadcrumbDndObserver(accessor, container, basename(this.element.uri), this.element.uri, this.model, this.options.dragEditor)));
 	}
 }
 
 
-function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTMLElement, label: string, item: URI | { symbol: DocumentSymbol; uri: URI }): IDisposable {
+function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTMLElement, label: string, item: URI | { symbol: DocumentSymbol; uri: URI }, model: BreadcrumbsModel, dragEditor: boolean): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 
 	container.draggable = true;
@@ -183,23 +183,14 @@ function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTML
 						kind: item.symbol.kind
 					}], event);
 				}
+
+				if (dragEditor && model.editor && model.editor?.input) {
+					const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+					editorTransfer.setData([new DraggedEditorIdentifier({ editor: model.editor.input, groupId: model.editor.group.id })], DraggedEditorIdentifier.prototype);
+				}
 			});
 
-			// Create drag image and remove when dropped
-			const dragImage = $('.monaco-drag-image');
-			dragImage.textContent = label;
-
-			const getDragImageContainer = (e: HTMLElement | null) => {
-				while (e && !e.classList.contains('monaco-workbench')) {
-					e = e.parentElement;
-				}
-				return e || container.ownerDocument;
-			};
-
-			const dragContainer = getDragImageContainer(container);
-			dragContainer.appendChild(dragImage);
-			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => dragImage.remove(), 0);
+			applyDragImage(event, container, label);
 		}
 	});
 }
@@ -209,6 +200,7 @@ export interface IBreadcrumbsControlOptions {
 	readonly showSymbolIcons: boolean;
 	readonly showDecorationColors: boolean;
 	readonly showPlaceholder: boolean;
+	readonly dragEditor: boolean;
 	readonly widgetStyles?: IBreadcrumbsWidgetStyles;
 }
 
@@ -298,6 +290,7 @@ export class BreadcrumbsControl {
 	dispose(): void {
 		this._disposables.dispose();
 		this._breadcrumbsDisposables.dispose();
+		this._model.dispose();
 		this._ckBreadcrumbsPossible.reset();
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
@@ -681,7 +674,8 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 2 },
 				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
 				{ id: MenuId.StickyScrollContext },
-				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 }
+				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 },
+				{ id: MenuId.NotebookToolbarContext, group: 'notebookView', order: 2 }
 			]
 		});
 	}

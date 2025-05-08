@@ -17,10 +17,10 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { LineRange, LineRangeSet } from '../../../../common/core/lineRange.js';
+import { LineRange, LineRangeSet } from '../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextEdit } from '../../../../common/core/textEdit.js';
+import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../common/diff/rangeMapping.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { ActionRunnerWithContext } from '../../multiDiffEditor/utils.js';
@@ -50,7 +50,7 @@ export class DiffEditorGutter extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 		private readonly _options: DiffEditorOptions,
 		private readonly _sashLayout: SashLayout,
-		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
@@ -218,7 +218,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		const hoverDelegate = this._register(instantiationService.createInstance(
 			WorkbenchHoverDelegate,
 			'element',
-			true,
+			{ instantHover: true },
 			{ position: { hoverPosition: HoverPosition.RIGHT } }
 		));
 
@@ -245,7 +245,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				},
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				actionRunner: new ActionRunnerWithContext(() => {
+				actionRunner: store.add(new ActionRunnerWithContext(() => {
 					const item = this._item.get();
 					const mapping = item.mapping;
 					return {
@@ -254,7 +254,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 						originalUri: item.originalUri,
 						modifiedUri: item.modifiedUri,
 					} satisfies DiffEditorSelectionHunkToolbarContext;
-				}),
+				})),
 				menuOptions: {
 					shouldForwardArgs: true,
 				},

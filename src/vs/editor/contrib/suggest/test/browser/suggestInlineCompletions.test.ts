@@ -21,6 +21,7 @@ import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } 
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 
 suite('Suggest Inline Completions', function () {
@@ -74,7 +75,7 @@ suite('Suggest Inline Completions', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false };
+	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false, requestUuid: generateUuid() };
 
 	test('Aggressive inline completions when typing within line #146948', async function () {
 

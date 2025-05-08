@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { shuffle } from './arrays.js';
+import { assert } from './assert.js';
 import { CharCode } from './charCode.js';
 import { compare, compareIgnoreCase, compareSubstring, compareSubstringIgnoreCase } from './strings.js';
 import { URI } from './uri.js';
@@ -247,17 +248,31 @@ export class UriIterator implements IKeyIterator<URI> {
 		throw new Error();
 	}
 }
+
+abstract class Undef {
+
+	static readonly Val: unique symbol = Symbol('undefined_placeholder');
+
+	static wrap<V>(value: V | undefined): V | typeof Undef.Val {
+		return value === undefined ? Undef.Val : value;
+	}
+
+	static unwrap<V>(value: V | typeof Undef.Val): V | undefined {
+		return value === Undef.Val ? undefined : value as V;
+	}
+}
+
 class TernarySearchTreeNode<K, V> {
 	height: number = 1;
 	segment!: string;
-	value: V | undefined;
-	key: K | undefined;
-	left: TernarySearchTreeNode<K, V> | undefined;
-	mid: TernarySearchTreeNode<K, V> | undefined;
-	right: TernarySearchTreeNode<K, V> | undefined;
+	value: V | typeof Undef.Val | undefined = undefined;
+	key: K | undefined = undefined;
+	left: TernarySearchTreeNode<K, V> | undefined = undefined;
+	mid: TernarySearchTreeNode<K, V> | undefined = undefined;
+	right: TernarySearchTreeNode<K, V> | undefined = undefined;
 
 	isEmpty(): boolean {
-		return !this.left && !this.mid && !this.right && !this.value;
+		return !this.left && !this.mid && !this.right && this.value === undefined;
 	}
 
 	rotateLeft() {
@@ -401,8 +416,8 @@ export class TernarySearchTree<K, V> {
 		}
 
 		// set value
-		const oldElement = node.value;
-		node.value = element;
+		const oldElement = Undef.unwrap(node.value);
+		node.value = Undef.wrap(element);
 		node.key = key;
 
 		// balance
@@ -462,7 +477,7 @@ export class TernarySearchTree<K, V> {
 	}
 
 	get(key: K): V | undefined {
-		return this._getNode(key)?.value;
+		return Undef.unwrap(this._getNode(key)?.value);
 	}
 
 	private _getNode(key: K) {
@@ -549,13 +564,40 @@ export class TernarySearchTree<K, V> {
 				// full node
 				// replace deleted-node with the min-node of the right branch.
 				// If there is no true min-node leave things as they are
-				const min = this._min(node.right);
+				const stack2: typeof stack = [[Dir.Right, node]];
+				const min = this._min(node.right, stack2);
+
 				if (min.key) {
-					const { key, value, segment } = min;
-					this._delete(min.key, false);
-					node.key = key;
-					node.value = value;
-					node.segment = segment;
+
+					node.key = min.key;
+					node.value = min.value;
+					node.segment = min.segment;
+
+					// remove NODE (inorder successor can only have right child)
+					const newChild = min.right;
+					if (stack2.length > 1) {
+						const [dir, parent] = stack2[stack2.length - 1];
+						switch (dir) {
+							case Dir.Left: parent.left = newChild; break;
+							case Dir.Mid: assert(false);
+							case Dir.Right: assert(false);
+						}
+					} else {
+						node.right = newChild;
+					}
+
+					// balance right branch and UPDATE parent pointer for stack
+					const newChild2 = this._balanceByStack(stack2)!;
+					if (stack.length > 0) {
+						const [dir, parent] = stack[stack.length - 1];
+						switch (dir) {
+							case Dir.Left: parent.left = newChild2; break;
+							case Dir.Mid: parent.mid = newChild2; break;
+							case Dir.Right: parent.right = newChild2; break;
+						}
+					} else {
+						this._root = newChild2;
+					}
 				}
 
 			} else {
@@ -575,6 +617,19 @@ export class TernarySearchTree<K, V> {
 		}
 
 		// AVL balance
+		this._root = this._balanceByStack(stack) ?? this._root;
+	}
+
+	private _min(node: TernarySearchTreeNode<K, V>, stack: [Dir, TernarySearchTreeNode<K, V>][]): TernarySearchTreeNode<K, V> {
+		while (node.left) {
+			stack.push([Dir.Left, node]);
+			node = node.left;
+		}
+		return node;
+	}
+
+	private _balanceByStack(stack: [Dir, TernarySearchTreeNode<K, V>][]) {
+
 		for (let i = stack.length - 1; i >= 0; i--) {
 			const node = stack[i][1];
 
@@ -617,16 +672,11 @@ export class TernarySearchTree<K, V> {
 						break;
 				}
 			} else {
-				this._root = stack[0][1];
+				return stack[0][1];
 			}
 		}
-	}
 
-	private _min(node: TernarySearchTreeNode<K, V>): TernarySearchTreeNode<K, V> {
-		while (node.left) {
-			node = node.left;
-		}
-		return node;
+		return undefined;
 	}
 
 	findSubstr(key: K): V | undefined {
@@ -644,13 +694,13 @@ export class TernarySearchTree<K, V> {
 			} else if (iter.hasNext()) {
 				// mid
 				iter.next();
-				candidate = node.value || candidate;
+				candidate = Undef.unwrap(node.value) || candidate;
 				node = node.mid;
 			} else {
 				break;
 			}
 		}
-		return node && node.value || candidate;
+		return node && Undef.unwrap(node.value) || candidate;
 	}
 
 	findSuperstr(key: K): IterableIterator<[K, V]> | undefined {
@@ -678,7 +728,7 @@ export class TernarySearchTree<K, V> {
 				// collect
 				if (!node.mid) {
 					if (allowValue) {
-						return node.value;
+						return Undef.unwrap(node.value);
 					} else {
 						return undefined;
 					}
@@ -718,8 +768,8 @@ export class TernarySearchTree<K, V> {
 		if (node.left) {
 			this._dfsEntries(node.left, bucket);
 		}
-		if (node.value) {
-			bucket.push([node.key!, node.value]);
+		if (node.value !== undefined) {
+			bucket.push([node.key!, Undef.unwrap(node.value)!]);
 		}
 		if (node.mid) {
 			this._dfsEntries(node.mid, bucket);

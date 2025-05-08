@@ -6,8 +6,8 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IPager } from '../../../../base/common/paging.js';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServer, IResourceExtension, IWorkbenchInstallOptions } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -68,6 +68,7 @@ export interface IExtension {
 	readonly publisherSponsorLink?: URI;
 	readonly pinned: boolean;
 	readonly version: string;
+	readonly private: boolean;
 	readonly latestVersion: string;
 	readonly preRelease: boolean;
 	readonly isPreReleaseVersion: boolean;
@@ -83,6 +84,7 @@ export interface IExtension {
 	readonly installCount?: number;
 	readonly rating?: number;
 	readonly ratingCount?: number;
+	readonly ratingUrl?: string;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
 	readonly runtimeState: ExtensionRuntimeState | undefined;
@@ -102,16 +104,18 @@ export interface IExtension {
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly resourceExtension?: IResourceExtension;
-	readonly isMalicious: boolean;
+	readonly isMalicious: boolean | undefined;
+	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
 }
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
-export interface InstallExtensionOptions extends IWorkbenchInstallOptions {
+export interface InstallExtensionOptions extends InstallOptions {
 	version?: string;
 	justification?: string | { reason: string; action: string };
 	enable?: boolean;
+	installEverywhere?: boolean;
 }
 
 export interface IExtensionsNotification {
@@ -125,7 +129,6 @@ export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IExtension | undefined>;
 	readonly onReset: Event<void>;
-	readonly preferPreReleases: boolean;
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
 	readonly outdated: IExtension[];
@@ -140,10 +143,9 @@ export interface IExtensionsWorkbenchService {
 	install(id: string, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
-	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
+	installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void>;
 	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
-	reinstall(extension: IExtension): Promise<IExtension>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
@@ -263,4 +265,5 @@ export interface IExtensionArg {
 	id: string;
 	version: string;
 	location: URI | undefined;
+	galleryLink: string | undefined;
 }
