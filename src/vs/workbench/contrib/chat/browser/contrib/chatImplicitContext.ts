@@ -33,9 +33,9 @@ import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsColl
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
 
-	private readonly _currentCancelTokenSource;
+	private readonly _currentCancelTokenSource: MutableDisposable<CancellationTokenSource>;
 
-	private _implicitContextEnablement;
+	private _implicitContextEnablement: { [mode: string]: string };
 
 	constructor(
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
