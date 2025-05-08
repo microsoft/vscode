@@ -254,10 +254,6 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
 		this._screenReaderSupport.onConfigurationChanged(e);
 		this._updateDomAttributes();
-		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			// Can not directly write to screen reader content because need the rendering context there, so just setting should render
-			this.setShouldRender();
-		}
 		return true;
 	}
 
@@ -301,7 +297,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public writeScreenReaderContent(): void {
-		this.shouldRender();
+		this._screenReaderSupport.writeScreenReaderContent();
 	}
 
 	public isFocused(): boolean {

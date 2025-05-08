@@ -12,13 +12,13 @@ import * as platform from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
-import { ISimpleScreenReaderContext } from '../../../browser/controller/editContext/screenReaderUtils.js';
-import { TextAreaPagedScreenReaderStrategy, TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
+import { ISimpleModel, PagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
+import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 // To run this test, open imeTester.html
 
-class SingleLineTestModel implements ISimpleScreenReaderContext {
+class SingleLineTestModel implements ISimpleModel {
 
 	private _line: string;
 
@@ -52,10 +52,6 @@ class SingleLineTestModel implements ISimpleScreenReaderContext {
 	}
 
 	getLineCount(): number {
-		return 1;
-	}
-
-	getCharacterCountInRange(range: Range, eol?: EndOfLinePreference): number {
 		return 1;
 	}
 }
@@ -108,7 +104,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	container.appendChild(input);
 
 	const model = new SingleLineTestModel('some  text');
-	const screenReaderStrategy = new TextAreaPagedScreenReaderStrategy();
+
 	const textAreaInputHost: ITextAreaInputHost = {
 		getDataToCopy: () => {
 			return {
@@ -122,7 +118,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			const screenReaderContentState = screenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 			return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {

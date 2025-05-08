@@ -13,11 +13,6 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .native-edit-context > div > span {
-	display: flex;
-	align-items: center;
-}
-
 .monaco-editor .ime-text-area {
 	min-width: 0;
 	min-height: 0;
