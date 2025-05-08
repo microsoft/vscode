@@ -105,6 +105,11 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * The event is fired when lines or their content change.
 	 */
 	private readonly _onUpdate = this._register(new Emitter<void>());
+	/**
+	 * Subscribe to the event that is fired the parser state or contents
+	 * changes, including changes in the possible prompt child references.
+	 */
+	public readonly onUpdate = this._onUpdate.event;
 
 	/**
 	 * Event that is fired when the current prompt parser is settled.
@@ -129,14 +134,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		return disposable;
-	}
-
-	/**
-	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
-	 */
-	public onUpdate(callback: () => void): IDisposable {
-		return this._onUpdate.event(callback);
 	}
 
 	/**
@@ -355,16 +352,17 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
-					this.onReference(FileReference.from(token), [...seenReferences]);
+					this.handleLinkToken(FileReference.from(token), [...seenReferences]);
 				} catch (error) {
-					// no-op
+					// the `FileReference.from` call might throw if the `PromptVariableWithData` token
+					// can not be converted into a valid `#file` reference, hence we ignore the error
 				}
 			}
 
 			// note! the `isURL` is a simple check and needs to be improved to truly
 			// 		 handle only file references, ignoring broken URLs or references
 			if (token instanceof MarkdownLink && !token.isURL) {
-				this.onReference(token, [...seenReferences]);
+				this.handleLinkToken(token, [...seenReferences]);
 			}
 		});
 
@@ -384,7 +382,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Handle a new reference token inside prompt contents.
 	 */
-	private onReference(
+	private handleLinkToken(
 		token: FileReference | MarkdownLink,
 		seenReferences: string[],
 	): this {
