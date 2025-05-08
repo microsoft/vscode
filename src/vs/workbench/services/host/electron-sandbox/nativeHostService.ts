@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHostService } from '../browser/host.js';
-import { IElementData, INativeHostService } from '../../../../platform/native/common/native.js';
+import { FocusMode, IElementData, INativeHostService } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -170,10 +170,9 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Lifecycle
 
-	focus(targetWindow: Window, options?: { force?: boolean; notify?: boolean }): Promise<void> {
+	focus(targetWindow: Window, options?: { mode?: FocusMode }): Promise<void> {
 		return this.nativeHostService.focusWindow({
-			force: options?.force,
-			notify: options?.notify,
+			mode: options?.mode,
 			targetWindowId: getWindowId(targetWindow)
 		});
 	}

@@ -45,6 +45,8 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
+import { FocusMode } from '../../native/common/native.js';
+import { assertNever } from '../../../base/common/assert.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -287,22 +289,35 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return !!this.documentEdited;
 	}
 
-	focus(options?: { force: boolean; notify: boolean }): void {
+	focus(options?: { mode: FocusMode }): void {
 		const hasAnyFocusedWindow = electron.BrowserWindow.getAllWindows().some(w => w.isFocused());
+		const mode = options?.mode ?? FocusMode.Transfer;
 
-		if (hasAnyFocusedWindow) {
-			this.doFocusWindow();
-		} else if (options?.notify) {
-			if (isMacintosh) {
-				electron.app.dock.bounce('informational');
-			} else if (isWindows) {
-				// On Windows, this just flashes the taskbar icon, which is desired
-				// https://github.com/electron/electron/issues/2867
-				this.win?.focus();
-			}
-		} else if (options?.force) {
-			electron.app.focus({ steal: true });
-			this.doFocusWindow();
+		switch (mode) {
+			case FocusMode.Transfer:
+				if (hasAnyFocusedWindow) {
+					this._win?.focus();
+				}
+				break;
+
+			case FocusMode.Notify:
+				if (isMacintosh) {
+					electron.app.dock.bounce('informational');
+				} else if (isWindows) {
+					// On Windows, this just flashes the taskbar icon, which is desired
+					// https://github.com/electron/electron/issues/2867
+					this.win?.focus();
+				}
+				break;
+
+			case FocusMode.Force:
+				electron.app.focus({ steal: true });
+				this.doFocusWindow();
+				break;
+
+			default:
+				assertNever(mode);
+
 		}
 	}
 
@@ -1069,7 +1084,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
-					this.focus({ force: true, notify: false });
+					this.focus({ mode: FocusMode.Force });
 					this._win.webContents.openDevTools();
 				}
 			}, 10000)).schedule();

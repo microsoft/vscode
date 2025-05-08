@@ -39,6 +39,18 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
+export const enum FocusMode {
+	/** (Default) Transfer focus to the target window when if the editor is focused */
+	Transfer,
+	/**
+	 * Transfer focus to the target window when if the editor is focused,
+	 * otherwise notify the user that the app has activity (macOS/Windows only)
+	 */
+	Notify,
+	/** Force the window to be focused, even if the editor is not currently focused */
+	Force,
+}
+
 export interface IElementData {
 	readonly outerHTML: string;
 	readonly computedStyle: string;
@@ -117,17 +129,10 @@ export interface ICommonNativeHostService {
 
 	/**
 	 * Make the window focused.
-	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode.
-	 *
-	 * Pass `notify: true` if you want to notify the user that the window is
-	 * active without bringing it to the foreground. In macOS, this makes the
-	 * icon bounce, and on Windows it flashes the taskbar icon.
+	 * @param options specify the specific window to focus and the focus mode.
+	 * Defaults to {@link FocusMode.Transfer}.
 	 */
-	focusWindow(options?: INativeHostOptions & { notify?: boolean; force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeHostOptions & { mode?: FocusMode }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
