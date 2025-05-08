@@ -23,7 +23,7 @@ export class ProcessMainService implements IProcessService {
 	) {
 	}
 
-	async resolve(): Promise<IResolvedProcessInformation> {
+	async resolveProcesses(): Promise<IResolvedProcessInformation> {
 		const mainProcessInfo = await this.diagnosticsMainService.getMainDiagnostics();
 
 		const pidToNames: [number, string][] = [];

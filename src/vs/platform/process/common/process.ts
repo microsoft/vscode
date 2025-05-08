@@ -33,14 +33,17 @@ export const IProcessService = createDecorator<IProcessService>('processService'
 
 export interface IResolvedProcessInformation {
 	readonly pidToNames: [number, string][];
-	readonly processes: { name: string; rootProcess: ProcessItem | IRemoteDiagnosticError }[];
+	readonly processes: {
+		readonly name: string;
+		readonly rootProcess: ProcessItem | IRemoteDiagnosticError;
+	}[];
 }
 
 export interface IProcessService {
 
 	readonly _serviceBrand: undefined;
 
-	resolve(): Promise<IResolvedProcessInformation>;
+	resolveProcesses(): Promise<IResolvedProcessInformation>;
 
 	getSystemStatus(): Promise<string>;
 	getSystemInfo(): Promise<SystemInfo>;
