@@ -34,16 +34,16 @@ export class ExtHostSearch implements IExtHostSearch {
 	protected readonly _proxy: MainThreadSearchShape;
 	protected _handlePool: number;
 
-	private readonly _textSearchProvider;
-	private readonly _textSearchUsedSchemes;
+	private readonly _textSearchProvider: Map<number, vscode.TextSearchProvider2>;
+	private readonly _textSearchUsedSchemes: Set<string>;
 
-	private readonly _aiTextSearchProvider;
-	private readonly _aiTextSearchUsedSchemes;
+	private readonly _aiTextSearchProvider: Map<number, vscode.AITextSearchProvider>;
+	private readonly _aiTextSearchUsedSchemes: Set<string>;
 
-	private readonly _fileSearchProvider;
-	private readonly _fileSearchUsedSchemes;
+	private readonly _fileSearchProvider: Map<number, vscode.FileSearchProvider2>;
+	private readonly _fileSearchUsedSchemes: Set<string>;
 
-	private readonly _fileSearchManager;
+	private readonly _fileSearchManager: FileSearchManager;
 
 	constructor(
 		@IExtHostRpcService private extHostRpc: IExtHostRpcService,
@@ -229,4 +229,3 @@ export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTex
 function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
 	return revive(rawFolderQuery);
 }
-
