@@ -365,7 +365,7 @@ function camelCaseToHyphenCase(str: string) {
 }
 
 function isObservable<T>(obj: unknown): obj is IObservable<T> {
-	return !!obj && (<IObservable<T>>obj)?.read !== undefined && (<IObservable<T>>obj)?.reportChanges !== undefined;
+	return !!obj && (<IObservable<T>>obj).read !== undefined && (<IObservable<T>>obj).reportChanges !== undefined;
 }
 
 type ElementAttributeKeys<T> = Partial<{
