@@ -830,7 +830,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					version: this.productService.version,
 					date: this.productService.date
 				},
-				version: extensionInfo.preRelease ? VersionKind.Prerelease : VersionKind.Release
+				version: extensionInfo.preRelease ? VersionKind.Latest : VersionKind.Release
 			}, allTargetPlatforms);
 
 		if (rawGalleryExtensionVersion) {
@@ -1478,13 +1478,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		catch (error) {
 			if (isCancellationError(error)) {
 				errorCode = ExtensionGalleryErrorCode.Cancelled;
-			} else {
-				const errorMessage = getErrorMessage(error);
-				errorCode = isOfflineError(error)
-					? ExtensionGalleryErrorCode.Offline
-					: errorMessage.startsWith('XHR timeout')
-						? ExtensionGalleryErrorCode.Timeout
-						: ExtensionGalleryErrorCode.Failed;
+			} else if (isOfflineError(error)) {
+				errorCode = ExtensionGalleryErrorCode.Offline;
+			} else if (getErrorMessage(error).startsWith('XHR timeout')) {
+				errorCode = ExtensionGalleryErrorCode.Timeout;
+			} else if (!errorCode) {
+				errorCode = ExtensionGalleryErrorCode.Failed;
 			}
 			throw error;
 		}
