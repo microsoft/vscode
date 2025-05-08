@@ -138,15 +138,6 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
-				fileContentMapper: filePath => {
-					if (filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js')) {
-						return async (content) => {
-							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
-							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
-						};
-					}
-					return undefined;
-				},
 				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-sandbox/workbench/workbench'
 			}
 		}
