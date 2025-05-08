@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/KapitanOczywisty/language-php/commit/5e8f000cb5a20f44f7a7a89d07ad0774031c53f3",
+	"version": "https://github.com/KapitanOczywisty/language-php/commit/b17fdadac1756fc13a0853c26fca2f0b4495c0bd",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -698,12 +698,12 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"begin": "(?xi)\n((?:(?:public|private|protected|readonly)(?:\\s+|(?=\\?)))++)\n(?: (\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n) \\s+ )?\n((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference",
+					"begin": "(?xi)\n((?:(?:(?:public|private|protected)(?:\\(set\\))?|readonly)(?:\\s+|(?=\\?)))++)\n(?: (\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n) \\s+ )?\n((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "public|private|protected|readonly",
+									"match": "(?:public|private|protected)(?:\\(set\\))?|readonly",
 									"name": "storage.modifier.php"
 								}
 							]
@@ -809,12 +809,12 @@
 			]
 		},
 		{
-			"match": "(?xi)\n((?:(?:public|private|protected|static|readonly)(?:\\s+|(?=\\?)))++)                     # At least one modifier\n(\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n)?\n\\s+ ((\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)          # Variable name",
+			"match": "(?xi)\n((?:(?:(?:public|private|protected)(?:\\(set\\))?|static|readonly)(?:\\s+|(?=\\?)))++)                     # At least one modifier\n(\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n)?\n\\s+ ((\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)          # Variable name",
 			"captures": {
 				"1": {
 					"patterns": [
 						{
-							"match": "public|private|protected|static|readonly",
+							"match": "(?:public|private|protected)(?:\\(set\\))?|static|readonly",
 							"name": "storage.modifier.php"
 						}
 					]
@@ -903,7 +903,11 @@
 			"name": "storage.type.php"
 		},
 		{
-			"match": "(?i)\\b(global|abstract|const|final|private|protected|public|static)\\b",
+			"match": "(?i)\\bconst\\b",
+			"name": "storage.type.const.php"
+		},
+		{
+			"match": "(?i)\\b(global|abstract|final|private|protected|public|static)\\b",
 			"name": "storage.modifier.php"
 		},
 		{
@@ -1025,7 +1029,7 @@
 					"name": "entity.name.goto-label.php"
 				}
 			},
-			"match": "(?i)^\\s*([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*(?<!default))\\s*:(?!:)"
+			"match": "(?i)^\\s*([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*(?<!default|else))\\s*:(?!:)"
 		},
 		{
 			"include": "#string-backtick"
@@ -1122,7 +1126,7 @@
 					]
 				},
 				{
-					"match": "(?xi)\n(\\\\)?\\b(Attribute|SensitiveParameter|AllowDynamicProperties|ReturnTypeWillChange)\\b",
+					"match": "(?xi)\n(\\\\)?\\b(\n  Attribute|SensitiveParameter|AllowDynamicProperties|ReturnTypeWillChange\n  |Override|Deprecated\n)\\b",
 					"name": "support.attribute.builtin.php",
 					"captures": {
 						"1": {
@@ -1192,7 +1196,7 @@
 		"class-builtin": {
 			"patterns": [
 				{
-					"match": "(?xi)\n(\\\\)?\\b\n(Attribute|(APC|Append)Iterator|Array(Access|Iterator|Object)\n|Bad(Function|Method)CallException\n|(Caching|CallbackFilter)Iterator|Collator|Collectable|Cond|Countable|CURLFile\n|Date(Interval|Period|Time(Interface|Immutable|Zone)?)?|Directory(Iterator)?|DomainException\n|DOM(Attr|CdataSection|CharacterData|Comment|Document(Fragment)?|Element|EntityReference\n    |Implementation|NamedNodeMap|Node(list)?|ProcessingInstruction|Text|XPath)\n|(Error)?Exception|EmptyIterator\n|finfo\n|Ev(Check|Child|Embed|Fork|Idle|Io|Loop|Periodic|Prepare|Signal|Stat|Timer|Watcher)?\n|Event(Base|Buffer(Event)?|SslContext|Http(Request|Connection)?|Config|DnsBase|Util|Listener)?\n|FANNConnection|(Filter|Filesystem)Iterator\n|Gender\\\\Gender|GlobIterator|Gmagick(Draw|Pixel)?\n|Haru(Annotation|Destination|Doc|Encoder|Font|Image|Outline|Page)\n|Http((Inflate|Deflate)?Stream|Message|Request(Pool)?|Response|QueryString)\n|HRTime\\\\(PerformanceCounter|StopWatch)\n|Intl(Calendar|((CodePoint|RuleBased)?Break|Parts)?Iterator|DateFormatter|TimeZone)\n|Imagick(Draw|Pixel(Iterator)?)?\n|InfiniteIterator|InvalidArgumentException|Iterator(Aggregate|Iterator)?\n|JsonSerializable\n|KTaglib_(MPEG_(File|AudioProperties)|Tag|ID3v2_(Tag|(AttachedPicture)?Frame))\n|Lapack|(Length|Locale|Logic)Exception|LimitIterator|Lua(Closure)?\n|Mongo(BinData|Client|Code|Collection|CommandCursor|Cursor(Exception)?|Date|DB(Ref)?|DeleteBatch\n      |Grid(FS(Cursor|File)?)|Id|InsertBatch|Int(32|64)|Log|Pool|Regex|ResultException|Timestamp\n      |UpdateBatch|Write(Batch|ConcernException))?\n|Memcache(d)?|MessageFormatter|MultipleIterator|Mutex\n|mysqli(_(driver|stmt|warning|result))?\n|MysqlndUh(Connection|PreparedStatement)\n|NoRewindIterator|Normalizer|NumberFormatter\n|OCI-(Collection|Lob)|OuterIterator|(OutOf(Bounds|Range)|Overflow)Exception\n|ParentIterator|PDO(Statement)?|Phar(Data|FileInfo)?|php_user_filter|Pool\n|QuickHash(Int(Set|StringHash)|StringIntHash)\n|Recursive(Array|Caching|Directory|Fallback|Filter|Iterator|Regex|Tree)?Iterator\n|Reflection(Class|Function(Abstract)?|Method|Object|Parameter|Property|(Zend)?Extension)?\n|RangeException|Reflector|RegexIterator|ResourceBundle|RuntimeException|RRD(Creator|Graph|Updater)\n|SAM(Connection|Message)|SCA(_(SoapProxy|LocalProxy))?\n|SDO_(DAS_(ChangeSummary|Data(Factory|Object)|Relational|Setting|XML(_Document)?)\n     |Data(Factory|Object)|Exception|List|Model_(Property|ReflectionDataObject|Type)|Sequence)\n|SeekableIterator|Serializable|SessionHandler(Interface)?|SimpleXML(Iterator|Element)|SNMP\n|Soap(Client|Fault|Header|Param|Server|Var)\n|SphinxClient|Spoofchecker\n|Spl(DoublyLinkedList|Enum|File(Info|Object)|FixedArray|(Max|Min)?Heap|Observer|ObjectStorage\n    |(Priority)?Queue|Stack|Subject|Type|TempFileObject)\n|SQLite(3(Result|Stmt)?|Database|Result|Unbuffered)\n|stdClass|streamWrapper|SVM(Model)?|Swish(Result(s)?|Search)?|Sync(Event|Mutex|ReaderWriter|Semaphore)\n|Thread(ed)?|tidy(Node)?|TokyoTyrant(Table|Iterator|Query)?|Transliterator|Traversable\n|UConverter|(Underflow|UnexpectedValue)Exception\n|V8Js(Exception)?|Varnish(Admin|Log|Stat)\n|Worker|Weak(Map|Ref)\n|XML(Diff\\\\(Base|DOM|File|Memory)|Reader|Writer)|XsltProcessor\n|Yaf_(Route_(Interface|Map|Regex|Rewrite|Simple|Supervar)\n     |Action_Abstract|Application|Config_(Simple|Ini|Abstract)|Controller_Abstract\n     |Dispatcher|Exception|Loader|Plugin_Abstract|Registry|Request_(Abstract|Simple|Http)\n     |Response_Abstract|Router|Session|View_(Simple|Interface))\n|Yar_(Client(_Exception)?|Concurrent_Client|Server(_Exception)?)\n|ZipArchive|ZMQ(Context|Device|Poll|Socket)?)\n\\b",
+					"match": "(?xi)\n(\\\\)?\\b\n(Attribute|(APC|Append)Iterator|Array(Access|Iterator|Object)\n|Bad(Function|Method)CallException\n|(Caching|CallbackFilter)Iterator|Collator|Collectable|Cond|Countable|CURLFile\n|Date(Interval|Period|Time(Interface|Immutable|Zone)?)?|Directory(Iterator)?|DomainException\n|DOM(Attr|CdataSection|CharacterData|Comment|Document(Fragment)?|Element|EntityReference\n    |Implementation|NamedNodeMap|Node(list)?|ProcessingInstruction|Text|XPath)\n|(Error)?Exception|EmptyIterator\n|finfo\n|Ev(Check|Child|Embed|Fork|Idle|Io|Loop|Periodic|Prepare|Signal|Stat|Timer|Watcher)?\n|Event(Base|Buffer(Event)?|SslContext|Http(Request|Connection)?|Config|DnsBase|Util|Listener)?\n|FANNConnection|(Filter|Filesystem)Iterator\n|Gender\\\\Gender|GlobIterator|Gmagick(Draw|Pixel)?\n|Haru(Annotation|Destination|Doc|Encoder|Font|Image|Outline|Page)\n|Http((Inflate|Deflate)?Stream|Message|Request(Pool)?|Response|QueryString)\n|HRTime\\\\(PerformanceCounter|StopWatch)\n|Intl(Calendar|((CodePoint|RuleBased)?Break|Parts)?Iterator|DateFormatter|TimeZone)\n|Imagick(Draw|Pixel(Iterator)?)?\n|InfiniteIterator|InvalidArgumentException|Iterator(Aggregate|Iterator)?\n|JsonSerializable\n|KTaglib_(MPEG_(File|AudioProperties)|Tag|ID3v2_(Tag|(AttachedPicture)?Frame))\n|Lapack|(Length|Locale|Logic)Exception|LimitIterator|Lua(Closure)?\n|Mongo(BinData|Client|Code|Collection|CommandCursor|Cursor(Exception)?|Date|DB(Ref)?|DeleteBatch\n      |Grid(FS(Cursor|File)?)|Id|InsertBatch|Int(32|64)|Log|Pool|Regex|ResultException|Timestamp\n      |UpdateBatch|Write(Batch|ConcernException))?\n|Memcache(d)?|MessageFormatter|MultipleIterator|Mutex\n|mysqli(_(driver|stmt|warning|result))?\n|MysqlndUh(Connection|PreparedStatement)\n|NoRewindIterator|Normalizer|NumberFormatter\n|OCI-(Collection|Lob)|OuterIterator|(OutOf(Bounds|Range)|Overflow)Exception\n|ParentIterator|PDO(Statement)?|Phar(Data|FileInfo)?|php_user_filter|Pool\n|QuickHash(Int(Set|StringHash)|StringIntHash)\n|Recursive(Array|Caching|Directory|Fallback|Filter|Iterator|Regex|Tree)?Iterator\n|Reflection(Attribute|Class(Constant)?|Constant|Enum(UnitCase|BackedCase)?\n  |Fiber|Function(Abstract)?|Generator|(Named|Union|Intersection)?Type\n  |Method|Object|Parameter|Property|Reference|(Zend)?Extension)?\n|RangeException|Reflector|RegexIterator|ResourceBundle|RuntimeException|RRD(Creator|Graph|Updater)\n|SAM(Connection|Message)|SCA(_(SoapProxy|LocalProxy))?\n|SDO_(DAS_(ChangeSummary|Data(Factory|Object)|Relational|Setting|XML(_Document)?)\n     |Data(Factory|Object)|Exception|List|Model_(Property|ReflectionDataObject|Type)|Sequence)\n|SeekableIterator|Serializable|SessionHandler(Interface)?|SimpleXML(Iterator|Element)|SNMP\n|Soap(Client|Fault|Header|Param|Server|Var)\n|SphinxClient|Spoofchecker\n|Spl(DoublyLinkedList|Enum|File(Info|Object)|FixedArray|(Max|Min)?Heap|Observer|ObjectStorage\n    |(Priority)?Queue|Stack|Subject|Type|TempFileObject)\n|SQLite(3(Result|Stmt)?|Database|Result|Unbuffered)\n|stdClass|streamWrapper|SVM(Model)?|Swish(Result(s)?|Search)?|Sync(Event|Mutex|ReaderWriter|Semaphore)\n|Thread(ed)?|tidy(Node)?|TokyoTyrant(Table|Iterator|Query)?|Transliterator|Traversable\n|UConverter|(Underflow|UnexpectedValue)Exception\n|V8Js(Exception)?|Varnish(Admin|Log|Stat)\n|Worker|Weak(Map|Ref)\n|XML(Diff\\\\(Base|DOM|File|Memory)|Reader|Writer)|XsltProcessor\n|Yaf_(Route_(Interface|Map|Regex|Rewrite|Simple|Supervar)\n     |Action_Abstract|Application|Config_(Simple|Ini|Abstract)|Controller_Abstract\n     |Dispatcher|Exception|Loader|Plugin_Abstract|Registry|Request_(Abstract|Simple|Http)\n     |Response_Abstract|Router|Session|View_(Simple|Interface))\n|Yar_(Client(_Exception)?|Concurrent_Client|Server(_Exception)?)\n|ZipArchive|ZMQ(Context|Device|Poll|Socket)?)\n\\b",
 					"name": "support.class.builtin.php",
 					"captures": {
 						"1": {
@@ -1339,12 +1343,19 @@
 		"class-constant": {
 			"patterns": [
 				{
-					"match": "(?i)\\b(const)\\s*([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)",
+					"match": "(?xi)\n\\b (const) \\s+\n(?: (\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n) \\s+ )?\n([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)",
 					"captures": {
 						"1": {
-							"name": "storage.modifier.php"
+							"name": "storage.type.const.php"
 						},
 						"2": {
+							"patterns": [
+								{
+									"include": "#php-types"
+								}
+							]
+						},
+						"3": {
 							"name": "constant.other.php"
 						}
 					}
@@ -2402,23 +2413,68 @@
 			]
 		},
 		"instantiation": {
-			"begin": "(?i)(new)\\s+(?!class\\b)",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.other.new.php"
-				}
-			},
-			"end": "(?i)(?=[^a-z0-9_\\x{7f}-\\x{10ffff}\\\\])",
 			"patterns": [
 				{
-					"match": "(?i)(parent|static|self)(?![a-z0-9_\\x{7f}-\\x{10ffff}])",
-					"name": "storage.type.php"
+					"match": "(?i)(new)\\s+(?!class\\b)([$a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)(?![a-z0-9_\\x{7f}-\\x{10ffff}\\\\(])",
+					"captures": {
+						"1": {
+							"name": "keyword.other.new.php"
+						},
+						"2": {
+							"patterns": [
+								{
+									"match": "(?i)(parent|static|self)(?![a-z0-9_\\x{7f}-\\x{10ffff}])",
+									"name": "storage.type.php"
+								},
+								{
+									"include": "#class-name"
+								},
+								{
+									"include": "#variable-name"
+								}
+							]
+						}
+					}
 				},
 				{
-					"include": "#class-name"
-				},
-				{
-					"include": "#variable-name"
+					"begin": "(?i)(new)\\s+(?!class\\b)([$a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.new.php"
+						},
+						"2": {
+							"patterns": [
+								{
+									"match": "(?i)(parent|static|self)(?![a-z0-9_\\x{7f}-\\x{10ffff}])",
+									"name": "storage.type.php"
+								},
+								{
+									"include": "#class-name"
+								},
+								{
+									"include": "#variable-name"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.begin.bracket.round.php"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.arguments.end.bracket.round.php"
+						}
+					},
+					"contentName": "meta.function-call.php",
+					"patterns": [
+						{
+							"include": "#named-arguments"
+						},
+						{
+							"include": "$self"
+						}
+					]
 				}
 			]
 		},
@@ -2784,6 +2840,10 @@
 						},
 						{
 							"include": "#php_doc_types"
+						},
+						{
+							"match": "[|&]",
+							"name": "punctuation.separator.delimiter.php"
 						}
 					]
 				},
@@ -2803,7 +2863,7 @@
 			]
 		},
 		"php_doc_types": {
-			"match": "(?i)\\??[a-z_\\x{7f}-\\x{10ffff}\\\\][a-z0-9_\\x{7f}-\\x{10ffff}\\\\]*([|&]\\??[a-z_\\x{7f}-\\x{10ffff}\\\\][a-z0-9_\\x{7f}-\\x{10ffff}\\\\]*)*",
+			"match": "(?i)\\??[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+([|&]\\??[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)*",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -2821,14 +2881,6 @@
 						{
 							"match": "[|&]",
 							"name": "punctuation.separator.delimiter.php"
-						},
-						{
-							"match": "\\(",
-							"name": "punctuation.definition.type.begin.bracket.round.php"
-						},
-						{
-							"match": "\\)",
-							"name": "punctuation.definition.type.end.bracket.round.php"
 						}
 					]
 				}
@@ -2841,7 +2893,7 @@
 					"name": "punctuation.definition.type.begin.bracket.round.phpdoc.php"
 				}
 			},
-			"end": "(\\))(\\[\\])|(?=\\*/)",
+			"end": "(\\))(\\[\\])?|(?=\\*/)",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.type.end.bracket.round.phpdoc.php"
@@ -2867,7 +2919,7 @@
 			]
 		},
 		"php_doc_types_array_single": {
-			"match": "(?i)([a-z_\\x{7f}-\\x{10ffff}\\\\][a-z0-9_\\x{7f}-\\x{10ffff}\\\\]*)(\\[\\])",
+			"match": "(?i)([a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)(\\[\\])",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -3285,15 +3337,15 @@
 					"name": "support.function.apc.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  shuffle|sizeof|sort|next|nat(case)?sort|count|compact|current|in_array|usort|uksort|uasort|\n  pos|prev|end|each|extract|ksort|key(_exists)?|krsort|list|asort|arsort|rsort|reset|range|\n  array(_(shift|sum|splice|search|slice|chunk|change_key_case|count_values|column|combine|\n          (diff|intersect)(_(u)?(key|assoc))?|u(diff|intersect)(_(u)?assoc)?|unshift|unique|\n          pop|push|pad|product|values|keys|key_exists|filter|fill(_keys)?|flip|walk(_recursive)?|\n          reduce|replace(_recursive)?|reverse|rand|multisort|merge(_recursive)?|map)?)\n)\\b",
+					"match": "(?xi)\\b\n(\n  compact|count|current|end|extract|in_array|key(_exists)?|list|nat(case)?sort|\n  next|pos|prev|range|reset|shuffle|sizeof|[ak]?r?sort|u[ak]?sort|\n  array_(\n    all|any|change_key_case|chunk|column|combine|count_values|\n    fill(_keys)?|filter|find(_key)?|flip|is_list|key_(exists|first|last)|keys|\n    map|multisort|pad|pop|product|push|rand|reduce|reverse|\n    search|shift|slice|splice|sum|unique|unshift|values|\n    u?(diff|intersect)(_u?(key|assoc))?|(walk|replace|merge)(_recursive)?\n  )\n)\\b",
 					"name": "support.function.array.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  show_source|sys_getloadavg|sleep|highlight_(file|string)|constant|connection_(aborted|status)|\n  time_(nanosleep|sleep_until)|ignore_user_abort|die|define(d)?|usleep|uniqid|unpack|__halt_compiler|\n  php_(check_syntax|strip_whitespace)|pack|eval|exit|get_browser\n)\\b",
+					"match": "(?xi)\\b\n(\n  connection_(aborted|status)|constant|defined?|die|eval|exit|get_browser|\n  __halt_compiler|highlight_(file|string)|hrtime|ignore_user_abort|pack|php_strip_whitespace|\n  show_source|u?sleep|sys_getloadavg|time_(nanosleep|sleep_until)|uniqid|unpack\n)\\b",
 					"name": "support.function.basic_functions.php"
 				},
 				{
-					"match": "(?i)\\bbc(scale|sub|sqrt|comp|div|pow(mod)?|add|mod|mul)\\b",
+					"match": "(?i)\\bbc(add|ceil|comp|(div|pow)(mod)?|floor|mod|mul|round|scale|sqrt|sub)\\b",
 					"name": "support.function.bcmath.php"
 				},
 				{
@@ -3309,7 +3361,7 @@
 					"name": "support.function.calendar.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  class_alias|all_user_method(_array)?|is_(a|subclass_of)|__autoload|(class|interface|method|property|trait)_exists|\n  get_(class(_(vars|methods))?|(called|parent)_class|object_vars|declared_(classes|interfaces|traits))\n)\\b",
+					"match": "(?xi)\\b\n(\n  __autoload|class_alias|(class|interface|method|property|trait|enum)_exists|\n  is_(a|subclass_of)|\n  get_(class(_(vars|methods))?|(called|parent)_class|\n    (mangled_)?object_vars|declared_(classes|interfaces|traits))\n)\\b",
 					"name": "support.function.classobj.php"
 				},
 				{
@@ -3329,11 +3381,11 @@
 					"name": "support.function.ctype.php"
 				},
 				{
-					"match": "(?xi)\\b\ncurl_(\n  share_(close|init|setopt)|strerror|setopt(_array)?|copy_handle|close|init|unescape|pause|escape|\n  errno|error|exec|version|file_create|reset|getinfo|\n  multi_(strerror|setopt|select|close|init|info_read|(add|remove)_handle|getcontent|exec)\n)\\b",
+					"match": "(?xi)\\b\ncurl_(\n  close|copy_handle|errno|error|escape|exec|getinfo|init|pause|reset|\nsetopt(_array)?|strerror|unescape|upkeep|version|\n  multi_((add|remove)_handle|close|errno|exec|getcontent|\n    info_read|init|select|setopt|strerror)|\n  share_(close|errno|init(_persistent)?|setopt|strerror)\n)\\b",
 					"name": "support.function.curl.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  strtotime|str[fp]time|checkdate|time|timezone_name_(from_abbr|get)|idate|\n  timezone_((location|offset|transitions|version)_get|(abbreviations|identifiers)_list|open)|\n  date(_(sun(rise|set)|sun_info|sub|create(_(immutable_)?from_format)?|timestamp_(get|set)|timezone_(get|set)|time_set|\n         isodate_set|interval_(create_from_date_string|format)|offset_get|diff|default_timezone_(get|set)|date_set|\n         parse(_from_format)?|format|add|get_last_errors|modify))?|\n  localtime|get(date|timeofday)|gm(strftime|date|mktime)|microtime|mktime\n)\\b",
+					"match": "(?xi)\\b\n(\n  strtotime|str[fp]time|checkdate|time|timezone_name_(from_abbr|get)|idate|\n  timezone_((location|offset|transitions|version)_get|(abbreviations|identifiers)_list|open)|\n  date(_(sun(rise|set)|sun_info|sub|create(_immutable)?(_from_format)?|timestamp_[gs]et|timezone_[gs]et|time_set|\n         isodate_set|interval_(create_from_date_string|format)|offset_get|diff|default_timezone_[gs]et|date_set|\n         parse(_from_format)?|format|add|get_last_errors|modify))?|\n  localtime|get(date|timeofday)|gm(strftime|date|mktime)|microtime|mktime\n)\\b",
 					"name": "support.function.datetime.php"
 				},
 				{
@@ -3361,7 +3413,7 @@
 					"name": "support.function.ereg.php"
 				},
 				{
-					"match": "(?i)\\b((restore|set)_(error_handler|exception_handler)|trigger_error|debug_(print_)?backtrace|user_error|error_(log|reporting|get_last))\\b",
+					"match": "(?i)\\b((restore|set)_(error|exception)_handler|trigger_error|debug_(print_)?backtrace|user_error|error_(log|reporting|(clear|get)_last))\\b",
 					"name": "support.function.errorfunc.php"
 				},
 				{
@@ -3377,7 +3429,7 @@
 					"name": "support.function.fann.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  symlink|stat|set_file_buffer|chown|chgrp|chmod|copy|clearstatcache|touch|tempnam|tmpfile|\n  is_(dir|(uploaded_)?file|executable|link|readable|writ(e)?able)|disk_(free|total)_space|diskfreespace|\n  dirname|delete|unlink|umask|pclose|popen|pathinfo|parse_ini_(file|string)|fscanf|fstat|fseek|fnmatch|\n  fclose|ftell|ftruncate|file(size|[acm]time|type|inode|owner|perms|group)?|file_(exists|(get|put)_contents)|\n  f(open|puts|putcsv|passthru|eof|flush|write|lock|read|gets(s)?|getc(sv)?)|lstat|lchown|lchgrp|link(info)?|\n  rename|rewind|read(file|link)|realpath(_cache_(get|size))?|rmdir|glob|move_uploaded_file|mkdir|basename\n)\\b",
+					"match": "(?xi)\\b\n(\n  symlink|stat|set_file_buffer|chown|chgrp|chmod|copy|clearstatcache|touch|tempnam|tmpfile|\n  is_(dir|(uploaded_)?file|executable|link|readable|writ(e)?able)|disk_(free|total)_space|diskfreespace|\n  dirname|delete|unlink|umask|pclose|popen|pathinfo|parse_ini_(file|string)|fscanf|fstat|fseek|fnmatch|\n  fclose|ftell|ftruncate|file(size|[acm]time|type|inode|owner|perms|group)?|file_(exists|(get|put)_contents)|\n  f(open|puts|putcsv|passthru|eof|flush|write|lock|read|gets(s)?|getc(sv)?)|lstat|lchown|lchgrp|link(info)?|\n  rename|rewind|read(file|link)|realpath(_cache_(get|size))?|rmdir|glob|move_uploaded_file|mkdir|basename|\n  f(data)?sync\n)\\b",
 					"name": "support.function.file.php"
 				},
 				{
@@ -3389,7 +3441,7 @@
 					"name": "support.function.filter.php"
 				},
 				{
-					"match": "(?i)\\bfastcgi_finish_request\\b",
+					"match": "(?i)\\b(fastcgi_finish_request|fpm_get_status)\\b",
 					"name": "support.function.fpm.php"
 				},
 				{
@@ -3401,11 +3453,11 @@
 					"name": "support.function.gettext.php"
 				},
 				{
-					"match": "(?xi)\\b\ngmp_(\n  scan[01]|strval|sign|sub|setbit|sqrt(rem)?|hamdist|neg|nextprime|com|clrbit|cmp|testbit|\n  intval|init|invert|import|or|div(exact)?|div_(q|qr|r)|jacobi|popcount|pow(m)?|perfect_square|\n  prob_prime|export|fact|legendre|and|add|abs|root(rem)?|random(_(bits|range))?|gcd(ext)?|xor|mod|mul\n)\\b",
+					"match": "(?xi)\\b\ngmp_(\n  scan[01]|strval|sign|sub|setbit|sqrt(rem)?|hamdist|neg|nextprime|com|clrbit|cmp|testbit|\n  intval|init|invert|import|or|div(exact)?|div_(q|qr|r)|jacobi|popcount|pow(m)?|perfect_(square|power)|\n  prob_prime|export|fact|legendre|and|add|abs|root(rem)?|random(_(bits|range|seed))?|gcd(ext)?|xor|mod|mul|\n  binomial|kronecker|lcm\n)\\b",
 					"name": "support.function.gmp.php"
 				},
 				{
-					"match": "(?i)\\bhash(_(hmac(_file)?|copy|init|update(_(file|stream))?|pbkdf2|equals|file|final|algos))?\\b",
+					"match": "(?xi)\\b hash(_( algos|copy|equals|file|final|hkdf|hmac(_(file|algos)?)?| init|pbkdf2|update(_(file|stream))? ))? \\b",
 					"name": "support.function.hash.php"
 				},
 				{
@@ -3413,7 +3465,7 @@
 					"name": "support.function.http.php"
 				},
 				{
-					"match": "(?i)\\b(iconv(_(str(pos|len|rpos)|substr|(get|set)_encoding|mime_(decode(_headers)?|encode)))?|ob_iconv_handler)\\b",
+					"match": "(?i)\\b(iconv(_(str(pos|len|rpos)|substr|[gs]et_encoding|mime_(decode(_headers)?|encode)))?|ob_iconv_handler)\\b",
 					"name": "support.function.iconv.php"
 				},
 				{
@@ -3421,11 +3473,11 @@
 					"name": "support.function.iisfunc.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  iptc(embed|parse)|(jpeg|png)2wbmp|gd_info|getimagesize(fromstring)?|\n  image(s[xy]|scale|(char|string)(up)?|set(style|thickness|tile|interpolation|pixel|brush)|savealpha|\n        convolution|copy(resampled|resized|merge(gray)?)?|colors(forindex|total)|\n        color(set|closest(alpha|hwb)?|transparent|deallocate|(allocate|exact|resolve)(alpha)?|at|match)|\n        crop(auto)?|create(truecolor|from(string|jpeg|png|wbmp|webp|gif|gd(2(part)?)?|xpm|xbm))?|\n        types|ttf(bbox|text)|truecolortopalette|istruecolor|interlace|2wbmp|destroy|dashedline|jpeg|\n        _type_to_(extension|mime_type)|ps(slantfont|text|(encode|extend|free|load)font|bbox)|png|polygon|\n        palette(copy|totruecolor)|ellipse|ft(text|bbox)|filter|fill|filltoborder|\n        filled(arc|ellipse|polygon|rectangle)|font(height|width)|flip|webp|wbmp|line|loadfont|layereffect|\n        antialias|affine(matrix(concat|get))?|alphablending|arc|rotate|rectangle|gif|gd(2)?|gammacorrect|\n        grab(screen|window)|xbm)\n)\\b",
+					"match": "(?xi)\\b\n(\n  iptc(embed|parse)|(jpeg|png)2wbmp|gd_info|getimagesize(fromstring)?|\n  image(s[xy]|scale|(char|string)(up)?|set(clip|style|thickness|tile|interpolation|pixel|brush)|savealpha|\n        convolution|copy(resampled|resized|merge(gray)?)?|colors(forindex|total)|\n        color(set|closest(alpha|hwb)?|transparent|deallocate|(allocate|exact|resolve)(alpha)?|at|match)|\n        crop(auto)?|create(truecolor|from(avif|bmp|string|jpeg|png|wbmp|webp|gif|gd(2(part)?)?|tga|xpm|xbm))?|\n        types|ttf(bbox|text)|truecolortopalette|istruecolor|interlace|2wbmp|destroy|dashedline|jpeg|\n        _type_to_(extension|mime_type)|ps(slantfont|text|(encode|extend|free|load)font|bbox)|png|polygon|\n        palette(copy|totruecolor)|ellipse|ft(text|bbox)|filter|fill|filltoborder|\n        filled(arc|ellipse|polygon|rectangle)|font(height|width)|flip|webp|wbmp|line|loadfont|layereffect|\n        antialias|affine(matrix(concat|get))?|alphablending|arc|rotate|rectangle|gif|gd2?|gammacorrect|\n        grab(screen|window)|xbm|resolution|openpolygon|get(clip|interpolation)|avif|bmp)\n)\\b",
 					"name": "support.function.image.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  sys_get_temp_dir|set_(time_limit|include_path|magic_quotes_runtime)|cli_(get|set)_process_title|\n  ini_(alter|get(_all)?|restore|set)|zend_(thread_id|version|logo_guid)|dl|php(credits|info|version)|\n  php_(sapi_name|ini_(scanned_files|loaded_file)|uname|logo_guid)|putenv|extension_loaded|version_compare|\n  assert(_options)?|restore_include_path|gc_(collect_cycles|disable|enable(d)?)|getopt|\n  get_(cfg_var|current_user|defined_constants|extension_funcs|include_path|included_files|loaded_extensions|\n       magic_quotes_(gpc|runtime)|required_files|resources)|\n  get(env|lastmod|rusage|my(inode|[gup]id))|\n  memory_get_(peak_)?usage|main|magic_quotes_runtime\n)\\b",
+					"match": "(?xi)\\b\n(\n  sys_get_temp_dir|set_(time_limit|include_path|magic_quotes_runtime)|cli_[gs]et_process_title|\n  ini_(alter|get(_all)?|restore|set)|zend_(thread_id|version|logo_guid)|dl|php(credits|info|version)|\n  php_(sapi_name|ini_(scanned_files|loaded_file)|uname|logo_guid)|putenv|extension_loaded|version_compare|\n  assert(_options)?|restore_include_path|gc_(collect_cycles|disable|enable(d)?)|getopt|\n  get_(cfg_var|current_user|defined_constants|extension_funcs|include_path|included_files|loaded_extensions|\n       magic_quotes_(gpc|runtime)|required_files|resources)|\n  get(env|lastmod|rusage|my(inode|[gup]id))|\n  memory_get_(peak_)?usage|main|magic_quotes_runtime\n)\\b",
 					"name": "support.function.info.php"
 				},
 				{
@@ -3433,11 +3485,11 @@
 					"name": "support.function.interbase.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  normalizer_(normalize|is_normalized)|idn_to_(unicode|utf8|ascii)|\n  numfmt_(set_(symbol|(text_)?attribute|pattern)|create|(parse|format)(_currency)?|\n          get_(symbol|(text_)?attribute|pattern|error_(code|message)|locale))|\n  collator_(sort(_with_sort_keys)?|set_(attribute|strength)|compare|create|asort|\n            get_(strength|sort_key|error_(code|message)|locale|attribute))|\n  transliterator_(create(_(inverse|from_rules))?|transliterate|list_ids|get_error_(code|message))|\n  intl(cal|tz)_get_error_(code|message)|intl_(is_failure|error_name|get_error_(code|message))|\n  datefmt_(set_(calendar|lenient|pattern|timezone(_id)?)|create|is_lenient|parse|format(_object)?|localtime|\n           get_(calendar(_object)?|time(type|zone(_id)?)|datetype|pattern|error_(code|message)|locale))|\n  locale_(set_default|compose|canonicalize|parse|filter_matches|lookup|accept_from_http|\n          get_(script|display_(script|name|variant|language|region)|default|primary_language|keywords|all_variants|region))|\n  resourcebundle_(create|count|locales|get(_(error_(code|message)))?)|\n  grapheme_(str(i?str|r?i?pos|len)|substr|extract)|\n  msgfmt_(set_pattern|create|(format|parse)(_message)?|get_(pattern|error_(code|message)|locale))\n)\\b",
+					"match": "(?xi)\\b\n(\n  normalizer_(normalize|is_normalized)|idn_to_(unicode|utf8|ascii)|\n  numfmt_(set_(symbol|(text_)?attribute|pattern)|create|(parse|format)(_currency)?|\n          get_(symbol|(text_)?attribute|pattern|error_(code|message)|locale))|\n  collator_(sort(_with_sort_keys)?|set_(attribute|strength)|compare|create|asort|\n            get_(strength|sort_key|error_(code|message)|locale|attribute))|\n  transliterator_(create(_(inverse|from_rules))?|transliterate|list_ids|get_error_(code|message))|\n  intl(cal|tz)_get_error_(code|message)|intl_(is_failure|error_name|get_error_(code|message))|\n  datefmt_(set_(calendar|lenient|pattern|timezone(_id)?)|create|is_lenient|parse|format(_object)?|localtime|\n           get_(calendar(_object)?|time(type|zone(_id)?)|datetype|pattern|error_(code|message)|locale))|\n  locale_(set_default|compose|canonicalize|parse|filter_matches|lookup|accept_from_http|\n          get_(script|display_(script|name|variant|language|region)|default|primary_language|keywords|all_variants|region))|\n  resourcebundle_(create|count|locales|get(_(error_(code|message)))?)|\n  grapheme_(str(i?str|r?i?pos|len|_split)|substr|extract)|\n  msgfmt_(set_pattern|create|(format|parse)(_message)?|get_(pattern|error_(code|message)|locale))\n)\\b",
 					"name": "support.function.intl.php"
 				},
 				{
-					"match": "(?i)\\bjson_(decode|encode|last_error(_msg)?)\\b",
+					"match": "(?i)\\bjson_(decode|encode|last_error(_msg)?|validate)\\b",
 					"name": "support.function.json.php"
 				},
 				{
@@ -3453,11 +3505,11 @@
 					"name": "support.function.mail.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  (a)?(cos|sin|tan)(h)?|sqrt|srand|hypot|hexdec|ceil|is_(nan|(in)?finite)|octdec|dec(hex|oct|bin)|deg2rad|\n  pi|pow|exp(m1)?|floor|fmod|lcg_value|log(1(p|0))?|atan2|abs|round|rand|rad2deg|getrandmax|\n  mt_(srand|rand|getrandmax)|max|min|bindec|base_convert\n)\\b",
+					"match": "(?xi)\\b\n(\n  a?(cos|sin|tan)h?|sqrt|srand|hypot|hexdec|ceil|is_(nan|(in)?finite)|octdec|dec(hex|oct|bin)|deg2rad|\n  pi|pow|exp(m1)?|floor|f(div|mod|pow)|lcg_value|log(1[p0])?|atan2|abs|round|rand|rad2deg|getrandmax|\n  mt_(srand|rand|getrandmax)|max|min|bindec|base_convert|intdiv\n)\\b",
 					"name": "support.function.math.php"
 				},
 				{
-					"match": "(?xi)\\b\nmb_(\n  str(cut|str|to(lower|upper)|istr|ipos|imwidth|pos|width|len|rchr|richr|ripos|rpos)|\n  substitute_character|substr(_count)?|split|send_mail|http_(input|output)|check_encoding|\n  convert_(case|encoding|kana|variables)|internal_encoding|output_handler|decode_(numericentity|mimeheader)|\n  detect_(encoding|order)|parse_str|preferred_mime_name|encoding_aliases|encode_(numericentity|mimeheader)|\n  ereg(i(_replace)?)?|ereg_(search(_(get(pos|regs)|init|regs|(set)?pos))?|replace(_callback)?|match)|\n  list_encodings|language|regex_(set_options|encoding)|get_info\n)\\b",
+					"match": "(?xi)\\b\nmb_(\n  str(cut|str|to(lower|upper)|istr|ipos|imwidth|pos|width|len|rchr|richr|ripos|rpos|_pad|_split)|\n  substitute_character|substr(_count)?|split|send_mail|http_(input|output)|check_encoding|\n  convert_(case|encoding|kana|variables)|internal_encoding|output_handler|decode_(numericentity|mimeheader)|\n  detect_(encoding|order)|parse_str|preferred_mime_name|encoding_aliases|encode_(numericentity|mimeheader)|\n  ereg(i(_replace)?)?|ereg_(search(_(get(pos|regs)|init|regs|(set)?pos))?|replace(_callback)?|match)|\n  list_encodings|language|regex_(set_options|encoding)|get_info|\n  [lr]?trim|[lu]cfirst|ord|chr|scrub\n)\\b",
 					"name": "support.function.mbstring.php"
 				},
 				{
@@ -3481,7 +3533,7 @@
 					"name": "support.function.mysql.php"
 				},
 				{
-					"match": "(?xi)\\b\nmysqli_(\n  ssl_set|store_result|stat|send_(query|long_data)|set_(charset|opt|local_infile_(default|handler))|\n  stmt_(store_result|send_long_data|next_result|close|init|data_seek|prepare|execute|fetch|free_result|\n        attr_(get|set)|result_metadata|reset|get_(result|warnings)|more_results|bind_(param|result))|\n  select_db|slave_query|savepoint|next_result|change_user|character_set_name|connect|commit|\n  client_encoding|close|thread_safe|init|options|(enable|disable)_(reads_from_master|rpl_parse)|\n  dump_debug_info|debug|data_seek|use_result|ping|poll|param_count|prepare|escape_string|execute|\n  embedded_server_(start|end)|kill|query|field_seek|free_result|autocommit|rollback|report|refresh|\n  fetch(_(object|fields|field(_direct)?|assoc|all|array|row))?|rpl_(parse_enabled|probe|query_type)|\n  release_savepoint|reap_async_query|real_(connect|escape_string|query)|more_results|multi_query|\n  get_(charset|connection_stats|client_(stats|info|version)|cache_stats|warnings|links_stats|metadata)|\n  master_query|bind_(param|result)|begin_transaction\n)\\b",
+					"match": "(?xi)\\b\nmysqli_(\n  ssl_set|store_result|stat|send_(query|long_data)|set_(charset|opt|local_infile_(default|handler))|\n  stmt_(store_result|send_long_data|next_result|close|init|data_seek|prepare|execute|fetch|free_result|\n        attr_[gs]et|result_metadata|reset|get_(result|warnings)|more_results|bind_(param|result))|\n  select_db|slave_query|savepoint|next_result|change_user|character_set_name|connect|commit|\n  client_encoding|close|thread_safe|init|options|(enable|disable)_(reads_from_master|rpl_parse)|\n  dump_debug_info|debug|data_seek|use_result|ping|poll|param_count|prepare|escape_string|execute|\n  embedded_server_(start|end)|kill|query|field_seek|free_result|autocommit|rollback|report|refresh|\n  fetch(_(object|fields|field(_direct)?|assoc|all|array|row))?|rpl_(parse_enabled|probe|query_type)|\n  release_savepoint|reap_async_query|real_(connect|escape_string|query)|more_results|multi_query|\n  get_(charset|connection_stats|client_(stats|info|version)|cache_stats|warnings|links_stats|metadata)|\n  master_query|bind_(param|result)|begin_transaction\n)\\b",
 					"name": "support.function.mysqli.php"
 				},
 				{
@@ -3501,7 +3553,7 @@
 					"name": "support.function.mysqlnd-uh.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  syslog|socket_(set_(blocking|timeout)|get_status)|set(raw)?cookie|http_response_code|openlog|\n  headers_(list|sent)|header(_(register_callback|remove))?|checkdnsrr|closelog|inet_(ntop|pton)|ip2long|\n  openlog|dns_(check_record|get_(record|mx))|define_syslog_variables|(p)?fsockopen|long2ip|\n  get(servby(name|port)|host(name|by(name(l)?|addr))|protoby(name|number)|mxrr)\n)\\b",
+					"match": "(?xi)\\b\n(\n  syslog|socket_(set_(blocking|timeout)|get_status)|set(raw)?cookie|http_response_code|openlog|\n  headers_(list|sent)|header(_(register_callback|remove))?|checkdnsrr|closelog|inet_(ntop|pton)|ip2long|\n  openlog|dns_(check_record|get_(record|mx))|define_syslog_variables|(p)?fsockopen|long2ip|\n  get(servby(name|port)|host(name|by(name(l)?|addr))|protoby(name|number)|mxrr)|\n  http_(clear|get)_last_response_headers|net_get_interfaces|request_parse_body\n)\\b",
 					"name": "support.function.network.php"
 				},
 				{
@@ -3513,11 +3565,11 @@
 					"name": "support.function.oci8.php"
 				},
 				{
-					"match": "(?i)\\bopcache_(compile_file|invalidate|reset|get_(status|configuration))\\b",
+					"match": "(?i)\\bopcache_(compile_file|invalidate|is_script_cached|reset|get_(status|configuration))\\b",
 					"name": "support.function.opcache.php"
 				},
 				{
-					"match": "(?xi)\\b\nopenssl_(\n  sign|spki_(new|export(_challenge)?|verify)|seal|csr_(sign|new|export(_to_file)?|get_(subject|public_key))|\n  cipher_iv_length|open|dh_compute_key|digest|decrypt|public_(decrypt|encrypt)|encrypt|error_string|\n  pkcs12_(export(_to_file)?|read)|pkcs7_(sign|decrypt|encrypt|verify)|verify|free_key|random_pseudo_bytes|\n  pkey_(new|export(_to_file)?|free|get_(details|public|private))|private_(decrypt|encrypt)|pbkdf2|\n  get_((cipher|md)_methods|cert_locations|(public|private)key)|\n  x509_(check_private_key|checkpurpose|parse|export(_to_file)?|fingerprint|free|read)\n)\\b",
+					"match": "(?xi)\\b\nopenssl_(\n  sign|spki_(new|export(_challenge)?|verify)|seal|csr_(sign|new|export(_to_file)?|get_(subject|public_key))|\n  cipher_(iv|key)_length|open|dh_compute_key|digest|decrypt|public_(decrypt|encrypt)|encrypt|error_string|\n  pkcs12_(export(_to_file)?|read)|(cms|pkcs7)_(sign|decrypt|encrypt|verify|read)|verify|free_key|random_pseudo_bytes|\n  pkey_(derive|new|export(_to_file)?|free|get_(details|public|private))|private_(decrypt|encrypt)|pbkdf2|\n  get_((cipher|md)_methods|cert_locations|curve_names|(public|private)key)|\n  x509_(check_private_key|checkpurpose|parse|export(_to_file)?|fingerprint|free|read|verify)\n)\\b",
 					"name": "support.function.openssl.php"
 				},
 				{
@@ -3525,11 +3577,11 @@
 					"name": "support.function.output.php"
 				},
 				{
-					"match": "(?i)\\bpassword_(hash|needs_rehash|verify|get_info)\\b",
+					"match": "(?i)\\bpassword_(algos|hash|needs_rehash|verify|get_info)\\b",
 					"name": "support.function.password.php"
 				},
 				{
-					"match": "(?xi)\\b\npcntl_(\n  strerror|signal(_dispatch)?|sig(timedwait|procmask|waitinfo)|setpriority|errno|exec|fork|\n  w(stopsig|termsig|if(stopped|signaled|exited))|wait(pid)?|alarm|getpriority|get_last_error\n)\\b",
+					"match": "(?xi)\\b\npcntl_(\n  alarm|async_signals|errno|exec|r?fork|get_last_error|[gs]et(cpuaffinity|priority)|\n  signal(_(dispatch|get_handler))?|sig(procmask|timedwait|waitinfo)|strerror|unshare|\n  wait(p?id)?|wexitstatus|wif(exited|signaled|stopped)|w(stop|term)sig\n)\\b",
 					"name": "support.function.pcntl.php"
 				},
 				{
@@ -3537,7 +3589,7 @@
 					"name": "support.function.pgsql.php"
 				},
 				{
-					"match": "(?i)\\b(virtual|getallheaders|apache_((get|set)env|note|child_terminate|lookup_uri|response_headers|reset_timeout|request_headers|get_(version|modules)))\\b",
+					"match": "(?i)\\b(virtual|getallheaders|apache_([gs]etenv|note|child_terminate|lookup_uri|response_headers|reset_timeout|request_headers|get_(version|modules)))\\b",
 					"name": "support.function.php_apache.php"
 				},
 				{
@@ -3561,7 +3613,7 @@
 					"name": "support.function.php_odbc.php"
 				},
 				{
-					"match": "(?i)\\bpreg_(split|quote|filter|last_error|replace(_callback)?|grep|match(_all)?)\\b",
+					"match": "(?i)\\bpreg_(split|quote|filter|last_error(_msg)?|replace(_callback(_array)?)?|grep|match(_all)?)\\b",
 					"name": "support.function.php_pcre.php"
 				},
 				{
@@ -3573,7 +3625,7 @@
 					"name": "support.function.php_zip.php"
 				},
 				{
-					"match": "(?xi)\\b\nposix_(\n  strerror|set(s|e?u|[ep]?g)id|ctermid|ttyname|times|isatty|initgroups|uname|errno|kill|access|\n  get(sid|cwd|uid|pid|ppid|pwnam|pwuid|pgid|pgrp|euid|egid|login|rlimit|gid|grnam|groups|grgid)|\n  get_last_error|mknod|mkfifo\n)\\b",
+					"match": "(?xi)\\b\nposix_(\n  strerror|set(s|e?u|[ep]?g)id|ctermid|ttyname|times|isatty|initgroups|uname|errno|kill|e?access|\n  get(sid|cwd|uid|pid|ppid|pwnam|pwuid|pgid|pgrp|euid|egid|login|rlimit|gid|grnam|groups|grgid)|\n  get_last_error|mknod|mkfifo|(sys|f?path)conf|setrlimit\n)\\b",
 					"name": "support.function.posix.php"
 				},
 				{
@@ -3601,7 +3653,7 @@
 					"name": "support.function.sem.php"
 				},
 				{
-					"match": "(?xi)\\b\nsession_(\n  status|start|set_(save_handler|cookie_params)|save_path|name|commit|cache_(expire|limiter)|\n  is_registered|id|destroy|decode|unset|unregister|encode|write_close|abort|reset|register(_shutdown)?|\n  regenerate_id|get_cookie_params|module_name\n)\\b",
+					"match": "(?xi)\\b\nsession_(\n  status|start|set_(save_handler|cookie_params)|save_path|name|commit|cache_(expire|limiter)|\n  is_registered|id|destroy|decode|unset|unregister|encode|write_close|abort|reset|register(_shutdown)?|\n  (regenerate|create)_id|get_cookie_params|module_name|gc\n)\\b",
 					"name": "support.function.session.php"
 				},
 				{
@@ -3621,7 +3673,7 @@
 					"name": "support.function.soap.php"
 				},
 				{
-					"match": "(?xi)\\b\nsocket_(\n  shutdown|strerror|send(to|msg)?|set_((non)?block|option)|select|connect|close|clear_error|bind|\n  create(_(pair|listen))?|cmsg_space|import_stream|write|listen|last_error|accept|recv(from|msg)?|\n  read|get(peer|sock)name|get_option\n)\\b",
+					"match": "(?xi)\\b\nsocket_(\n  accept|addrinfo_(bind|connect|explain|lookup)|atmark|bind|(clear|last)_error|close|cmsg_space|connect|\n  create(_(listen|pair))?|(ex|im)port_stream|[gs]et_option|[gs]etopt|get(peer|sock)name|\n  listen|read|recv(from|msg)?|select|send(msg|to)?|set_(non)?block|shutdown|strerror|write|\n  wsaprotocol_info_(export|import|release)\n)\\b",
 					"name": "support.function.sockets.php"
 				},
 				{
@@ -3637,11 +3689,11 @@
 					"name": "support.function.stats.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  set_socket_blocking|\n  stream_(socket_(shutdown|sendto|server|client|pair|enable_crypto|accept|recvfrom|get_name)|\n    set_(chunk_size|timeout|(read|write)_buffer|blocking)|select|notification_callback|supports_lock|\n    context_(set_(option|default|params)|create|get_(options|default|params))|copy_to_stream|is_local|\n    encoding|filter_(append|prepend|register|remove)|wrapper_((un)?register|restore)|\n    resolve_include_path|register_wrapper|get_(contents|transports|filters|wrappers|line|meta_data)|\n    bucket_(new|prepend|append|make_writeable)\n  )\n)\\b",
+					"match": "(?xi)\\b\nstream_(\n  bucket_(new|prepend|append|make_writeable)|\n  context_(create|[gs]et_(options?|default|params))|copy_to_stream|filter_((ap|pre)pend|register|remove)|\n  get_(contents|filters|line|meta_data|transports|wrappers)|is(atty|_local)|notification_callback|register_wrapper|resolve_include_path|select|\n  set_(blocking|chunk_size|(read|write)_buffer|timeout)|\n  socket_(accept|client|enable_crypto|get_name|pair|recvfrom|sendto|server|shutdown)|\n  supports_lock|wrapper_((un)?register|restore)\n)\\b",
 					"name": "support.function.streamsfuncs.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  money_format|md5(_file)?|metaphone|bin2hex|sscanf|sha1(_file)?|\n  str(str|c?spn|n(at)?(case)?cmp|chr|coll|(case)?cmp|to(upper|lower)|tok|tr|istr|pos|pbrk|len|rchr|ri?pos|rev)|\n  str_(getcsv|ireplace|pad|repeat|replace|rot13|shuffle|split|word_count)|\n  strip(c?slashes|os)|strip_tags|similar_text|soundex|substr(_(count|compare|replace))?|setlocale|\n  html(specialchars(_decode)?|entities)|html_entity_decode|hex2bin|hebrev(c)?|number_format|nl2br|nl_langinfo|\n  chop|chunk_split|chr|convert_(cyr_string|uu(decode|encode))|count_chars|crypt|crc32|trim|implode|ord|\n  uc(first|words)|join|parse_str|print(f)?|echo|explode|v?[fs]?printf|quoted_printable_(decode|encode)|\n  quotemeta|wordwrap|lcfirst|[lr]trim|localeconv|levenshtein|addc?slashes|get_html_translation_table\n)\\b",
+					"match": "(?xi)\\b\n(\n  money_format|md5(_file)?|metaphone|bin2hex|sscanf|sha1(_file)?|\n  str(str|c?spn|n(at)?(case)?cmp|chr|coll|(case)?cmp|to(upper|lower)|tok|tr|istr|pos|pbrk|len|rchr|ri?pos|rev)|\n  str_(getcsv|i?replace|pad|repeat|rot13|shuffle|split|word_count|\n    contains|(starts|ends)_with|(in|de)crement)|\n  strip(c?slashes|os)|strip_tags|similar_text|soundex|substr(_(count|compare|replace))?|setlocale|\n  html(specialchars(_decode)?|entities)|html_entity_decode|hex2bin|hebrev(c)?|number_format|nl2br|nl_langinfo|\n  chop|chunk_split|chr|convert_(cyr_string|uu(decode|encode))|count_chars|crypt|crc32|trim|implode|ord|\n  uc(first|words)|join|parse_str|print(f)?|echo|explode|v?[fs]?printf|quoted_printable_(decode|encode)|\n  quotemeta|wordwrap|lcfirst|[lr]trim|localeconv|levenshtein|addc?slashes|get_html_translation_table\n)\\b",
 					"name": "support.function.string.php"
 				},
 				{
@@ -3653,7 +3705,7 @@
 					"name": "support.function.taint.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  tidy_((get|set)opt|set_encoding|save_config|config_count|clean_repair|is_(xhtml|xml)|diagnose|\n        (access|error|warning)_count|load_config|reset_config|(parse|repair)_(string|file)|\n        get_(status|html(_ver)?|head|config|output|opt_doc|root|release|body))|\n  ob_tidyhandler\n)\\b",
+					"match": "(?xi)\\b\n(\n  tidy_([gs]etopt|set_encoding|save_config|config_count|clean_repair|is_(xhtml|xml)|diagnose|\n        (access|error|warning)_count|load_config|reset_config|(parse|repair)_(string|file)|\n        get_(status|html(_ver)?|head|config|output|opt_doc|root|release|body))|\n  ob_tidyhandler\n)\\b",
 					"name": "support.function.tidy.php"
 				},
 				{
@@ -3673,7 +3725,7 @@
 					"name": "support.function.url.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  strval|settype|serialize|(bool|double|float)val|debug_zval_dump|intval|import_request_variables|isset|\n  is_(scalar|string|null|numeric|callable|int(eger)?|object|double|float|long|array|resource|real|bool)|\n  unset|unserialize|print_r|empty|var_(dump|export)|gettype|get_(defined_vars|resource_type)\n)\\b",
+					"match": "(?xi)\\b\n(\n  (bool|double|float|int|str)val|debug_zval_dump|empty|get_(debug_type|defined_vars|resource_(id|type))|[gs]ettype|\n  is_(array|bool|callable|countable|double|float|int(eger)?|iterable|long|null|numeric|object|real|resource|scalar|string)|\n  isset|print_r|(un)?serialize|unset|var_(dump|export)\n)\\b",
 					"name": "support.function.var.php"
 				},
 				{
@@ -3685,11 +3737,11 @@
 					"name": "support.function.xhprof.php"
 				},
 				{
-					"match": "(?xi)\n\\b\n(\n  utf8_(decode|encode)|\n  xml_(set_((notation|(end|start)_namespace|unparsed_entity)_decl_handler|\n            (character_data|default|element|external_entity_ref|processing_instruction)_handler|object)|\n       parse(_into_struct)?|parser_((get|set)_option|create(_ns)?|free)|error_string|\n       get_(current_((column|line)_number|byte_index)|error_code))\n)\\b",
+					"match": "(?xi)\n\\b\n(\n  utf8_(decode|encode)|\n  xml_(set_((notation|(end|start)_namespace|unparsed_entity)_decl_handler|\n            (character_data|default|element|external_entity_ref|processing_instruction)_handler|object)|\n       parse(_into_struct)?|parser_([gs]et_option|create(_ns)?|free)|error_string|\n       get_(current_((column|line)_number|byte_index)|error_code))\n)\\b",
 					"name": "support.function.xml.php"
 				},
 				{
-					"match": "(?xi)\\b\nxmlrpc_(\n  server_(call_method|create|destroy|add_introspection_data|register_(introspection_callback|method))|\n  is_fault|decode(_request)?|parse_method_descriptions|encode(_request)?|(get|set)_type\n)\\b",
+					"match": "(?xi)\\b\nxmlrpc_(\n  server_(call_method|create|destroy|add_introspection_data|register_(introspection_callback|method))|\n  is_fault|decode(_request)?|parse_method_descriptions|encode(_request)?|[gs]et_type\n)\\b",
 					"name": "support.function.xmlrpc.php"
 				},
 				{
@@ -3697,12 +3749,8 @@
 					"name": "support.function.xmlwriter.php"
 				},
 				{
-					"match": "(?xi)\\b\n(\n  zlib_(decode|encode|get_coding_type)|readgzfile|\n  gz(seek|compress|close|tell|inflate|open|decode|deflate|uncompress|puts|passthru|encode|eof|file|\n     write|rewind|read|getc|getss?)\n)\\b",
+					"match": "(?xi)\\b\n(\n  zlib_(decode|encode|get_coding_type)|readgzfile|\n  gz(seek|compress|close|tell|inflate|open|decode|deflate|uncompress|puts|passthru|encode|eof|file|\n     write|rewind|read|getc|getss?)|deflate_(add|init)|inflate_(add|get_(read_len|status)|init)\n)\\b",
 					"name": "support.function.zlib.php"
-				},
-				{
-					"match": "(?i)\\bis_int(eger)?\\b",
-					"name": "support.function.alias.php"
 				}
 			]
 		},

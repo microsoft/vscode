@@ -33,6 +33,7 @@ class SuggestInlineCompletion implements InlineCompletion {
 		readonly filterText: string,
 		readonly additionalTextEdits: ISingleEditOperation[] | undefined,
 		readonly command: Command | undefined,
+		readonly action: Command | undefined,
 		readonly completion: CompletionItem,
 	) { }
 }
@@ -91,6 +92,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 				item.filterTextLow ?? item.labelLow,
 				item.completion.additionalTextEdits,
 				item.completion.command,
+				item.completion.action,
 				item
 			));
 

@@ -8,9 +8,11 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 
 export interface ICodeMapperResponse {
 	textEdit: (resource: URI, textEdit: TextEdit[]) => void;
+	notebookEdit: (resource: URI, edit: ICellEditOperation[]) => void;
 }
 
 export interface ICodeMapperCodeBlock {
@@ -22,6 +24,8 @@ export interface ICodeMapperCodeBlock {
 export interface ICodeMapperRequest {
 	readonly codeBlocks: ICodeMapperCodeBlock[];
 	readonly chatRequestId?: string;
+	readonly chatRequestModel?: string;
+	readonly chatSessionId?: string;
 	readonly location?: string;
 }
 

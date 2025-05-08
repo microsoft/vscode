@@ -19,7 +19,7 @@ import { IElevatedFileService } from '../../files/common/elevatedFileService.js'
 import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
 import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { IPathService } from '../../path/common/pathService.js';
-import { IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
+import { IUntitledTextEditorModelManager, IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkingCopyFileService } from '../../workingCopy/common/workingCopyFileService.js';
 import { IDecorationsService } from '../../decorations/common/decorations.js';
@@ -28,7 +28,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 
 	constructor(
 		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorModelManager,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,

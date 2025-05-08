@@ -79,7 +79,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 	try {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-		const version = '20240129-253798';
+		const version = '20250407-330404';
 		try {
 			const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
 				headers: ghApiHeaders,
@@ -133,18 +133,23 @@ type SysrootDictEntry = {
 	Tarball: string;
 };
 
-export async function getVSCodeSysroot(arch: DebianArchString): Promise<string> {
+export async function getVSCodeSysroot(arch: DebianArchString, isMusl: boolean = false): Promise<string> {
 	let expectedName: string;
 	let triple: string;
-	const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28';
+	const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-8.5.0';
 	switch (arch) {
 		case 'amd64':
 			expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
 			triple = 'x86_64-linux-gnu';
 			break;
 		case 'arm64':
-			expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
-			triple = 'aarch64-linux-gnu';
+			if (isMusl) {
+				expectedName = 'aarch64-linux-musl-gcc-10.3.0.tar.gz';
+				triple = 'aarch64-linux-musl';
+			} else {
+				expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
+				triple = 'aarch64-linux-gnu';
+			}
 			break;
 		case 'armhf':
 			expectedName = `arm-rpi-linux-gnueabihf${prefix}.tar.gz`;
@@ -158,7 +163,10 @@ export async function getVSCodeSysroot(arch: DebianArchString): Promise<string> 
 	}
 	const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join(tmpdir(), `vscode-${arch}-sysroot`);
 	const stamp = path.join(sysroot, '.stamp');
-	const result = `${sysroot}/${triple}/${triple}/sysroot`;
+	let result = `${sysroot}/${triple}/${triple}/sysroot`;
+	if (isMusl) {
+		result = `${sysroot}/output/${triple}`;
+	}
 	if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === expectedName) {
 		return result;
 	}

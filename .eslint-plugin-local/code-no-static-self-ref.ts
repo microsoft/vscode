@@ -26,19 +26,19 @@ export = new class implements eslint.Rule.RuleModule {
 				return;
 			}
 
-			const classCtor = classDeclaration.body.body.find(node => node.type === 'MethodDefinition' && node.kind === 'constructor')
+			const classCtor = classDeclaration.body.body.find(node => node.type === 'MethodDefinition' && node.kind === 'constructor');
 
 			if (!classCtor) {
 				return;
 			}
 
 			const name = classDeclaration.id.name;
-			const valueText = context.sourceCode.getText(<any>propertyDefinition.value)
+			const valueText = context.sourceCode.getText(<any>propertyDefinition.value);
 
 			if (valueText.includes(name + '.')) {
 
 				if (classCtor.value?.type === 'FunctionExpression' && !classCtor.value.params.find((param: any) => param.type === 'TSParameterProperty' && param.decorators?.length > 0)) {
-					return
+					return;
 				}
 
 				context.report({

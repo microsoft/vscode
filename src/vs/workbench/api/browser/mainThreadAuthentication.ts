@@ -22,16 +22,16 @@ import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 
-interface AuthenticationForceNewSessionOptions {
+export interface AuthenticationInteractiveOptions {
 	detail?: string;
 	learnMore?: UriComponents;
 	sessionToRecreate?: AuthenticationSession;
 }
 
-interface AuthenticationGetSessionOptions {
+export interface AuthenticationGetSessionOptions {
 	clearSessionPreference?: boolean;
-	createIfNone?: boolean;
-	forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
+	createIfNone?: boolean | AuthenticationInteractiveOptions;
+	forceNewSession?: boolean | AuthenticationInteractiveOptions;
 	silent?: boolean;
 	account?: AuthenticationSessionAccount;
 }
@@ -136,7 +136,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
-	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationForceNewSessionOptions): Promise<boolean> {
+	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {
 		let message: string;
 
 		// An internal provider is a special case which is for model access only.
@@ -245,9 +245,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// We may need to prompt because we don't have a valid session
 		// modal flows
 		if (options.createIfNone || options.forceNewSession) {
-			let uiOptions: AuthenticationForceNewSessionOptions | undefined;
+			let uiOptions: AuthenticationInteractiveOptions | undefined;
 			if (typeof options.forceNewSession === 'object') {
 				uiOptions = options.forceNewSession;
+			} else if (typeof options.createIfNone === 'object') {
+				uiOptions = options.createIfNone;
 			}
 
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions

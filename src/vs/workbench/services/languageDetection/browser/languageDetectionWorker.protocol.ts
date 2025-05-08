@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkerClient, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 
 export abstract class LanguageDetectionWorkerHost {
 	public static CHANNEL_NAME = 'languageDetectionWorkerHost';
-	public static getChannel(workerServer: IWorkerServer): LanguageDetectionWorkerHost {
+	public static getChannel(workerServer: IWebWorkerServer): LanguageDetectionWorkerHost {
 		return workerServer.getChannel<LanguageDetectionWorkerHost>(LanguageDetectionWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWorkerClient<any>, obj: LanguageDetectionWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<any>, obj: LanguageDetectionWorkerHost): void {
 		workerClient.setChannel<LanguageDetectionWorkerHost>(LanguageDetectionWorkerHost.CHANNEL_NAME, obj);
 	}
 

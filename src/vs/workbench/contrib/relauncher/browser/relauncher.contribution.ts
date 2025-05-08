@@ -22,6 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
@@ -29,9 +30,11 @@ interface IConfiguration extends IWindowsConfiguration {
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
 	window: IWindowSettings;
-	workbench?: { enableExperiments?: boolean };
+	workbench?: { enableExperiments?: boolean; settings?: { showSuggestions?: boolean } };
+	telemetry?: { feedback?: { enabled?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
+	chat?: { useFileStorage?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -41,21 +44,24 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
-		'window.experimentalControlOverlay',
+		'window.controlsStyle',
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
+		'workbench.settings.showSuggestions',
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
-		'accessibility.verbosity.debug'
+		'accessibility.verbosity.debug',
+		ChatConfiguration.UseFileStorage,
+		'telemetry.feedback.enabled'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
-	private readonly linuxWindowControlOverlay = new ChangeObserver('boolean');
+	private readonly controlsStyle = new ChangeObserver('string');
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
@@ -63,6 +69,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
+	private readonly useFileStorage = new ChangeObserver('boolean');
+	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
+	private readonly showSuggestions = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -119,8 +128,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
 
-			// Linux: WCO
-			processChanged(isLinux && this.linuxWindowControlOverlay.handleChange(config.window?.experimentalControlOverlay));
+			// Windows/Linux: Window controls style
+			processChanged(!isMacintosh && this.controlsStyle.handleChange(config.window?.controlsStyle));
 
 			// Update mode
 			processChanged(this.updateMode.handleChange(config.update?.mode));
@@ -141,6 +150,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
+
+			processChanged(this.useFileStorage.handleChange(config.chat?.useFileStorage));
 		}
 
 		// Experiments
@@ -148,6 +159,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
+
+		// Enable Feedback
+		processChanged(this.telemetryFeedbackEnabled.handleChange(config.telemetry?.feedback?.enabled));
+
+		// Settings editor suggestions
+		processChanged(this.showSuggestions.handleChange(config.workbench?.settings?.showSuggestions));
 
 		if (askToRelaunch && changed && this.hostService.hasFocus) {
 			this.doConfirm(

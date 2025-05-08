@@ -30,7 +30,7 @@ export class InlineChatAccessibleView implements IAccessibleViewImplementation {
 		if (!controller) {
 			return;
 		}
-		const responseContent = controller?.getMessage();
+		const responseContent = controller.widget.responseContent;
 		if (!responseContent) {
 			return;
 		}

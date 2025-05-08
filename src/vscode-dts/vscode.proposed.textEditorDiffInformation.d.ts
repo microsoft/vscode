@@ -12,15 +12,14 @@ declare module 'vscode' {
 		Modification = 3
 	}
 
+	export interface TextEditorLineRange {
+		readonly startLineNumber: number;
+		readonly endLineNumberExclusive: number;
+	}
+
 	export interface TextEditorChange {
-		readonly original: {
-			readonly startLineNumber: number;
-			readonly endLineNumberExclusive: number;
-		};
-		readonly modified: {
-			readonly startLineNumber: number;
-			readonly endLineNumberExclusive: number;
-		};
+		readonly original: TextEditorLineRange;
+		readonly modified: TextEditorLineRange;
 		readonly kind: TextEditorChangeKind;
 	}
 

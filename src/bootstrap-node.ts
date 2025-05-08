@@ -11,6 +11,7 @@ import type { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const isWindows = process.platform === 'win32';
 
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 Error.stackTraceLimit = 100;
@@ -93,6 +94,35 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
 			}
 
 			return paths.slice(0, paths.length - commonSuffixLength);
+		}
+
+		return paths;
+	};
+
+	const originalNodeModulePaths = Module._nodeModulePaths;
+	Module._nodeModulePaths = function (from: string): string[] {
+		let paths: string[] = originalNodeModulePaths(from);
+		if (!isWindows) {
+			return paths;
+		}
+
+		// On Windows, remove drive(s) and users' home directory from search paths,
+		// UNLESS 'from' is explicitly set to one of those.
+		const isDrive = (p: string) => p.length >= 3 && p.endsWith(':\\');
+
+		if (!isDrive(from)) {
+			paths = paths.filter(p => !isDrive(path.dirname(p)));
+		}
+
+		if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
+			const userDir = path.dirname(path.join(process.env.HOMEDRIVE, process.env.HOMEPATH));
+
+			const isUsersDir = (p: string) => path.relative(p, userDir).length === 0;
+
+			// Check if 'from' is the same as 'userDir'
+			if (!isUsersDir(from)) {
+				paths = paths.filter(p => !isUsersDir(path.dirname(p)));
+			}
 		}
 
 		return paths;

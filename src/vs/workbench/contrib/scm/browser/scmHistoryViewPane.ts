@@ -27,7 +27,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
@@ -64,6 +63,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -319,7 +319,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
-	private readonly _badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+	private readonly _badgesConfig: IObservable<'all' | 'filter'>;
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
@@ -329,7 +329,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService
-	) { }
+	) {
+		this._badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
 		// hack
@@ -489,14 +491,14 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			}
 
 			if (historyItem.timestamp) {
-				const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).value;
 				markdown.appendMarkdown(`, $(history) ${fromNow(historyItem.timestamp, true, true)} (${dateFormatter.format(historyItem.timestamp)})`);
 			}
 
 			markdown.appendMarkdown('\n\n');
 		}
 
-		markdown.appendMarkdown(`${historyItem.message}\n\n`);
+		markdown.appendMarkdown(`${historyItem.message.replace(/\r\n|\r|\n/g, '\n\n')}\n\n`);
 
 		if (historyItem.statistics) {
 			markdown.appendMarkdown(`---\n\n`);
@@ -625,7 +627,7 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 		@IHoverService hoverService: IHoverService,
 
 	) {
-		super('element', true, () => this.getHoverOptions(), configurationService, hoverService);
+		super('element', { instantHover: true }, () => this.getHoverOptions(), configurationService, hoverService);
 	}
 
 	private getHoverOptions(): Partial<IHoverOptions> {
@@ -750,36 +752,13 @@ type RepositoryState = {
 };
 
 class SCMHistoryViewModel extends Disposable {
-
-	private readonly _closedRepository = observableFromEvent(
-		this,
-		this._scmService.onDidRemoveRepository,
-		repository => repository);
-
-	private readonly _firstRepository = this._scmService.repositoryCount > 0 ?
-		constObservable(Iterable.first(this._scmService.repositories)) :
-		observableFromEvent(
-			this,
-			Event.once(this._scmService.onDidAddRepository),
-			repository => repository
-		);
-
-	private readonly _selectedRepository = observableValue<'auto' | ISCMRepository>(this, 'auto');
-
-	private readonly _graphRepository = derived(reader => {
-		const selectedRepository = this._selectedRepository.read(reader);
-		if (selectedRepository !== 'auto') {
-			return selectedRepository;
-		}
-
-		return this._scmViewService.activeRepository.read(reader);
-	});
-
 	/**
 	 * The active | selected repository takes precedence over the first repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
+	readonly repository: IObservable<ISCMRepository | undefined>;
+	private readonly _selectedRepository = observableValue<'auto' | ISCMRepository>(this, 'auto');
+
 	readonly onDidChangeHistoryItemsFilter = observableSignal(this);
 	readonly isViewModelEmpty = observableValue(this, false);
 
@@ -805,9 +784,30 @@ class SCMHistoryViewModel extends Disposable {
 
 		this._scmHistoryItemCountCtx = ContextKeys.SCMHistoryItemCount.bindTo(this._contextKeyService);
 
+		const firstRepository = this._scmService.repositoryCount > 0
+			? constObservable(Iterable.first(this._scmService.repositories))
+			: observableFromEvent(this,
+				Event.once(this._scmService.onDidAddRepository),
+				repository => repository);
+
+		const graphRepository = derived(reader => {
+			const selectedRepository = this._selectedRepository.read(reader);
+			if (selectedRepository !== 'auto') {
+				return selectedRepository;
+			}
+
+			return this._scmViewService.activeRepository.read(reader);
+		});
+
+		this.repository = latestChangedValue(this, [firstRepository, graphRepository]);
+
+		const closedRepository = observableFromEvent(this,
+			this._scmService.onDidRemoveRepository,
+			repository => repository);
+
 		// Closed repository cleanup
 		this._register(autorun(reader => {
-			const repository = this._closedRepository.read(reader);
+			const repository = closedRepository.read(reader);
 			if (!repository) {
 				return;
 			}
@@ -1045,7 +1045,7 @@ class SCMHistoryViewModel extends Disposable {
 
 type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
 
-class RepositoryPicker extends Disposable {
+class RepositoryPicker {
 	private readonly _autoQuickPickItem: RepositoryQuickPickItem = {
 		label: localize('auto', "Auto"),
 		description: localize('activeRepository', "Show the source control graph for the active repository"),
@@ -1055,9 +1055,7 @@ class RepositoryPicker extends Disposable {
 	constructor(
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
-	) {
-		super();
-	}
+	) { }
 
 	async pickRepository(): Promise<RepositoryQuickPickItem | undefined> {
 		const picks: (RepositoryQuickPickItem | IQuickPickSeparator)[] = [
@@ -1238,7 +1236,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
@@ -1250,14 +1248,13 @@ export class SCMHistoryViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService
 	) {
 		super({
 			...options,
 			titleMenuId: MenuId.SCMHistoryTitle,
 			showActions: ViewPaneShowActions.WhenExpanded
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 		this._scmCurrentHistoryItemRefHasRemote = ContextKeys.SCMCurrentHistoryItemRefHasRemote.bindTo(this.scopedContextKeyService);
@@ -1414,7 +1411,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._treeViewModel?.repository.get()?.provider;
 	}
 
-	override getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === PICK_REPOSITORY_ACTION_ID) {
 			const repository = this._treeViewModel?.repository.get();
 			if (repository) {
@@ -1428,7 +1425,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			}
 		}
 
-		return super.getActionViewItem(action, options);
+		return super.createActionViewItem(action, options);
 	}
 
 	override focus(): void {
@@ -1580,7 +1577,15 @@ export class SCMHistoryViewPane extends ViewPane {
 				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
 				const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
-				await this._commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+				await this._editorService.openEditor({
+					label: title,
+					multiDiffSource: multiDiffSourceUri,
+					resources: historyItemChanges.map(c => ({
+						original: { resource: c.originalUri },
+						modified: { resource: c.modifiedUri }
+					})),
+					options: e.editorOptions
+				});
 			}
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;

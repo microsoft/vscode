@@ -7,8 +7,8 @@ import { CharCode } from '../../../base/common/charCode.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { countEOL } from '../core/eolCounter.js';
-import { LineRange } from '../core/lineRange.js';
+import { countEOL } from '../core/misc/eolCounter.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { IWordAtPosition, getWordAtText } from '../core/wordHelper.js';
@@ -211,7 +211,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	// #region Semantic Tokens
 
 	public setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void {
-		this._semanticTokens.set(tokens, isComplete);
+		this._semanticTokens.set(tokens, isComplete, this._textModel);
 
 		this._emitModelTokensChangedEvent({
 			semanticTokensApplied: tokens !== null,
@@ -379,6 +379,10 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 class GrammarTokens extends AbstractTokens {
 	private _tokenizer: TokenizerWithStateStoreAndTextModel | null = null;
+	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	protected readonly _onDidChangeBackgroundTokenizationState: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+
 	private _defaultBackgroundTokenizer: DefaultBackgroundTokenizer | null = null;
 	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 

@@ -201,8 +201,23 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		req.on('error', reject);
 
+		// Handle timeout
 		if (options.timeout) {
-			req.setTimeout(options.timeout);
+			// Chromium network requests do not support the `timeout` option
+			if (options.isChromiumNetwork) {
+				// Use Node's setTimeout for Chromium network requests
+				const timeout = setTimeout(() => {
+					req.abort();
+					reject(new Error(`Request timeout after ${options.timeout}ms`));
+				}, options.timeout);
+
+				// Clear timeout when request completes
+				req.on('response', () => clearTimeout(timeout));
+				req.on('error', () => clearTimeout(timeout));
+				req.on('abort', () => clearTimeout(timeout));
+			} else {
+				req.setTimeout(options.timeout);
+			}
 		}
 
 		// Chromium will abort the request if forbidden headers are set.

@@ -43,8 +43,7 @@ import {
 	SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction, NavigateForwardInEditsAction,
 	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction,
 	MaximizeGroupHideSidebarAction, MoveEditorToNewWindowAction, CopyEditorToNewindowAction, RestoreEditorsToMainWindowAction, ToggleMaximizeEditorGroupAction, MinimizeOtherGroupsHideSidebarAction, CopyEditorGroupToNewWindowAction,
-	MoveEditorGroupToNewWindowAction, NewEmptyEditorWindowAction,
-	ToggleOvertypeInsertMode
+	MoveEditorGroupToNewWindowAction, NewEmptyEditorWindowAction
 } from './editorActions.js';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
@@ -73,6 +72,8 @@ import { DynamicEditorConfigurations } from './editorConfiguration.js';
 import { ConfigureEditorAction, ConfigureEditorTabsAction, EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from '../../actions/layoutActions.js';
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { getFontSnippets } from '../../../../base/browser/fonts.js';
+import { registerEditorFontConfigurations } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
 //#region Editor Registrations
 
@@ -171,8 +172,6 @@ quickAccessRegistry.registerQuickAccessProvider({
 //#endregion
 
 //#region Actions & Commands
-
-registerAction2(ToggleOvertypeInsertMode);
 
 registerAction2(ChangeLanguageAction);
 registerAction2(ChangeEOLAction);
@@ -1105,3 +1104,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 //#endregion
+
+
+registerEditorFontConfigurations(getFontSnippets);

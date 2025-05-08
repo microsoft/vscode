@@ -246,6 +246,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('save - without associated resource', async () => {
+		let savedEvent: { source: URI; target: URI } | undefined = undefined;
+		disposables.add(manager.untitled.onDidSave(e => {
+			savedEvent = e;
+		}));
+
 		const workingCopy = await manager.untitled.resolve();
 		workingCopy.model?.updateContents('Simple Save');
 
@@ -255,11 +260,18 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.ok(result);
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assert.strictEqual(savedEvent!.source.toString(), workingCopy.resource.toString());
+		assert.strictEqual(savedEvent!.target.toString(), URI.file('simple/file.txt').toString());
 
 		workingCopy.dispose();
 	});
 
 	test('save - with associated resource', async () => {
+		let savedEvent: { source: URI; target: URI } | undefined = undefined;
+		disposables.add(manager.untitled.onDidSave(e => {
+			savedEvent = e;
+		}));
+
 		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
 		workingCopy.model?.updateContents('Simple Save with associated resource');
 
@@ -269,6 +281,8 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.ok(result);
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assert.strictEqual(savedEvent!.source.toString(), workingCopy.resource.toString());
+		assert.strictEqual(savedEvent!.target.toString(), URI.file('/some/associated.txt').toString());
 
 		workingCopy.dispose();
 	});

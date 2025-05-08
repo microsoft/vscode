@@ -148,8 +148,8 @@ export class ExtensionManagementChannel implements IServerChannel {
 				const extensions = await this.service.getInstalled(args[0], transformIncomingURI(args[1], uriTransformer), args[2]);
 				return extensions.map(e => transformOutgoingExtension(e, uriTransformer));
 			}
-			case 'toggleAppliationScope': {
-				const extension = await this.service.toggleAppliationScope(transformIncomingExtension(args[0], uriTransformer), transformIncomingURI(args[1], uriTransformer));
+			case 'toggleApplicationScope': {
+				const extension = await this.service.toggleApplicationScope(transformIncomingExtension(args[0], uriTransformer), transformIncomingURI(args[1], uriTransformer));
 				return transformOutgoingExtension(extension, uriTransformer);
 			}
 			case 'copyExtensions': {
@@ -310,8 +310,8 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 		return this.channel.call<void>('resetPinnedStateForAllUserExtensions', [pinned]);
 	}
 
-	toggleAppliationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
-		return this.channel.call<ILocalExtension>('toggleAppliationScope', [local, fromProfileLocation])
+	toggleApplicationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+		return this.channel.call<ILocalExtension>('toggleApplicationScope', [local, fromProfileLocation])
 			.then(extension => transformIncomingExtension(extension, null));
 	}
 

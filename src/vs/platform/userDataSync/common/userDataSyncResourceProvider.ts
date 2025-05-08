@@ -26,6 +26,7 @@ import { parseUserDataProfilesManifest, stringifyLocalProfiles } from './userDat
 import { toFormattedString } from '../../../base/common/jsonFormatter.js';
 import { trim } from '../../../base/common/strings.js';
 import { IMachinesData, IUserDataSyncMachine } from './userDataSyncMachines.js';
+import { parsePrompts } from './promptsSync/promptsSync.js';
 
 interface ISyncResourceUriInfo {
 	readonly remote: boolean;
@@ -145,6 +146,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Keybindings: return this.getKeybindingsAssociatedResources(uri, profile);
 			case SyncResource.Tasks: return this.getTasksAssociatedResources(uri, profile);
 			case SyncResource.Snippets: return this.getSnippetsAssociatedResources(uri, profile);
+			case SyncResource.Prompts: return this.getPromptsAssociatedResources(uri, profile);
 			case SyncResource.GlobalState: return this.getGlobalStateAssociatedResources(uri, profile);
 			case SyncResource.Extensions: return this.getExtensionsAssociatedResources(uri, profile);
 			case SyncResource.Profiles: return this.getProfilesAssociatedResources(uri, profile);
@@ -222,6 +224,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Keybindings: return this.resolveKeybindingsNodeContent(syncData, node);
 			case SyncResource.Tasks: return this.resolveTasksNodeContent(syncData, node);
 			case SyncResource.Snippets: return this.resolveSnippetsNodeContent(syncData, node);
+			case SyncResource.Prompts: return this.resolvePromptsNodeContent(syncData, node);
 			case SyncResource.GlobalState: return this.resolveGlobalStateNodeContent(syncData, node);
 			case SyncResource.Extensions: return this.resolveExtensionsNodeContent(syncData, node);
 			case SyncResource.Profiles: return this.resolveProfileNodeContent(syncData, node);
@@ -242,6 +245,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Keybindings: return null;
 			case SyncResource.Tasks: return null;
 			case SyncResource.Snippets: return null;
+			case SyncResource.Prompts: return null;
 			case SyncResource.WorkspaceState: return null;
 		}
 	}
@@ -308,6 +312,30 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 
 	private resolveSnippetsNodeContent(syncData: ISyncData, node: string): string | null {
 		return parseSnippets(syncData)[node] || null;
+	}
+
+	private async getPromptsAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): Promise<{ resource: URI; comparableResource: URI }[]> {
+		const content = await this.resolveContent(uri);
+		if (content) {
+			const syncData = this.parseSyncData(content, SyncResource.Prompts);
+			if (syncData) {
+				const prompts = parsePrompts(syncData);
+				const result = [];
+				for (const prompt of Object.keys(prompts)) {
+					const resource = this.extUri.joinPath(uri, prompt);
+					const comparableResource = (profile)
+						? this.extUri.joinPath(profile.promptsHome, prompt)
+						: this.extUri.joinPath(uri, UserDataSyncResourceProviderService.NOT_EXISTING_RESOURCE);
+					result.push({ resource, comparableResource });
+				}
+				return result;
+			}
+		}
+		return [];
+	}
+
+	private resolvePromptsNodeContent(syncData: ISyncData, node: string): string | null {
+		return parsePrompts(syncData)[node] || null;
 	}
 
 	private getExtensionsAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): { resource: URI; comparableResource: URI }[] {

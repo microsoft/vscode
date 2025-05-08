@@ -3,6 +3,8 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_MACOS_ARM64
     type: boolean
+  - name: VSCODE_QUALITY
+    type: string
 
 steps:
   - task: NodeTool@0
@@ -10,6 +12,14 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: AzureKeyVault@2
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: vscode
+        KeyVaultName: vscode-build-secrets
+        SecretsFilter: "github-distro-mixin-password"
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY build
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -43,6 +53,8 @@ steps:
         echo "Npm install failed $i, trying again..."
       done
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - template: ../cli/cli-darwin-sign.yml@self

@@ -26,7 +26,6 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { getActiveWindow, isDragEvent, triggerDownload } from '../../../../base/browser/dom.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
-import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
@@ -828,7 +827,7 @@ export class FileDownload {
 
 		const destination = await this.fileDialogService.showSaveDialog({
 			availableFileSystems: [Schemas.file],
-			saveLabel: mnemonicButtonLabel(localize('downloadButton', "Download")),
+			saveLabel: localize('downloadButton', "Download"),
 			title: localize('chooseWhereToDownload', "Choose Where to Download"),
 			defaultUri
 		});

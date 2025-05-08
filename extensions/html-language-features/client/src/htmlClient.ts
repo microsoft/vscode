@@ -76,7 +76,7 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 export const languageServerDescription = l10n.t('HTML Language Server');
 
 export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
+	TextDecoder: typeof TextDecoder;
 	fileFs?: FileSystemProvider;
 	telemetry?: TelemetryReporter;
 	readonly timer: {

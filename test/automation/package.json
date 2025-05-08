@@ -13,7 +13,7 @@
     "watch": "npm-run-all -lp watch-driver-definition watch-tsc",
     "watch-tsc": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
     "copy-driver-definition": "node tools/copy-driver-definition.js",
-    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\"",
+    "watch-driver-definition": "nodemon --watch ../../src/vs/workbench/services/driver/common/driver.ts tools/copy-driver-definition.js",
     "copy-package-version": "node tools/copy-package-version.js",
     "prepublishOnly": "npm run copy-package-version"
   },
@@ -28,7 +28,7 @@
     "@types/node": "20.x",
     "@types/tmp": "0.2.2",
     "cpx2": "3.0.0",
-    "npm-run-all": "^4.1.5",
-    "watch": "^1.0.2"
+    "nodemon": "^3.1.9",
+    "npm-run-all": "^4.1.5"
   }
 }

@@ -342,7 +342,28 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+abstract class MarkersViewAction extends ViewAction<IMarkersView> {
+
+	protected getSelectedMarkers(markersView: IMarkersView): Marker[] {
+		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
+		const markers: Marker[] = [];
+		const addMarker = (marker: Marker) => {
+			if (!markers.includes(marker)) {
+				markers.push(marker);
+			}
+		};
+		for (const selected of selection) {
+			if (selected instanceof ResourceMarkers) {
+				selected.markers.forEach(addMarker);
+			} else if (selected instanceof Marker) {
+				addMarker(selected);
+			}
+		}
+		return markers;
+	}
+}
+
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
@@ -363,27 +384,14 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
-		const markers: Marker[] = [];
-		const addMarker = (marker: Marker) => {
-			if (!markers.includes(marker)) {
-				markers.push(marker);
-			}
-		};
-		for (const selected of selection) {
-			if (selected instanceof ResourceMarkers) {
-				selected.markers.forEach(addMarker);
-			} else if (selected instanceof Marker) {
-				addMarker(selected);
-			}
-		}
+		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
 			await clipboardService.writeText(`[${markers}]`);
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
@@ -398,9 +406,10 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message);
+
+		const markers = this.getSelectedMarkers(markersView);
+		if (markers.length) {
+			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
 		}
 	}
 });

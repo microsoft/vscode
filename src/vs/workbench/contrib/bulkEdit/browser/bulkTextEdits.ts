@@ -25,7 +25,7 @@ import { ISnippetEdit } from '../../../../editor/contrib/snippet/browser/snippet
 
 type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 
-type ISingleSnippetEditOperation = ISingleEditOperation & { insertAsSnippet?: boolean };
+type ISingleSnippetEditOperation = ISingleEditOperation & { insertAsSnippet?: boolean; keepWhitespace?: boolean };
 
 class ModelEditTask implements IDisposable {
 
@@ -80,7 +80,7 @@ class ModelEditTask implements IDisposable {
 		} else {
 			range = Range.lift(textEdit.range);
 		}
-		this._edits.push({ ...EditOperation.replaceMove(range, textEdit.text), insertAsSnippet: textEdit.insertAsSnippet });
+		this._edits.push({ ...EditOperation.replaceMove(range, textEdit.text), insertAsSnippet: textEdit.insertAsSnippet, keepWhitespace: textEdit.keepWhitespace });
 	}
 
 	validate(): ValidationResult {
@@ -152,7 +152,8 @@ class EditorEditTask extends ModelEditTask {
 					if (edit.range && edit.text !== null) {
 						snippetEdits.push({
 							range: Range.lift(edit.range),
-							template: edit.insertAsSnippet ? edit.text : SnippetParser.escape(edit.text)
+							template: edit.insertAsSnippet ? edit.text : SnippetParser.escape(edit.text),
+							keepWhitespace: edit.keepWhitespace
 						});
 					}
 				}

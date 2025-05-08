@@ -188,7 +188,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				super({
 					id: 'workbench.action.output.addCompoundLog',
 					title: nls.localize2('addCompoundLog', "Add Compound Log..."),
-					category: Categories.Developer,
+					category: nls.localize2('output', "Output"),
 					f1: true,
 					menu: [{
 						id: MenuId.ViewTitle,
@@ -235,7 +235,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				super({
 					id: 'workbench.action.output.remove',
 					title: nls.localize2('removeLog', "Remove Output..."),
-					category: Categories.Developer,
+					category: nls.localize2('output', "Output"),
 					f1: true
 				});
 			}

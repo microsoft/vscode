@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IExtensionGalleryManifest } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { FilterType, SortBy } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 
 export class Query {
@@ -11,11 +13,32 @@ export class Query {
 		this.value = value.trim();
 	}
 
-	static suggestions(query: string): string[] {
-		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort', 'category', 'tag', 'ext', 'id', 'outdated', 'recentlyUpdated'] as const;
+	static suggestions(query: string, galleryManifest: IExtensionGalleryManifest | null): string[] {
+
+		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin'];
+		if (galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Featured)) {
+			commands.push('featured');
+		}
+
+		commands.push(...['popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort']);
+		const isCategoriesEnabled = galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Category);
+		if (isCategoriesEnabled) {
+			commands.push('category');
+		}
+
+		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated']);
+		const sortCommands = [];
+		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.InstallCount)) {
+			sortCommands.push('installs');
+		}
+		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.WeightedRating)) {
+			sortCommands.push('rating');
+		}
+		sortCommands.push('name', 'publishedDate', 'updateDate');
+
 		const subcommands = {
-			'sort': ['installs', 'rating', 'name', 'publishedDate', 'updateDate'],
-			'category': EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`),
+			'sort': sortCommands,
+			'category': isCategoriesEnabled ? EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`) : [],
 			'tag': [''],
 			'ext': [''],
 			'id': ['']

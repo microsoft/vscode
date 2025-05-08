@@ -101,7 +101,8 @@ suite(`Notebook Model Store Sync`, () => {
 		assert.strictEqual(editsApplied.length, 0);
 		assert.strictEqual(cellMetadataUpdates.length, 0);
 	});
-	test('Adding cell will result in an update to the metadata', async () => {
+	test('Adding cell to nbformat 4.2 notebook will result in adding empty metadata', async () => {
+		sinon.stub(notebook, 'metadata').get(() => ({ nbformat: 4, nbformat_minor: 2 }));
 		const cell: NotebookCell = {
 			document: {} as any,
 			executionSummary: {},
@@ -131,7 +132,7 @@ suite(`Notebook Model Store Sync`, () => {
 		const newMetadata = cellMetadataUpdates[0].newCellMetadata;
 		assert.deepStrictEqual(newMetadata, { execution_count: null, metadata: {} });
 	});
-	test('Add cell id if nbformat is 4.5', async () => {
+	test('Added cell will have a cell id if nbformat is 4.5', async () => {
 		sinon.stub(notebook, 'metadata').get(() => ({ nbformat: 4, nbformat_minor: 5 }));
 		const cell: NotebookCell = {
 			document: {} as any,

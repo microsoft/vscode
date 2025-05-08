@@ -6,11 +6,12 @@
 import { ThrottledDelayer } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
+import { PolicyName } from '../../../base/common/policy.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyName, PolicyValue } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyValue } from './policy.js';
 
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];

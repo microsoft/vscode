@@ -66,7 +66,8 @@ suite('Common Editor Config', () => {
 				outerHeight: 100,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				accessibilitySupport: AccessibilitySupport.Unknown
+				accessibilitySupport: AccessibilitySupport.Unknown,
+				editContextSupported: true,
 			};
 		}
 	}

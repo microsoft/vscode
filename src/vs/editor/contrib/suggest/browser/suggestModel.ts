@@ -505,6 +505,7 @@ export class SuggestModel implements IDisposable {
 			this._requestToken?.dispose();
 
 			if (!this._editor.hasModel()) {
+				completions.disposable.dispose();
 				return;
 			}
 
@@ -514,6 +515,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			if (this._triggerState === undefined) {
+				completions.disposable.dispose();
 				return;
 			}
 
@@ -561,11 +563,12 @@ export class SuggestModel implements IDisposable {
 		}).catch(onUnexpectedError);
 	}
 
-	private _telemetryGate: number = 0;
-
+	/**
+	 * Report durations telemetry with a 1% sampling rate.
+	 * The telemetry is reported only if a random number between 0 and 100 is less than or equal to 1.
+	 */
 	private _reportDurationsTelemetry(durations: CompletionDurations): void {
-
-		if (this._telemetryGate++ % 230 !== 0) {
+		if (Math.random() > 0.0001) { // 0.01%
 			return;
 		}
 

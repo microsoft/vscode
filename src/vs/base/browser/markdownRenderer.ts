@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 import { Event } from '../common/event.js';
-import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { escapeDoubleQuotes, IMarkdownString, isMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
@@ -552,7 +552,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
  * `# Header` would be output as `Header`. If it's not, the string is returned.
  */
 export function renderStringAsPlaintext(string: IMarkdownString | string) {
-	return typeof string === 'string' ? string : renderMarkdownAsPlaintext(string);
+	return isMarkdownString(string) ? renderMarkdownAsPlaintext(string) : string;
 }
 
 /**
@@ -585,7 +585,7 @@ const unescapeInfo = new Map<string, string>([
 	['&gt;', '>'],
 ]);
 
-function createRenderer(): marked.Renderer {
+function createPlainTextRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
@@ -647,10 +647,10 @@ function createRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>(createRenderer);
+const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
 
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createRenderer();
+	const renderer = createPlainTextRenderer();
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
 		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
 	};

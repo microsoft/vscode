@@ -16,8 +16,8 @@ import { LinesDecoder, TLineToken } from '../../../common/codecs/linesCodec/line
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 /**
- * Note! This decoder is also often used to test common logic of abstract {@linkcode BaseDecoder}
- * class, because the {@linkcode LinesDecoder} is one of the simplest non-abstract decoders we have.
+ * Note! This decoder is also often used to test common logic of abstract {@link BaseDecoder}
+ * class, because the {@link LinesDecoder} is one of the simplest non-abstract decoders we have.
  */
 suite('LinesDecoder', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,14 +26,14 @@ suite('LinesDecoder', () => {
 	 * Test the core logic with specific method of consuming
 	 * tokens that are produced by a lines decoder instance.
 	 */
-	suite('core logic', () => {
+	suite('• core logic', () => {
 		testLinesDecoder('async-generator', disposables);
 		testLinesDecoder('consume-all-method', disposables);
 		testLinesDecoder('on-data-event', disposables);
 	});
 
-	suite('settled promise', () => {
-		test('throws if accessed on not-yet-started decoder instance', () => {
+	suite('• settled promise', () => {
+		test('• throws if accessed on not-yet-started decoder instance', () => {
 			const test = disposables.add(new TestLinesDecoder());
 
 			assert.throws(
@@ -51,8 +51,8 @@ suite('LinesDecoder', () => {
 		});
 	});
 
-	suite('start', () => {
-		test('throws if the decoder object is already `disposed`', () => {
+	suite('• start', () => {
+		test('• throws if the decoder object is already `disposed`', () => {
 			const test = disposables.add(new TestLinesDecoder());
 			const { decoder } = test;
 			decoder.dispose();
@@ -63,7 +63,7 @@ suite('LinesDecoder', () => {
 			);
 		});
 
-		test('throws if the decoder object is already `ended`', async () => {
+		test('• throws if the decoder object is already `ended`', async () => {
 			const inputStream = newWriteableStream<VSBuffer>(null);
 			const test = disposables.add(new TestLinesDecoder(inputStream));
 			const { decoder } = test;
@@ -129,8 +129,8 @@ export class TestLinesDecoder extends TestDecoder<TLineToken, LinesDecoder> {
 }
 
 /**
- * Common reusable test utility to validate {@linkcode LinesDecoder} logic with
- * the provided {@linkcode tokensConsumeMethod} way of consuming decoder-produced tokens.
+ * Common reusable test utility to validate {@link LinesDecoder} logic with
+ * the provided {@link tokensConsumeMethod} way of consuming decoder-produced tokens.
  *
  * @throws if a test fails, please see thrown error for failure details.
  * @param tokensConsumeMethod The way to consume tokens produced by the decoder.
@@ -141,8 +141,26 @@ function testLinesDecoder(
 	disposables: Pick<DisposableStore, "add">,
 ) {
 	suite(tokensConsumeMethod, () => {
-		suite('produces expected tokens', () => {
-			test('input starts with line data', async () => {
+		suite('• produces expected tokens', () => {
+			test('• input starts with line data', async () => {
+				const test = disposables.add(new TestLinesDecoder());
+
+				await test.run(
+					' hello world\nhow are you doing?\n\n 😊 \r',
+					[
+						new Line(1, ' hello world'),
+						new NewLine(new Range(1, 13, 1, 14)),
+						new Line(2, 'how are you doing?'),
+						new NewLine(new Range(2, 19, 2, 20)),
+						new Line(3, ''),
+						new NewLine(new Range(3, 1, 3, 2)),
+						new Line(4, ' 😊 '),
+						new NewLine(new Range(4, 5, 4, 6)),
+					],
+				);
+			});
+
+			test('• standalone \\r is treated as new line', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
@@ -155,13 +173,13 @@ function testLinesDecoder(
 						new Line(3, ''),
 						new NewLine(new Range(3, 1, 3, 2)),
 						new Line(4, ' 😊 '),
-						new CarriageReturn(new Range(4, 5, 4, 6)),
+						new NewLine(new Range(4, 5, 4, 6)),
 						new Line(5, ' '),
 					],
 				);
 			});
 
-			test('input starts with a new line', async () => {
+			test('• input starts with a new line', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
@@ -184,7 +202,7 @@ function testLinesDecoder(
 				);
 			});
 
-			test('input starts and ends with multiple new lines', async () => {
+			test('• input starts and ends with multiple new lines', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
@@ -211,18 +229,18 @@ function testLinesDecoder(
 				);
 			});
 
-			test('single carriage return is treated as new line', async () => {
+			test('• single carriage return is treated as new line', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
 					'\r\rhaalo! 💥💥 how\'re you?\r ?!\r\n\r\n ',
 					[
 						new Line(1, ''),
-						new CarriageReturn(new Range(1, 1, 1, 2)),
+						new NewLine(new Range(1, 1, 1, 2)),
 						new Line(2, ''),
-						new CarriageReturn(new Range(2, 1, 2, 2)),
+						new NewLine(new Range(2, 1, 2, 2)),
 						new Line(3, 'haalo! 💥💥 how\'re you?'),
-						new CarriageReturn(new Range(3, 24, 3, 25)),
+						new NewLine(new Range(3, 24, 3, 25)),
 						new Line(4, ' ?!'),
 						new CarriageReturn(new Range(4, 4, 4, 5)),
 						new NewLine(new Range(4, 5, 4, 6)),

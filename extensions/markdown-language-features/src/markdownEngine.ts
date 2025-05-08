@@ -186,7 +186,7 @@ export class MarkdownItEngine implements IMdParser {
 			return cached;
 		}
 
-		this._logger.verbose('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
+		this._logger.trace('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
 		const tokens = this._tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;

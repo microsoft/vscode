@@ -5,6 +5,7 @@
 
 import { illegalArgument } from './errors.js';
 import { escapeIcons } from './iconLabels.js';
+import { Schemas } from './network.js';
 import { isEqual } from './resources.js';
 import { escapeRegExpCharacters } from './strings.js';
 import { URI, UriComponents } from './uri.js';
@@ -34,6 +35,14 @@ export class MarkdownString implements IMarkdownString {
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
 	public baseUri?: URI;
+	public uris?: { [href: string]: UriComponents } | undefined;
+
+	public static lift(dto: IMarkdownString): MarkdownString {
+		const markdownString = new MarkdownString(dto.value, dto);
+		markdownString.uris = dto.uris;
+		markdownString.baseUri = dto.baseUri ? URI.revive(dto.baseUri) : undefined;
+		return markdownString;
+	}
 
 	constructor(
 		value: string = '',
@@ -188,4 +197,14 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 		}
 	}
 	return { href, dimensions };
+}
+
+export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }): string {
+	const uri = URI.from({
+		scheme: Schemas.command,
+		path: command.id,
+		query: command.arguments?.length ? encodeURIComponent(JSON.stringify(command.arguments)) : undefined,
+	}).toString();
+
+	return `[${escapeMarkdownSyntaxTokens(command.title)}](${uri})`;
 }

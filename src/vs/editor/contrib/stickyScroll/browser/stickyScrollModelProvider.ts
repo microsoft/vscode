@@ -316,7 +316,7 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 
 	constructor(editor: IActiveCodeEditor) {
 		super(editor);
-		this._foldingLimitReporter = new RangesLimitReporter(editor);
+		this._foldingLimitReporter = this._register(new RangesLimitReporter(editor));
 	}
 
 	protected createStickyModel(token: CancellationToken, model: FoldingRegions): StickyModel {

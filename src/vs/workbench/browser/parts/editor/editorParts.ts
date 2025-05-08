@@ -44,9 +44,9 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly mainPart = this._register(this.createMainEditorPart());
+	readonly mainPart: MainEditorPart;
 
-	private mostRecentActiveParts = [this.mainPart];
+	private mostRecentActiveParts: MainEditorPart[];
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -57,7 +57,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
+		this.mainPart = this._register(this.createMainEditorPart());
 		this._register(this.registerPart(this.mainPart));
+
+		this.mostRecentActiveParts = [this.mainPart];
 
 		this.restoreParts();
 		this.registerListeners();
@@ -648,8 +651,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.getPart(group).mergeGroup(group, target, options);
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
-		return this.activePart.mergeAllGroups(target);
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
+		return this.activePart.mergeAllGroups(target, options);
 	}
 
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {

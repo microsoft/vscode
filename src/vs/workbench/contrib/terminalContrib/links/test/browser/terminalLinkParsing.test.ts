@@ -322,6 +322,48 @@ suite('TerminalLinkParsing', () => {
 			);
 		});
 
+		test('should detect multiple links when opening brackets are in the text', () => {
+			deepStrictEqual(
+				detectLinks('notlink[foo:45]', OperatingSystem.Linux),
+				[
+					{
+						path: {
+							index: 0,
+							text: 'notlink[foo'
+						},
+						prefix: undefined,
+						suffix: {
+							col: undefined,
+							row: 45,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: {
+								index: 11,
+								text: ':45'
+							}
+						}
+					},
+					{
+						path: {
+							index: 8,
+							text: 'foo'
+						},
+						prefix: undefined,
+						suffix: {
+							col: undefined,
+							row: 45,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: {
+								index: 11,
+								text: ':45'
+							}
+						}
+					},
+				] as IParsedLink[]
+			);
+		});
+
 		test('should extract the link prefix', () => {
 			deepStrictEqual(
 				detectLinks('"foo", line 5, col 6', OperatingSystem.Linux),

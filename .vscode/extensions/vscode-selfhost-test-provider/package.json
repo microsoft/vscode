@@ -4,8 +4,7 @@
   "description": "Test provider for the VS Code project",
   "enabledApiProposals": [
     "testObserver",
-    "testRelatedCode",
-    "attributableCoverage"
+    "testRelatedCode"
   ],
   "engines": {
     "vscode": "^1.88.0"

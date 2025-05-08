@@ -314,6 +314,23 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				prefix,
 				suffix
 			});
+
+			// If the path contains an opening bracket, provide the path starting immediately after
+			// the opening bracket as an additional result
+			const openingBracketMatch = path.matchAll(/(?<bracket>[\[\(])(?![\]\)])/g);
+			for (const match of openingBracketMatch) {
+				const bracket = match.groups?.bracket;
+				if (bracket) {
+					results.push({
+						path: {
+							index: linkStartIndex + (prefix?.text.length || 0) + match.index + 1,
+							text: path.substring(match.index + bracket.length)
+						},
+						prefix,
+						suffix
+					});
+				}
+			}
 		}
 	}
 

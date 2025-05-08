@@ -58,8 +58,9 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	// --- consumer fs, vscode.workspace.fs
 
-	$stat(uri: UriComponents): Promise<IStat> {
-		return this._fileService.stat(URI.revive(uri)).then(stat => {
+	async $stat(uri: UriComponents): Promise<IStat> {
+		try {
+			const stat = await this._fileService.stat(URI.revive(uri));
 			return {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
@@ -67,18 +68,23 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				permissions: stat.readonly ? FilePermission.Readonly : undefined,
 				type: MainThreadFileSystem._asFileType(stat)
 			};
-		}).catch(MainThreadFileSystem._handleError);
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
-	$readdir(uri: UriComponents): Promise<[string, FileType][]> {
-		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: false }).then(stat => {
+	async $readdir(uri: UriComponents): Promise<[string, FileType][]> {
+		try {
+			const stat = await this._fileService.resolve(URI.revive(uri), { resolveMetadata: false });
 			if (!stat.isDirectory) {
 				const err = new Error(stat.name);
 				err.name = FileSystemProviderErrorCode.FileNotADirectory;
 				throw err;
 			}
 			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._asFileType(child)] as [string, FileType]);
-		}).catch(MainThreadFileSystem._handleError);
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
 	private static _asFileType(stat: IFileStat | IFileStatWithPartialMetadata): FileType {
@@ -95,32 +101,53 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return res;
 	}
 
-	$readFile(uri: UriComponents): Promise<VSBuffer> {
-		return this._fileService.readFile(URI.revive(uri)).then(file => file.value).catch(MainThreadFileSystem._handleError);
+	async $readFile(uri: UriComponents): Promise<VSBuffer> {
+		try {
+			const file = await this._fileService.readFile(URI.revive(uri));
+			return file.value;
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
-	$writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
-		return this._fileService.writeFile(URI.revive(uri), content)
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	async $writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
+		try {
+			await this._fileService.writeFile(URI.revive(uri), content);
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
-	$rename(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
-		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite)
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	async $rename(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
+		try {
+			await this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite);
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
-	$copy(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
-		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite)
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	async $copy(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
+		try {
+			await this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite);
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
-	$mkdir(uri: UriComponents): Promise<void> {
-		return this._fileService.createFolder(URI.revive(uri))
-			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	async $mkdir(uri: UriComponents): Promise<void> {
+		try {
+			await this._fileService.createFolder(URI.revive(uri));
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
-	$delete(uri: UriComponents, opts: IFileDeleteOptions): Promise<void> {
-		return this._fileService.del(URI.revive(uri), opts).catch(MainThreadFileSystem._handleError);
+	async $delete(uri: UriComponents, opts: IFileDeleteOptions): Promise<void> {
+		try {
+			return await this._fileService.del(URI.revive(uri), opts);
+		} catch (err) {
+			return MainThreadFileSystem._handleError(err);
+		}
 	}
 
 	private static _handleError(err: any): never {
@@ -152,8 +179,6 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$ensureActivation(scheme: string): Promise<void> {
 		return this._fileService.activateProvider(scheme);
 	}
-
-
 }
 
 class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileFolderCopyCapability {
@@ -201,14 +226,17 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 
 	// --- forwarding calls
 
-	stat(resource: URI): Promise<IStat> {
-		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
+	async stat(resource: URI): Promise<IStat> {
+		try {
+			return await this._proxy.$stat(this._handle, resource);
+		} catch (err) {
 			throw err;
-		});
+		}
 	}
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		return this._proxy.$readFile(this._handle, resource).then(buffer => buffer.buffer);
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const buffer = await this._proxy.$readFile(this._handle, resource);
+		return buffer.buffer;
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
@@ -243,11 +271,10 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		return this._proxy.$close(this._handle, fd);
 	}
 
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$read(this._handle, fd, pos, length).then(readData => {
-			data.set(readData.buffer, offset);
-			return readData.byteLength;
-		});
+	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		const readData = await this._proxy.$read(this._handle, fd, pos, length);
+		data.set(readData.buffer, offset);
+		return readData.byteLength;
 	}
 
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {

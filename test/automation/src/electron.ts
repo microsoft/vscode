@@ -41,25 +41,6 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		args.push('--verbose');
 	}
 
-	if (process.platform === 'linux') {
-		// --disable-dev-shm-usage: when run on docker containers where size of /dev/shm
-		// partition < 64MB which causes OOM failure for chromium compositor that uses
-		// this partition for shared memory.
-		// Refs https://github.com/microsoft/vscode/issues/152143
-		args.push('--disable-dev-shm-usage');
-		// Refs https://github.com/microsoft/vscode/issues/192206
-		args.push('--disable-gpu');
-	}
-
-	if (process.platform === 'darwin') {
-		// On macOS force software based rendering since we are seeing GPU process
-		// hangs when initializing GL context. This is very likely possible
-		// that there are new displays available in the CI hardware and
-		// the relevant drivers couldn't be loaded via the GPU sandbox.
-		// TODO(deepak1556): remove this switch with Electron update.
-		args.push('--use-gl=swiftshader');
-	}
-
 	if (remote) {
 		// Replace workspace path with URI
 		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(workspacePath).path}`;

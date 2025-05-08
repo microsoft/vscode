@@ -61,12 +61,14 @@ export class DiffEditorEditors extends Disposable {
 		this._argCodeEditorWidgetOptions = null as any;
 
 		this._register(autorunHandleChanges({
-			createEmptyChangeSummary: (): IDiffEditorConstructionOptions => ({}),
-			handleChange: (ctx, changeSummary) => {
-				if (ctx.didChange(_options.editorOptions)) {
-					Object.assign(changeSummary, ctx.change.changedOptions);
+			changeTracker: {
+				createChangeSummary: (): IDiffEditorConstructionOptions => ({}),
+				handleChange: (ctx, changeSummary) => {
+					if (ctx.didChange(_options.editorOptions)) {
+						Object.assign(changeSummary, ctx.change.changedOptions);
+					}
+					return true;
 				}
-				return true;
 			}
 		}, (reader, changeSummary) => {
 			/** @description update editor options */

@@ -11,15 +11,15 @@ import { ICodec } from '../../../../../../base/common/codecs/types/ICodec.js';
 /**
  * `ChatPromptCodec` type is a `ICodec<T, K>` with specific types for
  * stream messages and return types of the `encode`/`decode` functions.
- * @see {@linkcode ICodec}
+ * @see {@link ICodec}
  */
 interface IChatPromptCodec extends ICodec<VSBuffer, TChatPromptToken> {
 	/**
 	 * Decode a stream of `VSBuffer`s into a stream of `TChatPromptToken`s.
 	 *
-	 * @see {@linkcode TChatPromptToken}
-	 * @see {@linkcode VSBuffer}
-	 * @see {@linkcode ChatPromptDecoder}
+	 * @see {@link TChatPromptToken}
+	 * @see {@link VSBuffer}
+	 * @see {@link ChatPromptDecoder}
 	 */
 	decode: (value: ReadableStream<VSBuffer>) => ChatPromptDecoder;
 }
@@ -31,8 +31,8 @@ export const ChatPromptCodec: IChatPromptCodec = Object.freeze({
 	/**
 	 * Encode a stream of `TChatPromptToken`s into a stream of `VSBuffer`s.
 	 *
-	 * @see {@linkcode ReadableStream}
-	 * @see {@linkcode VSBuffer}
+	 * @see {@link ReadableStream}
+	 * @see {@link VSBuffer}
 	 */
 	encode: (_stream: ReadableStream<TChatPromptToken>): ReadableStream<VSBuffer> => {
 		throw new Error('The `encode` method is not implemented.');
@@ -41,10 +41,10 @@ export const ChatPromptCodec: IChatPromptCodec = Object.freeze({
 	/**
 	 * Decode a of `VSBuffer`s into a readable of `TChatPromptToken`s.
 	 *
-	 * @see {@linkcode TChatPromptToken}
-	 * @see {@linkcode VSBuffer}
-	 * @see {@linkcode ChatPromptDecoder}
-	 * @see {@linkcode ReadableStream}
+	 * @see {@link TChatPromptToken}
+	 * @see {@link VSBuffer}
+	 * @see {@link ChatPromptDecoder}
+	 * @see {@link ReadableStream}
 	 */
 	decode: (stream: ReadableStream<VSBuffer>): ChatPromptDecoder => {
 		return new ChatPromptDecoder(stream);

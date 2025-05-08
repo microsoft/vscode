@@ -231,41 +231,6 @@ export function filter(obj: obj, predicate: (key: string, value: any) => boolean
 	return result;
 }
 
-export function getAllPropertyNames(obj: object): string[] {
-	let res: string[] = [];
-	while (Object.prototype !== obj) {
-		res = res.concat(Object.getOwnPropertyNames(obj));
-		obj = Object.getPrototypeOf(obj);
-	}
-	return res;
-}
-
-export function getAllMethodNames(obj: object): string[] {
-	const methods: string[] = [];
-	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof (obj as any)[prop] === 'function') {
-			methods.push(prop);
-		}
-	}
-	return methods;
-}
-
-export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: unknown[]) => unknown): T {
-	const createProxyMethod = (method: string): () => unknown => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
-		};
-	};
-
-	// eslint-disable-next-line local/code-no-dangerous-type-assertions
-	const result = {} as T;
-	for (const methodName of methodNames) {
-		(<any>result)[methodName] = createProxyMethod(methodName);
-	}
-	return result;
-}
-
 export function mapValues<T extends {}, R>(obj: T, fn: (value: T[keyof T], key: string) => R): { [K in keyof T]: R } {
 	const result: { [key: string]: R } = {};
 	for (const [key, value] of Object.entries(obj)) {

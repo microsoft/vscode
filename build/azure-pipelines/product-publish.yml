@@ -26,6 +26,8 @@ steps:
   - pwsh: |
       npm ci
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - download: current
@@ -92,44 +94,3 @@ steps:
       sbomEnabled: false
     displayName: Publish the artifacts processed for this stage attempt
     condition: always()
-
-  - pwsh: |
-      $ErrorActionPreference = 'Stop'
-
-      # Determine which stages we need to watch
-      $stages = @(
-        if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
-        if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
-        if ($env:VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER -eq 'True') { 'LinuxLegacyServer' }
-        if ($env:VSCODE_BUILD_STAGE_ALPINE -eq 'True') { 'Alpine' }
-        if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
-        if ($env:VSCODE_BUILD_STAGE_WEB -eq 'True') { 'Web' }
-      )
-      Write-Host "Stages to check: $stages"
-
-      # Get the timeline and see if it says the other stage completed
-      $timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
-        Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-      }  -MaximumRetryCount 5 -RetryIntervalSec 1
-
-      $failedStages = @()
-      foreach ($stage in $stages) {
-        $didStageFail = $timeline.records | Where-Object {
-          $_.name -eq $stage -and $_.type -eq 'stage' -and $_.result -ne 'succeeded' -and $_.result -ne 'succeededWithIssues'
-        }
-
-        if($didStageFail) {
-          $failedStages += $stage
-          Write-Host "'$stage' failed!"
-          Write-Host $didStageFail
-        } else {
-          Write-Host "'$stage' did not fail."
-        }
-      }
-
-      if ($failedStages.Length) {
-        throw "Failed stages: $($failedStages -join ', '). This stage will now fail so that it is easier to retry failed jobs."
-      }
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Determine if stage should succeed

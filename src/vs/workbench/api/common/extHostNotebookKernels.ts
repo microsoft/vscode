@@ -84,6 +84,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 						if (notebookEditorId === undefined) {
 							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.notebook.uri.toString()}`);
 						}
+						if ('skipIfAlreadySelected' in v) {
+							return { notebookEditorId, skipIfAlreadySelected: v.skipIfAlreadySelected };
+						}
 						return { notebookEditorId };
 					}
 					return v;

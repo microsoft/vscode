@@ -37,6 +37,9 @@ export interface ICheckboxStyles {
 	readonly checkboxBackground: string | undefined;
 	readonly checkboxBorder: string | undefined;
 	readonly checkboxForeground: string | undefined;
+	readonly checkboxDisabledBackground: string | undefined;
+	readonly checkboxDisabledForeground: string | undefined;
+	readonly size?: number;
 }
 
 export const unthemedToggleStyles = {
@@ -156,6 +159,10 @@ export class Toggle extends Widget {
 		this._register(this.ignoreGesture(this.domNode));
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
+			if (!this.enabled) {
+				return;
+			}
+
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this.checked = !this._checked;
 				this._onChange.fire(true);
@@ -286,16 +293,28 @@ export class Checkbox extends Widget {
 
 	enable(): void {
 		this.checkbox.enable();
+		this.applyStyles(true);
 	}
 
 	disable(): void {
 		this.checkbox.disable();
+		this.applyStyles(false);
 	}
 
-	protected applyStyles(): void {
-		this.domNode.style.color = this.styles.checkboxForeground || '';
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground || '';
-		this.domNode.style.borderColor = this.styles.checkboxBorder || '';
+	setTitle(newTitle: string): void {
+		this.checkbox.setTitle(newTitle);
+	}
+
+	protected applyStyles(enabled = this.enabled): void {
+		this.domNode.style.color = (enabled ? this.styles.checkboxForeground : this.styles.checkboxDisabledForeground) || '';
+		this.domNode.style.backgroundColor = (enabled ? this.styles.checkboxBackground : this.styles.checkboxDisabledBackground) || '';
+		this.domNode.style.borderColor = (enabled ? this.styles.checkboxBorder : this.styles.checkboxDisabledBackground) || '';
+
+		const size = this.styles.size || 18;
+		this.domNode.style.width =
+			this.domNode.style.height =
+			this.domNode.style.fontSize = `${size}px`;
+		this.domNode.style.fontSize = `${size - 2}px`;
 	}
 }
 

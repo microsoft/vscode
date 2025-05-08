@@ -16,8 +16,8 @@ import { addLength, lengthBetweenPositions, lengthOfRange } from '../model/range
 export type LineAlignment = [input1LineNumber: number | undefined, baseLineNumber: number, input2LineNumber: number | undefined];
 
 export function getAlignments(m: ModifiedBaseRange): LineAlignment[] {
-	const equalRanges1 = toEqualRangeMappings(m.input1Diffs.flatMap(d => d.rangeMappings), m.baseRange.toRange(), m.input1Range.toRange());
-	const equalRanges2 = toEqualRangeMappings(m.input2Diffs.flatMap(d => d.rangeMappings), m.baseRange.toRange(), m.input2Range.toRange());
+	const equalRanges1 = toEqualRangeMappings(m.input1Diffs.flatMap(d => d.rangeMappings), m.baseRange.toExclusiveRange(), m.input1Range.toExclusiveRange());
+	const equalRanges2 = toEqualRangeMappings(m.input2Diffs.flatMap(d => d.rangeMappings), m.baseRange.toExclusiveRange(), m.input2Range.toExclusiveRange());
 
 	const commonRanges = splitUpCommonEqualRangeMappings(equalRanges1, equalRanges2);
 

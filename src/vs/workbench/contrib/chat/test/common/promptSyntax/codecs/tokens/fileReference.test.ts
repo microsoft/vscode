@@ -7,14 +7,16 @@ import assert from 'assert';
 import { randomInt } from '../../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
+import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
+import { PromptToken } from '../../../../../common/promptSyntax/codecs/tokens/promptToken.js';
 import { FileReference } from '../../../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
+import { PromptVariable, PromptVariableWithData } from '../../../../../common/promptSyntax/codecs/tokens/promptVariable.js';
 
 suite('FileReference', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('`linkRange`', () => {
+	test('• linkRange', () => {
 		const lineNumber = randomInt(100, 1);
 		const columnStartNumber = randomInt(100, 1);
 		const path = `/temp/test/file-${randomInt(Number.MAX_SAFE_INTEGER)}.txt`;
@@ -46,7 +48,7 @@ suite('FileReference', () => {
 		);
 	});
 
-	test('`path`', () => {
+	test('• path', () => {
 		const lineNumber = randomInt(100, 1);
 		const columnStartNumber = randomInt(100, 1);
 		const link = `/temp/test/file-${randomInt(Number.MAX_SAFE_INTEGER)}.txt`;
@@ -67,7 +69,7 @@ suite('FileReference', () => {
 		);
 	});
 
-	test('extends `BaseToken`', () => {
+	test('• extends `PromptVariableWithData` and others', () => {
 		const lineNumber = randomInt(100, 1);
 		const columnStartNumber = randomInt(100, 1);
 		const link = `/temp/test/file-${randomInt(Number.MAX_SAFE_INTEGER)}.txt`;
@@ -80,6 +82,21 @@ suite('FileReference', () => {
 			columnEndNumber,
 		);
 		const fileReference = new FileReference(range, link);
+
+		assert(
+			fileReference instanceof PromptVariableWithData,
+			'Must extend `PromptVariableWithData`.',
+		);
+
+		assert(
+			fileReference instanceof PromptVariable,
+			'Must extend `PromptVariable`.',
+		);
+
+		assert(
+			fileReference instanceof PromptToken,
+			'Must extend `PromptToken`.',
+		);
 
 		assert(
 			fileReference instanceof BaseToken,

@@ -124,7 +124,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		super();
 		this.editor = editor;
 
-		this._foldingLimitReporter = new RangesLimitReporter(editor);
+		this._foldingLimitReporter = this._register(new RangesLimitReporter(editor));
 
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
@@ -513,15 +513,16 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 }
 
-export class RangesLimitReporter implements FoldingLimitReporter {
+export class RangesLimitReporter extends Disposable implements FoldingLimitReporter {
 	constructor(private readonly editor: ICodeEditor) {
+		super();
 	}
 
 	public get limit() {
 		return this.editor.getOptions().get(EditorOption.foldingMaximumRegions);
 	}
 
-	private _onDidChange = new Emitter<void>();
+	private _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _computed: number = 0;

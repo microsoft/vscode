@@ -120,7 +120,7 @@ export class CodeLensCache implements ICodeLensCache {
 				}
 
 				const model = new CodeLensModel();
-				model.add({ lenses, dispose() { } }, this._fakeProvider);
+				model.add({ lenses }, this._fakeProvider);
 				this._cache.set(key, new CacheItem(element.lineCount, model));
 			}
 		} catch {

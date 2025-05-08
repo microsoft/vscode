@@ -146,6 +146,23 @@ export class RenderOptions {
 			setWidth,
 		);
 	}
+
+	public withScrollBeyondLastColumn(scrollBeyondLastColumn: number): RenderOptions {
+		return new RenderOptions(
+			this.tabSize,
+			this.fontInfo,
+			this.disableMonospaceOptimizations,
+			this.typicalHalfwidthCharacterWidth,
+			scrollBeyondLastColumn,
+			this.lineHeight,
+			this.lineDecorationsWidth,
+			this.stopRenderingLineAfter,
+			this.renderWhitespace,
+			this.renderControlCharacters,
+			this.fontLigatures,
+			this.setWidth,
+		);
+	}
 }
 
 export interface RenderLinesResult {

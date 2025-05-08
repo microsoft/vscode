@@ -10,7 +10,7 @@ import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autor
 import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
 import { filterWithPrevious } from './utils.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
-import { ISerializedLineRange, LineRange, LineRangeSet } from '../../../common/core/lineRange.js';
+import { ISerializedLineRange, LineRange, LineRangeSet } from '../../../common/core/ranges/lineRange.js';
 import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { IDocumentDiff } from '../../../common/diff/documentDiffProvider.js';
 import { MovedText } from '../../../common/diff/linesDiffComputer.js';

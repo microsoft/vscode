@@ -8,7 +8,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { InlineChatController } from '../browser/inlineChatController.js';
-import { AbstractInlineChatAction, setHoldForSpeech } from '../browser/inlineChatActions.js';
+import { AbstractInline1ChatAction, setHoldForSpeech } from '../browser/inlineChatActions.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -20,12 +20,14 @@ import { HasSpeechProvider, ISpeechService } from '../../speech/common/speechSer
 import { localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EditorAction2 } from '../../../../editor/browser/editorExtensions.js';
 
-export class HoldToSpeak extends AbstractInlineChatAction {
+export class HoldToSpeak extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: 'inlineChat.holdForSpeech',
+			category: AbstractInline1ChatAction.category,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_INLINE_CHAT_VISIBLE),
 			title: localize2('holdForSpeech', "Hold for Speech"),
 			keybinding: {
@@ -36,8 +38,11 @@ export class HoldToSpeak extends AbstractInlineChatAction {
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ...args: any[]): void {
-		holdForSpeech(accessor, ctrl, this);
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+		const ctrl = InlineChatController.get(editor);
+		if (ctrl) {
+			holdForSpeech(accessor, ctrl, this);
+		}
 	}
 }
 
@@ -67,7 +72,7 @@ function holdForSpeech(accessor: ServicesAccessor, ctrl: InlineChatController, a
 	holdMode.finally(() => {
 		if (listening) {
 			commandService.executeCommand(StopListeningAction.ID).finally(() => {
-				ctrl.acceptInput();
+				ctrl.widget.chatWidget.acceptInput();
 			});
 		}
 		handle.dispose();

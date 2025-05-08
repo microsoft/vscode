@@ -9,7 +9,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, ILocalExtension, InstallExtensionResult, DidUninstallExtensionEvent } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { INotificationService, NeverShowAgainScope } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, NeverShowAgainScope, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import Severity from '../../../../base/common/severity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
@@ -73,6 +73,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 			}],
 			{
 				sticky: true,
+				priority: NotificationPriority.URGENT,
 				neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
 			}
 		);
@@ -205,6 +206,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 				}
 			}],
 			{
+				priority: NotificationPriority.OPTIONAL,
 				onCancel: () => {
 					logUserReaction('cancelled');
 				}

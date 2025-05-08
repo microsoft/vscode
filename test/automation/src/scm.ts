@@ -45,8 +45,7 @@ export class SCM extends Viewlet {
 	}
 
 	async openSCMViewlet(): Promise<any> {
-		await this.code.dispatchKeybinding('ctrl+shift+g');
-		await this.code.waitForElement(this._editContextSelector());
+		await this.code.sendKeybinding('ctrl+shift+g', async () => { await this.code.waitForElement(this._editContextSelector()); });
 	}
 
 	async waitForChange(name: string, type?: string): Promise<void> {

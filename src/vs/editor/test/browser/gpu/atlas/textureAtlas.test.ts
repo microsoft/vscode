@@ -17,13 +17,13 @@ const blackInt = 0x000000FF;
 const nullCharMetadata = 0x0;
 
 let lastUniqueGlyph: string | undefined;
-function getUniqueGlyphId(): [chars: string, tokenMetadata: number, charMetadata: number] {
+function getUniqueGlyphId(): [chars: string, tokenMetadata: number, charMetadata: number, x: number] {
 	if (!lastUniqueGlyph) {
 		lastUniqueGlyph = 'a';
 	} else {
 		lastUniqueGlyph = String.fromCharCode(lastUniqueGlyph.charCodeAt(0) + 1);
 	}
-	return [lastUniqueGlyph, blackInt, nullCharMetadata];
+	return [lastUniqueGlyph, blackInt, nullCharMetadata, 0];
 }
 
 class TestGlyphRasterizer implements IGlyphRasterizer {

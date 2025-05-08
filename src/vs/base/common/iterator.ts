@@ -110,6 +110,14 @@ export namespace Iterable {
 		return value;
 	}
 
+	export function length<T>(iterable: Iterable<T>): number {
+		let count = 0;
+		for (const _ of iterable) {
+			count++;
+		}
+		return count;
+	}
+
 	/**
 	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
 	 */

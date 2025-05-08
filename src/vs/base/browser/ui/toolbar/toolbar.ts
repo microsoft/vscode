@@ -18,8 +18,6 @@ import * as nls from '../../../../nls.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 
-
-
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
 	actionViewItemProvider?: IActionViewItemProvider;

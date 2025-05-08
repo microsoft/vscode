@@ -38,6 +38,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	private _headingLabel!: HTMLElement;
 	private _actionbarWidget!: ActionBar;
 	private _collapseAction!: Action;
+	private _contextMenuActionRunner: ActionRunner | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -131,15 +132,18 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	}
 
 	private onContextMenu(e: MouseEvent) {
-		const actions = this._commentMenus.getCommentThreadTitleContextActions(this._contextKeyService).getActions({ shouldForwardArgs: true }).map((value) => value[1]).flat();
+		const actions = this._commentMenus.getCommentThreadTitleContextActions(this._contextKeyService);
 		if (!actions.length) {
 			return;
 		}
 		const event = new StandardMouseEvent(dom.getWindow(this._headElement), e);
+		if (!this._contextMenuActionRunner) {
+			this._contextMenuActionRunner = this._register(new ActionRunner());
+		}
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => event,
 			getActions: () => actions,
-			actionRunner: new ActionRunner(),
+			actionRunner: this._contextMenuActionRunner,
 			getActionsContext: (): MarshalledCommentThread => {
 				return {
 					commentControlHandle: this._commentThread.controllerHandle,

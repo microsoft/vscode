@@ -5,7 +5,6 @@
 
 import { IAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
 import BaseSeverity from '../../../base/common/severity.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -21,6 +20,11 @@ export enum NotificationPriority {
 	 * Default priority: notification will be visible unless do not disturb mode is enabled.
 	 */
 	DEFAULT,
+
+	/**
+	 * Optional priority: notification might only be visible from the notifications center.
+	 */
+	OPTIONAL,
 
 	/**
 	 * Silent priority: notification will only be visible from the notifications center.
@@ -268,6 +272,14 @@ export interface INotificationHandle {
 	close(): void;
 }
 
+export interface IStatusHandle {
+
+	/**
+	 * Hide the status message.
+	 */
+	close(): void;
+}
+
 interface IBasePromptChoice {
 
 	/**
@@ -445,9 +457,9 @@ export interface INotificationService {
 	 * @param message the message to show as status
 	 * @param options provides some optional configuration options
 	 *
-	 * @returns a disposable to hide the status message
+	 * @returns a handle to hide the status message
 	 */
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle;
 }
 
 export class NoOpNotification implements INotificationHandle {

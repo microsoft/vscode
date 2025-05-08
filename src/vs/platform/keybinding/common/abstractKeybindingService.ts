@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IME } from '../../../base/common/ime.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 
 import { ICommandService } from '../../commands/common/commands.js';
@@ -20,7 +20,7 @@ import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } fro
 import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from './keybindingResolver.js';
 import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 import { ILogService } from '../../log/common/log.js';
-import { INotificationService } from '../../notification/common/notification.js';
+import { INotificationService, IStatusHandle } from '../../notification/common/notification.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 interface CurrentChord {
@@ -49,7 +49,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _currentChords: CurrentChord[];
 
 	private _currentChordChecker: IntervalTimer;
-	private _currentChordStatusMessage: IDisposable | null;
+	private _currentChordStatusMessage: IStatusHandle | null;
 	private _ignoreSingleModifiers: KeybindingModifierSet;
 	private _currentSingleModifier: SingleModifierChord | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
@@ -203,7 +203,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	private _leaveChordMode(): void {
 		if (this._currentChordStatusMessage) {
-			this._currentChordStatusMessage.dispose();
+			this._currentChordStatusMessage.close();
 			this._currentChordStatusMessage = null;
 		}
 		this._currentChordChecker.cancel();

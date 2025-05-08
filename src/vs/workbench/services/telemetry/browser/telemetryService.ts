@@ -84,7 +84,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 					appenders.push(new OneDataSystemWebAppender(isInternal, 'monacoworkbench', null, productService.aiConfig?.ariaKey));
 				}
 			}
-			appenders.push(new TelemetryLogAppender(logService, loggerService, environmentService, productService));
+			appenders.push(new TelemetryLogAppender('', false, loggerService, environmentService, productService));
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, isInternal, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),

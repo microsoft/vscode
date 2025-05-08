@@ -10,6 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { randomChance } from '../../../../base/common/numbers.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { isNumber } from '../../../../base/common/types.js';
 import { URI, URI as uri } from '../../../../base/common/uri.js';
@@ -212,7 +213,8 @@ export class SearchService extends Disposable implements ISearchService {
 				limitHit: completes[0] && completes[0].limitHit,
 				stats: completes[0].stats,
 				messages: arrays.coalesce(completes.flatMap(i => i.messages)).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
-				results: completes.flatMap((c: ISearchComplete) => c.results)
+				results: completes.flatMap((c: ISearchComplete) => c.results),
+				aiKeywords: completes.flatMap((c: ISearchComplete) => c.aiKeywords).filter(keyword => keyword !== undefined),
 			};
 		})();
 
@@ -355,6 +357,11 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
+		if (!randomChance(5 / 100)) {
+			// Noisy events, only send 5% of them
+			return;
+		}
+
 		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
 		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
 		const scheme = fileSchemeOnly ? Schemas.file :

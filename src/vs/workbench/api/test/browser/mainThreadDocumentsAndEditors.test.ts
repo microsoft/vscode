@@ -83,8 +83,13 @@ suite('MainThreadDocumentsAndEditors', () => {
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
-				onDidChangeDirty: Event.None
+				onDidChangeDirty: Event.None,
+				onDidChangeEncoding: Event.None
 			};
+			override untitled = <any>{
+				onDidChangeEncoding: Event.None
+			};
+			override getEncoding() { return 'utf8'; }
 		};
 		const workbenchEditorService = disposables.add(new TestEditorService());
 		const editorGroupService = new TestEditorGroupsService();

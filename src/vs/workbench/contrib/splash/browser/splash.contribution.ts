@@ -10,12 +10,14 @@ import { PartsSplash } from './partsSplash.js';
 import { IPartsSplash } from '../../../../platform/theme/common/themeService.js';
 
 registerSingleton(ISplashStorageService, class SplashStorageService implements ISplashStorageService {
+
 	_serviceBrand: undefined;
 
 	async saveWindowSplash(splash: IPartsSplash): Promise<void> {
 		const raw = JSON.stringify(splash);
 		localStorage.setItem('monaco-parts-splash', raw);
 	}
+
 }, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(

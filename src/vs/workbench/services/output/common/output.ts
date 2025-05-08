@@ -10,6 +10,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { LogLevel } from '../../../../platform/log/common/log.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 /**
  * Mime type used by the output editor.
@@ -271,16 +272,16 @@ export interface IOutputChannelRegistry {
 	removeChannel(id: string): void;
 }
 
-class OutputChannelRegistry implements IOutputChannelRegistry {
+class OutputChannelRegistry extends Disposable implements IOutputChannelRegistry {
 	private channels = new Map<string, IOutputChannelDescriptor>();
 
-	private readonly _onDidRegisterChannel = new Emitter<string>();
+	private readonly _onDidRegisterChannel = this._register(new Emitter<string>());
 	readonly onDidRegisterChannel = this._onDidRegisterChannel.event;
 
-	private readonly _onDidRemoveChannel = new Emitter<IOutputChannelDescriptor>();
+	private readonly _onDidRemoveChannel = this._register(new Emitter<IOutputChannelDescriptor>());
 	readonly onDidRemoveChannel = this._onDidRemoveChannel.event;
 
-	private readonly _onDidUpdateChannelFiles = new Emitter<IMultiSourceOutputChannelDescriptor>();
+	private readonly _onDidUpdateChannelFiles = this._register(new Emitter<IMultiSourceOutputChannelDescriptor>());
 	readonly onDidUpdateChannelSources = this._onDidUpdateChannelFiles.event;
 
 	public registerChannel(descriptor: IOutputChannelDescriptor): void {

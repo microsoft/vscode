@@ -142,17 +142,11 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 
 // -- track leaking disposables, those that get GC'ed before having been disposed
 
-// this is currently disabled because there is too many leaks and some false positives, e.g disposables from registers
-// like MenuRegistry, CommandsRegistery etc should be marked as singleton
-
-const _enableLeakDetection = false
-	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
-	;
 
 class DisposableTracking {
 	static readonly Id = 'perf.disposableTracking';
 	constructor(@IEnvironmentService envService: IEnvironmentService) {
-		if (!envService.isBuilt && _enableLeakDetection) {
+		if (!envService.isBuilt && !envService.extensionTestsLocationURI) {
 			setDisposableTracker(new GCBasedDisposableTracker());
 		}
 	}

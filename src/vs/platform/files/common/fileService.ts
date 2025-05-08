@@ -379,8 +379,8 @@ export class FileService extends Disposable implements IFileService {
 
 		try {
 
-			// validate write
-			const stat = await this.validateWriteFile(provider, resource, writeFileOptions);
+			// validate write (this may already return a peeked-at buffer)
+			let { stat, buffer: bufferOrReadableOrStreamOrBufferedStream } = await this.validateWriteFile(provider, resource, bufferOrReadableOrStream, writeFileOptions);
 
 			// mkdir recursively as needed
 			if (!stat) {
@@ -391,20 +391,8 @@ export class FileService extends Disposable implements IFileService {
 			// to write is not a buffer, we consume up to 3 chunks and try to write the data
 			// unbuffered to reduce the overhead. If the stream or readable has more data
 			// to provide we continue to write buffered.
-			let bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream;
-			if (hasReadWriteCapability(provider) && !(bufferOrReadableOrStream instanceof VSBuffer)) {
-				if (isReadableStream(bufferOrReadableOrStream)) {
-					const bufferedStream = await peekStream(bufferOrReadableOrStream, 3);
-					if (bufferedStream.ended) {
-						bufferOrReadableOrStreamOrBufferedStream = VSBuffer.concat(bufferedStream.buffer);
-					} else {
-						bufferOrReadableOrStreamOrBufferedStream = bufferedStream;
-					}
-				} else {
-					bufferOrReadableOrStreamOrBufferedStream = peekReadable(bufferOrReadableOrStream, data => VSBuffer.concat(data), 3);
-				}
-			} else {
-				bufferOrReadableOrStreamOrBufferedStream = bufferOrReadableOrStream;
+			if (!bufferOrReadableOrStreamOrBufferedStream) {
+				bufferOrReadableOrStreamOrBufferedStream = await this.peekBufferForWriting(provider, bufferOrReadableOrStream);
 			}
 
 			// write file: unbuffered
@@ -430,7 +418,28 @@ export class FileService extends Disposable implements IFileService {
 		return this.resolve(resource, { resolveMetadata: true });
 	}
 
-	private async validateWriteFile(provider: IFileSystemProvider, resource: URI, options?: IWriteFileOptions): Promise<IStat | undefined> {
+
+	private async peekBufferForWriting(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream> {
+		let peekResult: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream;
+		if (hasReadWriteCapability(provider) && !(bufferOrReadableOrStream instanceof VSBuffer)) {
+			if (isReadableStream(bufferOrReadableOrStream)) {
+				const bufferedStream = await peekStream(bufferOrReadableOrStream, 3);
+				if (bufferedStream.ended) {
+					peekResult = VSBuffer.concat(bufferedStream.buffer);
+				} else {
+					peekResult = bufferedStream;
+				}
+			} else {
+				peekResult = peekReadable(bufferOrReadableOrStream, data => VSBuffer.concat(data), 3);
+			}
+		} else {
+			peekResult = bufferOrReadableOrStream;
+		}
+
+		return peekResult;
+	}
+
+	private async validateWriteFile(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<{ stat: IStat | undefined; buffer: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream | undefined }> {
 
 		// Validate unlock support
 		const unlock = !!options?.unlock;
@@ -459,7 +468,7 @@ export class FileService extends Disposable implements IFileService {
 		try {
 			stat = await provider.stat(resource);
 		} catch (error) {
-			return undefined; // file might not exist
+			return Object.create(null); // file might not exist
 		}
 
 		// File cannot be directory
@@ -482,15 +491,32 @@ export class FileService extends Disposable implements IFileService {
 		// check for size is a weaker check because it can return a false negative if the file has changed
 		// but to the same length. This is a compromise we take to avoid having to produce checksums of
 		// the file content for comparison which would be much slower to compute.
+		//
+		// Third, if the etag() turns out to be different, we do one attempt to compare the buffer we
+		// are about to write with the contents on disk to figure out if the contents are identical.
+		// In that case we allow the writing as it would result in the same contents in the file.
+		let buffer: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream | undefined;
 		if (
 			typeof options?.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED &&
 			typeof stat.mtime === 'number' && typeof stat.size === 'number' &&
 			options.mtime < stat.mtime && options.etag !== etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
 		) {
+			buffer = await this.peekBufferForWriting(provider, bufferOrReadableOrStream);
+			if (buffer instanceof VSBuffer && buffer.byteLength === stat.size) {
+				try {
+					const { value } = await this.readFile(resource, { limits: { size: stat.size } });
+					if (buffer.equals(value)) {
+						return { stat, buffer }; // allow writing since contents are identical
+					}
+				} catch (error) {
+					// ignore, throw the FILE_MODIFIED_SINCE error
+				}
+			}
+
 			throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
 
-		return stat;
+		return { stat, buffer };
 	}
 
 	async readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
@@ -1114,7 +1140,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private static WATCHER_CORRELATION_IDS = 0;
 
-	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation): IFileSystemWatcher {
+	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation & { recursive: false }): IFileSystemWatcher {
 		return this.watch(resource, {
 			...options,
 			// Explicitly set a correlation id so that file events that originate

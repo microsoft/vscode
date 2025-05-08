@@ -66,6 +66,23 @@ suite('PolicyConfiguration', () => {
 					minimumVersion: '1.0.0',
 				}
 			},
+			'policy.booleanSetting': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicyBooleanSetting',
+					minimumVersion: '1.0.0',
+				}
+			},
+			'policy.internalSetting': {
+				'type': 'string',
+				'default': 'defaultInternalValue',
+				included: false,
+				policy: {
+					name: 'PolicyInternalSetting',
+					minimumVersion: '1.0.0',
+				}
+			},
 			'nonPolicy.setting': {
 				'type': 'boolean',
 				'default': true
@@ -148,6 +165,24 @@ suite('PolicyConfiguration', () => {
 		const acutal = testObject.configurationModel;
 
 		assert.deepStrictEqual(acutal.getValue('policy.arraySetting'), [1]);
+	});
+
+	test('initialize: with boolean type policy as false', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyBooleanSetting': false })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), false);
+	});
+
+	test('initialize: with boolean type policy as true', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyBooleanSetting': true })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), true);
 	});
 
 	test('initialize: with object type policy ignores policy if value is not valid', async () => {
@@ -260,6 +295,20 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, []);
+		assert.deepStrictEqual(acutal.overrides, []);
+	});
+
+	test('initialize: with internal policies', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyInternalSetting': 'internalValue' })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.strictEqual(acutal.getValue('policy.settingA'), undefined);
+		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
+		assert.strictEqual(acutal.getValue('policy.internalSetting'), 'internalValue');
+		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
+		assert.deepStrictEqual(acutal.keys, ['policy.internalSetting']);
 		assert.deepStrictEqual(acutal.overrides, []);
 	});
 

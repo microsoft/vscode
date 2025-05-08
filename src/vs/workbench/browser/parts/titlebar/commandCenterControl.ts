@@ -27,7 +27,7 @@ export class CommandCenterControl {
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _onDidChangeVisibility = new Emitter<void>();
+	private readonly _onDidChangeVisibility = this._disposables.add(new Emitter<void>());
 	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
 
 	readonly element: HTMLElement = document.createElement('div');

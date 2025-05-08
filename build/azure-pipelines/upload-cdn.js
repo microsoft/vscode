@@ -78,8 +78,8 @@ async function main() {
     const options = (compressed) => ({
         account: process.env.AZURE_STORAGE_ACCOUNT,
         credential,
-        container: process.env.VSCODE_QUALITY,
-        prefix: commit + '/',
+        container: '$web',
+        prefix: `${process.env.VSCODE_QUALITY}/${commit}/`,
         contentSettings: {
             contentEncoding: compressed ? 'gzip' : undefined,
             cacheControl: 'max-age=31536000, public'

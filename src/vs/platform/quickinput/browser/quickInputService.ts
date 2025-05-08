@@ -199,6 +199,12 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		this.controller.setAlignment(alignment);
 	}
 
+	toggleHover(): void {
+		if (this.hasController) {
+			this.controller.toggleHover();
+		}
+	}
+
 	override updateStyles() {
 		if (this.hasController) {
 			this.controller.applyStyles(this.computeStyles());

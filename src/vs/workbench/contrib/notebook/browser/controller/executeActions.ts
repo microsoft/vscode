@@ -20,7 +20,7 @@ import { IDebugService } from '../../../debug/common/debug.js';
 import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
 import { insertCell } from './cellOperations.js';
 import { NotebookChatController } from './chat/notebookChatController.js';
-import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
+import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
 import { CellKind, CellUri, NotebookSetting } from '../../common/notebookCommon.js';
@@ -144,7 +144,6 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
@@ -154,7 +153,6 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					order: -1,
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
-						executeNotebookCondition,
 						ContextKeyExpr.or(
 							NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
 							NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated(),

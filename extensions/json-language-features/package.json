@@ -16,7 +16,8 @@
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc",
-    "onLanguage:snippets"
+    "onLanguage:snippets",
+    "onCommand:json.validate"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
@@ -169,7 +170,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
     "request-light": "^0.8.0",
-    "vscode-languageclient": "^10.0.0-next.13"
+    "vscode-languageclient": "^10.0.0-next.14"
   },
   "devDependencies": {
     "@types/node": "20.x"

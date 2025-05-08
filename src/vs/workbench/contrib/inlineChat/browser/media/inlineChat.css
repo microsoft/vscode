@@ -72,8 +72,12 @@
 	outline: none;
 }
 
-.monaco-workbench .zone-widget.inline-chat-widget:not(.inline-chat-2) .inline-chat .chat-widget .interactive-session .interactive-input-part {
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
 	padding: 4px 0 0 0;
+}
+
+.monaco-workbench .inline-chat-2 .inline-chat .chat-widget .interactive-session .interactive-input-part {
+	padding: 8px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {

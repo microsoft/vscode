@@ -315,6 +315,11 @@ export class Sound {
 	public static readonly voiceRecordingStarted = Sound.register({ fileName: 'voiceRecordingStarted.mp3' });
 	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
 	public static readonly progress = Sound.register({ fileName: 'progress.mp3' });
+	public static readonly chatEditModifiedFile = Sound.register({ fileName: 'chatEditModifiedFile.mp3' });
+	public static readonly editsKept = Sound.register({ fileName: 'editsKept.mp3' });
+	public static readonly editsUndone = Sound.register({ fileName: 'editsUndone.mp3' });
+	public static readonly nextEditSuggestion = Sound.register({ fileName: 'nextEditSuggestion.mp3' });
+	public static readonly terminalCommandSucceeded = Sound.register({ fileName: 'terminalCommandSucceeded.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -431,7 +436,13 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.lineHasInlineSuggestion',
 		settingsKey: 'accessibility.signals.lineHasInlineSuggestion',
 	});
-
+	public static readonly nextEditSuggestion = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.nextEditSuggestion.name', 'Next Edit Suggestion on Line'),
+		sound: Sound.nextEditSuggestion,
+		legacySoundSettingsKey: 'audioCues.nextEditSuggestion',
+		settingsKey: 'accessibility.signals.nextEditSuggestion',
+		announcementMessage: localize('accessibility.signals.nextEditSuggestion', 'Next Edit Suggestion'),
+	});
 	public static readonly terminalQuickFix = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalQuickFix.name', 'Terminal Quick Fix'),
 		sound: Sound.quickFixes,
@@ -488,7 +499,7 @@ export class AccessibilitySignal {
 
 	public static readonly terminalCommandSucceeded = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalCommandSucceeded', 'Terminal Command Succeeded'),
-		sound: Sound.success,
+		sound: Sound.terminalCommandSucceeded,
 		announcementMessage: localize('accessibility.signals.terminalCommandSucceeded', 'Command Succeeded'),
 		settingsKey: 'accessibility.signals.terminalCommandSucceeded',
 	});
@@ -539,6 +550,13 @@ export class AccessibilitySignal {
 		sound: Sound.diffLineModified,
 		legacySoundSettingsKey: 'audioCues.diffLineModified',
 		settingsKey: 'accessibility.signals.diffLineModified',
+	});
+
+	public static readonly chatEditModifiedFile = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.chatEditModifiedFile', 'Chat Edit Modified File'),
+		sound: Sound.chatEditModifiedFile,
+		announcementMessage: localize('accessibility.signals.chatEditModifiedFile', 'File Modified from Chat Edits'),
+		settingsKey: 'accessibility.signals.chatEditModifiedFile',
 	});
 
 	public static readonly chatRequestSent = AccessibilitySignal.register({
@@ -630,5 +648,18 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
 	});
-}
 
+	public static readonly editsKept = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.editsKept', 'Edits Kept'),
+		sound: Sound.editsKept,
+		announcementMessage: localize('accessibility.signals.editsKept', 'Edits Kept'),
+		settingsKey: 'accessibility.signals.editsKept',
+	});
+
+	public static readonly editsUndone = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.editsUndone', 'Undo Edits'),
+		sound: Sound.editsUndone,
+		announcementMessage: localize('accessibility.signals.editsUndone', 'Edits Undone'),
+		settingsKey: 'accessibility.signals.editsUndone',
+	});
+}

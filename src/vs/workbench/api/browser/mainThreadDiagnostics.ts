@@ -37,7 +37,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	private _forwardMarkers(resources: readonly URI[]): void {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
-			const allMarkerData = this._markerService.read({ resource });
+			const allMarkerData = this._markerService.read({ resource, ignoreResourceFilters: true });
 			if (allMarkerData.length === 0) {
 				data.push([resource, []]);
 			} else {

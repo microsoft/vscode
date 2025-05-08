@@ -175,6 +175,18 @@ export class VSBuffer {
 	indexOf(subarray: VSBuffer | Uint8Array, offset = 0) {
 		return binaryIndexOf(this.buffer, subarray instanceof VSBuffer ? subarray.buffer : subarray, offset);
 	}
+
+	equals(other: VSBuffer): boolean {
+		if (this === other) {
+			return true;
+		}
+
+		if (this.byteLength !== other.byteLength) {
+			return false;
+		}
+
+		return this.buffer.every((value, index) => value === other.buffer[index]);
+	}
 }
 
 /**

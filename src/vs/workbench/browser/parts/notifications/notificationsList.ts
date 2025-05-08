@@ -5,7 +5,7 @@
 
 import './media/notificationsList.css';
 import { localize } from '../../../../nls.js';
-import { getWindow, isAncestorOfActiveElement, trackFocus } from '../../../../base/browser/dom.js';
+import { $, getWindow, isAncestorOfActiveElement, trackFocus } from '../../../../base/browser/dom.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListAccessibilityProvider, IListOptions } from '../../../../base/browser/ui/list/listWidget.js';
@@ -60,8 +60,7 @@ export class NotificationsList extends Disposable {
 	private createNotificationsList(): void {
 
 		// List Container
-		this.listContainer = document.createElement('div');
-		this.listContainer.classList.add('notifications-list-container');
+		this.listContainer = $('.notifications-list-container');
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 

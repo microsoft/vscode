@@ -27,7 +27,6 @@ import { IFileWorkingCopyManager } from '../../../services/workingCopy/common/fi
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from '../../../services/workingCopy/common/storedFileWorkingCopy.js';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from '../../../services/workingCopy/common/untitledFileWorkingCopy.js';
 import { WorkingCopyCapabilities } from '../../../services/workingCopy/common/workingCopy.js';
-import { INotebookSynchronizerService } from './notebookSynchronizerService.js';
 
 //#region --- simple content provider
 
@@ -56,7 +55,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		scratchpad: boolean,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
-		@INotebookSynchronizerService private readonly _notebookSynchronizerService: INotebookSynchronizerService
 	) {
 		super();
 
@@ -122,9 +120,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	async revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
-		if (this._workingCopy) {
-			await this._notebookSynchronizerService.revert(this._workingCopy);
-		}
 		return this._workingCopy!.revert(options);
 	}
 
@@ -141,7 +136,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				} else {
 					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
-				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
+				this._register(this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire()));
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
 					limits: options?.limits,

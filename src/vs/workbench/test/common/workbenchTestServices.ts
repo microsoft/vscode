@@ -181,13 +181,14 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	readonly capabilities = WorkingCopyCapabilities.None;
 
-	readonly name = basename(this.resource);
+	readonly name;
 
 	private dirty = false;
 
 	constructor(readonly resource: URI, isDirty = false, readonly typeId = 'testWorkingCopyType') {
 		super();
 
+		this.name = basename(this.resource);
 		this.dirty = isDirty;
 	}
 
@@ -323,6 +324,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	getAutoSaveMode(): IAutoSaveMode { throw new Error('Method not implemented.'); }
 	hasShortAutoSaveDelay(): boolean { throw new Error('Method not implemented.'); }
 	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
+	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
 	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
@@ -478,4 +480,7 @@ export class TestMarkerService implements IMarkerService {
 	changeAll(owner: string, data: IResourceMarker[]): void { }
 	remove(owner: string, resources: URI[]): void { }
 	read(filter?: { owner?: string | undefined; resource?: URI | undefined; severities?: number | undefined; take?: number | undefined } | undefined): IMarker[] { return []; }
+	installResourceFilter(resource: URI, reason: string): IDisposable {
+		return { dispose: () => { /* TODO: Implement cleanup logic */ } };
+	}
 }

@@ -18,6 +18,7 @@ import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -35,15 +36,18 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
+	readonly description?: string;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
+	readonly tooltip?: string;
 }
 
 interface IActionMenuTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly text: HTMLElement;
+	readonly description?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
 }
 
@@ -71,7 +75,7 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: IHeaderTemplateData): void {
-		templateData.text.textContent = element.group?.title ?? '';
+		templateData.text.textContent = element.group?.title ?? element.label ?? '';
 	}
 
 	disposeTemplate(_templateData: IHeaderTemplateData): void {
@@ -99,9 +103,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		text.className = 'title';
 		container.append(text);
 
+		const description = document.createElement('span');
+		description.className = 'description';
+		container.append(description);
+
 		const keybinding = new KeybindingLabel(container, OS);
 
-		return { container, icon, text, keybinding };
+		return { container, icon, text, description, keybinding };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -123,13 +131,23 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		data.text.textContent = stripNewlines(element.label);
 
+		if (element.description) {
+			data.description!.textContent = stripNewlines(element.description);
+			data.description!.style.display = 'inline';
+		} else {
+			data.description!.textContent = '';
+			data.description!.style.display = 'none';
+		}
+
 		data.keybinding.set(element.keybinding);
 		dom.setVisibility(!!element.keybinding, data.keybinding.element);
 
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', element.disabled);
-		if (element.disabled) {
+		if (element.tooltip) {
+			data.container.title = element.tooltip;
+		} else if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
@@ -182,10 +200,10 @@ export class ActionList<T> extends Disposable {
 		items: readonly IActionListItem<T>[],
 		private readonly _delegate: IActionListDelegate<T>,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
-
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IActionListItem<T>> = {
@@ -270,7 +288,7 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
+		const height = Math.min(heightWithHeaders, this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage);
 		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;

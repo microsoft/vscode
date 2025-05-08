@@ -346,7 +346,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					}
 
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
-					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId);
+					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
@@ -362,7 +362,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					);
 
 					cellIndex = ((y - viewportData.startLineNumber) * ViewportRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.floor(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
@@ -394,6 +394,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
 		this._visibleObjectCount = visibleObjectCount;
+
 		return visibleObjectCount;
 	}
 

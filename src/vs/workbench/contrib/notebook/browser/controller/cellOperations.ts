@@ -18,6 +18,7 @@ import { CellEditType, CellKind, ICellEditOperation, ICellReplaceEdit, IOutputDt
 import { cellRangeContains, cellRangesToIndexes, ICellRange } from '../../common/notebookRange.js';
 import { localize } from '../../../../../nls.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotebookKernelHistoryService } from '../../common/notebookKernelService.js';
 
 export async function changeCellToKind(kind: CellKind, context: INotebookActionContext, language?: string, mime?: string): Promise<void> {
 	const { notebookEditor } = context;
@@ -662,7 +663,8 @@ export function insertCell(
 	type: CellKind,
 	direction: 'above' | 'below' = 'above',
 	initialText: string = '',
-	ui: boolean = false
+	ui: boolean = false,
+	kernelHistoryService?: INotebookKernelHistoryService
 ) {
 	const viewModel = editor.getViewModel() as NotebookViewModel;
 	const activeKernel = editor.activeKernel;
@@ -676,12 +678,22 @@ export function insertCell(
 	if (type === CellKind.Code) {
 		const supportedLanguages = activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds();
 		const defaultLanguage = supportedLanguages[0] || PLAINTEXT_LANGUAGE_ID;
+
 		if (cell?.cellKind === CellKind.Code) {
 			language = cell.language;
 		} else if (cell?.cellKind === CellKind.Markup) {
 			const nearestCodeCellIndex = viewModel.nearestCodeCellIndex(index);
 			if (nearestCodeCellIndex > -1) {
 				language = viewModel.cellAt(nearestCodeCellIndex)!.language;
+			} else {
+				language = defaultLanguage;
+			}
+		} else if (!cell && viewModel.length === 0) {
+			// No cells in notebook - check kernel history
+			const lastKernels = kernelHistoryService?.getKernels(viewModel.notebookDocument);
+			if (lastKernels?.all.length) {
+				const lastKernel = lastKernels.all[0];
+				language = lastKernel.supportedLanguages[0] || defaultLanguage;
 			} else {
 				language = defaultLanguage;
 			}

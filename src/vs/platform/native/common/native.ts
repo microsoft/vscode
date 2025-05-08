@@ -55,6 +55,7 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainWindow: Event<number>;
 
 	readonly onDidChangeWindowFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
+	readonly onDidChangeWindowAlwaysOnTop: Event<{ windowId: number; alwaysOnTop: boolean }>;
 
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
@@ -92,6 +93,10 @@ export interface ICommonNativeHostService {
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
+	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
+	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
+	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
+
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
 	 *
@@ -112,9 +117,6 @@ export interface ICommonNativeHostService {
 	 * focused application which may not be VSCode.
 	 */
 	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
-
-	// Titlebar default style override
-	overrideDefaultTitlebarStyle(style: 'custom' | undefined): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
@@ -146,13 +148,14 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard
+	triggerPaste(options?: INativeHostOptions): Promise<void>;
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;
@@ -187,6 +190,7 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	stopTracing(): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;

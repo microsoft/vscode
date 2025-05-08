@@ -69,7 +69,7 @@
     ],
     "configurationDefaults": {
       "[ruby]": {
-        "editor.defaultColorDecorators": false
+        "editor.defaultColorDecorators": "never"
       }
     }
   },

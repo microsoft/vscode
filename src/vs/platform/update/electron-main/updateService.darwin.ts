@@ -16,7 +16,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification, UpdateNotAvailableClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -91,8 +91,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		return url;
 	}
 
-	protected doCheckForUpdates(context: any): void {
-		this.setState(State.CheckingForUpdates(context));
+	protected doCheckForUpdates(explicit: boolean): void {
+		if (!this.url) {
+			return;
+		}
+
+		this.setState(State.CheckingForUpdates(explicit));
+
+		const url = explicit ? this.url : `${this.url}?bg=true`;
+		electron.autoUpdater.setFeedURL({ url });
 		electron.autoUpdater.checkForUpdates();
 	}
 
@@ -113,10 +120,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 		type UpdateDownloadedClassification = {
 			owner: 'joaomoreno';
-			version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version number of the new VS Code that has been downloaded.' };
+			newVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version number of the new VS Code that has been downloaded.' };
 			comment: 'This is used to know how often VS Code has successfully downloaded the update.';
 		};
-		this.telemetryService.publicLog2<{ version: String }, UpdateDownloadedClassification>('update:downloaded', { version: update.version });
+		this.telemetryService.publicLog2<{ newVersion: String }, UpdateDownloadedClassification>('update:downloaded', { newVersion: update.version });
 
 		this.setState(State.Ready(update));
 	}
@@ -125,7 +132,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;
 		}
-		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: this.state.explicit });
 
 		this.setState(State.Idle(UpdateType.Archive));
 	}

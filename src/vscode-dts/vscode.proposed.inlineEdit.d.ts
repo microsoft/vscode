@@ -38,6 +38,8 @@ declare module 'vscode' {
 
 		commands?: Command[];
 
+		action?: Command;
+
 		/**
 		 * Creates a new inline edit.
 		 *
@@ -53,7 +55,7 @@ declare module 'vscode' {
 		 */
 		triggerKind: InlineEditTriggerKind;
 
-		readonly requestUuid?: string;
+		readonly requestUuid: string;
 	}
 
 	export enum InlineEditTriggerKind {

@@ -9,7 +9,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, matchesMimeType, UriList, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ClipboardEventUtils } from '../../../browser/controller/editContext/clipboardUtils.js';
-import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dnd.js';
+import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -145,11 +145,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._postPasteWidgetManager.tryShowSelector();
 	}
 
-	public pasteAs(preferred?: PastePreference) {
+	public async pasteAs(preferred?: PastePreference) {
 		this._editor.focus();
 		try {
 			this._pasteAsActionContext = { preferred };
-			this._commandService.executeCommand('editor.action.clipboardPasteAction');
+			await this._commandService.executeCommand('editor.action.clipboardPasteAction');
 		} finally {
 			this._pasteAsActionContext = undefined;
 		}
@@ -379,27 +379,22 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				if (editSession.edits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: this.getInitialActiveEditIndex(model, editSession.edits), allEdits: editSession.edits }, canShowWidget, (edit, token) => {
-						return new Promise<PasteEditWithProvider>((resolve, reject) => {
-							(async () => {
-								try {
-									const resolveP = edit.provider.resolveDocumentPasteEdit?.(edit, token);
-									const showP = new DeferredPromise<void>();
-									const resolved = resolveP && await this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('resolveProcess', "Resolving paste edit. Click to cancel"), Promise.race([showP.p, resolveP]), {
-										cancel: () => {
-											showP.cancel();
-											return reject(new CancellationError());
-										}
-									}, 0);
-									if (resolved) {
-										edit.additionalEdit = resolved.additionalEdit;
-									}
-									return resolve(edit);
-								} catch (err) {
-									return reject(err);
-								}
-							})();
-						});
+					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: this.getInitialActiveEditIndex(model, editSession.edits), allEdits: editSession.edits }, canShowWidget, async (edit, resolveToken) => {
+						if (!edit.provider.resolveDocumentPasteEdit) {
+							return edit;
+						}
+
+						const resolveP = edit.provider.resolveDocumentPasteEdit(edit, resolveToken);
+						const showP = new DeferredPromise<void>();
+						const resolved = await this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('resolveProcess', "Resolving paste edit for '{0}'. Click to cancel", edit.title), raceCancellation(Promise.race([showP.p, resolveP]), resolveToken), {
+							cancel: () => showP.cancel()
+						}, 0);
+
+						if (resolved) {
+							edit.insertText = resolved.insertText;
+							edit.additionalEdit = resolved.additionalEdit;
+						}
+						return edit;
 					}, token);
 				}
 

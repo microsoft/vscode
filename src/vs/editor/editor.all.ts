@@ -35,6 +35,7 @@ import './contrib/hover/browser/hoverContribution.js';
 import './contrib/indentation/browser/indentation.js';
 import './contrib/inlayHints/browser/inlayHintsContribution.js';
 import './contrib/inPlaceReplace/browser/inPlaceReplace.js';
+import './contrib/insertFinalNewLine/browser/insertFinalNewLine.js';
 import './contrib/lineSelection/browser/lineSelection.js';
 import './contrib/linesOperations/browser/linesOperations.js';
 import './contrib/linkedEditing/browser/linkedEditing.js';

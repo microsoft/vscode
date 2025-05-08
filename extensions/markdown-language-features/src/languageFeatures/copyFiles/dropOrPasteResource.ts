@@ -7,12 +7,12 @@ import * as vscode from 'vscode';
 import { IMdParser } from '../../markdownEngine';
 import { coalesce } from '../../util/arrays';
 import { getParentDocumentUri } from '../../util/document';
-import { Mime, mediaMimes } from '../../util/mimes';
+import { getMediaKindForMime, MediaKind, Mime, rootMediaMimesTypes } from '../../util/mimes';
 import { Schemes } from '../../util/schemes';
-import { NewFilePathGenerator } from './newFilePathGenerator';
-import { DropOrPasteEdit, createInsertUriListEdit, createUriListSnippet, getSnippetLabelAndKind, baseLinkEditKind, linkEditKind, audioEditKind, videoEditKind, imageEditKind } from './shared';
-import { InsertMarkdownLink, shouldInsertMarkdownLinkByDefault } from './smartDropOrPaste';
 import { UriList } from '../../util/uriList';
+import { NewFilePathGenerator } from './newFilePathGenerator';
+import { audioEditKind, baseLinkEditKind, createInsertUriListEdit, createUriListSnippet, DropOrPasteEdit, getSnippetLabelAndKind, imageEditKind, linkEditKind, videoEditKind } from './shared';
+import { InsertMarkdownLink, shouldInsertMarkdownLinkByDefault } from './smartDropOrPaste';
 
 enum CopyFilesSettings {
 	Never = 'never',
@@ -33,7 +33,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 	public static readonly mimeTypes = [
 		Mime.textUriList,
 		'files',
-		...mediaMimes,
+		...Object.values(rootMediaMimesTypes).map(type => `${type}/*`),
 	];
 
 	private readonly _yieldTo = [
@@ -206,12 +206,14 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 
 		interface FileEntry {
 			readonly uri: vscode.Uri;
+			readonly kind: MediaKind;
 			readonly newFile?: { readonly contents: vscode.DataTransferFile; readonly overwrite: boolean };
 		}
 
 		const pathGenerator = new NewFilePathGenerator();
 		const fileEntries = coalesce(await Promise.all(Array.from(dataTransfer, async ([mime, item]): Promise<FileEntry | undefined> => {
-			if (!mediaMimes.has(mime)) {
+			const mediaKind = getMediaKindForMime(mime);
+			if (!mediaKind) {
 				return;
 			}
 
@@ -224,7 +226,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 				// If the file is already in a workspace, we don't want to create a copy of it
 				const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
 				if (workspaceFolder) {
-					return { uri: file.uri };
+					return { uri: file.uri, kind: mediaKind };
 				}
 			}
 
@@ -232,7 +234,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			if (!newFile) {
 				return;
 			}
-			return { uri: newFile.uri, newFile: { contents: file, overwrite: newFile.overwrite } };
+			return { uri: newFile.uri, kind: mediaKind, newFile: { contents: file, overwrite: newFile.overwrite } };
 		})));
 		if (!fileEntries.length) {
 			return;

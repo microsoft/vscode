@@ -56,7 +56,6 @@ import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listSe
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorForeground, resolveColorValue } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
@@ -139,7 +138,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService protected override readonly keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
@@ -153,11 +151,11 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				text: filterText,
 				history: JSON.parse(storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[],
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
-		this.history = new HistoryNavigator(new Set(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]'))), 100);
+		this.history = this._register(new HistoryNavigator(new Set(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]'))), 100));
 		this.filter = new ReplFilter();
 		this.filter.filterQuery = filterText;
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
@@ -175,9 +173,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			if (this.isVisible()) {
-				this.onDidFocusSession(session);
-			}
+			this.onDidFocusSession(session);
 		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable && this.tree?.hasNode(e)) {
@@ -270,12 +266,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 						const model = this.replInput.getModel();
 						if (model) {
-							const word = model.getWordAtPosition(position);
-							const overwriteBefore = word ? word.word.length : 0;
 							const text = model.getValue();
 							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 							const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-							const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, overwriteBefore, token);
+							const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, token);
 
 							const suggestions: CompletionItem[] = [];
 							const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
@@ -298,7 +292,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 											detail: item.detail,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
 											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
-											range: computeRange(item.length || overwriteBefore),
+											range: computeRange(item.length || 0),
 											sortText: item.sortText,
 											insertTextRules
 										});
@@ -569,13 +563,13 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replInput.focus();
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override createActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === selectReplCommandId) {
 			const session = (this.tree ? this.tree.getInput() : undefined) ?? this.debugService.getViewModel().focusedSession;
 			return this.instantiationService.createInstance(SelectReplActionViewItem, action, session);
 		}
 
-		return super.getActionViewItem(action);
+		return super.createActionViewItem(action);
 	}
 
 	private get isMultiSessionView(): boolean {

@@ -13,7 +13,6 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as lifecycle from '../../../../base/common/lifecycle.js';
 import { URI as uri } from '../../../../base/common/uri.js';
-import './media/breakpointWidget.css';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorCommand, ServicesAccessor, registerEditorCommand } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -33,7 +32,6 @@ import { CompletionOptions, provideSuggestionItems } from '../../../../editor/co
 import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -46,6 +44,7 @@ import { editorForeground } from '../../../../platform/theme/common/colorRegistr
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, CONTEXT_IN_BREAKPOINT_WIDGET, BreakpointWidgetContext as Context, DEBUG_SCHEME, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugService } from '../common/debug.js';
+import './media/breakpointWidget.css';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -102,7 +101,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -314,7 +312,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		dom.append(container, this.selectBreakpointContainer);
 
 		const closeButton = new Button(this.selectBreakpointContainer, defaultButtonStyles);
-		closeButton.label = nls.localize('ok', "Ok");
+		closeButton.label = nls.localize('ok', "OK");
 		this.toDispose.push(closeButton.onDidClick(() => this.close(true)));
 		this.toDispose.push(closeButton);
 	}
@@ -346,11 +344,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private createBreakpointInput(container: HTMLElement): void {
-		const scopedContextKeyService = this.contextKeyService.createScoped(container);
-		this.toDispose.push(scopedContextKeyService);
-
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService],
 			[IPrivateBreakpointWidgetService, this]
 		));
 		this.toDispose.push(scopedInstatiationService);
@@ -358,7 +352,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const options = this.createEditorOptions();
 		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
 		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
-		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
+
+		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(this.input.contextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		if (this.editor.hasModel()) {
 			model.setLanguage(this.editor.getModel().getLanguageId());

@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from '../common/diagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
-import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { getAllWindowsExcludingOffscreen, IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { assertIsDefined } from '../../../base/common/types.js';
@@ -80,7 +80,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		const windows: IWindowDiagnostics[] = [];
-		for (const window of BrowserWindow.getAllWindows()) {
+		for (const window of getAllWindowsExcludingOffscreen()) {
 			const codeWindow = this.windowsMainService.getWindowById(window.id);
 			if (codeWindow) {
 				windows.push(await this.codeWindowToInfo(codeWindow));

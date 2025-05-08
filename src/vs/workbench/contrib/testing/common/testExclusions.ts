@@ -12,26 +12,28 @@ import { StoredValue } from './storedValue.js';
 import { InternalTestItem } from './testTypes.js';
 
 export class TestExclusions extends Disposable {
-	private readonly excluded = this._register(
-		MutableObservableValue.stored(new StoredValue<ReadonlySet<string>>({
-			key: 'excludedTestItems',
-			scope: StorageScope.WORKSPACE,
-			target: StorageTarget.MACHINE,
-			serialization: {
-				deserialize: v => new Set(JSON.parse(v)),
-				serialize: v => JSON.stringify([...v])
-			},
-		}, this.storageService), new Set())
-	);
+	private readonly excluded: MutableObservableValue<ReadonlySet<string>>;
 
 	constructor(@IStorageService private readonly storageService: IStorageService) {
 		super();
+		this.excluded = this._register(
+			MutableObservableValue.stored(new StoredValue<ReadonlySet<string>>({
+				key: 'excludedTestItems',
+				scope: StorageScope.WORKSPACE,
+				target: StorageTarget.MACHINE,
+				serialization: {
+					deserialize: v => new Set(JSON.parse(v)),
+					serialize: v => JSON.stringify([...v])
+				},
+			}, this.storageService), new Set())
+		);
+		this.onTestExclusionsChanged = this.excluded.onDidChange;
 	}
 
 	/**
 	 * Event that fires when the excluded tests change.
 	 */
-	public readonly onTestExclusionsChanged: Event<unknown> = this.excluded.onDidChange;
+	public readonly onTestExclusionsChanged: Event<unknown>;
 
 	/**
 	 * Gets whether there's any excluded tests.

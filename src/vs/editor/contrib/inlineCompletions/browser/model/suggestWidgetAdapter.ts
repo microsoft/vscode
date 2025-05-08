@@ -10,7 +10,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';
 import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
@@ -74,7 +74,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 					const candidates = suggestItems
 						.map((suggestItem, index) => {
 							const suggestItemInfo = SuggestItemInfo.fromSuggestion(suggestController, textModel, position, suggestItem, this.isShiftKeyPressed);
-							const suggestItemTextEdit = singleTextRemoveCommonPrefix(suggestItemInfo.toSingleTextEdit(), textModel);
+							const suggestItemTextEdit = singleTextRemoveCommonPrefix(suggestItemInfo.getSingleTextEdit(), textModel);
 							const valid = singleTextEditAugments(itemToPreselect, suggestItemTextEdit);
 							return { index, valid, prefixLength: suggestItemTextEdit.text.length, suggestItem };
 						})
@@ -224,7 +224,7 @@ export class SuggestItemInfo {
 		return new SelectedSuggestionInfo(this.range, this.insertText, this.completionItemKind, this.isSnippetText);
 	}
 
-	public toSingleTextEdit(): SingleTextEdit {
+	public getSingleTextEdit(): SingleTextEdit {
 		return new SingleTextEdit(this.range, this.insertText);
 	}
 }

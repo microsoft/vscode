@@ -15,11 +15,12 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { Event } from '../../../../../base/common/event.js';
 import type { ISearchOptions } from '@xterm/addon-search';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { openContextMenu } from './textInputContextMenu.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TerminalFindCommandId } from '../common/terminal.find.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { createTextInputActions } from '../../../../browser/actions/textInputActions.js';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -74,7 +75,15 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 		const findInputDomNode = this.getFindInputDomNode();
 		this._register(dom.addDisposableListener(findInputDomNode, 'contextmenu', (event) => {
-			openContextMenu(dom.getWindow(findInputDomNode), event, clipboardService, contextMenuService);
+			const targetWindow = dom.getWindow(findInputDomNode);
+			const standardEvent = new StandardMouseEvent(targetWindow, event);
+			const actions = createTextInputActions(clipboardService);
+
+			contextMenuService.showContextMenu({
+				getAnchor: () => standardEvent,
+				getActions: () => actions,
+				getActionsContext: () => event.target,
+			});
 			event.stopPropagation();
 		}));
 		this._register(themeService.onDidColorThemeChange(() => {

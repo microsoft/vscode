@@ -8,7 +8,9 @@ import { IProductConfiguration } from '../../../base/common/product.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 
 /**
- * @deprecated You MUST use `IProductService` if possible.
+ * @deprecated It is preferred that you use `IProductService` if you can. This
+ * allows web embedders to override our defaults. But for things like `product.quality`,
+ * the use is fine because that property is not overridable.
  */
 let product: IProductConfiguration;
 
@@ -72,7 +74,4 @@ else {
 	}
 }
 
-/**
- * @deprecated You MUST use `IProductService` if possible.
- */
 export default product;

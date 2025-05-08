@@ -161,6 +161,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		}
 
 		this.didUnload = true;
+		this._willShutdown = true;
 
 		// Register a late `pageshow` listener specifically on unload
 		this._register(addDisposableListener(mainWindow, EventType.PAGE_SHOW, (e: PageTransitionEvent) => this.onLoadAfterUnload(e)));

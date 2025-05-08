@@ -59,7 +59,7 @@ export class Extensions extends Viewlet {
 			await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
 
 			try {
-				await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
+				await this.waitForExtensionToBeInstalled();
 				break;
 			} catch (err) {
 				if (attempt++ === 3) {
@@ -70,6 +70,25 @@ export class Extensions extends Viewlet {
 
 		if (waitUntilEnabled) {
 			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) a[aria-label="Disable this extension"]`);
+		}
+	}
+
+	private async waitForExtensionToBeInstalled(): Promise<void> {
+		let attempt = 1;
+		while (true) {
+			try {
+				await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`, undefined);
+				break;
+			} catch (err) {
+				if (await this.code.getElement(`.extension-editor .monaco-action-bar .action-item .extension-action.install.installing`)) {
+					if (attempt++ === 3) {
+						throw err;
+					}
+					this.code.logger.log('Extension is still being installed. Waiting...');
+				} else {
+					throw err;
+				}
+			}
 		}
 	}
 }
