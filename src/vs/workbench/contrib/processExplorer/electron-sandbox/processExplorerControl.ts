@@ -29,10 +29,6 @@ export class NativeProcessExplorerControl extends ProcessExplorerControl {
 		this.create(container);
 	}
 
-	protected async getTotalMemory(): Promise<number> {
-		return (await this.nativeHostService.getOSStatistics()).totalmem;
-	}
-
 	protected override killProcess(pid: number, signal: string): Promise<void> {
 		return this.nativeHostService.killProcess(pid, signal);
 	}

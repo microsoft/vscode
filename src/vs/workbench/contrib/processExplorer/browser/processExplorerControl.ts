@@ -23,7 +23,6 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
-import { isWindows } from '../../../../base/common/platform.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
@@ -250,7 +249,6 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	readonly templateId: string = 'process';
 
 	constructor(
-		private totalMem: number,
 		private model: ProcessExplorerModel,
 		@IHoverService private readonly hoverService: IHoverService
 	) { }
@@ -274,13 +272,11 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 		templateData.name.textContent = this.model.getName(element.pid, element.name);
 		templateData.cpu.textContent = element.load.toFixed(0);
+		templateData.memory.textContent = (element.mem / ByteSize.MB).toFixed(0);
 		templateData.pid.textContent = pid;
 		templateData.pid.parentElement!.id = `pid-${pid}`;
 
 		templateData.hover?.update(element.cmd);
-
-		const memory = isWindows ? element.mem : (this.totalMem * (element.mem / 100));
-		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
 	}
 
 	disposeTemplate(templateData: IProcessItemTemplateData): void {
@@ -353,23 +349,21 @@ export abstract class ProcessExplorerControl extends Disposable {
 		this.model = new ProcessExplorerModel(this.productService);
 	}
 
-	protected abstract getTotalMemory(): Promise<number>;
 	protected killProcess?(pid: number, signal: string): Promise<void>;
 	protected abstract resolveProcesses(): Promise<IResolvedProcessInformation>;
 
-	protected async create(container: HTMLElement): Promise<void> {
-		const totalmem = await this.getTotalMemory();
-		this.createProcessTree(container, totalmem);
+	protected create(container: HTMLElement): void {
+		this.createProcessTree(container);
 
 		this.update();
 	}
 
-	private createProcessTree(container: HTMLElement, totalmem: number): void {
+	private createProcessTree(container: HTMLElement): void {
 		container.classList.add('process-explorer');
 		container.id = 'process-explorer';
 
 		const renderers = [
-			this.instantiationService.createInstance(ProcessRenderer, totalmem, this.model),
+			this.instantiationService.createInstance(ProcessRenderer, this.model),
 			new ProcessHeaderTreeRenderer(),
 			new MachineRenderer(),
 			new ErrorRenderer()
@@ -576,12 +570,6 @@ export class BrowserProcessExplorerControl extends ProcessExplorerControl {
 		super(instantiationService, productService, contextMenuService, commandService, clipboardService);
 
 		this.create(container);
-	}
-
-	protected override async getTotalMemory(): Promise<number> {
-		const environment = await this.remoteAgentService.getEnvironment();
-
-		return environment?.totalmem ?? 0;
 	}
 
 	protected override async resolveProcesses(): Promise<IResolvedProcessInformation> {
