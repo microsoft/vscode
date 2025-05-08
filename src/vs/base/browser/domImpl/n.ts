@@ -283,11 +283,11 @@ function hasObservable(value: ValueOrList<unknown>): boolean {
 	return false;
 }
 
-function convertCssValue(value: unknown): string {
+function convertCssValue(value: any): string {
 	if (typeof value === 'number') {
 		return value + 'px';
 	}
-	return String(value);
+	return value;
 }
 
 function childrenIsObservable(children: ValueOrList2<Element | string | ObserverNode | undefined>): boolean {
