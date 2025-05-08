@@ -410,7 +410,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(detector.extension), this.getToolsForRequest(detector.extension, request), this.getTools2ForRequest(detector.extension, request), detector.extension);
+		const toolInvocationToken = this._tools.getToolInvocationToken(request.sessionId);
+		const extRequest = typeConvert.ChatAgentRequest.to(
+			request,
+			location,
+			model,
+			this.getDiagnosticsWhenEnabled(detector.extension),
+			this.getToolsForRequest(detector.extension, request),
+			this.getTools2ForRequest(detector.extension, request),
+			detector.extension,
+			toolInvocationToken);
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -494,6 +503,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
+			const toolInvocationToken = this._tools.getToolInvocationToken(request.sessionId);
 			const extRequest = typeConvert.ChatAgentRequest.to(
 				request,
 				location,
@@ -501,7 +511,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				this.getDiagnosticsWhenEnabled(agent.extension),
 				this.getToolsForRequest(agent.extension, request),
 				this.getTools2ForRequest(agent.extension, request),
-				agent.extension
+				agent.extension,
+				toolInvocationToken
 			);
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
 			this._inFlightRequests.add(inFlightRequest);
@@ -617,6 +628,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	$releaseSession(sessionId: string): void {
 		this._sessionDisposables.deleteAndDispose(sessionId);
 		this._onDidDisposeChatSession.fire(sessionId);
+		this._tools.releaseSession(sessionId);
 	}
 
 	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {

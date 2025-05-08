@@ -11,15 +11,15 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
+import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 
 class Tool {
 
@@ -61,6 +61,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	/** A map of all known tools, from other EHs or registered in vscode core */
 	private readonly _allTools = new Map<string, Tool>();
 
+	// TODO release when session cleared
+	private readonly _sessionToolInvocationTokens = new Map<string, vscode.ChatParticipantToolToken>();
+
 	constructor(
 		mainContext: IMainContext,
 		private readonly _languageModels: ExtHostLanguageModels,
@@ -72,6 +75,30 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				this._allTools.set(tool.id, new Tool(revive(tool)));
 			}
 		});
+	}
+
+	releaseSession(sessionId: string): void {
+		this._sessionToolInvocationTokens.delete(sessionId);
+	}
+
+	getToolInvocationToken(sessionId: string): vscode.ChatParticipantToolToken {
+		if (!this._sessionToolInvocationTokens.has(sessionId)) {
+			const token: vscode.ChatParticipantToolToken = Object.freeze({
+				value: Symbol('ChatParticipantToolToken') as any
+			});
+			this._sessionToolInvocationTokens.set(sessionId, token);
+		}
+
+		return this._sessionToolInvocationTokens.get(sessionId)!;
+	}
+
+	private getContextForToken(token: vscode.ChatParticipantToolToken): IToolInvocationContext {
+		for (const [sessionId, sessionToken] of this._sessionToolInvocationTokens.entries()) {
+			if (token === sessionToken) {
+				return { sessionId };
+			}
+		}
+		throw new Error(`Invalid tool invocation token`);
 	}
 
 	async $countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
@@ -90,9 +117,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		try {
-			if (options.toolInvocationToken && !isToolInvocationContext(options.toolInvocationToken)) {
-				throw new Error(`Invalid tool invocation token`);
-			}
+			const invocationContext = options.toolInvocationToken && this.getContextForToken(options.toolInvocationToken);
 
 			if ((toolId === InternalEditToolId || toolId === ExtensionEditToolId) && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 				throw new Error(`Invalid tool: ${toolId}`);
@@ -104,7 +129,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				callId,
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
-				context: options.toolInvocationToken as IToolInvocationContext | undefined,
+				context: invocationContext,
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
 				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 			}, token);
@@ -159,7 +184,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
 			input: dto.parameters,
-			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+			toolInvocationToken: dto.context && this.getToolInvocationToken(dto.context.sessionId),
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
 			options.chatRequestId = dto.chatRequestId;
