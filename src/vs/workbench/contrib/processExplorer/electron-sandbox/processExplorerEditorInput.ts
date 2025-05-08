@@ -15,7 +15,7 @@ const processExplorerEditorIcon = registerIcon('process-explorer-editor-label-ic
 
 export class ProcessExplorerEditorInput extends EditorInput {
 
-	static readonly ID = 'workbench.editors.processEditorInput';
+	static readonly ID = 'workbench.editor.processExplorer';
 
 	static readonly RESOURCE = URI.from({
 		scheme: 'process-explorer',
