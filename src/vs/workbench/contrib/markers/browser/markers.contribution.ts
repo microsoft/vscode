@@ -398,9 +398,23 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message);
+
+		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
+		const markers: Marker[] = [];
+		const addMarker = (marker: Marker) => {
+			if (!markers.includes(marker)) {
+				markers.push(marker);
+			}
+		};
+		for (const selected of selection) {
+			if (selected instanceof ResourceMarkers) {
+				selected.markers.forEach(addMarker);
+			} else if (selected instanceof Marker) {
+				addMarker(selected);
+			}
+		}
+		if (markers.length) {
+			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
 		}
 	}
 });
