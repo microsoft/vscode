@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -14,6 +14,11 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ProcessExplorerEditorInput } from './processExplorerEditorInput.js';
 import { ProcessExplorerEditor } from './processExplorerEditor.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+
+//#region --- process explorer
 
 class ProcessExplorerEditorContribution implements IWorkbenchContribution {
 
@@ -71,3 +76,40 @@ class ProcessExplorerEditorInputSerializer implements IEditorSerializer {
 }
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ProcessExplorerEditorInput.ID, ProcessExplorerEditorInputSerializer);
+
+//#endregion
+
+//#region --- process explorer commands
+
+class OpenProcessExplorer extends Action2 {
+
+	static readonly ID = 'workbench.action.openProcessExplorer';
+
+	constructor() {
+		super({
+			id: OpenProcessExplorer.ID,
+			title: localize2('openProcessExplorer', 'Open Process Explorer'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		editorService.openEditor({ resource: ProcessExplorerEditorInput.RESOURCE, options: { pinned: true, auxiliary: { compact: true, bounds: { width: 800, height: 500 }, alwaysOnTop: true } } }, AUX_WINDOW_GROUP);
+	}
+}
+
+registerAction2(OpenProcessExplorer);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '5_tools',
+	command: {
+		id: OpenProcessExplorer.ID,
+		title: localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
+	},
+	order: 2
+});
+
+//#endregion
