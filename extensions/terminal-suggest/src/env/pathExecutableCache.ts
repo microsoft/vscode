@@ -62,7 +62,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 
 		// Check cache
-		if (this._cachedExes && this._cachedPathValue === pathValue) {
+		if (this._cachedExes && this._cachedPathValue === pathValue && this._cachedExes.labels?.size) {
 			return this._cachedExes;
 		}
 
