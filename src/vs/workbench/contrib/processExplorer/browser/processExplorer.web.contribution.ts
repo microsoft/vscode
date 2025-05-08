@@ -8,10 +8,10 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions } from '../../../common/editor.js';
-import { NativeProcessExplorerEditor } from './processExplorerEditor.js';
-import { ProcessExplorerEditorInput } from '../browser/processExplorerEditorInput.js';
+import { ProcessExplorerEditorInput } from './processExplorerEditorInput.js';
+import { ProcessExplorerEditor } from './processExplorerEditor.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(NativeProcessExplorerEditor, NativeProcessExplorerEditor.ID, localize('processExplorer', "Process Explorer")),
+	EditorPaneDescriptor.create(ProcessExplorerEditor, ProcessExplorerEditor.ID, localize('processExplorer', "Process Explorer")),
 	[new SyncDescriptor(ProcessExplorerEditorInput)]
 );
