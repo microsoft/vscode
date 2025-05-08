@@ -65,7 +65,6 @@ enum RemoteTunnelCommandIds {
 	showLog = 'workbench.remoteTunnel.actions.showLog',
 	configure = 'workbench.remoteTunnel.actions.configure',
 	copyToClipboard = 'workbench.remoteTunnel.actions.copyToClipboard',
-	closeUnusedPorts = 'workbench.remoteTunnel.actions.closeUnusedPorts',
 	learnMore = 'workbench.remoteTunnel.actions.learnMore',
 }
 
@@ -76,7 +75,6 @@ namespace RemoteTunnelCommandLabels {
 	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Remote Tunnel Service Log');
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Tunnel Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
-	export const closeUnusedPorts = localize('remoteTunnel.actions.closeUnusedPorts', 'Close Unused Ports');
 	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with Tunnels');
 }
 
