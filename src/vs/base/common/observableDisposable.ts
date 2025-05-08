@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from './event.js';
-import { Disposable, IDisposable } from './lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 
 /**
  * Disposable object that tracks its {@linkcode disposed} state
@@ -13,9 +12,16 @@ import { Disposable, IDisposable } from './lifecycle.js';
  */
 export abstract class ObservableDisposable extends Disposable {
 	/**
-	 * Private emitter for the `onDispose` event.
+	 * Underlying disposables store this object relies on.
 	 */
-	private readonly _onDispose = this._register(new Emitter<void>());
+	private readonly store = this._register(new DisposableStore());
+
+	/**
+	 * Gets current 'disposed' state of this object.
+	 */
+	public get disposed(): boolean {
+		return this.store.isDisposed;
+	}
 
 	/**
 	 * The event is fired when this object is disposed.
@@ -28,52 +34,24 @@ export abstract class ObservableDisposable extends Disposable {
 		if (this.disposed) {
 			const timeoutHandle = setTimeout(callback);
 
-			return {
-				dispose: () => {
-					clearTimeout(timeoutHandle);
-				},
-			};
+			return toDisposable(() => {
+				clearTimeout(timeoutHandle);
+			});
 		}
 
-		return this._onDispose.event(callback);
+		return this.store.add(toDisposable(callback));
 	}
 
 	/**
-	 * Adds a disposable object to the list of disposables
+	 * Adds disposable object(s) to the list of disposables
 	 * that will be disposed with this object.
 	 */
-	public addDisposable(...disposables: IDisposable[]): this {
+	public addDisposables(...disposables: IDisposable[]): this {
 		for (const disposable of disposables) {
-			this._register(disposable);
+			this.store.add(disposable);
 		}
 
 		return this;
-	}
-
-	/**
-	 * Tracks 'disposed' state of this object.
-	 */
-	private _disposed = false;
-
-	/**
-	 * Gets current 'disposed' state of this object.
-	 */
-	public get disposed(): boolean {
-		return this._disposed;
-	}
-
-	/**
-	 * Dispose current object if not already disposed.
-	 * @returns
-	 */
-	public override dispose(): void {
-		if (this.disposed) {
-			return;
-		}
-		this._disposed = true;
-
-		this._onDispose.fire();
-		super.dispose();
 	}
 
 	/**

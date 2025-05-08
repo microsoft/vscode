@@ -399,7 +399,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		this._references.push(reference);
 
-		reference.addDisposable(
+		reference.addDisposables(
 			// the content provider is exclusively owned by the reference
 			// hence dispose it when the reference is disposed
 			reference.onDispose(contentProvider.dispose.bind(contentProvider)),

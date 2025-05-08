@@ -54,7 +54,7 @@ suite('ObservableDisposable', () => {
 				'Object must not be disposed yet.',
 			);
 
-			const onDisposeSpy = spy(() => { });
+			const onDisposeSpy = spy();
 			disposables.add(object.onDispose(onDisposeSpy));
 
 			assert(
@@ -185,7 +185,7 @@ suite('ObservableDisposable', () => {
 				);
 			}
 
-			object.addDisposable(...disposableObjects);
+			object.addDisposables(...disposableObjects);
 
 			// a sanity check after the 'addDisposable' call
 			for (const disposable of disposableObjects) {
@@ -228,7 +228,7 @@ suite('ObservableDisposable', () => {
 					const disposableObject = new TestDisposable();
 					allDisposables.push(disposableObject);
 					if (parent !== null) {
-						parent.addDisposable(disposableObject);
+						parent.addDisposables(disposableObject);
 					}
 
 					// generate child disposable objects recursively
