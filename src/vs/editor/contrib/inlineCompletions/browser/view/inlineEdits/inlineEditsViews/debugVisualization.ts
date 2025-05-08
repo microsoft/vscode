@@ -5,7 +5,7 @@
 
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IReader, derivedWithStore } from '../../../../../../../base/common/observable.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 
 export interface IVisualizationEffect {
 	visualize(): IDisposable;

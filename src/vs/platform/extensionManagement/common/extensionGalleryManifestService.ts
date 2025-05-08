@@ -68,11 +68,11 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 
 		if (extensionsGallery.itemUrl) {
 			resources.push({
-				id: `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}`,
+				id: `${extensionsGallery.itemUrl}?itemName={publisher}.{name}`,
 				type: ExtensionGalleryResourceType.ExtensionDetailsViewUri
 			});
 			resources.push({
-				id: `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}&ssr=false#review-details`,
+				id: `${extensionsGallery.itemUrl}?itemName={publisher}.{name}&ssr=false#review-details`,
 				type: ExtensionGalleryResourceType.ExtensionRatingViewUri
 			});
 		}
@@ -223,7 +223,7 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 					flags,
 				},
 				signing: {
-					allRepositorySigned: true,
+					allPublicRepositorySigned: true,
 				}
 			}
 		};

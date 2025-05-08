@@ -12,7 +12,7 @@ import { observableCodeEditor } from '../../../../../../browser/observableCodeEd
 import { rangeIsSingleLine } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { AbstractText } from '../../../../../../common/core/textEdit.js';
+import { AbstractText } from '../../../../../../common/core/edits/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { EndOfLinePreference, IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';

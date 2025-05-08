@@ -24,6 +24,16 @@ export interface IChatSlashData {
 	 * as it is entered. Defaults to `false`.
 	 */
 	executeImmediately?: boolean;
+
+	/**
+	 * Whether the command should be added as a request/response
+	 * turn to the chat history. Defaults to `false`.
+	 *
+	 * For instance, the `/save` command opens an untitled document
+	 * to the side hence does not contain any chatbot responses.
+	 */
+	silent?: boolean;
+
 	locations: ChatAgentLocation[];
 	modes?: ChatMode[];
 }

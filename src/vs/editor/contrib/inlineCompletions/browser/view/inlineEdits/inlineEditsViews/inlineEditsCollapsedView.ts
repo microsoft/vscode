@@ -11,7 +11,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
 import { singleTextRemoveCommonPrefix } from '../../../model/singleTextEditHelpers.js';
 import { IInlineEditsView } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
@@ -57,7 +57,6 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 				overflow: 'visible',
 				top: '0px',
 				left: '0px',
-				zIndex: '0',
 				display: 'block',
 			},
 		}, [

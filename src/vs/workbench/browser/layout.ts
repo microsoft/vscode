@@ -363,6 +363,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 			].some(setting => e.affectsConfiguration(setting))) {
+
 				// Show Command Center if command center actions enabled
 				const shareEnabled = e.affectsConfiguration('workbench.experimental.share.enabled') && this.configurationService.getValue<boolean>('workbench.experimental.share.enabled');
 				const navigationControlEnabled = e.affectsConfiguration('workbench.navigationControl.enabled') && this.configurationService.getValue<boolean>('workbench.navigationControl.enabled');
@@ -2611,6 +2612,8 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 }
 
 enum WorkbenchLayoutSettings {
+	AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility',
+	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
@@ -2618,8 +2621,8 @@ enum WorkbenchLayoutSettings {
 }
 
 enum LegacyWorkbenchLayoutSettings {
-	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
-	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State
+	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', 	// Deprecated to UI State
+	SIDEBAR_POSITION = 'workbench.sideBar.location', 	// Deprecated to UI State
 }
 
 class LayoutStateModel extends Disposable {
@@ -2689,11 +2692,22 @@ class LayoutStateModel extends Disposable {
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Set dynamic defaults: part sizing and side bar visibility
-		LayoutStateKeys.PANEL_POSITION.defaultValue = positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom');
+		const workbenchState = this.contextService.getWorkbenchState();
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
+			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
+				case 'visible':
+					return false;
+				case 'visibleInWorkspace':
+					return workbenchState === WorkbenchState.EMPTY;
+				default:
+					return true;
+			}
+		})();
 		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? isHorizontal(LayoutStateKeys.PANEL_POSITION.defaultValue)) ? mainContainerDimension.height / 3 : mainContainerDimension.width / 4;
-		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		LayoutStateKeys.PANEL_POSITION.defaultValue = positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom');
 
 		// Apply all defaults
 		for (key in LayoutStateKeys) {
@@ -2778,7 +2792,7 @@ class LayoutStateModel extends Disposable {
 	}
 
 	private isActivityBarHidden(): boolean {
-		const oldValue = this.configurationService.getValue<boolean | undefined>('workbench.activityBar.visible');
+		const oldValue = this.configurationService.getValue<boolean | undefined>(WorkbenchLayoutSettings.ACTIVITY_BAR_VISIBLE);
 		if (oldValue !== undefined) {
 			return !oldValue;
 		}

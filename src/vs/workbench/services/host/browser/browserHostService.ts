@@ -97,6 +97,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.registerListeners();
 	}
 
+
 	private registerListeners(): void {
 
 		// Veto shutdown depending on `window.confirmBeforeClose` setting
@@ -155,7 +156,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
 				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
 				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, disposables),
-			)(focus => emitter.fire(focus));
+			)(focus => emitter.fire(focus), undefined, disposables);
 		}, { window: mainWindow, disposables: this._store }));
 
 		return Event.latch(emitter.event, undefined, this._store);
@@ -648,6 +649,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			}
 		}
+	}
+
+	async getBrowserId(): Promise<string | undefined> {
+		return undefined;
 	}
 
 	//#endregion

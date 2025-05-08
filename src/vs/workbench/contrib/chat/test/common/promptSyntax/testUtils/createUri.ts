@@ -11,7 +11,9 @@ import { isWindows } from '../../../../../../../base/common/platform.js';
  * On `Windows`, absolute paths are prefixed with the disk name.
  */
 export const createURI = (linkPath: string): URI => {
-	return URI.file(createPath(linkPath));
+	return URI.file(
+		createPath(linkPath),
+	);
 };
 
 /**

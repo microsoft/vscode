@@ -8,7 +8,7 @@ import { CompareResult } from '../../../../../base/common/arrays.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser.js';
-import { LineRange } from '../model/lineRange.js';
+import { MergeEditorLineRange } from '../model/lineRange.js';
 import { DetailedLineRangeMapping } from '../model/mapping.js';
 import { ModifiedBaseRange } from '../model/modifiedBaseRange.js';
 import { join } from '../utils.js';
@@ -54,9 +54,9 @@ export class ViewZoneComputer {
 			model.modifiedBaseRanges.read(reader),
 			resultDiffs,
 			(baseRange, diff) =>
-				baseRange.baseRange.touches(diff.inputRange)
+				baseRange.baseRange.intersectsOrTouches(diff.inputRange)
 					? CompareResult.neitherLessOrGreaterThan
-					: LineRange.compareByStart(
+					: MergeEditorLineRange.compareByStart(
 						baseRange.baseRange,
 						diff.inputRange
 					)

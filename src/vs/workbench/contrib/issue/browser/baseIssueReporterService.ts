@@ -454,14 +454,16 @@ export class BaseIssueReporterService extends Disposable {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			let fileOnExtension, fileOnMarketplace = false;
+			let fileOnExtension, fileOnMarketplace, fileOnProduct = false;
 			if (value === IssueSource.Extension) {
 				fileOnExtension = true;
 			} else if (value === IssueSource.Marketplace) {
 				fileOnMarketplace = true;
+			} else if (value === IssueSource.VSCode) {
+				fileOnProduct = true;
 			}
 
-			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace, fileOnProduct });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -732,7 +734,7 @@ export class BaseIssueReporterService extends Disposable {
 				} else {
 					// If the items property isn't present, the rate limit has been hit
 					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
+					message.textContent = localize('rateLimited', "No duplicate issues found: GitHub query limit exceeded.");
 					similarIssues.appendChild(message);
 
 					const resetTime = response.headers.get('X-RateLimit-Reset');
@@ -1153,9 +1155,11 @@ export class BaseIssueReporterService extends Disposable {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
+		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
+
 		if (url.length > MAX_URL_LENGTH) {
 			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = await this.writeToClipboard(baseUrl, issueBody) + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
@@ -1174,6 +1178,26 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+	}
+
+	public addTemplateToUrl(owner?: string, repositoryName?: string): string {
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isCopilot = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-copilot-release';
+		const isPython = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-python';
+
+		if (isVscode) {
+			return `&template=bug_report.md`;
+		}
+
+		if (isCopilot) {
+			return `&template=bug_report_chat.md`;
+		}
+
+		if (isPython) {
+			return `&template=bug_report.md`;
+		}
+
+		return '';
 	}
 
 	public getIssueUrl(): string {

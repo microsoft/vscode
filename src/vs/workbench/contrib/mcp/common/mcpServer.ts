@@ -4,35 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError, Sequencer } from '../../../../base/common/async.js';
-import * as json from '../../../../base/common/json.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
+import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
 	supportsPrompts: boolean;
 	supportsResources: boolean;
 	toolCount: number;
+	serverName: string;
+	serverVersion: string;
 };
 type ServerBootClassification = {
 	owner: 'connor4312';
@@ -41,6 +46,8 @@ type ServerBootClassification = {
 	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports prompts' };
 	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports resource' };
 	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of tools the server advertises' };
+	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server' };
+	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
 
 type ServerBootState = {
@@ -55,6 +62,7 @@ type ServerBootStateClassification = {
 };
 
 interface IToolCacheEntry {
+	readonly nonce: string | undefined;
 	/** Cached tools so we can show what's available before it's started */
 	readonly tools: readonly IValidatedMcpTool[];
 }
@@ -109,13 +117,13 @@ export class McpServerMetadataCache extends Disposable {
 	}
 
 	/** Gets cached tools for a server (used before a server is running) */
-	getTools(definitionId: string): readonly IValidatedMcpTool[] | undefined {
-		return this.cache.get(definitionId)?.tools;
+	getTools(definitionId: string) {
+		return this.cache.get(definitionId);
 	}
 
 	/** Sets cached tools for a server */
-	storeTools(definitionId: string, tools: readonly IValidatedMcpTool[]): void {
-		this.cache.set(definitionId, { ...this.cache.get(definitionId), tools });
+	storeTools(definitionId: string, nonce: string | undefined, tools: readonly IValidatedMcpTool[]): void {
+		this.cache.set(definitionId, { ...this.cache.get(definitionId), nonce, tools });
 		this.didChange = true;
 	}
 
@@ -154,17 +162,33 @@ export class McpServer extends Disposable implements IMcpServer {
 	private get toolsFromCache() {
 		return this._toolCache.getTools(this.definition.id);
 	}
-	private readonly toolsFromServerPromise = observableValue<ObservablePromise<readonly IValidatedMcpTool[]> | undefined>(this, undefined);
+	private readonly toolsFromServerPromise = observableValue<ObservablePromise<{
+		readonly tools: IValidatedMcpTool[];
+		readonly nonce: string | undefined;
+	}> | undefined>(this, undefined);
 	private readonly toolsFromServer = derived(reader => this.toolsFromServerPromise.read(reader)?.promiseResult.read(reader)?.data);
 
 	public readonly tools: IObservable<readonly IMcpTool[]>;
 
 	public readonly toolsState = derived(reader => {
+		const currentNonce = () => this._mcpRegistry.collections.read(reader)
+			.find(c => c.id === this.collection.id)
+			?.serverDefinitions.read(reader)
+			.find(d => d.id === this.definition.id)
+			?.cacheNonce;
+		const stateWhenServingFromCache = () => {
+			if (!this.toolsFromCache) {
+				return McpServerToolsState.Unknown;
+			}
+
+			return currentNonce() === this.toolsFromCache.nonce ? McpServerToolsState.Cached : McpServerToolsState.Outdated;
+		};
+
 		const fromServer = this.toolsFromServerPromise.read(reader);
 		const connectionState = this.connectionState.read(reader);
 		const isIdle = McpConnectionState.canBeStarted(connectionState.state) && !fromServer;
 		if (isIdle) {
-			return this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown;
+			return stateWhenServingFromCache();
 		}
 
 		const fromServerResult = fromServer?.promiseResult.read(reader);
@@ -172,7 +196,11 @@ export class McpServer extends Disposable implements IMcpServer {
 			return this.toolsFromCache ? McpServerToolsState.RefreshingFromCached : McpServerToolsState.RefreshingFromUnknown;
 		}
 
-		return fromServerResult.error ? (this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown) : McpServerToolsState.Live;
+		if (fromServerResult.error) {
+			return stateWhenServingFromCache();
+		}
+
+		return fromServerResult.data?.nonce === currentNonce() ? McpServerToolsState.Live : McpServerToolsState.Outdated;
 	});
 
 	private readonly _loggerId: string;
@@ -196,6 +224,8 @@ export class McpServer extends Disposable implements IMcpServer {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
@@ -228,29 +258,22 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		// 2. Populate this.tools when we connect to a server.
 		this._register(autorunWithStore((reader, store) => {
-			const cnx = this._connection.read(reader)?.handler.read(reader);
-			if (cnx) {
-				this.populateLiveData(cnx, store);
+			const cnx = this._connection.read(reader);
+			const handler = cnx?.handler.read(reader);
+			if (handler) {
+				this.populateLiveData(handler, cnx?.definition.cacheNonce, store);
 			} else {
 				this.resetLiveData();
 			}
 		}));
 
-		// 3. Update the cache when tools update
-		this._register(autorun(reader => {
-			const tools = this.toolsFromServer.read(reader);
-			if (tools) {
-				this._toolCache.storeTools(definition.id, tools);
-			}
-		}));
-
-		// 4. Publish tools
+		// 3. Publish tools
 		const toolPrefix = this._mcpRegistry.collectionToolPrefix(this.collection);
 		this.tools = derived(reader => {
 			const serverTools = this.toolsFromServer.read(reader);
-			const definitions = serverTools ?? this.toolsFromCache ?? [];
+			const definitions = serverTools?.tools ?? this.toolsFromCache?.tools ?? [];
 			const prefix = toolPrefix.read(reader);
-			return definitions.map(def => new McpTool(this, prefix, def));
+			return definitions.map(def => new McpTool(this, prefix, def)).sort((a, b) => a.compare(b));
 		});
 	}
 
@@ -306,8 +329,42 @@ export class McpServer extends Disposable implements IMcpServer {
 				time: Date.now() - start,
 			});
 
+			if (state.state === McpConnectionState.Kind.Error && isFromInteraction) {
+				this.showInteractiveError(connection, state);
+			}
+
 			return state;
 		});
+	}
+
+	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error) {
+		if (error.code === 'ENOENT' && cnx.launchDefinition.type === McpServerTransportType.Stdio) {
+			let docsLink: string | undefined;
+			switch (cnx.launchDefinition.command) {
+				case 'uvx':
+					docsLink = `https://aka.ms/vscode-mcp-install/uvx`;
+					break;
+				case 'npx':
+					docsLink = `https://aka.ms/vscode-mcp-install/npx`;
+					break;
+			}
+
+			const options: IPromptChoice[] = [{
+				label: localize('mcp.command.showOutput', "Show Output"),
+				run: () => this.showOutput(),
+			}];
+
+			if (docsLink) {
+				options.push({
+					label: localize('mcpServerInstall', 'Install {0}', cnx.launchDefinition.command),
+					run: () => this._openerService.open(URI.parse(docsLink)),
+				});
+			}
+
+			this._notificationService.prompt(Severity.Error, localize('mcpServerNotFound', 'The command "{0}" needed to run {1} was not found.', cnx.launchDefinition.command, cnx.definition.label), options);
+		} else {
+			this._notificationService.warn(localize('mcpServerError', 'The MCP server {0} could not be started: {1}', cnx.definition.label, error.message));
+		}
 	}
 
 	public stop(): Promise<void> {
@@ -384,7 +441,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		return validated;
 	}
 
-	private populateLiveData(handler: McpServerRequestHandler, store: DisposableStore) {
+	private populateLiveData(handler: McpServerRequestHandler, cacheNonce: string | undefined, store: DisposableStore) {
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
 
@@ -394,11 +451,11 @@ export class McpServer extends Disposable implements IMcpServer {
 			const toolPromise = handler.capabilities.tools ? handler.listTools({}, cts.token) : Promise.resolve([]);
 			const toolPromiseSafe = toolPromise.then(async tools => {
 				handler.logger.info(`Discovered ${tools.length} tools`);
-				return this._getValidatedTools(handler, tools);
+				return { tools: await this._getValidatedTools(handler, tools), nonce: cacheNonce };
 			});
 			this.toolsFromServerPromise.set(new ObservablePromise(toolPromiseSafe), tx);
 
-			return [toolPromise];
+			return [toolPromiseSafe];
 		};
 
 		store.add(handler.onDidChangeToolList(() => {
@@ -411,12 +468,16 @@ export class McpServer extends Disposable implements IMcpServer {
 			promises = updateTools(tx);
 		});
 
-		Promise.all(promises!).then(([tools]) => {
+		Promise.all(promises!).then(([{ tools }]) => {
+			this._toolCache.storeTools(this.definition.id, cacheNonce, tools);
+
 			this._telemetryService.publicLog2<ServerBootData, ServerBootClassification>('mcp/serverBoot', {
 				supportsLogging: !!handler.capabilities.logging,
 				supportsPrompts: !!handler.capabilities.prompts,
 				supportsResources: !!handler.capabilities.resources,
 				toolCount: tools.length,
+				serverName: handler.serverInfo.name,
+				serverVersion: handler.serverInfo.version,
 			});
 		});
 	}
@@ -426,7 +487,6 @@ export class McpServer extends Disposable implements IMcpServer {
 	 * connection started if it is not already.
 	 */
 	public async callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
-
 		await this.start(); // idempotent
 
 		let ranOnce = false;
@@ -481,7 +541,46 @@ export class McpTool implements IMcpTool {
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		return this._server.callOn(h => h.callTool({ name, arguments: params }), token);
+		return this._server.callOn(h => h.callTool({ name, arguments: params }, token), token);
+	}
+
+	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
+		return this._callWithProgress(params, progress, token);
+	}
+
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
+		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
+		const name = this._definition.serverToolName ?? this._definition.name;
+		const progressToken = generateUuid();
+
+		return this._server.callOn(h => {
+			let lastProgressN = 0;
+			const listener = h.onDidReceiveProgressNotification((e) => {
+				if (e.params.progressToken === progressToken) {
+					progress.report({
+						message: e.params.message,
+						increment: e.params.progress - lastProgressN,
+						total: e.params.total,
+					});
+					lastProgressN = e.params.progress;
+				}
+			});
+
+			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token)
+				.finally(() => listener.dispose())
+				.catch(err => {
+					const state = this._server.connectionState.get();
+					if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
+						return this._callWithProgress(params, progress, token, false);
+					} else {
+						throw err;
+					}
+				});
+		}, token);
+	}
+
+	compare(other: IMcpTool): number {
+		return this._definition.name.localeCompare(other.definition.name);
 	}
 }
 

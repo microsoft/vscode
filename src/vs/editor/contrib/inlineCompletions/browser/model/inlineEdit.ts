@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';
 import { Command } from '../../../../common/languages.js';
-import { InlineCompletionItem } from './provideInlineCompletions.js';
+import { InlineSuggestionItem } from './inlineSuggestionItem.js';
 
 export class InlineEdit {
 	constructor(
 		public readonly edit: SingleTextEdit,
 		public readonly commands: readonly Command[],
-		public readonly inlineCompletion: InlineCompletionItem,
+		public readonly inlineCompletion: InlineSuggestionItem,
 	) { }
 
 	public get range() {

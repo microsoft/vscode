@@ -13,9 +13,14 @@ import { assertDefined } from '../../../../base/common/types.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 
 /**
- * Tokens produced by the `LinesDecoder`.
+ * Any line break token type.
  */
-export type TLineToken = Line | CarriageReturn | NewLine;
+export type TLineBreakToken = CarriageReturn | NewLine;
+
+/**
+ * Tokens produced by the {@link LinesDecoder}.
+ */
+export type TLineToken = Line | TLineBreakToken;
 
 /**
  * The `decoder` part of the `LinesCodec` and is able to transform
@@ -53,7 +58,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	 */
 	private processData(
 		streamEnded: boolean,
-	) {
+	): void {
 		// iterate over each line of the data buffer, emitting each line
 		// as a `Line` token followed by a `NewLine` token, if applies
 		while (this.buffer.byteLength > 0) {
@@ -63,13 +68,17 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 				: 1;
 
 			// find the `\r`, `\n`, or `\r\n` tokens in the data
-			const endOfLineTokens = this.findEndOfLineTokens(lineNumber);
-			const firstToken = endOfLineTokens[0];
+			const endOfLineTokens = this.findEndOfLineTokens(
+				lineNumber,
+				streamEnded,
+			);
+			const firstToken: (NewLine | CarriageReturn | undefined) = endOfLineTokens[0];
 
-			// if no end-of-the-line tokens found, stop processing because we
-			// either (1)need more data to arraive or (2)the stream has ended
-			// in the case (2) remaining data must be emitted as the last line
-			if (!firstToken) {
+			// if no end-of-the-line tokens found, stop the current processing
+			// attempt because we either (1) need more data to be received or
+			// (2) the stream has ended; in the case (2) remaining data must
+			// be emitted as the last line
+			if (firstToken === undefined) {
 				// (2) if `streamEnded`, we need to emit the whole remaining
 				// data as the last line immediately
 				if (streamEnded) {
@@ -88,15 +97,25 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 				'No last emitted line found.',
 			);
 
+			// Note! A standalone `\r` token case is not a well-defined case, and
+			// 		 was primarily used by old Mac OSx systems which treated it as
+			// 		 a line ending (same as `\n`). Hence for backward compatibility
+			// 		 with those systems, we treat it as a new line token as well.
+			// 		 We do that by replacing standalone `\r` token with `\n` one.
+			if ((endOfLineTokens.length === 1) && (firstToken instanceof CarriageReturn)) {
+				endOfLineTokens.splice(0, 1, new NewLine(firstToken.range));
+			}
+
 			// emit the end-of-the-line tokens
 			let startColumn = this.lastEmittedLine.range.endColumn;
 			for (const token of endOfLineTokens) {
-				const endColumn = startColumn + token.byte.byteLength;
+				const byteLength = token.byte.byteLength;
+				const endColumn = startColumn + byteLength;
 				// emit the token updating its column start/end numbers based on
 				// the emitted line text length and previous end-of-the-line token
 				this._onData.fire(token.withRange({ startColumn, endColumn }));
 				// shorten the data buffer by the length of the token
-				this.buffer = this.buffer.slice(token.byte.byteLength);
+				this.buffer = this.buffer.slice(byteLength);
 				// update the start column for the next token
 				startColumn = endColumn;
 			}
@@ -122,6 +141,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	 */
 	private findEndOfLineTokens(
 		lineNumber: number,
+		streamEnded: boolean,
 	): (CarriageReturn | NewLine)[] {
 		const result = [];
 
@@ -130,7 +150,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 		const newLineIndex = this.buffer.indexOf(NewLine.byte);
 
 		// if the `\r` comes before the `\n`(if `\n` present at all)
-		if (carriageReturnIndex >= 0 && (carriageReturnIndex < newLineIndex || newLineIndex === -1)) {
+		if (carriageReturnIndex >= 0 && ((carriageReturnIndex < newLineIndex) || (newLineIndex === -1))) {
 			// add the carriage return token first
 			result.push(
 				new CarriageReturn(new Range(
@@ -154,11 +174,15 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 				);
 			}
 
-			if (this.buffer.byteLength > carriageReturnIndex + 1) {
-				// either `\r` or `\r\n` cases found
+			// either `\r` or `\r\n` cases found; if we have the `\r` token, we can return
+			// the end-of-line tokens only, if the `\r` is followed by at least one more
+			// character (it could be a `\n` or any other character), or if the stream has
+			// ended (which means the `\r` is at the end of the line)
+			if ((this.buffer.byteLength > carriageReturnIndex + 1) || streamEnded) {
 				return result;
 			}
 
+			// in all other cases, return the empty array (no lend-of-line tokens found)
 			return [];
 		}
 

@@ -22,6 +22,7 @@ export interface IMouseEvent {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly timestamp: number;
+	readonly defaultPrevented: boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -44,6 +45,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
 	public readonly timestamp: number;
+	public readonly defaultPrevented: boolean;
 
 	constructor(targetWindow: Window, e: MouseEvent) {
 		this.timestamp = Date.now();
@@ -52,6 +54,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
 		this.buttons = e.buttons;
+		this.defaultPrevented = e.defaultPrevented;
 
 		this.target = <HTMLElement>e.target;
 

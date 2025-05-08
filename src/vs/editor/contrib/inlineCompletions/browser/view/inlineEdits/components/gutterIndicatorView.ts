@@ -16,12 +16,12 @@ import { asCssVariable } from '../../../../../../../platform/theme/common/colorU
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
 import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
 import { EditorOption, RenderLineNumbersType } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';
@@ -82,6 +82,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 
 		this._register(this._editorObs.editor.onMouseMove((e: IEditorMouseEvent) => {
+			const state = this._state.get();
+			if (state === undefined) { return; }
+
 			const el = this._iconRef.element;
 			const rect = el.getBoundingClientRect();
 			const rectangularArea = Rect.fromLeftTopWidthHeight(rect.left, rect.top, rect.width, rect.height);
@@ -268,7 +271,18 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		// The icon which will be rendered in the pill
 		const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-		const iconDocked = derived(reader => this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader) ? Codicon.check : iconNoneDocked.read(reader));
+		const iconDocked = derived(reader => {
+			if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
+				return Codicon.check;
+			}
+			if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
+				return Codicon.keyboardTab;
+			}
+			const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
+			const editStartLineNumber = s.range.read(reader).startLineNumber;
+			return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
+		});
+
 		const idealIconWidth = 22;
 		const minimalIconWidth = 16; // codicon size
 		const iconWidth = (pillRect: Rect) => {
@@ -280,7 +294,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const pillRect = pillFullyDockedRect;
 			const lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			const lineNumberRect = pillRect.withWidth(lineNumberWidth);
-			const iconRect = pillRect.withWidth(idealIconWidth).translateX(lineNumberWidth);
+			const iconWidth = Math.max(Math.min(layout.decorationsWidth, idealIconWidth), minimalIconWidth);
+			const iconRect = pillRect.withWidth(iconWidth).translateX(lineNumberWidth);
 
 			return {
 				gutterEditArea,
@@ -423,7 +438,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 			style: {
 				cursor: 'pointer',
-				zIndex: '1000',
+				zIndex: '20',
 				position: 'absolute',
 				backgroundColor: this._gutterIndicatorStyles.map(v => v.background),
 				['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),

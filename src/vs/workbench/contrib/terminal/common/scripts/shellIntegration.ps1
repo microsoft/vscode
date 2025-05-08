@@ -27,6 +27,10 @@ $env:VSCODE_STABLE = $null
 
 $__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
 $env:VSCODE_SHELL_ENV_REPORTING = $null
+$Global:envVarsToReport = @()
+if ($__vscode_shell_env_reporting) {
+	$Global:envVarsToReport = $__vscode_shell_env_reporting.Split(',')
+}
 
 $osVersion = [System.Environment]::OSVersion.Version
 $isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
@@ -97,11 +101,15 @@ function Global:Prompt() {
 
 	# Send current environment variables as JSON
 	# OSC 633 ; EnvJson ; <Environment> ; <Nonce>
-	if ($__vscode_shell_env_reporting -eq "1") {
+	if ($Global:envVarsToReport.Count -gt 0) {
 		$envMap = @{}
-		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
-		$envJson = $envMap | ConvertTo-Json -Compress
-		$Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
+        foreach ($varName in $envVarsToReport) {
+            if (Test-Path "env:$varName") {
+                $envMap[$varName] = (Get-Item "env:$varName").Value
+            }
+        }
+        $envJson = $envMap | ConvertTo-Json -Compress
+        $Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
 	}
 
 	# Before running the original prompt, put $? back to what it was:
