@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { totalmem } from 'os';
 import { Event } from '../../base/common/event.js';
 import * as platform from '../../base/common/platform.js';
 import * as performance from '../../base/common/performance.js';
@@ -117,6 +118,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			localHistoryHome: this._environmentService.localHistoryHome,
 			userHome: this._environmentService.userHome,
 			os: platform.OS,
+			totalmem: totalmem(),
 			arch: process.arch,
 			marks: performance.getMarks(),
 			useHostProxy: !!this._environmentService.args['use-host-proxy'],

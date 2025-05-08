@@ -36,6 +36,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	localHistoryHome: UriComponents;
 	userHome: UriComponents;
 	os: platform.OperatingSystem;
+	totalmem: number;
 	arch: string;
 	marks: performance.PerformanceMark[];
 	useHostProxy: boolean;
@@ -68,6 +69,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 			localHistoryHome: URI.revive(data.localHistoryHome),
 			userHome: URI.revive(data.userHome),
 			os: data.os,
+			totalmem: data.totalmem,
 			arch: data.arch,
 			marks: data.marks,
 			useHostProxy: data.useHostProxy,

@@ -579,7 +579,9 @@ export class BrowserProcessExplorerControl extends ProcessExplorerControl {
 	}
 
 	protected override async getTotalMemory(): Promise<number> {
-		return 100;
+		const environment = await this.remoteAgentService.getEnvironment();
+
+		return environment?.totalmem ?? 0;
 	}
 
 	protected override async resolveProcesses(): Promise<IResolvedProcessInformation> {
@@ -594,17 +596,9 @@ export class BrowserProcessExplorerControl extends ProcessExplorerControl {
 		const result = await this.remoteAgentService.getDiagnosticInfo({ includeProcesses: true });
 		if (result) {
 			if (isRemoteDiagnosticError(result)) {
-				processes.push({
-					name: result.hostName,
-					rootProcess: result
-				});
-			} else {
-				if (result.processes) {
-					processes.push({
-						name: hostName,
-						rootProcess: result.processes
-					});
-				}
+				processes.push({ name: result.hostName, rootProcess: result });
+			} else if (result.processes) {
+				processes.push({ name: hostName, rootProcess: result.processes });
 			}
 		}
 
