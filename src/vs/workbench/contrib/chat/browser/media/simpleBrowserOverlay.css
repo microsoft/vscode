@@ -41,7 +41,8 @@
 .element-selection-message .monaco-button.codicon.codicon-close,
 .element-expand-container .monaco-button.codicon.codicon-layout,
 .element-selection-message .monaco-button.codicon.codicon-chevron-right,
-.element-selection-message .monaco-button.codicon.codicon-gear {
+.element-selection-message .monaco-button.codicon.codicon-gear,
+.element-selection-message .monaco-button.codicon.codicon-terminal {
 	width: 17px;
 	height: 17px;
 	padding: 2px 2px;

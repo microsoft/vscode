@@ -15,7 +15,6 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 
-
 export const INativeBrowserElementsMainService = createDecorator<INativeBrowserElementsMainService>('browserElementsMainService');
 export interface INativeBrowserElementsMainService extends AddFirstParameterToFunctions<INativeBrowserElementsService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -24,6 +23,8 @@ interface NodeDataResponse {
 	computedStyle: string;
 	bounds: IRectangle;
 }
+
+const allConsole = new Map<number, string[]>();
 
 export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
 	_serviceBrand: undefined;
@@ -37,6 +38,138 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 	}
 
 	get windowId(): never { throw new Error('Not implemented in electron-main'); }
+
+	async getConsoleLogs(windowId: number | undefined): Promise<string | undefined> {
+		const window = this.windowById(windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+
+		const readable = (allConsole.get(window.id) ?? []).join('\n');
+		return readable;
+	}
+
+	// wait for potential webviews to be ready. on startup, the iframe with the simple browser content is not yet available
+	async waitForWebviewTargets(debuggers: any, windowId: number): Promise<any> {
+		const start = Date.now();
+		const timeout = 10000;
+
+		while (Date.now() - start < timeout) {
+			const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
+
+			let resultId: string | undefined = undefined;
+			let target: typeof targetInfos[number] | undefined = undefined;
+
+			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
+				const url = new URL(targetInfo.url);
+				return url.searchParams.get('parentId') === windowId.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
+			});
+
+			if (matchingTarget) {
+				const url = new URL(matchingTarget.url);
+				resultId = url.searchParams.get('id')!;
+			}
+
+			if (resultId) {
+				target = targetInfos.find((targetInfo: { url: string }) => {
+					const url = new URL(targetInfo.url);
+					return url.searchParams.get('id') === resultId && url.searchParams.get('vscodeBrowserReqId')!;
+				});
+			}
+
+			if (target) {
+				return target.targetId;
+			}
+
+			await new Promise(resolve => setTimeout(resolve, 250));
+		}
+
+		return undefined;
+	}
+
+	async startConsoleSession(windowId: number | undefined, token: CancellationToken, cancelAndDetachId?: number): Promise<void> {
+		const window = this.windowById(windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+
+		// Find the simple browser webview
+		const allWebContents = webContents.getAllWebContents();
+		const simpleBrowserWebview = allWebContents.find(webContent => webContent.id === window.id);
+
+		if (!simpleBrowserWebview) {
+			return undefined;
+		}
+
+		const debuggers = simpleBrowserWebview.debugger;
+		if (!debuggers.isAttached()) {
+			debuggers.attach();
+		}
+
+		const onMessage = (event: any, method: string, params: any) => {
+			if (method === 'Runtime.consoleAPICalled' || method === 'Runtime.exceptionThrown' || method === 'Log.entryAdded') {
+				console.log('listener was hit here');
+				const current = allConsole.get(windowId!) ?? [];
+				const serialized = JSON.stringify(params);
+				if (!current.includes(serialized)) {
+					current.push(serialized);
+					allConsole.set(windowId!, current);
+				}
+			}
+		};
+
+		try {
+			const matchingTargetId = await this.waitForWebviewTargets(debuggers, windowId!);
+			if (!matchingTargetId) {
+				return undefined;
+			}
+
+			const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
+				targetId: matchingTargetId,
+				flatten: true,
+			});
+
+			await debuggers.sendCommand('Debugger.enable', {}, sessionId);
+			await debuggers.sendCommand('Runtime.enable', {}, sessionId);
+			await debuggers.sendCommand('Log.enable', {}, sessionId);
+			console.log('turning on debugger');
+			debuggers.on('message', onMessage);
+		} catch (e) {
+			// debuggers.off('message', onMessage);
+			if (debuggers.isAttached()) {
+				debuggers.detach();
+			}
+			throw new Error('No target found', e);
+		}
+
+		window.win.webContents.on('ipc-message', async (event, channel, closedCancelAndDetachId) => {
+			if (channel === `vscode:changeElementSelection${cancelAndDetachId}`) {
+				if (cancelAndDetachId !== closedCancelAndDetachId) {
+					console.log('cancelAndDetachId does not match');
+					return;
+				}
+				console.log('turning off debugger');
+				debuggers.off('message', onMessage);
+				if (window.win) {
+					window.win.webContents.removeAllListeners('ipc-message');
+				}
+			}
+		});
+	}
+
+	async finishOverlay(debuggers: any, sessionId: string | undefined): Promise<void> {
+		if (debuggers.isAttached() && sessionId) {
+			await debuggers.sendCommand('Overlay.setInspectMode', {
+				mode: 'none',
+				highlightConfig: {
+					showInfo: false,
+					showStyles: false
+				}
+			}, sessionId);
+			await debuggers.sendCommand('Overlay.hideHighlight', {}, sessionId);
+			await debuggers.sendCommand('Overlay.disable', {}, sessionId);
+		}
+	}
 
 	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId);
@@ -53,12 +186,14 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		const debuggers = simpleBrowserWebview.debugger;
-		debuggers.attach();
+		if (!debuggers.isAttached()) {
+			debuggers.attach();
+		}
 
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
 		let resultId: string | undefined = undefined;
 		let target: typeof targetInfos[number] | undefined = undefined;
-		let targetSessionId: number | undefined = undefined;
+		let targetSessionId: string | undefined = undefined;
 		try {
 			// find parent id and extract id
 			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
@@ -173,17 +308,19 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 				},
 			}, sessionId);
 		} catch (e) {
-			debuggers.detach();
+			await this.finishOverlay(debuggers, targetSessionId);
 			throw new Error('No target found', e);
 		}
 
 		if (!targetSessionId) {
-			debuggers.detach();
+			await this.finishOverlay(debuggers, targetSessionId);
 			throw new Error('No target session id found');
 		}
 
+
+		console.log('if this is logged before, then it means the onmessage triggers the other listener for some reason');
 		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win, cancellationId);
-		debuggers.detach();
+		await this.finishOverlay(debuggers, targetSessionId);
 
 		const zoomFactor = simpleBrowserWebview.getZoomFactor();
 		const absoluteBounds = {
@@ -210,7 +347,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
 	}
 
-	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
+	async getNodeData(sessionId: string, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
 		return new Promise((resolve, reject) => {
 			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
@@ -265,7 +402,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 						});
 					} catch (err) {
 						debuggers.off('message', onMessage);
-						debuggers.detach();
+						await this.finishOverlay(debuggers, sessionId);
 						reject(err);
 					}
 				}
@@ -277,9 +414,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 						return;
 					}
 					debuggers.off('message', onMessage);
-					if (debuggers.isAttached()) {
-						debuggers.detach();
-					}
+					await this.finishOverlay(debuggers, sessionId);
 					window.webContents.removeAllListeners('ipc-message');
 				}
 			});
