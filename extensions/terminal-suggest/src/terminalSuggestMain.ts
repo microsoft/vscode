@@ -73,10 +73,12 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 		if (!shellType) {
 			return;
 		}
-		// TODO: for gitbash, resolve this path using where bash
+		let shell = shellType;
+		if (shellType === TerminalShellType.GitBash) {
+			shell = TerminalShellType.Bash;
+		}
 		const options: ExecOptionsWithStringEncoding = {
-			encoding: 'utf-8', shell:
-				'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
+			encoding: 'utf-8', shell
 		};
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
