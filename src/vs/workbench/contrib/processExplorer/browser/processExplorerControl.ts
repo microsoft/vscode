@@ -32,6 +32,7 @@ import { IResolvedProcessInformation } from '../../../../platform/process/common
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -457,6 +458,10 @@ export abstract class ProcessExplorerControl extends Disposable {
 	}
 
 	private isDebuggable(cmd: string): boolean {
+		if (isWeb) {
+			return false;
+		}
+
 		const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
 
 		return (matches && matches.groups!.port !== '0') || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
