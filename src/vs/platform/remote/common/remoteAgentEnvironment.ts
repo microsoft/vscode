@@ -20,7 +20,6 @@ export interface IRemoteAgentEnvironment {
 	localHistoryHome: URI;
 	userHome: URI;
 	os: OperatingSystem;
-	totalmem: number;
 	arch: string;
 	marks: performance.PerformanceMark[];
 	useHostProxy: boolean;
