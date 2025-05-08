@@ -772,7 +772,7 @@ export interface InlineCompletionContext {
 	 * @experimental
 	 * @internal
 	*/
-	readonly requestUuid?: string | undefined;
+	readonly requestUuid: string;
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
@@ -2481,7 +2481,7 @@ export interface IInlineEditContext {
 	 * @experimental
 	 * @internal
 	 */
-	requestUuid?: string;
+	requestUuid: string;
 }
 
 export enum InlineEditTriggerKind {

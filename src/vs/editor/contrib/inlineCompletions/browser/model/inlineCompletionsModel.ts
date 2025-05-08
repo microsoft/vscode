@@ -11,6 +11,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedHandleChanges, derivedOpts, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -294,6 +295,7 @@ export class InlineCompletionsModel extends Disposable {
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
+			requestUuid: generateUuid(),
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
