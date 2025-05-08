@@ -22,10 +22,10 @@ export const chatAttachmentResourceContextKey = new RawContextKey<string>('chatA
 
 
 export class ChatAttachmentsContentPart extends Disposable {
-	private readonly attachedContextDisposables = this._register(new DisposableStore());
+	private readonly attachedContextDisposables;
 
-	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	private readonly _contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
+	private readonly _onDidChangeVisibility;
+	private readonly _contextResourceLabels;
 
 	constructor(
 		private readonly variables: IChatRequestVariableEntry[],
@@ -34,6 +34,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this.attachedContextDisposables = this._register(new DisposableStore());
+		this._onDidChangeVisibility = this._register(new Emitter<boolean>());
+		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 
 		this.initAttachedContext(domNode);
 		if (!domNode.childElementCount) {

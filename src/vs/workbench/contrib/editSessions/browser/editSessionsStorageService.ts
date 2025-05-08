@@ -33,37 +33,37 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	declare _serviceBrand: undefined;
 
-	public readonly SIZE_LIMIT = Math.floor(1024 * 1024 * 1.9); // 2 MB
+	public readonly SIZE_LIMIT; // 2 MB
 
-	private serverConfiguration = this.productService['editSessions.store'];
+	private serverConfiguration;
 	private machineClient: IUserDataSyncMachinesService | undefined;
 
 	private authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
 	private static CACHED_SESSION_STORAGE_KEY = 'editSessionAccountPreference';
 
-	private initialized = false;
+	private initialized;
 	private readonly signedInContext: IContextKey<boolean>;
 
 	get isSignedIn() {
 		return this.existingSessionId !== undefined;
 	}
 
-	private _didSignIn = new Emitter<void>();
+	private _didSignIn;
 	get onDidSignIn() {
 		return this._didSignIn.event;
 	}
 
-	private _didSignOut = new Emitter<void>();
+	private _didSignOut;
 	get onDidSignOut() {
 		return this._didSignOut.event;
 	}
 
-	private _lastWrittenResources = new Map<SyncResource, { ref: string; content: string }>();
+	private _lastWrittenResources;
 	get lastWrittenResources() {
 		return this._lastWrittenResources;
 	}
 
-	private _lastReadResources = new Map<SyncResource, { ref: string; content: string }>();
+	private _lastReadResources;
 	get lastReadResources() {
 		return this._lastReadResources;
 	}
@@ -84,6 +84,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService
 	) {
 		super();
+		this.SIZE_LIMIT = Math.floor(1024 * 1024 * 1.9);
+		this.serverConfiguration = this.productService['editSessions.store'];
+		this.initialized = false;
+		this._didSignIn = new Emitter<void>();
+		this._didSignOut = new Emitter<void>();
+		this._lastWrittenResources = new Map<SyncResource, { ref: string; content: string }>();
+		this._lastReadResources = new Map<SyncResource, { ref: string; content: string }>();
 
 		// If the user signs out of the current session, reset our cached auth state in memory and on disk
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
