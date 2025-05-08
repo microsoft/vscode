@@ -237,10 +237,10 @@ suite('ObjectCache', function () {
 
 			cache.remove(key2, disposeOnRemove);
 
-			const object2Disposed = obj2.disposed;
+			const object2Disposed = obj2.isDisposed;
 
 			// ensure we don't leak undisposed object in the tests
-			if (!obj2.disposed) {
+			if (obj2.isDisposed === false) {
 				obj2.dispose();
 			}
 
@@ -256,7 +256,7 @@ suite('ObjectCache', function () {
 			 */
 
 			assert(
-				!obj1.disposed,
+				obj1.isDisposed === false,
 				'[obj1] Object must not be disposed.',
 			);
 
@@ -315,7 +315,7 @@ suite('ObjectCache', function () {
 			}
 
 			// caution! explicit type casting below!
-			return result as TestObject<string> & { disposed: false };
+			return result as TestObject<string> & { isDisposed: false };
 		};
 
 		// ObjectCache<TestObject>

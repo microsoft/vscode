@@ -135,7 +135,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 
 		const parser = this.promptsService.getSyntaxParserFor(model);
 		assert(
-			!parser.disposed,
+			parser.isDisposed === false,
 			'Prompt parser must not be disposed.',
 		);
 

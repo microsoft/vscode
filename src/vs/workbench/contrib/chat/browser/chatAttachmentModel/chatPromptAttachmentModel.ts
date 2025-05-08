@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { pick } from '../../../../../base/common/arrays.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 import { ObservableDisposable } from '../../../../../base/common/observableDisposable.js';
@@ -51,7 +51,7 @@ export class ChatPromptAttachmentModel extends ObservableDisposable {
 		// otherwise return `URI` for the main reference and
 		// all valid child `URI` references it may contain
 		return [
-			...reference.allValidReferencesUris,
+			...reference.allValidReferences.map(pick('uri')),
 			reference.uri,
 		];
 	}
@@ -93,12 +93,11 @@ export class ChatPromptAttachmentModel extends ObservableDisposable {
 	 */
 	protected _onUpdate = this._register(new Emitter<void>());
 	/**
-	 * Subscribe to the `onUpdate` event.
-	 * @param callback Function to invoke on update.
+	 * Subscribe to the event that fires when the underlying prompt
+	 * reference instance is updated.
+	 * See {@link BasePromptParser.onUpdate}.
 	 */
-	public onUpdate(callback: () => unknown): IDisposable {
-		return this._onUpdate.event(callback);
-	}
+	public readonly onUpdate = this._onUpdate.event;
 
 	constructor(
 		public readonly uri: URI,
