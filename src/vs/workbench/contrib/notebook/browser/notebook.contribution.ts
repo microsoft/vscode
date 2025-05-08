@@ -1071,7 +1071,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.stickyScrollEnabled.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
 			type: 'boolean',
 			default: false,
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'experimental']
 		},
 		[NotebookSetting.stickyScrollMode]: {
 			description: nls.localize('notebook.stickyScrollMode.description', "Control whether nested sticky lines appear to stack flat or indented."),
@@ -1273,12 +1273,14 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.cellGenerate]: {
 			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
 			type: 'boolean',
-			default: true
+			default: true,
+			tags: ['experimental']
 		},
 		[NotebookSetting.notebookVariablesView]: {
 			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
 			type: 'boolean',
-			default: false
+			default: false,
+			tags: ['experimental']
 		},
 		[NotebookSetting.notebookInlineValues]: {
 			markdownDescription: nls.localize('notebook.inlineValues.description', "Control whether to show inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command."),
@@ -1304,7 +1306,8 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.multiCursor]: {
 			markdownDescription: nls.localize('notebook.multiCursor.enabled', "Experimental. Enables a limited set of multi cursor controls across multiple cells in the notebook editor. Currently supported are core editor actions (typing/cut/copy/paste/composition) and a limited subset of editor commands."),
 			type: 'boolean',
-			default: false
+			default: false,
+			tags: ['experimental']
 		},
 		[NotebookSetting.markupFontFamily]: {
 			markdownDescription: nls.localize('notebook.markup.fontFamily', "Controls the font family of rendered markup in notebooks. When left blank, this will fall back to the default workbench font family."),
