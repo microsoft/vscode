@@ -16,7 +16,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -134,23 +134,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
 
-	private _onDidLoadInputState;
-	readonly onDidLoadInputState;
+	private _onDidLoadInputState: Emitter<IChatInputState | undefined>;
+	readonly onDidLoadInputState: Event<IChatInputState | undefined>;
 
-	private _onDidChangeHeight;
-	readonly onDidChangeHeight;
+	private _onDidChangeHeight: Emitter<void>;
+	readonly onDidChangeHeight: Event<void>;
 
-	private _onDidFocus;
-	readonly onDidFocus;
+	private _onDidFocus: Emitter<void>;
+	readonly onDidFocus: Event<void>;
 
-	private _onDidBlur;
-	readonly onDidBlur;
+	private _onDidBlur: Emitter<void>;
+	readonly onDidBlur: Event<void>;
 
-	private _onDidChangeContext;
-	readonly onDidChangeContext;
+	private _onDidChangeContext: Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
+	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 
-	private _onDidAcceptFollowup;
-	readonly onDidAcceptFollowup;
+	private _onDidAcceptFollowup: Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
+	readonly onDidAcceptFollowup: Event<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 
 	private readonly _attachmentModel: ChatAttachmentModel;
 	public get attachmentModel(): ChatAttachmentModel {
@@ -229,22 +229,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _hasFileAttachmentContextKey: IContextKey<boolean>;
 
-	private readonly _onDidChangeVisibility;
-	private readonly _contextResourceLabels;
+	private readonly _onDidChangeVisibility: Emitter<boolean>;
+	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
-	private inputEditorHeight;
+	private inputEditorHeight: number;
 	private container!: HTMLElement;
 
 	private inputSideToolbarContainer?: HTMLElement;
 
 	private followupsContainer!: HTMLElement;
-	private readonly followupsDisposables;
+	private readonly followupsDisposables: DisposableStore;
 
 	private attachmentsContainer!: HTMLElement;
 
 	private attachedContextContainer!: HTMLElement;
-	private readonly attachedContextDisposables;
+	private readonly attachedContextDisposables: MutableDisposable<DisposableStore>;
 
 	private relatedFilesContainer!: HTMLElement;
 
@@ -297,8 +297,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatMode: IContextKey<ChatMode>;
 
 	private modelWidget: ModelPickerActionItem | undefined;
-	private readonly _waitForPersistedLanguageModel;
-	private _onDidChangeCurrentLanguageModel;
+	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
+	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	get currentLanguageModel() {
@@ -309,8 +309,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
-	private _onDidChangeCurrentChatMode;
-	readonly onDidChangeCurrentChatMode;
+	private _onDidChangeCurrentChatMode: Emitter<void>;
+	readonly onDidChangeCurrentChatMode: Event<void>;
 
 	private _currentMode: ChatMode;
 	public get currentMode(): ChatMode {
@@ -323,10 +323,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private cachedExecuteToolbarWidth: number | undefined;
 	private cachedInputToolbarWidth: number | undefined;
 
-	readonly inputUri;
+	readonly inputUri: URI;
 
-	private readonly _chatEditsActionsDisposables;
-	private readonly _chatEditsDisposables;
+	private readonly _chatEditsActionsDisposables: DisposableStore;
+	private readonly _chatEditsDisposables: DisposableStore;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 	get selectedElements(): URI[] {
