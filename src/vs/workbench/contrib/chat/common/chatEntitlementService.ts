@@ -47,7 +47,13 @@ export enum ChatEntitlement {
 	/** Signed-up to Limited */
 	Limited,
 	/** Signed-up to Pro */
-	Pro
+	Pro,
+	/** Signed-up to Pro Plus */
+	ProPlus,
+	/** Signed-up to Business */
+	Business,
+	/** Signed-up to Enterprise */
+	Enterprise
 }
 
 export enum ChatSentiment {
@@ -77,6 +83,20 @@ export interface IChatEntitlementService {
 	readonly onDidChangeSentiment: Event<void>;
 
 	readonly sentiment: ChatSentiment;
+}
+
+//#region Helper Functions
+
+/**
+ * Checks the chat entitlements to see if the user falls into the paid category
+ * @param chatEntitlement The chat entitlement to check
+ * @returns Whether or not they are a paid user
+ */
+export function isProUser(chatEntitlement: ChatEntitlement): boolean {
+	return chatEntitlement === ChatEntitlement.Pro ||
+		chatEntitlement === ChatEntitlement.ProPlus ||
+		chatEntitlement === ChatEntitlement.Business ||
+		chatEntitlement === ChatEntitlement.Enterprise;
 }
 
 //#region Service Implementation
@@ -122,6 +142,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatContextKeys.Entitlement.pro.key,
+					ChatContextKeys.Entitlement.business.key,
+					ChatContextKeys.Entitlement.enterprise.key,
+					ChatContextKeys.Entitlement.proPlus.key,
 					ChatContextKeys.Entitlement.limited.key,
 					ChatContextKeys.Entitlement.canSignUp.key,
 					ChatContextKeys.Entitlement.signedOut.key
@@ -162,6 +185,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	get entitlement(): ChatEntitlement {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.pro.key) === true) {
 			return ChatEntitlement.Pro;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.business.key) === true) {
+			return ChatEntitlement.Business;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.enterprise.key) === true) {
+			return ChatEntitlement.Enterprise;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.proPlus.key) === true) {
+			return ChatEntitlement.ProPlus;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.limited.key) === true) {
 			return ChatEntitlement.Limited;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.canSignUp.key) === true) {
@@ -317,6 +346,7 @@ interface IEntitlementsResponse extends ILegacyQuotaSnapshotResponse {
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
+	readonly copilot_plan: string;
 	readonly analytics_tracking_id: string;
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
@@ -555,7 +585,16 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement = ChatEntitlement.Limited;
 		} else if (entitlementsResponse.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
+		} else if (entitlementsResponse.copilot_plan === 'individual') {
+			entitlement = ChatEntitlement.Pro;
+		} else if (entitlementsResponse.copilot_plan === 'individual_pro') {
+			entitlement = ChatEntitlement.ProPlus;
+		} else if (entitlementsResponse.copilot_plan === 'business') {
+			entitlement = ChatEntitlement.Business;
+		} else if (entitlementsResponse.copilot_plan === 'enterprise') {
+			entitlement = ChatEntitlement.Enterprise;
 		} else if (entitlementsResponse.chat_enabled) {
+			// This should never happen as we exhaustively list the plans above. But if a new plan is added in the future older clients won't break
 			entitlement = ChatEntitlement.Pro;
 		} else {
 			entitlement = ChatEntitlement.Unavailable;
@@ -588,7 +627,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
 			quotas.chat = {
 				total: response.monthly_quotas.chat,
-				percentRemaining: Math.round((response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100),
+				percentRemaining: (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100,
 				overageEnabled: false,
 				overageCount: 0,
 				unlimited: false
@@ -598,7 +637,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
 			quotas.completions = {
 				total: response.monthly_quotas.completions,
-				percentRemaining: Math.round((response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100),
+				percentRemaining: (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100,
 				overageEnabled: false,
 				overageCount: 0,
 				unlimited: false
@@ -806,6 +845,7 @@ export interface IChatEntitlementContextState {
 	entitlement: ChatEntitlement;
 	hidden?: boolean;
 	installed?: boolean;
+	disabled?: boolean;
 	registered?: boolean;
 }
 
@@ -817,8 +857,12 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly signedOutContextKey: IContextKey<boolean>;
 	private readonly limitedContextKey: IContextKey<boolean>;
 	private readonly proContextKey: IContextKey<boolean>;
+	private readonly proPlusContextKey: IContextKey<boolean>;
+	private readonly businessContextKey: IContextKey<boolean>;
+	private readonly enterpriseContextKey: IContextKey<boolean>;
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
+	private readonly disabledContext: IContextKey<boolean>;
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
@@ -844,8 +888,12 @@ export class ChatEntitlementContext extends Disposable {
 		this.signedOutContextKey = ChatContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
 		this.limitedContextKey = ChatContextKeys.Entitlement.limited.bindTo(contextKeyService);
 		this.proContextKey = ChatContextKeys.Entitlement.pro.bindTo(contextKeyService);
+		this.proPlusContextKey = ChatContextKeys.Entitlement.proPlus.bindTo(contextKeyService);
+		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
+		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
+		this.disabledContext = ChatContextKeys.Setup.disabled.bindTo(contextKeyService);
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 
@@ -865,18 +913,23 @@ export class ChatEntitlementContext extends Disposable {
 			}
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-			this.update({ installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local) });
+			this.update({
+				// TODO@bpasero considering enablement state here as well for historic reasons, should revisit when Copilot can be enabled/disabled more generally
+				installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local),
+				disabled: !!defaultChatExtension?.local && !this.extensionEnablementService.isEnabled(defaultChatExtension.local)
+			});
 		}));
 	}
 
-	update(context: { installed: boolean }): Promise<void>;
+	update(context: { installed: boolean; disabled: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; hidden?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
-		if (typeof context.installed === 'boolean') {
+		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
 			this._state.installed = context.installed;
+			this._state.disabled = context.disabled;
 
 			if (context.installed) {
 				context.hidden = false; // allows to fallback if the extension is uninstalled
@@ -890,7 +943,7 @@ export class ChatEntitlementContext extends Disposable {
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
 
-			if (this._state.entitlement === ChatEntitlement.Limited || this._state.entitlement === ChatEntitlement.Pro) {
+			if (this._state.entitlement === ChatEntitlement.Limited || isProUser(this._state.entitlement)) {
 				this._state.registered = true;
 			} else if (this._state.entitlement === ChatEntitlement.Available) {
 				this._state.registered = false; // only reset when signed-in user can sign-up for limited
@@ -915,8 +968,12 @@ export class ChatEntitlementContext extends Disposable {
 		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);
 		this.limitedContextKey.set(this._state.entitlement === ChatEntitlement.Limited);
 		this.proContextKey.set(this._state.entitlement === ChatEntitlement.Pro);
+		this.proPlusContextKey.set(this._state.entitlement === ChatEntitlement.ProPlus);
+		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);
+		this.enterpriseContextKey.set(this._state.entitlement === ChatEntitlement.Enterprise);
 		this.hiddenContext.set(!!this._state.hidden);
 		this.installedContext.set(!!this._state.installed);
+		this.disabledContext.set(!!this._state.disabled);
 
 		this._onDidChange.fire();
 	}
@@ -934,3 +991,4 @@ export class ChatEntitlementContext extends Disposable {
 }
 
 //#endregion
+

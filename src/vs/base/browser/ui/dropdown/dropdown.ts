@@ -22,7 +22,7 @@ export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
 }
 
-interface IBaseDropdownOptions {
+export interface IBaseDropdownOptions {
 	label?: string;
 	labelRenderer?: ILabelRenderer;
 }

@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -275,13 +275,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: false,
 				included: product.quality !== 'stable'
 			},
-			[UseUnpkgResourceApiConfigKey]: {
-				type: 'boolean',
-				description: localize('extensions.gallery.useUnpkgResourceApi', "When enabled, extensions to update are fetched from Unpkg service."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['onExp', 'usesOnlineServices']
-			},
 			[ExtensionGalleryServiceUrlConfigKey]: {
 				type: 'string',
 				description: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
@@ -522,6 +515,7 @@ type IExtensionActionOptions = IAction2Options & {
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
 	constructor(
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
@@ -1503,7 +1497,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases });
+					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
 					return action.run();
 				}
@@ -1525,7 +1519,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, {
-						installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases,
+						installPreReleaseVersion: this.extensionManagementService.preferPreReleases,
 						isMachineScoped: true,
 					});
 					action.extension = extension;

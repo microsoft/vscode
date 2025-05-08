@@ -8,7 +8,7 @@ import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/grap
 import { AuthenticationError, getOctokitGraphql } from './auth.js';
 import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { TelemetryReporter } from '@vscode/extension-telemetry';
 
 const REPOSITORY_QUERY = `
 	query repositoryPermissions($owner: String!, $repo: String!) {
@@ -74,7 +74,7 @@ export class GitHubBranchProtectionProviderManager {
 		private readonly gitAPI: API,
 		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
-		private readonly telemetryReporter: TelemetryReporter.default) {
+		private readonly telemetryReporter: TelemetryReporter) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
 				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GitHubBranchProtectionProvider(repository, this.globalState, this.logger, this.telemetryReporter)));
@@ -113,7 +113,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		private readonly repository: Repository,
 		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
-		private readonly telemetryReporter: TelemetryReporter.default) {
+		private readonly telemetryReporter: TelemetryReporter) {
 		// Restore branch protection from global state
 		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
 

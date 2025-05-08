@@ -264,7 +264,7 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 	constructor() {
 		super({
 			id: 'chatEditor.action.toggleDiff',
-			title: localize2('diff', 'Toggle Diff Editor'),
+			title: localize2('diff', 'Toggle Diff Editor for Chat Edits'),
 			category: CHAT_CATEGORY,
 			toggled: {
 				condition: ContextKeyExpr.or(EditorContextKeys.inDiffEditor, ActiveEditorContext.isEqualTo(TEXT_DIFF_EDITOR_ID))!,
@@ -298,7 +298,7 @@ class ToggleAccessibleDiffViewAction extends ChatEditingEditorAction {
 	constructor() {
 		super({
 			id: 'chatEditor.action.showAccessibleDiffView',
-			title: localize2('accessibleDiff', 'Show Accessible Diff View'),
+			title: localize2('accessibleDiff', 'Show Accessible Diff View for Chat Edits'),
 			f1: true,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
 			keybinding: {
@@ -389,7 +389,7 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
 	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
-	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
+	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 

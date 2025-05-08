@@ -23,34 +23,31 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	}
 
 	/**
-	 * Private field for tracking all diagnostic issues
-	 * related to this metadata record.
+	 * Value token reference of the record.
 	 */
-	private readonly issues: PromptMetadataDiagnostic[];
-
-	/**
-	 * List of all diagnostic issues related to this metadata record.
-	 */
-	public get diagnostics(): readonly PromptMetadataDiagnostic[] {
-		return this.issues;
-	}
+	protected valueToken: FrontMatterArray | undefined;
 
 	/**
 	 * List of all valid tool names that were found in
 	 * this metadata record.
 	 */
-	private validToolNames: Set<string>;
+	private validToolNames: Set<string> | undefined;
 
 	/**
 	 * List of all valid tool names that were found in
 	 * this metadata record.
 	 */
 	public get toolNames(): readonly string[] {
+		if (this.validToolNames === undefined) {
+			return [];
+		}
+
 		return [...this.validToolNames.values()];
 	}
 
 	constructor(
-		private readonly recordToken: FrontMatterRecord,
+		recordToken: FrontMatterRecord,
+		languageId: string,
 	) {
 		// sanity check on the name of the tools record
 		assert(
@@ -58,23 +55,21 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			`Record token must be a tools token, got '${recordToken.nameToken.text}'.`,
 		);
 
-		super(recordToken.range);
-
-		this.issues = [];
-		this.validToolNames = new Set<string>();
-		this.collectDiagnostics();
+		super(recordToken, languageId);
 	}
 
 	/**
 	 * Validate the metadata record and collect all issues
 	 * related to its content.
 	 */
-	private collectDiagnostics(): void {
+	protected override validate(): readonly PromptMetadataDiagnostic[] {
+		const result: PromptMetadataDiagnostic[] = [];
+
 		const { valueToken } = this.recordToken;
 
 		// validate that the record value is an array
 		if ((valueToken instanceof FrontMatterArray) === false) {
-			this.issues.push(
+			result.push(
 				new PromptMetadataError(
 					valueToken.range,
 					localize(
@@ -87,15 +82,20 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 				),
 			);
 
-			return;
+			return result;
 		}
 
-		const arrayValue: FrontMatterArray = valueToken;
+		this.valueToken = valueToken;
 
 		// validate that all array items
-		for (const item of arrayValue.items) {
-			this.validateToolName(item);
+		this.validToolNames = new Set<string>();
+		for (const item of this.valueToken.items) {
+			result.push(
+				...this.validateToolName(item, this.validToolNames),
+			);
 		}
+
+		return result;
 	}
 
 	/**
@@ -104,10 +104,13 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	 */
 	private validateToolName(
 		valueToken: FrontMatterValueToken,
-	): void {
+		validToolNames: Set<string>,
+	): readonly PromptMetadataDiagnostic[] {
+		const issues: PromptMetadataDiagnostic[] = [];
+
 		// tool name must be a string
 		if ((valueToken instanceof FrontMatterString) === false) {
-			this.issues.push(
+			issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
 					localize(
@@ -119,13 +122,13 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 				),
 			);
 
-			return;
+			return issues;
 		}
 
 		const cleanToolName = valueToken.cleanText.trim();
 		// the tool name should not be empty
 		if (cleanToolName.length === 0) {
-			this.issues.push(
+			issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
 					localize(
@@ -135,12 +138,12 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 				),
 			);
 
-			return;
+			return issues;
 		}
 
 		// the tool name should not be duplicated
-		if (this.validToolNames.has(cleanToolName)) {
-			this.issues.push(
+		if (validToolNames.has(cleanToolName)) {
+			issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
 					localize(
@@ -151,11 +154,11 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 				),
 			);
 
-			return;
+			return issues;
 		}
 
-		// collect all valid tool names
-		this.validToolNames.add(cleanToolName);
+		validToolNames.add(cleanToolName);
+		return issues;
 	}
 
 	/**

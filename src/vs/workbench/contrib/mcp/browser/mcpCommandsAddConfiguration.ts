@@ -26,10 +26,10 @@ import { IJSONEditingService } from '../../../services/configuration/common/json
 import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
-import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
 	Stdio,
@@ -329,7 +329,7 @@ export class McpAddConfigurationCommand {
 						}
 					});
 				} else {
-					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
+					this._commandService.executeCommand(McpCommandIds.ServerOptions, name);
 				}
 
 				server.start(true).then(state => {

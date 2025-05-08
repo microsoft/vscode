@@ -243,6 +243,14 @@ declare module 'vscode' {
 		rejectedConfirmationData?: any[];
 	}
 
+	export interface ChatRequest {
+
+		/**
+		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
+		 */
+		readonly tools: Map<string, boolean>;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -256,7 +264,7 @@ declare module 'vscode' {
 
 		/**
 		 * Event that fires when a request is paused or unpaused.
-		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
 		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}

@@ -7,18 +7,18 @@ import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
 import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
-import { TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
+import { type TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 import { TestSimpleDecoder } from '../../../../../../../editor/test/common/codecs/simpleDecoder.test.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
-import { Colon, Dash, Space, Tab, VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { Colon, Dash, DoubleQuote, Space, Tab, VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { MarkdownExtensionsDecoder } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/markdownExtensionsDecoder.js';
 import { FrontMatterMarker, TMarkerToken } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
@@ -30,7 +30,7 @@ type TEndOfLine = '\n' | '\r\n';
 /**
  * End-of-line utility class for convenience.
  */
-class TestEndOfLine extends Text<NewLine | CarriageReturn> {
+class TestEndOfLine extends Text<(NewLine | CarriageReturn)[]> {
 	/**
 	 * Create a new instance with provided end-of line type and
 	 * a starting position.
@@ -74,7 +74,7 @@ class TestEndOfLine extends Text<NewLine | CarriageReturn> {
 			),
 		));
 
-		return TestEndOfLine.fromTokens(tokens);
+		return new TestEndOfLine(tokens);
 	}
 }
 
@@ -102,7 +102,7 @@ class TestFrontMatterMarker extends FrontMatterMarker {
 	public static create(
 		dashCount: number,
 		lineNumber: number,
-		endOfLine: TEndOfLine,
+		endOfLine?: TEndOfLine | undefined,
 	): TestFrontMatterMarker {
 		const tokens: TMarkerToken[] = [];
 
@@ -120,12 +120,14 @@ class TestFrontMatterMarker extends FrontMatterMarker {
 			columnNumber++;
 		}
 
-		const endOfLineTokens = TestEndOfLine.create(
-			endOfLine,
-			lineNumber,
-			columnNumber,
-		);
-		tokens.push(...endOfLineTokens.tokens);
+		if (endOfLine !== undefined) {
+			const endOfLineTokens = TestEndOfLine.create(
+				endOfLine,
+				lineNumber,
+				columnNumber,
+			);
+			tokens.push(...endOfLineTokens.tokens);
+		}
 
 		return TestFrontMatterMarker.fromTokens(tokens);
 	}
@@ -178,7 +180,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 4, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
@@ -244,7 +246,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 5, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
@@ -270,6 +272,55 @@ suite('MarkdownExtensionsDecoder', () => {
 						new Word(new Range(6, 1, 6, 1 + 4), 'some'),
 						new Space(new Range(6, 5, 6, 6)),
 						new Word(new Range(6, 6, 6, 6 + 4), 'text'),
+					],
+				);
+			});
+
+			test('• can be at the end of the file', async () => {
+				const test = disposables.add(
+					new TestMarkdownExtensionsDecoder(),
+				);
+
+				// both line endings should result in the same result
+				const newLine = (randomBoolean())
+					? '\n'
+					: '\r\n';
+
+				const markerLength = randomInt(10, 4);
+
+				const promptContents = [
+					// start marker
+					new Array(markerLength).fill('-').join(''),
+					// contents
+					'	description: "my description"',
+					// end marker
+					new Array(markerLength).fill('-').join(''),
+				];
+
+				const startMarker = TestFrontMatterMarker.create(markerLength, 1, newLine);
+				const endMarker = TestFrontMatterMarker.create(markerLength, 3);
+
+				await test.run(
+					promptContents.join(newLine),
+					[
+						// header
+						new FrontMatterHeader(
+							new Range(1, 1, 3, 1 + markerLength),
+							startMarker,
+							new Text([
+								new Tab(new Range(2, 1, 2, 2)),
+								new Word(new Range(2, 2, 2, 2 + 11), 'description'),
+								new Colon(new Range(2, 13, 2, 14)),
+								new Space(new Range(2, 14, 2, 15)),
+								new DoubleQuote(new Range(2, 15, 2, 16)),
+								new Word(new Range(2, 16, 2, 16 + 2), 'my'),
+								new Space(new Range(2, 18, 2, 19)),
+								new Word(new Range(2, 19, 2, 19 + 11), 'description'),
+								new DoubleQuote(new Range(2, 30, 2, 31)),
+								...TestEndOfLine.create(newLine, 2, 31).tokens,
+							]),
+							endMarker,
+						),
 					],
 				);
 			});

@@ -419,6 +419,7 @@ export namespace McpConnectionState {
 	export interface Error {
 		readonly state: Kind.Error;
 		readonly code?: string;
+		readonly shouldRetry?: boolean;
 		readonly message: string;
 	}
 }

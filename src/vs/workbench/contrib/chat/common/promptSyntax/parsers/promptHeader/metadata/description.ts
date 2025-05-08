@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptMetadataRecord } from './record.js';
-import { localize } from '../../../../../../../../nls.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
-import { PromptMetadataDiagnostic, PromptMetadataError } from '../diagnostics.js';
-import { FrontMatterRecord, FrontMatterString, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { PromptStringMetadata } from './record.js';
+import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
  * Name of the metadata record in the prompt header.
@@ -17,83 +14,16 @@ const RECORD_NAME = 'description';
 /**
  * Prompt `description` metadata record inside the prompt header.
  */
-export class PromptDescriptionMetadata extends PromptMetadataRecord {
+export class PromptDescriptionMetadata extends PromptStringMetadata {
 	public override get recordName(): string {
 		return RECORD_NAME;
 	}
 
-	/**
-	 * Private field for tracking all diagnostic issues
-	 * related to this metadata record.
-	 */
-	private readonly issues: PromptMetadataDiagnostic[];
-
-	/**
-	 * List of all diagnostic issues related to this metadata record.
-	 */
-	public get diagnostics(): readonly PromptMetadataDiagnostic[] {
-		return this.issues;
-	}
-
-	/**
-	 * Value token reference of the record.
-	 */
-	private valueToken: FrontMatterString | undefined;
-
-	/**
-	 * Clean text value of the record.
-	 */
-	public get text(): string | null {
-		const { valueToken } = this;
-
-		if (valueToken === undefined) {
-			return null;
-		}
-
-		return valueToken.cleanText;
-	}
-
 	constructor(
-		private readonly recordToken: FrontMatterRecord,
+		recordToken: FrontMatterRecord,
+		languageId: string,
 	) {
-		// sanity check on the name of the record
-		assert(
-			PromptDescriptionMetadata.isDescriptionRecord(recordToken),
-			`Record token must be 'description', got '${recordToken.nameToken.text}'.`,
-		);
-
-		super(recordToken.range);
-
-		this.issues = [];
-		this.collectDiagnostics();
-	}
-
-	/**
-	 * Validate the metadata record and collect all issues
-	 * related to its content.
-	 */
-	private collectDiagnostics(): void {
-		const { valueToken } = this.recordToken;
-
-		// validate that the record value is a string
-		if ((valueToken instanceof FrontMatterString) === false) {
-			this.issues.push(
-				new PromptMetadataError(
-					valueToken.range,
-					localize(
-						'prompt.header.metadata.description.diagnostics.invalid-value-type',
-						"Value of the '{0}' metadata must be '{1}', got '{2}'.",
-						RECORD_NAME,
-						'string',
-						valueToken.valueTypeName,
-					),
-				),
-			);
-
-			return;
-		}
-
-		this.valueToken = valueToken;
+		super(RECORD_NAME, recordToken, languageId);
 	}
 
 	/**

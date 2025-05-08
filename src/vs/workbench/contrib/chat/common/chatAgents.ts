@@ -138,6 +138,7 @@ export interface IChatAgentRequest {
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
 	userSelectedTools?: string[];
+	userSelectedTools2?: Record<string, boolean>;
 	toolSelectionIsExclusive?: boolean;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 }
@@ -487,11 +488,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 		const data = this._agents.get(id);
-		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
-		}
-
-		if (!data.impl?.provideFollowups) {
+		if (!data?.impl?.provideFollowups) {
 			return [];
 		}
 

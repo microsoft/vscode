@@ -67,7 +67,17 @@
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false
       }
-    }
+    },
+    "snippets": [
+     {
+        "language": "prompt",
+        "path": "./snippets/prompt.code-snippets"
+      },
+      {
+        "language": "instructions",
+        "path": "./snippets/instructions.code-snippets"
+      }
+    ]
   },
   "scripts": {},
   "repository": {

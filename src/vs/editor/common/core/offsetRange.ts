@@ -146,7 +146,7 @@ export class OffsetRange implements IOffsetRange {
 		return this.start >= other.endExclusive;
 	}
 
-	public slice<T>(arr: T[]): T[] {
+	public slice<T>(arr: readonly T[]): T[] {
 		return arr.slice(this.start, this.endExclusive);
 	}
 
@@ -196,6 +196,17 @@ export class OffsetRange implements IOffsetRange {
 		for (let i = this.start; i < this.endExclusive; i++) {
 			f(i);
 		}
+	}
+
+	/**
+	 * this: [ 5, 10), range: [10, 15) => [5, 15)]
+	 * Throws if the ranges are not touching.
+	*/
+	public joinRightTouching(range: OffsetRange): OffsetRange {
+		if (this.endExclusive !== range.start) {
+			throw new BugIndicatingError(`Invalid join: ${this.toString()} and ${range.toString()}`);
+		}
+		return new OffsetRange(this.start, range.endExclusive);
 	}
 }
 

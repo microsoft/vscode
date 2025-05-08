@@ -9,7 +9,7 @@ import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { OffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/offsetRange.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';

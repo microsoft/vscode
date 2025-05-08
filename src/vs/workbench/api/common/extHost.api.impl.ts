@@ -1528,13 +1528,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
 			},
 			registerMcpServerDefinitionProvider(id, provider) {
-				checkProposedApiEnabled(extension, 'mcpConfigurationProvider');
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			}
 		};
-
-		// todo@connor4312: proposed API back-compat
-		(lm as any).registerMcpConfigurationProvider = lm.registerMcpServerDefinitionProvider;
 
 		// namespace: speech
 		const speech: typeof vscode.speech = {
@@ -1790,6 +1786,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
 			InlineCompletionEndOfLifeReasonKind: extHostTypes.InlineCompletionEndOfLifeReasonKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
+			ChatImageMimeType: extHostTypes.ChatImageMimeType,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
@@ -1820,13 +1817,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
+			LanguageModelToolResultPart2: extHostTypes.LanguageModelToolResultPart2,
 			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
+			LanguageModelToolResult2: extHostTypes.LanguageModelToolResult2,
 			LanguageModelDataPart: extHostTypes.LanguageModelDataPart,
-			LanguageModelExtraDataPart: extHostTypes.LanguageModelExtraDataPart,
-			ChatImageMimeType: extHostTypes.ChatImageMimeType,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,
 			PreparedTerminalToolInvocation: extHostTypes.PreparedTerminalToolInvocation,
 			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,
