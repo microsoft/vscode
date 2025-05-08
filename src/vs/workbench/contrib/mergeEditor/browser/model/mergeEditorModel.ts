@@ -132,7 +132,7 @@ export class MergeEditorModel extends EditorModel {
 			return MergeEditorModelState.upToDate;
 		});
 		this.isUpToDate = derived(this, reader => this.diffComputingState.read(reader) === MergeEditorModelState.upToDate);
-		this.onInitialized = waitForState(this.diffComputingState, state => state === MergeEditorModelState.upToDate).then(() => { });
+
 		this.firstRun = true;
 		this.unhandledConflictsCount = derived(this, reader => {
 			const map = this.modifiedBaseRangeResultStates.read(reader);
@@ -152,7 +152,7 @@ export class MergeEditorModel extends EditorModel {
 
 		const initializePromise = this.initialize();
 
-		this.onInitialized = this.onInitialized.then(async () => {
+		this.onInitialized = waitForState(this.diffComputingState, state => state === MergeEditorModelState.upToDate).then(async () => {
 			await initializePromise;
 		});
 
