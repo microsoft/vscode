@@ -158,7 +158,7 @@ suite('PromptsService', () => {
 			);
 
 			assert(
-				!parser1.disposed,
+				!parser1.isDisposed,
 				'Parser1 must not be disposed.',
 			);
 
@@ -233,7 +233,7 @@ suite('PromptsService', () => {
 			);
 
 			assert(
-				!parser2.disposed,
+				!parser2.isDisposed,
 				'Parser2 must not be disposed.',
 			);
 
@@ -243,17 +243,17 @@ suite('PromptsService', () => {
 			);
 
 			assert(
-				!parser2.disposed,
+				!parser2.isDisposed,
 				'Parser2 must not be disposed.',
 			);
 
 			assert(
-				!parser1.disposed,
+				!parser1.isDisposed,
 				'Parser1 must not be disposed.',
 			);
 
 			assert(
-				!parser1_1.disposed,
+				!parser1_1.isDisposed,
 				'Parser1_1 must not be disposed.',
 			);
 
@@ -314,17 +314,17 @@ suite('PromptsService', () => {
 			parser1.dispose();
 
 			assert(
-				parser1.disposed,
+				parser1.isDisposed,
 				'Parser1 must be disposed.',
 			);
 
 			assert(
-				parser1_1.disposed,
+				parser1_1.isDisposed,
 				'Parser1_1 must be disposed.',
 			);
 
 			assert(
-				!parser2.disposed,
+				!parser2.isDisposed,
 				'Parser2 must not be disposed.',
 			);
 
@@ -337,7 +337,7 @@ suite('PromptsService', () => {
 			const parser1_2 = service.getSyntaxParserFor(model1);
 
 			assert(
-				!parser1_2.disposed,
+				!parser1_2.isDisposed,
 				'Parser1_2 must not be disposed.',
 			);
 
@@ -390,13 +390,13 @@ suite('PromptsService', () => {
 
 			// assert that the parser is also disposed
 			assert(
-				parser2.disposed,
+				parser2.isDisposed,
 				'Parser2 must be disposed.',
 			);
 
 			// sanity check that the other parser is not affected
 			assert(
-				!parser1_2.disposed,
+				!parser1_2.isDisposed,
 				'Parser1_2 must not be disposed.',
 			);
 
@@ -416,7 +416,7 @@ suite('PromptsService', () => {
 			const parser2_1 = service.getSyntaxParserFor(model2_1);
 
 			assert(
-				!parser2_1.disposed,
+				!parser2_1.isDisposed,
 				'Parser2_1 must not be disposed.',
 			);
 
@@ -472,7 +472,7 @@ suite('PromptsService', () => {
 
 			// sanity checks
 			assert(
-				!parser.disposed,
+				!parser.isDisposed,
 				'Parser must not be disposed.',
 			);
 			assert(

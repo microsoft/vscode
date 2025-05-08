@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert, assertNever } from '../assert.js';
 import { Emitter } from '../event.js';
 import { ReadableStream } from '../stream.js';
 import { DeferredPromise } from '../async.js';
 import { AsyncDecoder } from './asyncDecoder.js';
+import { assert, assertNever } from '../assert.js';
 import { DisposableMap, IDisposable } from '../lifecycle.js';
 import { ObservableDisposable } from '../observableDisposable.js';
 
@@ -109,7 +109,7 @@ export abstract class BaseDecoder<
 			'Cannot start stream that has already ended.',
 		);
 		assert(
-			!this.disposed,
+			this.isDisposed === false,
 			'Cannot start stream that has already disposed.',
 		);
 
