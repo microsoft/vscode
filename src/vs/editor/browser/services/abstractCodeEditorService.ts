@@ -771,6 +771,7 @@ class DecorationCSSRules {
 
 	private _removeCSS(): void {
 		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedEditorSelector);
+		this._providerArgs.styleSheet.removeRulesContainingSelector(this._lineBreaksSelector);
 	}
 
 	/**

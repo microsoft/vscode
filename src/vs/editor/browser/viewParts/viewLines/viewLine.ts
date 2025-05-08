@@ -149,7 +149,7 @@ export class ViewLine implements IVisibleLine {
 		const modelLineNumber = this._viewContext.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
 		const fontDecorationsOnLine = this._viewContext.viewModel.model.getFontDecorations(modelLineNumber);
 		const accessibilityMode = this._viewContext.configuration.options.get(EditorOption.accessibilitySupport);
-		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0 && accessibilityMode !== AccessibilitySupport.Disabled;
+		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0 && accessibilityMode === AccessibilitySupport.Disabled;
 		const renderWhitespace = fontDecorationsExistOnLine ? this._viewContext.configuration.options.get(EditorOption.renderWhitespace) : options.renderWhitespace;
 
 		const renderLineInput = new RenderLineInput(
