@@ -101,11 +101,6 @@ export class PathExecutableCache implements vscode.Disposable {
 
 	private async _getFilesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
 		try {
-			const stat = await fs.stat(path);
-			if (!stat.isDirectory()) {
-				return undefined;
-			}
-
 			const result = new Set<ICompletionResource>();
 			const fileResource = vscode.Uri.file(path);
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
