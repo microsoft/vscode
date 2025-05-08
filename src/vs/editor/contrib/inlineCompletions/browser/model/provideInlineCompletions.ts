@@ -25,18 +25,20 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 
+export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
+
 export async function provideInlineCompletions(
 	providers: InlineCompletionsProvider[],
 	positionOrRange: Position | Range,
 	model: ITextModel,
-	context: InlineCompletionContext,
+	context: InlineCompletionContextWithoutUuid,
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
 	const requestUuid = generateUuid();
 	const tokenSource = new CancellationTokenSource(baseToken);
 	const token = tokenSource.token;
-	const contextWithUuid = { ...context, requestUuid: requestUuid };
+	const contextWithUuid: InlineCompletionContext = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 

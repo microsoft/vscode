@@ -18,7 +18,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionContext, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { OffsetEdits } from '../../../../common/model/textModelOffsetEdit.js';
@@ -27,7 +27,7 @@ import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -107,7 +107,7 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _loadingCount = observableValue(this, 0);
 	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
-	public fetch(providers: InlineCompletionsProvider[], position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean): Promise<boolean> {
+	public fetch(providers: InlineCompletionsProvider[], position: Position, context: InlineCompletionContextWithoutUuid, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
@@ -267,7 +267,7 @@ export class InlineCompletionsSource extends Disposable {
 class UpdateRequest {
 	constructor(
 		public readonly position: Position,
-		public readonly context: InlineCompletionContext,
+		public readonly context: InlineCompletionContextWithoutUuid,
 		public readonly versionId: number,
 	) {
 	}
