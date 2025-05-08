@@ -12,24 +12,24 @@ export interface IReactiveDecorationClassNames<T extends string = string> {
 	/**
 	 * Main, default CSS class name of the decoration.
 	 */
-	readonly main: T;
+	readonly Main: T;
 
 	/**
 	 * CSS class name of the decoration for the `inline`(text) styles.
 	 */
-	readonly inline: T;
+	readonly Inline: T;
 
 	/**
 	 * main CSS class name of the decoration for the `inactive`
 	 * decoration state.
 	 */
-	readonly mainInactive: T;
+	readonly MainInactive: T;
 
 	/**
 	 * CSS class name of the decoration for the `inline`(text)
 	 * styles when decoration is in the `inactive` state.
 	 */
-	readonly inlineInactive: T;
+	readonly InlineInactive: T;
 }
 
 /**

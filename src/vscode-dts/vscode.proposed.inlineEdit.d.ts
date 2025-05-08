@@ -55,7 +55,7 @@ declare module 'vscode' {
 		 */
 		triggerKind: InlineEditTriggerKind;
 
-		readonly requestUuid?: string;
+		readonly requestUuid: string;
 	}
 
 	export enum InlineEditTriggerKind {

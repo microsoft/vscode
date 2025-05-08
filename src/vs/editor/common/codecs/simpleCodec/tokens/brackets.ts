@@ -18,7 +18,7 @@ export class LeftBracket extends SimpleToken<'['> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '[' {
 		return LeftBracket.symbol;
 	}
 
@@ -43,7 +43,7 @@ export class RightBracket extends SimpleToken<']'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): ']' {
 		return RightBracket.symbol;
 	}
 

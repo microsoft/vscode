@@ -11,7 +11,7 @@ import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
 import { Range } from '../core/range.js';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
 import { TextModel, createTextBuffer } from '../model/textModel.js';
-import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IModelLanguageChangedEvent } from '../textModelEvents.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
 import { ILanguageSelection } from '../languages/language.js';

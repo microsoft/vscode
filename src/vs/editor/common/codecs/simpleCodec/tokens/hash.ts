@@ -18,7 +18,7 @@ export class Hash extends SimpleToken<'#'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '#' {
 		return Hash.symbol;
 	}
 

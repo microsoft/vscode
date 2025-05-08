@@ -5,10 +5,10 @@
 
 import { authentication, EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
-import { AuthenticationError, getOctokitGraphql } from './auth';
-import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git';
-import { DisposableStore, getRepositoryFromUrl } from './util';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { AuthenticationError, getOctokitGraphql } from './auth.js';
+import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.js';
+import { DisposableStore, getRepositoryFromUrl } from './util.js';
+import { TelemetryReporter } from '@vscode/extension-telemetry';
 
 const REPOSITORY_QUERY = `
 	query repositoryPermissions($owner: String!, $repo: String!) {

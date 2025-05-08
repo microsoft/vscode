@@ -8,19 +8,19 @@ import { localize } from '../../../../../../../../../../nls.js';
 import { FrontMatterMarkerDecoration } from './frontMatterMarkerDecoration.js';
 import { Position } from '../../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../../editor/common/codecs/baseToken.js';
-import { TAddAccessor, TDecorationStyles, ReactiveDecorationBase, asCssVariable } from './utils/index.js';
 import { contrastBorder, editorBackground } from '../../../../../../../../../../platform/theme/common/colorRegistry.js';
 import { ColorIdentifier, darken, registerColor } from '../../../../../../../../../../platform/theme/common/colorUtils.js';
+import { TAddAccessor, TDecorationStyles, ReactiveDecorationBase, asCssVariable, IReactiveDecorationClassNames } from './utils/index.js';
 import { FrontMatterHeader } from '../../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 
 /**
  * Decoration CSS class names.
  */
 export enum CssClassNames {
-	main = '.prompt-front-matter-decoration',
-	inline = '.prompt-front-matter-decoration-inline',
-	mainInactive = `${CssClassNames.main}${CssClassModifiers.inactive}`,
-	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.inactive}`,
+	Main = '.prompt-front-matter-decoration',
+	Inline = '.prompt-front-matter-decoration-inline',
+	MainInactive = `${CssClassNames.Main}${CssClassModifiers.Inactive}`,
+	InlineInactive = `${CssClassNames.Inline}${CssClassModifiers.Inactive}`,
 }
 
 /**
@@ -45,14 +45,14 @@ export const INACTIVE_BACKGROUND_COLOR: ColorIdentifier = registerColor(
  * CSS styles for the decoration.
  */
 export const CSS_STYLES = {
-	[CssClassNames.main]: [
+	[CssClassNames.Main]: [
 		`background-color: ${asCssVariable(BACKGROUND_COLOR)};`,
 		'z-index: -1;', // this is required to allow for selections to appear above the decoration background
 	],
-	[CssClassNames.mainInactive]: [
+	[CssClassNames.MainInactive]: [
 		`background-color: ${asCssVariable(INACTIVE_BACKGROUND_COLOR)};`,
 	],
-	[CssClassNames.inlineInactive]: [
+	[CssClassNames.InlineInactive]: [
 		'color: var(--vscode-disabledForeground);',
 	],
 	...FrontMatterMarkerDecoration.cssStyles,
@@ -92,7 +92,7 @@ export class FrontMatterDecoration extends ReactiveDecorationBase<FrontMatterHea
 		return result;
 	}
 
-	protected override get classNames() {
+	protected override get classNames(): IReactiveDecorationClassNames<CssClassNames> {
 		return CssClassNames;
 	}
 

@@ -12,7 +12,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { LineRange } from '../model/lineRange.js';
+import { MergeEditorLineRange } from '../model/lineRange.js';
 import { MergeEditorModel } from '../model/mergeEditorModel.js';
 import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from '../model/modifiedBaseRange.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -49,7 +49,7 @@ export class MergeEditorViewModel extends Disposable {
 
 			for (const change of e.changes) {
 				const rangeInBase = this.model.translateResultRangeToBase(Range.lift(change.range));
-				const baseRanges = this.model.findModifiedBaseRangesInRange(new LineRange(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
+				const baseRanges = this.model.findModifiedBaseRangesInRange(MergeEditorLineRange.fromLength(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
 				if (baseRanges.length === 1) {
 					const isHandled = this.model.isHandled(baseRanges[0]).get();
 					if (!isHandled) {
@@ -166,7 +166,7 @@ export class MergeEditorViewModel extends Disposable {
 		};
 	});
 
-	private getRangeOfModifiedBaseRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): LineRange {
+	private getRangeOfModifiedBaseRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): MergeEditorLineRange {
 		if (editor === this.resultCodeEditorView) {
 			return this.model.getLineRangeInResult(modifiedBaseRange.baseRange, reader);
 		} else if (editor === this.baseCodeEditorView.get()) {

@@ -17,7 +17,7 @@ import { SimpleToken } from './simpleToken.js';
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): ' ' {
 		return Space.symbol;
 	}
 
