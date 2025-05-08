@@ -291,7 +291,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		const hasAnyFocusedWindow = electron.BrowserWindow.getAllWindows().some(w => w.isFocused());
 
 		if (hasAnyFocusedWindow) {
-			this._focusWindow();
+			this.doFocusWindow();
 		} else if (options?.notify) {
 			if (isMacintosh) {
 				electron.app.dock.bounce('informational');
@@ -302,11 +302,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		} else if (options?.force) {
 			electron.app.focus({ steal: true });
-			this._focusWindow();
+			this.doFocusWindow();
 		}
 	}
 
-	private _focusWindow() {
+	private doFocusWindow() {
 		const win = this.win;
 		if (!win) {
 			return;
