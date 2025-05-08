@@ -15,7 +15,7 @@ import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, 
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
+import { EditorFontLigatures, EditorOption } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
@@ -145,6 +145,10 @@ export class ViewLine implements IVisibleLine {
 				}
 			}
 		}
+		const modelLineNumber = this._viewContext.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
+		const fontDecorationsOnLine = this._viewContext.viewModel.model.getFontDecorations(modelLineNumber);
+		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0;
+		const renderWhitespace = fontDecorationsExistOnLine ? this._viewContext.configuration.options.get(EditorOption.renderWhitespace) : options.renderWhitespace;
 
 		const renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
@@ -162,7 +166,7 @@ export class ViewLine implements IVisibleLine {
 			options.middotWidth,
 			options.wsmiddotWidth,
 			options.stopRenderingLineAfter,
-			options.renderWhitespace,
+			renderWhitespace,
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine
@@ -188,9 +192,6 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		const modelLineNumber = this._viewContext.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
-		const fontDecorationsOnLine = this._viewContext.viewModel.model.getFontDecorations(modelLineNumber);
-		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0;
 		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
@@ -221,12 +222,10 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public rerenderLineType(otherType: RenderViewLineType): void {
-		console.log('rerenderLineType otherType : ', otherType);
 		if (!this._renderedViewLine) {
 			return;
 		}
 		const currentType = this._renderedViewLine.type;
-		console.log('currentType : ', currentType);
 		if (currentType === otherType) {
 			return;
 		}

@@ -6,7 +6,6 @@
 import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
 import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
-import { assertIsDefined } from '../../../base/common/types.js';
 import { applyFontInfo } from '../config/domFontInfo.js';
 import { EditorFontLigatures, EditorOption, WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
@@ -17,10 +16,13 @@ import { IEditorConfiguration } from '../../common/config/editorConfiguration.js
 import { RenderLineInput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 import { InlineDecoration } from '../../common/viewModel.js';
+import { assertIsDefined } from '../../../base/common/types.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
+
+	private container: HTMLElement | undefined;
 
 	public static create(targetWindow: Window, model: ITextModel): DOMLineBreaksComputerFactory {
 		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow), model);
@@ -43,7 +45,9 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				lineHeights.push(lineHeight);
 			},
 			finalize: () => {
+				this.container?.remove();
 				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), this.model, lineNumbers, lineHeights, requests, tabSize, injectedTexts, allInlineDecorations);
+				this.container = res.containerDomNode;
 				return res.data;
 			}
 		};
@@ -189,7 +193,10 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, mo
 	const html = sb.build();
 	const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 	containerDomNode.innerHTML = trustedhtml as string;
-	containerDomNode.classList.add('monaco-editor');
+	containerDomNode.classList.add('dom-line-breaks-computer');
+
+	containerDomNode.style.position = 'absolute';
+	containerDomNode.style.top = '10000';
 	if (wordBreak === 'keepAll') {
 		// word-break: keep-all; overflow-wrap: anywhere
 		containerDomNode.style.wordBreak = 'keep-all';

@@ -9,8 +9,13 @@
 	position: absolute;
 	overflow-y: scroll;
 	scrollbar-width: none;
-	z-index: 10;
+	z-index: -10;
 	white-space: pre-wrap;
+}
+
+.monaco-editor .native-edit-context > div > span {
+	display: flex;
+	align-items: center;
 }
 
 .monaco-editor .ime-text-area {

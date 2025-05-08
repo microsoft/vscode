@@ -9,17 +9,18 @@ import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTyp
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { EditorFontLigatures, EditorOption } from '../../../../common/config/editorOptions.js';
+import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { Selection } from '../../../../common/core/selection.js';
+import { Selection, SelectionDirection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, RenderLineOutput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ariaLabelForScreenReaderContent, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
@@ -150,6 +151,8 @@ export class ScreenReaderSupport {
 	}
 
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
+		// For correct alignment of the screen reader content, we need to apply the correct font
+		applyFontInfo(this._domNode, this._fontInfo);
 
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
@@ -189,6 +192,7 @@ export class ScreenReaderSupport {
 			console.log('postPositionLineText : ', postPositionLineText);
 			console.log('positionLineText : ', positionLineText);
 			const positionLineData = ctx.viewportData.getViewLineRenderingData(this._primarySelection.positionLineNumber);
+			const primaryModelSelection = this._context.viewModel.coordinatesConverter.convertViewRangeToModelRange(this._primarySelection);
 			const viewModel = this._context.viewModel;
 			const options = this._context.configuration.options;
 			const fontInfo = options.get(EditorOption.fontInfo);
@@ -202,7 +206,16 @@ export class ScreenReaderSupport {
 			const actualInlineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, modelRange.startLineNumber, 0, Infinity);
 			const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 			const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
-			const renderWhitespace = options.get(EditorOption.renderWhitespace);
+			let renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>;
+			const modelLineNumber = this._primarySelection.getDirection() === SelectionDirection.LTR ? primaryModelSelection.startLineNumber : primaryModelSelection.endLineNumber;
+			const fontDecorations = this._context.viewModel.model.getFontDecorations(modelLineNumber);
+			const renderWhitespacesInline = fontDecorations.length > 0;
+			const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
+			if (renderWhitespacesInline || experimentalWhitespaceRendering === 'off') {
+				renderWhitespace = options.get(EditorOption.renderWhitespace);
+			} else {
+				renderWhitespace = 'none';
+			}
 			const sb = new StringBuilder(10000);
 			const renderLineInput = new RenderLineInput(
 				useMonospaceOptimizations,
@@ -236,7 +249,6 @@ export class ScreenReaderSupport {
 			postLineDom.textContent = postPositionLineText;
 			this.setIgnoreSelectionChangeTime('setValue');
 			const domNode = this._domNode.domNode;
-			domNode.classList.add('monaco-editor');
 			domNode.replaceChildren(preLineDom, activeLineDom, postLineDom);
 			this._setSelectionOfScreenReaderContent(renderLineOutput, this._screenReaderContentState, preLineDom, activeLineDom, postLineDom);
 		} else {

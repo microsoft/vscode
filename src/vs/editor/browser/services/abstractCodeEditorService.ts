@@ -638,7 +638,8 @@ class DecorationCSSRules {
 
 	private _theme: IColorTheme;
 	private readonly _className: string;
-	private readonly _unThemedSelector: string;
+	private readonly _unThemedEditorSelector: string;
+	private readonly _lineBreaksSelector: string;
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
 	private readonly _ruleType: ModelDecorationCSSRuleType;
@@ -660,7 +661,8 @@ class DecorationCSSRules {
 		}
 		this._className = className;
 
-		this._unThemedSelector = CSSNameHelper.getSelector(this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
+		this._unThemedEditorSelector = CSSNameHelper.getSelector('monaco-editor', this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
+		this._lineBreaksSelector = CSSNameHelper.getSelector('dom-line-breaks-computer', this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
 
 		this._buildCSS();
 
@@ -744,22 +746,25 @@ class DecorationCSSRules {
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
-			sheet.insertRule(this._unThemedSelector, unthemedCSS);
+			sheet.insertRule(this._unThemedEditorSelector, unthemedCSS);
+			sheet.insertRule(this._lineBreaksSelector, unthemedCSS);
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
+			sheet.insertRule(`.vs${this._unThemedEditorSelector}, .hc-light${this._unThemedEditorSelector}`, lightCSS);
+			sheet.insertRule(this._lineBreaksSelector, lightCSS);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
-			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
+			sheet.insertRule(`.vs-dark${this._unThemedEditorSelector}, .hc-black${this._unThemedEditorSelector}`, darkCSS);
+			sheet.insertRule(this._lineBreaksSelector, darkCSS);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
 	}
 
 	private _removeCSS(): void {
-		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedSelector);
+		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedEditorSelector);
 	}
 
 	/**
@@ -887,8 +892,8 @@ class CSSNameHelper {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
-		let selector = '.monaco-editor .' + this.getClassName(key, ruleType);
+	public static getSelector(className: string, key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
+		let selector = `.${className} .` + this.getClassName(key, ruleType);
 		if (parentKey) {
 			selector = selector + '.' + this.getClassName(parentKey, ruleType);
 		}
