@@ -9,7 +9,7 @@ import { localize } from '../../../../../../nls.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
-import { StringText, TextEdit } from '../../../../../common/core/textEdit.js';
+import { StringText, TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { Command, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';

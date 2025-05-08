@@ -7,7 +7,7 @@ import { h, reset } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from '../../../../../base/common/observable.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { LineRange } from '../model/lineRange.js';
+import { MergeEditorLineRange } from '../model/lineRange.js';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
 	private readonly scrollTop = observableFromEvent(this,
@@ -78,7 +78,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		if (visibleRanges.length > 0) {
 			const visibleRange = visibleRanges[0];
 
-			const visibleRange2 = new LineRange(
+			const visibleRange2 = MergeEditorLineRange.fromLength(
 				visibleRange.startLineNumber,
 				visibleRange.endLineNumber - visibleRange.startLineNumber
 			).deltaEnd(1);
@@ -89,7 +89,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 			);
 
 			for (const gutterItem of gutterItems) {
-				if (!gutterItem.range.touches(visibleRange2)) {
+				if (!gutterItem.range.intersectsOrTouches(visibleRange2)) {
 					continue;
 				}
 
@@ -140,14 +140,14 @@ class ManagedGutterItemView {
 }
 
 export interface IGutterItemProvider<TItem extends IGutterItemInfo> {
-	getIntersectingGutterItems(range: LineRange, reader: IReader): TItem[];
+	getIntersectingGutterItems(range: MergeEditorLineRange, reader: IReader): TItem[];
 
 	createView(item: TItem, target: HTMLElement): IGutterItemView<TItem>;
 }
 
 export interface IGutterItemInfo {
 	id: string;
-	range: LineRange;
+	range: MergeEditorLineRange;
 }
 
 export interface IGutterItemView<T extends IGutterItemInfo> extends IDisposable {

@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { OffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';

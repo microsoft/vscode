@@ -43,7 +43,8 @@ exports.code = [
 	// 'vs/code/node/cli' is not included here because it comes in via ./src/cli.js
 	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
-	createModuleDescription('vs/code/electron-sandbox/workbench/workbench')
+	createModuleDescription('vs/code/electron-sandbox/workbench/workbench'),
+	createModuleDescription('vs/workbench/contrib/webview/browser/pre/service-worker')
 ];
 
 exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');

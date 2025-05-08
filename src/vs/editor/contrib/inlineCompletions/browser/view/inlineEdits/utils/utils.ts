@@ -22,7 +22,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../../common/core/textEdit.js';
+import { SingleTextEdit, TextEdit } from '../../../../../../common/core/edits/textEdit.js';
 import { RangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';
