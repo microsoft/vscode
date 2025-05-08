@@ -9,7 +9,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IEditorSerializer, EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { IEditorSerializer, EditorExtensions, IEditorFactoryRegistry, GroupIdentifier } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ProcessExplorerEditorInput } from './processExplorerEditorInput.js';
@@ -17,6 +17,10 @@ import { ProcessExplorerEditor } from './processExplorerEditor.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
+import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
 //#region --- process explorer
 
@@ -81,9 +85,16 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 //#region --- process explorer commands
 
+interface IProcessExplorerWindowState {
+	readonly bounds: Partial<IRectangle>;
+}
+
 class OpenProcessExplorer extends Action2 {
 
 	static readonly ID = 'workbench.action.openProcessExplorer';
+
+	private static readonly STATE_KEY = 'workbench.processExplorerWindowState';
+	private static readonly DEFAULT_STATE: IProcessExplorerWindowState = { bounds: { width: 800, height: 500 } };
 
 	constructor() {
 		super({
@@ -96,8 +107,54 @@ class OpenProcessExplorer extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
+		const storageService = accessor.get(IStorageService);
 
-		editorService.openEditor({ resource: ProcessExplorerEditorInput.RESOURCE, options: { pinned: true, auxiliary: { compact: true, bounds: { width: 800, height: 500 }, alwaysOnTop: true } } }, AUX_WINDOW_GROUP);
+		const pane = await editorService.openEditor({
+			resource: ProcessExplorerEditorInput.RESOURCE,
+			options: {
+				pinned: true, auxiliary: {
+					...this.loadState(storageService),
+					compact: true,
+					alwaysOnTop: true
+				}
+			}
+		}, AUX_WINDOW_GROUP);
+
+		if (pane) {
+			const listener = pane.input?.onWillDispose(() => {
+				listener?.dispose();
+				this.saveState(pane.group.id, storageService, editorGroupService, auxiliaryWindowService);
+			});
+		}
+	}
+
+	private loadState(storageService: IStorageService): IProcessExplorerWindowState {
+		const stateRaw = storageService.get(OpenProcessExplorer.STATE_KEY, StorageScope.APPLICATION);
+		if (!stateRaw) {
+			return OpenProcessExplorer.DEFAULT_STATE;
+		}
+
+		try {
+			return JSON.parse(stateRaw);
+		} catch {
+			return OpenProcessExplorer.DEFAULT_STATE;
+		}
+	}
+
+	private saveState(group: GroupIdentifier, storageService: IStorageService, editorGroupService: IEditorGroupsService, auxiliaryWindowService: IAuxiliaryWindowService): void {
+		const auxiliaryWindow = auxiliaryWindowService.getWindow(editorGroupService.getPart(group).windowId);
+		if (!auxiliaryWindow) {
+			return;
+		}
+
+		const bounds = auxiliaryWindow.createState().bounds;
+		if (!bounds) {
+			return;
+		}
+
+		storageService.store(OpenProcessExplorer.STATE_KEY, JSON.stringify({ bounds }), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 }
 
