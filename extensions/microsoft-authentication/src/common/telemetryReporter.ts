@@ -35,6 +35,13 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		);
 	}
 
+	sendActivatedWithClassicImplementationEvent(): void {
+		/* __GDPR__
+			"activatingClassic" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the classic login flow." }
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingClassic');
+	}
+
 	sendLoginEvent(scopes: readonly string[]): void {
 		/* __GDPR__
 			"login" : {

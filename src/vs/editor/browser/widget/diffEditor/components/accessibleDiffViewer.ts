@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { applyStyle } from '../utils.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';

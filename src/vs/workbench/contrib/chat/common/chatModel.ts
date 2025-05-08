@@ -13,7 +13,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ITransaction, ObservablePromise, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -359,7 +359,8 @@ export interface IChatResponseModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isPaused: IObservable<boolean>;
-	readonly isPendingConfirmation: boolean;
+	readonly isPendingConfirmation: IObservable<boolean>;
+	readonly isInProgress: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
@@ -862,16 +863,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isStale;
 	}
 
-	private _isPaused = observableValue('isPaused', false);
+	private readonly _isPaused = observableValue('isPaused', false);
 	public get isPaused(): IObservable<boolean> {
 		return this._isPaused;
 	}
 
-	public get isPendingConfirmation() {
-		return this._response.value.some(part =>
-			part.kind === 'toolInvocation' && part.isConfirmed === undefined
-			|| part.kind === 'confirmation' && part.isUsed === false);
-	}
+	readonly isPendingConfirmation: IObservable<boolean>;
+
+	readonly isInProgress: IObservable<boolean>;
 
 	private _responseView?: ResponseView;
 	public get response(): IResponse {
@@ -910,6 +909,28 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._isStale = Array.isArray(params.responseContent) && (params.responseContent.length !== 0 || isMarkdownString(params.responseContent) && params.responseContent.value.length !== 0);
 
 		this._response = this._register(new Response(params.responseContent));
+
+		const signal = observableSignalFromEvent(this, this.onDidChange);
+
+		this.isPendingConfirmation = signal.map((_value, r) => {
+
+			signal.read(r);
+
+			return this._response.value.some(part =>
+				part.kind === 'toolInvocation' && part.isConfirmed === undefined
+				|| part.kind === 'confirmation' && part.isUsed === false
+			);
+		});
+
+		this.isInProgress = signal.map((_value, r) => {
+
+			signal.read(r);
+
+			return !this.isPendingConfirmation.read(r)
+				&& !this.shouldBeRemovedOnSend
+				&& !this._isComplete;
+		});
+
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
 		this.id = params.restoredId ?? 'response_' + generateUuid();
 	}
@@ -1052,6 +1073,7 @@ export interface IChatModel {
 	readonly title: string;
 	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
+	readonly requestInProgressObs: IObservable<boolean>;
 	readonly requestPausibility: ChatPauseState;
 	readonly inputPlaceholder?: string;
 	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
@@ -1330,21 +1352,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get requestInProgress(): boolean {
-		const lastRequest = this.lastRequest;
-		if (!lastRequest?.response) {
-			return false;
-		}
-
-		if (lastRequest.response.isPendingConfirmation) {
-			return false;
-		}
-
-		return !lastRequest.response.isComplete;
+		return this.requestInProgressObs.get();
 	}
+
+	readonly requestInProgressObs: IObservable<boolean>;
 
 	get requestPausibility(): ChatPauseState {
 		const lastRequest = this.lastRequest;
-		if (!lastRequest?.response?.agent || lastRequest.response.isComplete || lastRequest.response.isPendingConfirmation) {
+		if (!lastRequest?.response?.agent || lastRequest.response.isComplete || lastRequest.response.isPendingConfirmation.get()) {
 			return ChatPauseState.NotPausable;
 		}
 
@@ -1449,6 +1464,13 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
+
+
+		const lastResponse = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1)?.response);
+
+		this.requestInProgressObs = lastResponse.map((response, r) => {
+			return response?.isInProgress.read(r) ?? false;
+		});
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean): void {

@@ -8,7 +8,7 @@ import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { OffsetEdit, ISingleOffsetEdit, IOffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { OffsetEdit, ISingleOffsetEdit, IOffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';

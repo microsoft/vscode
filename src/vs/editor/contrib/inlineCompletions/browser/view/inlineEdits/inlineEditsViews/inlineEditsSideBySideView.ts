@@ -14,7 +14,7 @@ import { asCssVariable, asCssVariableWithDefault } from '../../../../../../../pl
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';

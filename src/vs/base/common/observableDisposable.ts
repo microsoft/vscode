@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from './event.js';
-import { Disposable } from './lifecycle.js';
+import { Disposable, IDisposable } from './lifecycle.js';
 
 /**
  * Disposable object that tracks its {@linkcode disposed} state
@@ -23,16 +23,30 @@ export abstract class ObservableDisposable extends Disposable {
 	 *
 	 * @param callback The callback function to be called on updates.
 	 */
-	public onDispose(callback: () => void): this {
+	public onDispose(callback: () => void): IDisposable {
 		// if already disposed, execute the callback immediately
 		if (this.disposed) {
-			callback();
+			const timeoutHandle = setTimeout(callback);
 
-			return this;
+			return {
+				dispose: () => {
+					clearTimeout(timeoutHandle);
+				},
+			};
 		}
 
-		// otherwise subscribe to the event
-		this._register(this._onDispose.event(callback));
+		return this._onDispose.event(callback);
+	}
+
+	/**
+	 * Adds a disposable object to the list of disposables
+	 * that will be disposed with this object.
+	 */
+	public addDisposable(...disposables: IDisposable[]): this {
+		for (const disposable of disposables) {
+			this._register(disposable);
+		}
+
 		return this;
 	}
 

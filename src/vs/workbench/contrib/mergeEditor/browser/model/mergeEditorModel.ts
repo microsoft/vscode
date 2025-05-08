@@ -14,7 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { IResourceUndoRedoElement, IUndoRedoService, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorModel } from '../../../../common/editor/editorModel.js';
 import { IMergeDiffComputer } from './diffComputer.js';
-import { LineRange } from './lineRange.js';
+import { MergeEditorLineRange } from './lineRange.js';
 import { DetailedLineRangeMapping, DocumentLineRangeMap, DocumentRangeMap, LineRangeMapping } from './mapping.js';
 import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from './textModelDiffs.js';
 import { MergeEditorTelemetry } from '../telemetry.js';
@@ -170,7 +170,7 @@ export class MergeEditorModel extends EditorModel {
 		const input2Lines = this.input2.textModel.getLinesContent();
 
 		const resultLines: string[] = [];
-		function appendLinesToResult(source: string[], lineRange: LineRange) {
+		function appendLinesToResult(source: string[], lineRange: MergeEditorLineRange) {
 			for (let i = lineRange.startLineNumber; i < lineRange.endLineNumberExclusive; i++) {
 				resultLines.push(source[i - 1]);
 			}
@@ -179,7 +179,7 @@ export class MergeEditorModel extends EditorModel {
 		let baseStartLineNumber = 1;
 
 		for (const baseRange of baseRanges) {
-			appendLinesToResult(baseLines, LineRange.fromLineNumbers(baseStartLineNumber, baseRange.baseRange.startLineNumber));
+			appendLinesToResult(baseLines, MergeEditorLineRange.fromLineNumbers(baseStartLineNumber, baseRange.baseRange.startLineNumber));
 			baseStartLineNumber = baseRange.baseRange.endLineNumberExclusive;
 
 			if (baseRange.input1Diffs.length === 0) {
@@ -193,7 +193,7 @@ export class MergeEditorModel extends EditorModel {
 			}
 		}
 
-		appendLinesToResult(baseLines, LineRange.fromLineNumbers(baseStartLineNumber, baseLines.length + 1));
+		appendLinesToResult(baseLines, MergeEditorLineRange.fromLineNumbers(baseStartLineNumber, baseLines.length + 1));
 
 		return resultLines.join(this.resultTextModel.getEOL());
 	}
@@ -273,7 +273,7 @@ export class MergeEditorModel extends EditorModel {
 		return map.projectRange(range).outputRange;
 	}
 
-	public getLineRangeInResult(baseRange: LineRange, reader?: IReader): LineRange {
+	public getLineRangeInResult(baseRange: MergeEditorLineRange, reader?: IReader): MergeEditorLineRange {
 		return this.resultTextModelDiffs.getResultLineRange(baseRange, reader);
 	}
 
@@ -287,9 +287,9 @@ export class MergeEditorModel extends EditorModel {
 		return map.projectRange(range).outputRange;
 	}
 
-	public findModifiedBaseRangesInRange(rangeInBase: LineRange): ModifiedBaseRange[] {
+	public findModifiedBaseRangesInRange(rangeInBase: MergeEditorLineRange): ModifiedBaseRange[] {
 		// TODO use binary search
-		return this.modifiedBaseRanges.get().filter(r => r.baseRange.intersects(rangeInBase));
+		return this.modifiedBaseRanges.get().filter(r => r.baseRange.intersectsOrTouches(rangeInBase));
 	}
 
 	public readonly diffComputingState = derived(this, reader => {
@@ -333,9 +333,9 @@ export class MergeEditorModel extends EditorModel {
 			states,
 			resultDiffs,
 			(baseRange, diff) =>
-				baseRange[0].baseRange.touches(diff.inputRange)
+				baseRange[0].baseRange.intersectsOrTouches(diff.inputRange)
 					? CompareResult.neitherLessOrGreaterThan
-					: LineRange.compareByStart(
+					: MergeEditorLineRange.compareByStart(
 						baseRange[0].baseRange,
 						diff.inputRange
 					)
@@ -590,7 +590,7 @@ export class MergeEditorModel extends EditorModel {
 		const states = this.modifiedBaseRangeResultStates.get();
 
 		const outputLines: string[] = [];
-		function appendLinesToResult(source: string[], lineRange: LineRange) {
+		function appendLinesToResult(source: string[], lineRange: MergeEditorLineRange) {
 			for (let i = lineRange.startLineNumber; i < lineRange.endLineNumberExclusive; i++) {
 				outputLines.push(source[i - 1]);
 			}
@@ -604,7 +604,7 @@ export class MergeEditorModel extends EditorModel {
 			}
 			const resultRange = this.resultTextModelDiffs.getResultLineRange(range.baseRange);
 
-			appendLinesToResult(resultLines, LineRange.fromLineNumbers(resultStartLineNumber, Math.max(resultStartLineNumber, resultRange.startLineNumber)));
+			appendLinesToResult(resultLines, MergeEditorLineRange.fromLineNumbers(resultStartLineNumber, Math.max(resultStartLineNumber, resultRange.startLineNumber)));
 			resultStartLineNumber = resultRange.endLineNumberExclusive;
 
 			outputLines.push('<<<<<<<');
@@ -619,7 +619,7 @@ export class MergeEditorModel extends EditorModel {
 			outputLines.push('>>>>>>>');
 		}
 
-		appendLinesToResult(resultLines, LineRange.fromLineNumbers(resultStartLineNumber, resultLines.length + 1));
+		appendLinesToResult(resultLines, MergeEditorLineRange.fromLineNumbers(resultStartLineNumber, resultLines.length + 1));
 		return outputLines.join('\n');
 	}
 

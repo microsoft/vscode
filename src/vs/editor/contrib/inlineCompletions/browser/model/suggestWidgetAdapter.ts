@@ -10,7 +10,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';
 import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';

@@ -25,6 +25,11 @@ export interface IPromptFileEditor extends IEditor {
 }
 
 /**
+ * Type for a class that can create a new provider instance.
+ */
+export type TProviderClass<TInstance extends ProviderInstanceBase> = new (editor: ITextModel, ...args: any[]) => TInstance;
+
+/**
  * A generic base class that manages creation and disposal of {@link TInstance}
  * objects for each specific editor object that is used for reusable prompt files.
  */
@@ -37,7 +42,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	/**
 	 * Class object of the managed {@link TInstance}.
 	 */
-	protected abstract get InstanceClass(): new (editor: ITextModel, ...args: any[]) => TInstance;
+	protected abstract get InstanceClass(): TProviderClass<TInstance>;
 
 	constructor(
 		@IModelService modelService: IModelService,

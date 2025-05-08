@@ -23,7 +23,7 @@ import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../../../base/common/errors.js';
 import { PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR } from '../../../constants.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
-import { IPromptFileReference, IPromptReference } from '../../../parsers/types.js';
+import { IPromptFileReference, TPromptReference } from '../../../parsers/types.js';
 import { assert, assertNever } from '../../../../../../../../base/common/assert.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
@@ -52,7 +52,7 @@ type TTriggerCharacter = ':' | '.' | '/';
  * Finds a file reference that suites the provided `position`.
  */
 const findFileReference = (
-	references: readonly IPromptReference[],
+	references: readonly TPromptReference[],
 	position: Position,
 ): IPromptFileReference | undefined => {
 	for (const reference of references) {

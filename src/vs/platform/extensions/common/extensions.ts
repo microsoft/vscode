@@ -216,7 +216,7 @@ export interface IExtensionContributions {
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
-	readonly modelContextServerCollections?: ReadonlyArray<IMcpCollectionContribution>;
+	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {

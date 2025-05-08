@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { PromptSlashCommand } from '../tokens/promptSlashCommand.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
 import { Hash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
@@ -107,7 +107,7 @@ export class PartialPromptSlashCommand extends ParserBase<TSimpleDecoderToken, P
 
 		// render the characters above into strings, excluding the starting `/` character
 		const nameTokens = this.currentTokens.slice(1);
-		const atMentionName = nameTokens.map(pick('text')).join('');
+		const atMentionName = BaseToken.render(nameTokens);
 
 		return new PromptSlashCommand(
 			new Range(

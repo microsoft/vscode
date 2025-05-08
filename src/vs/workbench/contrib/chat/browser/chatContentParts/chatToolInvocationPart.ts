@@ -220,7 +220,8 @@ class ChatToolInvocationSubPart extends Disposable {
 				title,
 				toolInvocation.originMessage,
 				message,
-				buttons
+				buttons,
+				this.context.container,
 			));
 		} else {
 			const chatMarkdownContent: IChatMarkdownContent = {
@@ -356,7 +357,8 @@ class ChatToolInvocationSubPart extends Disposable {
 				title,
 				toolInvocation.originMessage,
 				elements.root,
-				buttons
+				buttons,
+				this.context.container,
 			));
 		}
 
@@ -473,7 +475,8 @@ class ChatToolInvocationSubPart extends Disposable {
 			title,
 			undefined,
 			element,
-			buttons
+			buttons,
+			this.context.container,
 		));
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);

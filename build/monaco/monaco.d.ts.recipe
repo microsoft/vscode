@@ -114,7 +114,7 @@ export interface ICommandMetadata {
 #include(vs/editor/common/core/wordHelper): IWordAtPosition
 #includeAll(vs/editor/common/model): IScrollEvent
 #include(vs/editor/common/diff/legacyLinesDiffComputer): IChange, ICharChange, ILineChange
-#include(vs/editor/common/core/dimension): IDimension
+#include(vs/editor/common/core/2d/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):
 #includeAll(vs/editor/common/cursorEvents):

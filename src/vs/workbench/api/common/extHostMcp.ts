@@ -89,9 +89,9 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable {
 		const store = new DisposableStore();
 
-		const metadata = extension.contributes?.modelContextServerCollections?.find(m => m.id === id);
+		const metadata = extension.contributes?.mcpServerDefinitionProviders?.find(m => m.id === id);
 		if (!metadata) {
-			throw new Error(`MCP configuration providers must be registered in the contributes.modelContextServerCollections array within your package.json, but "${id}" was not`);
+			throw new Error(`MCP configuration providers must be registered in the contributes.mcpServerDefinitionProviders array within your package.json, but "${id}" was not`);
 		}
 
 		const mcp: McpCollectionDefinition.FromExtHost = {
@@ -132,10 +132,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			this._proxy.$deleteMcpCollection(mcp.id);
 		}));
 
-		if (provider.onDidChangeServerDefinitions) {
-			store.add(provider.onDidChangeServerDefinitions(update));
+		if (provider.onDidChangeMcpServerDefinitions) {
+			store.add(provider.onDidChangeMcpServerDefinitions(update));
 		}
 		// todo@connor4312: proposed API back-compat
+		if ((provider as any).onDidChangeServerDefinitions) {
+			store.add((provider as any).onDidChangeServerDefinitions(update));
+		}
 		if ((provider as any).onDidChange) {
 			store.add((provider as any).onDidChange(update));
 		}

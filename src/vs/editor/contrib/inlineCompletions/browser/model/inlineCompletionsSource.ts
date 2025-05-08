@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { OffsetEdit } from '../../../../common/core/offsetEdit.js';
+import { OffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { InlineCompletionEndOfLifeReasonKind, InlineCompletionContext, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';

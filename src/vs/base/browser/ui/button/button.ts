@@ -605,6 +605,8 @@ export class ButtonWithIcon extends Button {
 	private _iconElement: HTMLElement;
 	private _mdlabelElement: HTMLElement;
 
+	public get labelElement() { return this._mdlabelElement; }
+
 	constructor(container: HTMLElement, options: IButtonOptions) {
 		super(container, options);
 

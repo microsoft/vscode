@@ -239,7 +239,7 @@ class CommentThreadWithDisposable {
 	}
 }
 
-export class MainThreadCommentController implements ICommentController {
+export class MainThreadCommentController extends Disposable implements ICommentController {
 	get handle(): number {
 		return this._handle;
 	}
@@ -274,7 +274,7 @@ export class MainThreadCommentController implements ICommentController {
 		return this._features.options;
 	}
 
-	private readonly _threads: DisposableMap<number, CommentThreadWithDisposable> = new DisposableMap<number, CommentThreadWithDisposable>();
+	private readonly _threads: DisposableMap<number, CommentThreadWithDisposable> = this._register(new DisposableMap<number, CommentThreadWithDisposable>());
 	public activeEditingCommentThread?: MainThreadCommentThread<IRange | ICellRange>;
 
 	get features(): CommentProviderFeatures {
@@ -293,7 +293,9 @@ export class MainThreadCommentController implements ICommentController {
 		private readonly _id: string,
 		private readonly _label: string,
 		private _features: CommentProviderFeatures
-	) { }
+	) {
+		super();
+	}
 
 	get activeComment() {
 		return this._activeComment;
@@ -592,6 +594,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	$unregisterCommentController(handle: number): void {
 		const providerId = this._handlers.get(handle);
 		this._handlers.delete(handle);
+		this._commentControllers.get(handle)?.dispose();
 		this._commentControllers.delete(handle);
 
 		if (typeof providerId !== 'string') {

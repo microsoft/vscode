@@ -567,6 +567,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					contentIndex: index,
 					content: value,
 					preceedingContentParts: parts,
+					container: templateData.rowContainer,
 				};
 				const newPart = this.renderChatContentPart(data, templateData, context);
 				if (newPart) {
@@ -728,6 +729,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				content: contentForThisTurn,
 				preceedingContentParts,
 				contentIndex: index,
+				container: templateData.rowContainer,
 			};
 			const newPart = this.renderChatContentPart(partToRender, templateData, context);
 			if (newPart) {

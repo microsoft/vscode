@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../assert.js';
+import { assert, assertNever } from '../assert.js';
 import { Emitter } from '../event.js';
 import { ReadableStream } from '../stream.js';
 import { DeferredPromise } from '../async.js';
@@ -168,7 +168,7 @@ export abstract class BaseDecoder<
 			return this.onEnd(callback as () => void);
 		}
 
-		throw new Error(`Invalid event name: ${event}`);
+		assertNever(event, `Invalid event name '${event}'`);
 	}
 
 	/**

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../core/range.js';
+import { BaseToken } from '../../baseToken.js';
 import { Dash } from '../../simpleCodec/tokens/dash.js';
-import { pick } from '../../../../../base/common/arrays.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { MarkdownComment } from '../tokens/markdownComment.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
@@ -131,13 +131,9 @@ export class MarkdownCommentStart extends ParserBase<TSimpleDecoderToken, Markdo
 	public asMarkdownComment(): MarkdownComment {
 		this.isConsumed = true;
 
-		const text = this.currentTokens
-			.map(pick('text'))
-			.join('');
-
 		return new MarkdownComment(
 			this.range,
-			text,
+			BaseToken.render(this.currentTokens),
 		);
 	}
 

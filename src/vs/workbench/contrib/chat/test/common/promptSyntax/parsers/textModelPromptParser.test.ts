@@ -18,8 +18,8 @@ import { randomBoolean } from '../../../../../../../base/test/common/testUtils.j
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -290,7 +290,7 @@ suite('TextModelPromptParser', () => {
 
 	suite('• header', () => {
 		suite(' • metadata', () => {
-			test('• has correct \'prompt\' metadata', async () => {
+			test(`• has correct 'prompt' metadata`, async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.txt'),
 					[
@@ -333,7 +333,7 @@ suite('TextModelPromptParser', () => {
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
-					`Prompt header must have correct tools metadata.`,
+					`Prompt header must have correct tools metadata, got '${tools?.join(', ')}'.`,
 				);
 
 				assert.strictEqual(
@@ -355,7 +355,7 @@ suite('TextModelPromptParser', () => {
 				);
 			});
 
-			test('• has correct \'instructions\' metadata', async () => {
+			test(`• has correct 'instructions' metadata`, async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.instructions.md'),
 					[
@@ -977,7 +977,7 @@ suite('TextModelPromptParser', () => {
 		);
 	});
 
-	test('• toString() implementation', async () => {
+	test('• toString()', async () => {
 		const modelUri = URI.file('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,

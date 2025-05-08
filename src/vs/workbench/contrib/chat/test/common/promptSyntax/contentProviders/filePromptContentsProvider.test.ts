@@ -25,6 +25,11 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { FilePromptContentProvider } from '../../../../common/promptSyntax/contentProviders/filePromptContentsProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
+/**
+ * Timeout to wait for the content changed event to be emitted.
+ */
+const CONTENT_CHANGED_TIMEOUT = 50;
+
 suite('FilePromptContentsProvider', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -73,7 +78,7 @@ suite('FilePromptContentsProvider', () => {
 		}));
 		contentsProvider.start();
 
-		await wait(25);
+		await wait(CONTENT_CHANGED_TIMEOUT);
 
 		assertDefined(
 			streamOrError,
@@ -131,7 +136,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(25);
+				await wait(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,
@@ -187,7 +192,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(25);
+				await wait(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,
@@ -227,7 +232,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(25);
+				await wait(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,

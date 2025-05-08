@@ -9,7 +9,7 @@ import { SimpleToken } from './simpleToken.js';
  * A token that represent a `<` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class LeftAngleBracket extends SimpleToken {
+export class LeftAngleBracket extends SimpleToken<'<'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -18,7 +18,7 @@ export class LeftAngleBracket extends SimpleToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '<' {
 		return LeftAngleBracket.symbol;
 	}
 
@@ -34,7 +34,7 @@ export class LeftAngleBracket extends SimpleToken {
  * A token that represent a `>` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class RightAngleBracket extends SimpleToken {
+export class RightAngleBracket extends SimpleToken<'>'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -43,7 +43,7 @@ export class RightAngleBracket extends SimpleToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '>' {
 		return RightAngleBracket.symbol;
 	}
 

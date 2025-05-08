@@ -46,7 +46,7 @@ export interface IPromptContentsProvider extends IDisposable {
 	/**
 	 * Subscribe to `onDispose` event of the contents provider.
 	 */
-	onDispose(callback: () => void): this;
+	onDispose(callback: () => void): IDisposable;
 
 	/**
 	 * Create a new instance of prompt contents provider.

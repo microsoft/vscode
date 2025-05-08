@@ -13,7 +13,7 @@ import { DiffEditorEditors } from '../components/diffEditorEditors.js';
 import { DiffEditorOptions } from '../diffEditorOptions.js';
 import { DiffEditorViewModel } from '../diffEditorViewModel.js';
 import { DiffEditorWidget } from '../diffEditorWidget.js';
-import { LineRange, LineRangeSet } from '../../../../common/core/lineRange.js';
+import { LineRange, LineRangeSet } from '../../../../common/core/ranges/lineRange.js';
 import { Range } from '../../../../common/core/range.js';
 import { LineRangeMapping, RangeMapping } from '../../../../common/diff/rangeMapping.js';
 import { GlyphMarginLane } from '../../../../common/model.js';

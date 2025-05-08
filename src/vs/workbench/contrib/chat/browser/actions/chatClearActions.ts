@@ -20,12 +20,8 @@ import { ChatMode } from '../../common/constants.js';
 import { ChatViewId, IChatWidget } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
-
-export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
-export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
-export const ChatDoneActionId = 'workbench.action.chat.done';
 
 export interface INewEditSessionActionContext {
 	/**

@@ -103,7 +103,8 @@ const NATIVE_TYPES = [
     'INativeWindowConfiguration',
     'ICommonNativeHostService',
     'INativeHostService',
-    'IMainProcessService'
+    'IMainProcessService',
+    'INativeBrowserElementsService',
 ];
 const RULES = [
     // Tests: skip
@@ -169,6 +170,26 @@ const RULES = [
     // Common: vs/platform/window/common/window.ts
     {
         target: '**/vs/platform/window/common/window.ts',
+        allowedTypes: CORE_TYPES,
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/platform/browserElements/common/browserElements.ts
+    {
+        target: '**/vs/platform/browserElements/common/browserElements.ts',
+        allowedTypes: CORE_TYPES,
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/platform/browserElements/common/nativeBrowserElementsService.ts
+    {
+        target: '**/vs/platform/browserElements/common/nativeBrowserElementsService.ts',
         allowedTypes: CORE_TYPES,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [

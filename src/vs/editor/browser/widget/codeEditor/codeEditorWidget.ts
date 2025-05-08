@@ -28,7 +28,7 @@ import { CodeEditorContributions } from './codeEditorContributions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterValidationDecorations } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { editorUnnecessaryCodeOpacity } from '../../../common/core/editorColorRegistry.js';
 import { IPosition, Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';

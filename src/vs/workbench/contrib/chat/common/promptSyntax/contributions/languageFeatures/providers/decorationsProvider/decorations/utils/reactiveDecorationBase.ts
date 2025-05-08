@@ -143,16 +143,16 @@ export abstract class ReactiveDecorationBase<
 		return this;
 	}
 
-	protected override get className() {
+	protected override get className(): TCssClassName {
 		return (this.active)
-			? this.classNames.main
-			: this.classNames.mainInactive;
+			? this.classNames.Main
+			: this.classNames.MainInactive;
 	}
 
-	protected override get inlineClassName() {
+	protected override get inlineClassName(): TCssClassName {
 		return (this.active)
-			? this.classNames.inline
-			: this.classNames.inlineInactive;
+			? this.classNames.Inline
+			: this.classNames.InlineInactive;
 	}
 }
 

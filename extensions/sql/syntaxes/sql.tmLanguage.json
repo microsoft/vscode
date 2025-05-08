@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-mssql/commit/d07e0f838eabff968e4387841427d3c3af8aeec6",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/13b0abd18a7cd4ca0e2384890ad2eed8dbd9043c",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [
@@ -351,6 +351,14 @@
 			"captures": {
 				"1": {
 					"name": "support.function.textimage.sql"
+				}
+			}
+		},
+		{
+			"match": "(?i)\\b(vector_distance|vector_norm|vector_normalize)\\b\\s*\\(",
+			"captures": {
+				"1": {
+					"name": "support.function.vector.sql"
 				}
 			}
 		},

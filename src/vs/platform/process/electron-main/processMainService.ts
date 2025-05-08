@@ -11,12 +11,12 @@ import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.
 import { listProcesses } from '../../../base/node/ps.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
-import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
+import { IDiagnosticsService, IRemoteDiagnosticError, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
 import { IDiagnosticsMainService } from '../../diagnostics/electron-main/diagnosticsMainService.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
-import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from '../common/process.js';
+import { IProcessMainService, IResolvedProcessInformation, ProcessExplorerData, ProcessExplorerWindowConfiguration } from '../common/process.js';
 import { ILogService } from '../../log/common/log.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import product from '../../product/common/product.js';
@@ -26,6 +26,7 @@ import { IStateService } from '../../state/node/state.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { IWindowState } from '../../window/electron-main/window.js';
+import { ProcessItem } from '../../../base/common/processes.js';
 
 const processExplorerWindowState = 'issue.processExplorerWindowState';
 
@@ -60,6 +61,46 @@ export class ProcessMainService implements IProcessMainService {
 		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		this.registerListeners();
+	}
+
+	async resolve(): Promise<IResolvedProcessInformation> {
+		const mainProcessInfo = await this.diagnosticsMainService.getMainDiagnostics();
+
+		const pidToNames: [number, string][] = [];
+		for (const window of mainProcessInfo.windows) {
+			pidToNames.push([window.pid, `window [${window.id}] (${window.title})`]);
+		}
+
+		for (const { pid, name } of UtilityProcess.getAll()) {
+			pidToNames.push([pid, name]);
+		}
+
+		const processes: { name: string; rootProcess: ProcessItem | IRemoteDiagnosticError }[] = [];
+
+		try {
+			processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(process.pid) });
+
+			const remoteDiagnostics = await this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true });
+			remoteDiagnostics.forEach(data => {
+				if (isRemoteDiagnosticError(data)) {
+					processes.push({
+						name: data.hostName,
+						rootProcess: data
+					});
+				} else {
+					if (data.processes) {
+						processes.push({
+							name: data.hostName,
+							rootProcess: data.processes
+						});
+					}
+				}
+			});
+		} catch (e) {
+			this.logService.error(`Listing processes failed: ${e}`);
+		}
+
+		return { pidToNames, processes };
 	}
 
 	//#region Register Listeners

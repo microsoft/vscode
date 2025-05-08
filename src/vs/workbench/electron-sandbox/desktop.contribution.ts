@@ -147,7 +147,12 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'included': !isWindows,
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://go.microsoft.com/fwlink/?linkid=2149667) for more information.")
-			}
+			},
+			'application.useNewProcessExplorer': {
+				'type': 'boolean',
+				'default': true, // TODO@bpasero remove me when done
+				'description': localize('useNewProcessExplorer', "Controls whether a the process explorer opens in a floating window."),
+			},
 		}
 	});
 

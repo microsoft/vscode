@@ -12,9 +12,8 @@ import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } f
 /**
  * Function that registers all prompt-file related contributions.
  */
-export const registerPromptFileContributions = () => {
+export const registerPromptFileContributions = (): void => {
 	registerContributions(LANGUAGE_FEATURE_CONTRIBUTIONS);
-
 	registerContribution(ConfigMigration);
 };
 
@@ -26,9 +25,7 @@ export type TContribution = new (...args: any[]) => IWorkbenchContribution;
 /**
  * Register a specific workbench contribution.
  */
-const registerContribution = (
-	contribution: TContribution,
-) => {
+const registerContribution = (contribution: TContribution): void => {
 	Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
 		.registerWorkbenchContribution(contribution, LifecyclePhase.Eventually);
 };
@@ -36,9 +33,7 @@ const registerContribution = (
 /**
  * Register a specific workbench contribution.
  */
-const registerContributions = (
-	contributions: readonly TContribution[],
-) => {
+const registerContributions = (contributions: readonly TContribution[]): void => {
 	contributions
-		.map(registerContribution);
+		.forEach(registerContribution);
 };

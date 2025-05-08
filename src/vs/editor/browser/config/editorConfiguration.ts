@@ -16,7 +16,7 @@ import { TabFocus } from './tabFocus.js';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo.js';
-import { IDimension } from '../../common/core/dimension.js';
+import { IDimension } from '../../common/core/2d/dimension.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { getWindow, getWindowById } from '../../../base/browser/dom.js';

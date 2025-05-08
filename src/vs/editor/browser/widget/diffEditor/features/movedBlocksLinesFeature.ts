@@ -17,7 +17,7 @@ import { DiffEditorEditors } from '../components/diffEditorEditors.js';
 import { DiffEditorViewModel } from '../diffEditorViewModel.js';
 import { PlaceholderViewZone, ViewZoneOverlayWidget, applyStyle, applyViewZones } from '../utils.js';
 import { EditorLayoutInfo } from '../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { OffsetRange, OffsetRangeSet } from '../../../../common/core/offsetRange.js';
 import { MovedText } from '../../../../common/diff/linesDiffComputer.js';
 import { localize } from '../../../../../nls.js';

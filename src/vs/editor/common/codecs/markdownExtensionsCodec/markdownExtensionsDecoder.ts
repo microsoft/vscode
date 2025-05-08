@@ -93,7 +93,7 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 				return;
 			}
 
-		} catch (_error) {
+		} catch {
 			// if failed to convert current parser object to a token,
 			// re-emit the tokens accumulated so far
 			this.reEmitCurrentTokens();

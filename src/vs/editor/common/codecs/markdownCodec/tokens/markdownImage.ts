@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
 import { MarkdownToken } from './markdownToken.js';
 import { IRange, Range } from '../../../core/range.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -93,21 +92,6 @@ export class MarkdownImage extends MarkdownToken {
 	 */
 	public get path(): string {
 		return this.reference.slice(1, this.reference.length - 1);
-	}
-
-	/**
-	 * Check if this token is equal to another one.
-	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
-			return false;
-		}
-
-		if (!(other instanceof MarkdownImage)) {
-			return false;
-		}
-
-		return this.text === other.text;
 	}
 
 	/**

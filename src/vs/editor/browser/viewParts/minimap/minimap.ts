@@ -15,7 +15,7 @@ import { ILine, RenderedLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
-import { RGBA8 } from '../../../common/core/rgba.js';
+import { RGBA8 } from '../../../common/core/misc/rgba.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { ColorId } from '../../../common/encodedTokenAttributes.js';

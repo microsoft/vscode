@@ -1087,7 +1087,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	protected _isESM(extensionDescription: IExtensionDescription | undefined, modulePath?: string): boolean {
-		modulePath ??= extensionDescription?.main;
+		modulePath ??= extensionDescription ? this._getEntryPoint(extensionDescription) : modulePath;
 		return modulePath?.endsWith('.mjs') || (extensionDescription?.type === 'module' && !modulePath?.endsWith('.cjs'));
 	}
 

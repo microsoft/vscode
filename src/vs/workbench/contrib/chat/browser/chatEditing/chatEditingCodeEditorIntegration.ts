@@ -17,7 +17,7 @@ import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../..
 import { RenderOptions, LineSource, renderLines } from '../../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffWholeLineAddDecoration, diffDeleteDecoration } from '../../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';

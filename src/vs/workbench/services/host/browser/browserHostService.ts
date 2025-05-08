@@ -42,7 +42,6 @@ import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { IElementData } from '../../../../platform/native/common/native.js';
 
 enum HostShutdownReason {
 
@@ -650,10 +649,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			}
 		}
-	}
-
-	async getElementData(): Promise<IElementData | undefined> {
-		return undefined;
 	}
 
 	async getBrowserId(): Promise<string | undefined> {

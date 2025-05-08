@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../../../../base/common/assert.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { asBoolean } from '../../../../../../platform/prompts/common/config.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -16,9 +17,21 @@ import { CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY } from '../../../../../../platf
  */
 export class ConfigMigration implements IWorkbenchContribution {
 	constructor(
-		@IConfigurationService configService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
-		const value = configService.getValue(CONFIG_KEY);
+		// migrate the old config setting value to a new one
+		this.migrateConfig()
+			.catch((error) => {
+				this.logService.warn('failed to migrate config setting value.', error);
+			});
+	}
+
+	/**
+	 * The main function that implements the migration logic.
+	 */
+	private async migrateConfig(): Promise<void> {
+		const value = await this.configService.getValue(CONFIG_KEY);
 
 		// if setting is not set, nothing to do
 		if ((value === undefined) || (value === null)) {
@@ -49,8 +62,8 @@ export class ConfigMigration implements IWorkbenchContribution {
 				locationsValue[trimmedValue] = true;
 			}
 
-			configService.updateValue(CONFIG_KEY, true);
-			configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, locationsValue);
+			await this.configService.updateValue(CONFIG_KEY, true);
+			await this.configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, locationsValue);
 			return;
 		}
 
@@ -82,8 +95,8 @@ export class ConfigMigration implements IWorkbenchContribution {
 				locationsValue[trimmedValue] = enabled;
 			}
 
-			configService.updateValue(CONFIG_KEY, true);
-			configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, locationsValue);
+			await this.configService.updateValue(CONFIG_KEY, true);
+			await this.configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, locationsValue);
 
 			return;
 		}
@@ -99,8 +112,8 @@ export class ConfigMigration implements IWorkbenchContribution {
 				`String value must not be a boolean, got '${value}'.`,
 			);
 
-			configService.updateValue(CONFIG_KEY, true);
-			configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, { [value]: true });
+			await this.configService.updateValue(CONFIG_KEY, true);
+			await this.configService.updateValue(PROMPT_LOCATIONS_CONFIG_KEY, { [value]: true });
 			return;
 		}
 	}

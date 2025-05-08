@@ -248,13 +248,13 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				const msgContainer = append(desc, $('div.msg'));
 
 				const actionbar = new ActionBar(desc);
-				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
+				const listener = actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
 				const profileTime = append(timeContainer, $('div.profile-time'));
 
-				const disposables = [actionbar];
+				const disposables = [actionbar, listener];
 
 				return {
 					root,
@@ -468,7 +468,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 		this._list.splice(0, this._list.length, this._elements || undefined);
 
-		this._list.onContextMenu((e) => {
+		this._register(this._list.onContextMenu((e) => {
 			if (!e.element) {
 				return;
 			}
@@ -504,7 +504,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				getAnchor: () => e.anchor,
 				getActions: () => actions
 			});
-		});
+		}));
 	}
 
 	public layout(dimension: Dimension): void {

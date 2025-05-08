@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ProcessItem } from '../../../base/common/processes.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
-import { PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
+import { IRemoteDiagnosticError, PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
@@ -57,11 +58,20 @@ export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguratio
 
 export const IProcessMainService = createDecorator<IProcessMainService>('processService');
 
+export interface IResolvedProcessInformation {
+	readonly pidToNames: [number, string][];
+	readonly processes: { name: string; rootProcess: ProcessItem | IRemoteDiagnosticError }[];
+}
+
 export interface IProcessMainService {
+
 	readonly _serviceBrand: undefined;
+
 	getSystemStatus(): Promise<string>;
 	stopTracing(): Promise<void>;
 	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+
+	resolve(): Promise<IResolvedProcessInformation>;
 
 	// Used by the process explorer
 	$getSystemInfo(): Promise<SystemInfo>;
