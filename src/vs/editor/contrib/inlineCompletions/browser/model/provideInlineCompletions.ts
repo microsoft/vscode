@@ -9,6 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { SetMap } from '../../../../../base/common/map.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
@@ -24,16 +25,20 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 
+export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
+
 export async function provideInlineCompletions(
 	providers: InlineCompletionsProvider[],
 	positionOrRange: Position | Range,
 	model: ITextModel,
-	context: InlineCompletionContext,
+	context: InlineCompletionContextWithoutUuid,
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
+	const requestUuid = generateUuid();
 	const tokenSource = new CancellationTokenSource(baseToken);
 	const token = tokenSource.token;
+	const contextWithUuid: InlineCompletionContext = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 
@@ -114,9 +119,9 @@ export async function provideInlineCompletions(
 		let result: InlineCompletions | null | undefined;
 		try {
 			if (positionOrRange instanceof Position) {
-				result = await provider.provideInlineCompletions(model, positionOrRange, context, token);
+				result = await provider.provideInlineCompletions(model, positionOrRange, contextWithUuid, token);
 			} else {
-				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, context, token);
+				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, contextWithUuid, token);
 			}
 		} catch (e) {
 			onUnexpectedExternalError(e);
@@ -127,7 +132,7 @@ export async function provideInlineCompletions(
 		const data: InlineSuggestData[] = [];
 		const list = new InlineSuggestionList(result, data, provider);
 		for (const item of result.items) {
-			data.push(createInlineCompletionItem(item, list, defaultReplaceRange, model, languageConfigurationService, context));
+			data.push(createInlineCompletionItem(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid));
 		}
 
 		runWhenCancelled(token, () => list.removeRef());
@@ -143,7 +148,7 @@ export async function provideInlineCompletions(
 		return new InlineCompletionProviderResult([], new Set(), []);
 	}
 
-	const result = await addRefAndCreateResult(context, inlineCompletionLists, model);
+	const result = await addRefAndCreateResult(contextWithUuid, inlineCompletionLists, model);
 	tokenSource.dispose(true); // This disposes results that are not referenced by now.
 	return result;
 }
