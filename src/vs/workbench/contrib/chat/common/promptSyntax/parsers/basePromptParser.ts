@@ -123,7 +123,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		callback: (error?: Error) => void,
 	): IDisposable {
 		const disposable = this._onSettled.event(callback);
-		const streamEnded = (this.stream?.ended && (this.stream.disposed === false));
+		const streamEnded = (this.stream?.ended && (this.stream.isDisposed === false));
 
 		// if already in the error state or stream has already ended,
 		// invoke the callback immediately but asynchronously
@@ -191,7 +191,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// by the time when the `firstParseResult` promise is resolved,
 		// this object may have been already disposed, hence noop
-		if (this.disposed) {
+		if (this.isDisposed) {
 			return this;
 		}
 
@@ -367,7 +367,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		});
 
 		// calling `start` on a disposed stream throws, so we warn and return instead
-		if (this.stream.disposed) {
+		if (this.stream.isDisposed) {
 			this.logService.warn(
 				`[prompt parser][${basename(this.uri)}] cannot start stream that has been already disposed, aborting`,
 			);
@@ -426,7 +426,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		// decoders can fire the 'end' event also when they are get disposed,
 		// but because we dispose them when a new stream is received, we can
 		// safely ignore the event in this case
-		if (stream.disposed === true) {
+		if (stream.isDisposed === true) {
 			return this;
 		}
 
@@ -746,7 +746,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * @inheritdoc
 	 */
 	public override dispose(): void {
-		if (this.disposed) {
+		if (this.isDisposed) {
 			return;
 		}
 

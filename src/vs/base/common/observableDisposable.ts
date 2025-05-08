@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 
 /**
- * Disposable object that tracks its {@linkcode disposed} state
+ * Disposable object that tracks its {@linkcode isDisposed} state
  * as a public attribute and provides the {@linkcode onDispose}
  * event to subscribe to.
  */
@@ -17,9 +17,9 @@ export abstract class ObservableDisposable extends Disposable {
 	private readonly store = this._register(new DisposableStore());
 
 	/**
-	 * Gets current 'disposed' state of this object.
+	 * Check if the current object is already has been disposed.
 	 */
-	public get disposed(): boolean {
+	public get isDisposed(): boolean {
 		return this.store.isDisposed;
 	}
 
@@ -31,7 +31,7 @@ export abstract class ObservableDisposable extends Disposable {
 	 */
 	public onDispose(callback: () => void): IDisposable {
 		// if already disposed, execute the callback immediately
-		if (this.disposed) {
+		if (this.isDisposed) {
 			const timeoutHandle = setTimeout(callback);
 
 			return toDisposable(() => {
@@ -70,7 +70,7 @@ export abstract class ObservableDisposable extends Disposable {
 /**
  * Type for a non-disposed object `TObject`.
  */
-type TNotDisposed<TObject extends { disposed: boolean }> = TObject & { disposed: false };
+type TNotDisposed<TObject extends { isDisposed: boolean }> = TObject & { isDisposed: false };
 
 /**
  * Asserts that a provided `object` is not `disposed` yet,
@@ -79,11 +79,11 @@ type TNotDisposed<TObject extends { disposed: boolean }> = TObject & { disposed:
  * @throws if the provided `object.disposed` equal to `false`.
  * @param error Error message or error object to throw if assertion fails.
  */
-export function assertNotDisposed<TObject extends { disposed: boolean }>(
+export function assertNotDisposed<TObject extends { isDisposed: boolean }>(
 	object: TObject,
 	error: string | Error,
 ): asserts object is TNotDisposed<TObject> {
-	if (!object.disposed) {
+	if (!object.isDisposed) {
 		return;
 	}
 

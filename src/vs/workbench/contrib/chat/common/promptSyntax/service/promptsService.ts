@@ -102,7 +102,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public getSyntaxParserFor(
 		model: ITextModel,
-	): TextModelPromptParser & { disposed: false } {
+	): TextModelPromptParser & { isDisposed: false } {
 		assert(
 			model.isDisposed() === false,
 			'Cannot create a prompt syntax parser for a disposed model.',

@@ -972,7 +972,7 @@ suite('TextModelPromptParser', () => {
 		test.model.dispose();
 
 		assert(
-			test.parser.disposed,
+			test.parser.isDisposed,
 			'The parser should be disposed with its model.',
 		);
 	});

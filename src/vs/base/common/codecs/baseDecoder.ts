@@ -109,7 +109,7 @@ export abstract class BaseDecoder<
 			'Cannot start stream that has already ended.',
 		);
 		assert(
-			!this.disposed,
+			this.isDisposed === false,
 			'Cannot start stream that has already disposed.',
 		);
 
