@@ -41,6 +41,7 @@ import { IViewModelLines, IViewModelLinesFromProjectedModelContext, ViewModelLin
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -73,6 +74,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
 		private readonly _transactionalTarget: IBatchableTarget,
+		private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -222,6 +224,25 @@ export class ViewModel extends Disposable implements IViewModel {
 		);
 		const modelVisibleRanges = this._toModelVisibleRanges(viewVisibleRange);
 		return modelVisibleRanges;
+	}
+
+	public getFontSizeAtPosition(position: IPosition): number {
+		console.log('getFontSizeAtPosition', position);
+		let fontSize: number = this._configuration.options.get(EditorOption.fontSize);
+		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
+		if (screenReaderOptimized) {
+			return fontSize;
+		}
+		const decorationsInRange = this.model.getDecorationsInRange(Range.fromPositions(position, position));
+		if (decorationsInRange) {
+			for (const decoration of decorationsInRange) {
+				if (decoration.ownerId === this._editorId && decoration.options.fontSize) {
+					fontSize = decoration.options.fontSize;
+					break;
+				}
+			}
+		}
+		return fontSize;
 	}
 
 	public visibleLinesStabilized(): void {
