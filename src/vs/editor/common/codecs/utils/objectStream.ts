@@ -25,6 +25,11 @@ export class ObjectStream<T extends object> extends ObservableDisposable impleme
 	private readonly stream: WriteableStream<T>;
 
 	/**
+	 * TODO: @legomushroom
+	 */
+	public readonly __debug: string = 'object-stream';
+
+	/**
 	 * Interval reference that is used to periodically send
 	 * objects to the stream in the background.
 	 */

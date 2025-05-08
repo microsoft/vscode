@@ -25,8 +25,8 @@ import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import type { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -260,7 +260,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	constructor(
-		private readonly promptContentsProvider: TContentsProvider,
+		protected readonly promptContentsProvider: TContentsProvider,
 		options: Partial<IPromptParserOptions>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
@@ -435,7 +435,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		const contentProvider = this.promptContentsProvider.createNew({ uri: referenceUri });
 
 		const reference = this.instantiationService
-			.createInstance(PromptReference, contentProvider, token, { seenReferences });
+			.createInstance(
+				PromptReference,
+				token,
+				contentProvider,
+				{ seenReferences },
+			);
 
 		this._references.push(reference);
 
@@ -452,6 +457,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		return this;
 	}
+
+	// /**
+	//  * TODO: @legomushroom
+	//  */
+	// protected getPromptReferenceClass(): IConstructor<TPromptReference & BasePromptParser<IPromptContentsProvider>> {
+	// 	return PromptReference;
+	// }
 
 	/**
 	 * Handle the `stream` end event.
@@ -555,6 +567,18 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 */
 	public get references(): readonly TPromptReference[] {
 		return [...this._references];
+	}
+
+	// TODO: @legomushroom
+	public get children(): readonly TPromptReference[] {
+		return [...this._references];
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get provider(): TContentsProvider {
+		return this.promptContentsProvider;
 	}
 
 	/**
@@ -807,25 +831,46 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
  * contents. For instance the file variable(`#file:/path/to/file.md`) or
  * a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
-export class PromptReference extends ObservableDisposable implements TPromptReference {
-	/**
-	 * Instance of underlying prompt parser object.
-	 */
-	private readonly parser: BasePromptParser<IPromptContentsProvider>;
+export class PromptReference<
+	TContentsProvider extends IPromptContentsProvider = IPromptContentsProvider,
+> extends BasePromptParser<TContentsProvider> {
+	public get range(): Range {
+		return this.token.range;
+	}
+
+	public get path(): string {
+		return this.token.path;
+	}
+
+	public get text(): string {
+		return this.token.text;
+	}
+	// /**
+	//  * Instance of underlying prompt parser object.
+	//  */
+	// protected readonly parser: BasePromptParser<IPromptContentsProvider>;
 
 	constructor(
-		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
+		promptContentsProvider: TContentsProvider,
 		options: Partial<IPromptParserOptions>,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@ILogService logService: ILogService,
 	) {
-		super();
-
-		this.parser = this._register(initService.createInstance(
-			BasePromptParser,
-			this.promptContentsProvider,
+		super(
+			promptContentsProvider,
 			options,
-		));
+			instantiationService,
+			workspaceService,
+			logService,
+		);
+
+		// this.parser = this._register(initService.createInstance(
+		// 	BasePromptParser,
+		// 	this.promptContentsProvider,
+		// 	options,
+		// ));
 	}
 
 	/**
@@ -883,101 +928,101 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		);
 	}
 
-	/**
-	 * Start parsing the reference contents.
-	 */
-	public start(): this {
-		this.parser.start();
+	// /**
+	//  * Start parsing the reference contents.
+	//  */
+	// public start(): this {
+	// 	this.parser.start();
 
-		return this;
-	}
+	// 	return this;
+	// }
 
-	/**
-	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
-	 */
-	public onUpdate(callback: () => void): IDisposable {
-		return this.parser.onUpdate(callback);
-	}
+	// /**
+	//  * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
+	//  * @param callback The callback function to be called on updates.
+	//  */
+	// public onUpdate(callback: () => void): IDisposable {
+	// 	return this.parser.onUpdate(callback);
+	// }
 
-	public get range(): Range {
-		return this.token.range;
-	}
+	// public get range(): Range {
+	// 	return this.token.range;
+	// }
 
-	public get path(): string {
-		return this.token.path;
-	}
+	// public get path(): string {
+	// 	return this.token.path;
+	// }
 
-	public get text(): string {
-		return this.token.text;
-	}
+	// public get text(): string {
+	// 	return this.token.text;
+	// }
 
-	public get resolveFailed(): boolean | undefined {
-		return this.parser.resolveFailed;
-	}
+	// public get resolveFailed(): boolean | undefined {
+	// 	return this.parser.resolveFailed;
+	// }
 
-	public get errorCondition(): ResolveError | undefined {
-		return this.parser.errorCondition;
-	}
+	// public get errorCondition(): ResolveError | undefined {
+	// 	return this.parser.errorCondition;
+	// }
 
-	public get topError(): ITopError | undefined {
-		return this.parser.topError;
-	}
+	// public get topError(): ITopError | undefined {
+	// 	return this.parser.topError;
+	// }
 
-	public get uri(): URI {
-		return this.parser.uri;
-	}
+	// public get uri(): URI {
+	// 	return this.parser.uri;
+	// }
 
-	public get isPromptFile(): boolean {
-		return this.parser.isPromptFile;
-	}
+	// public get isPromptFile(): boolean {
+	// 	return this.parser.isPromptFile;
+	// }
 
-	public get errors(): readonly ResolveError[] {
-		return this.parser.errors;
-	}
+	// public get errors(): readonly ResolveError[] {
+	// 	return this.parser.errors;
+	// }
 
-	public get allErrors(): readonly IResolveError[] {
-		return this.parser.allErrors;
-	}
+	// public get allErrors(): readonly IResolveError[] {
+	// 	return this.parser.allErrors;
+	// }
 
-	public get references(): readonly TPromptReference[] {
-		return this.parser.references;
-	}
+	// public get references(): readonly TPromptReference[] {
+	// 	return this.parser.references;
+	// }
 
-	public get allReferences(): readonly TPromptReference[] {
-		return this.parser.allReferences;
-	}
+	// public get allReferences(): readonly TPromptReference[] {
+	// 	return this.parser.allReferences;
+	// }
 
-	public get metadata(): IPromptMetadata {
-		return this.parser.metadata;
-	}
+	// public get metadata(): IPromptMetadata {
+	// 	return this.parser.metadata;
+	// }
 
-	public get allToolsMetadata(): readonly string[] | null {
-		return this.parser.allToolsMetadata;
-	}
+	// public get allToolsMetadata(): readonly string[] | null {
+	// 	return this.parser.allToolsMetadata;
+	// }
 
-	public get allValidReferences(): readonly TPromptReference[] {
-		return this.parser.allValidReferences;
-	}
+	// public get allValidReferences(): readonly TPromptReference[] {
+	// 	return this.parser.allValidReferences;
+	// }
 
-	public async settled(): Promise<this> {
-		await this.parser.settled();
+	// public async settled(): Promise<this> {
+	// 	await this.parser.settled();
 
-		return this;
-	}
+	// 	return this;
+	// }
 
-	public async allSettled(): Promise<this> {
-		await this.parser.allSettled();
+	// public async allSettled(): Promise<this> {
+	// 	await this.parser.allSettled();
 
-		return this;
-	}
+	// 	return this;
+	// }
 
-	/**
-	 * Returns a string representation of this object.
-	 */
-	public override toString(): string {
-		return `prompt-reference/${this.type}:${this.subtype}/${this.token}`;
-	}
+	// /**
+	//  * Returns a string representation of this object.
+	//  */
+	// public override toString(): string {
+	// 	return `prompt-reference/${this.type}:${this.subtype}/${this.token}`;
+	// }
 }
 
 /**
@@ -1018,4 +1063,14 @@ class FirstParseResult extends DeferredPromise<void> {
 
 		return;
 	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+export interface IConstructor<T extends object> {
+	/**
+	 * TODO: @legomushroom
+	 */
+	new(...args: any[]): T;
 }

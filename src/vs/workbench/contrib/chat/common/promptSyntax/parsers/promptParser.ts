@@ -46,10 +46,11 @@ const getContentsProvider = (
  * contents provider type by the type of provided prompt URI.
  */
 export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
-	/**
-	 * Underlying prompt contents provider instance.
-	 */
-	private readonly contentsProvider: IPromptContentsProvider;
+	// /**
+	//  * Underlying prompt contents provider instance.
+	//  */
+	// TODO: @legomushroom
+	// private readonly contentsProvider: IPromptContentsProvider;
 
 	constructor(
 		uri: URI,
@@ -60,7 +61,6 @@ export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
 		const contentsProvider = getContentsProvider(uri, options, modelService, instaService);
-
 		super(
 			contentsProvider,
 			options,
@@ -69,14 +69,15 @@ export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
 			logService,
 		);
 
-		this.contentsProvider = this._register(contentsProvider);
+		// TODO: @legomushroom
+		// this.contentsProvider = this._register(contentsProvider);
 	}
 
 	/**
 	 * Returns a string representation of this object.
 	 */
 	public override toString(): string {
-		const { sourceName } = this.contentsProvider;
+		const { sourceName } = this.promptContentsProvider;
 
 		return `prompt-parser:${sourceName}:${this.uri.path}`;
 	}

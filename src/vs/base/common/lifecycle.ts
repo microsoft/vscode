@@ -108,7 +108,10 @@ export class DisposableTracker implements IDisposableTracker {
 	}
 
 	markAsDisposed(x: IDisposable): void {
-		this.livingDisposables.delete(x);
+		// TODO: @legomushroom
+		const result = this.livingDisposables.delete(x);
+
+		return void result;
 	}
 
 	markAsSingleton(disposable: IDisposable): void {
@@ -144,7 +147,12 @@ export class DisposableTracker implements IDisposableTracker {
 			const rootParentCache = new Map<DisposableInfo, DisposableInfo>();
 
 			const leakingObjects = [...this.livingDisposables.values()]
-				.filter((info) => info.source !== null && !this.getRootParent(info, rootParentCache).isSingleton);
+				.filter((info) => {
+					const parent = this.getRootParent(info, rootParentCache);
+					const result = info.source !== null && !parent.isSingleton;
+
+					return result;
+				});
 
 			if (leakingObjects.length === 0) {
 				return;
