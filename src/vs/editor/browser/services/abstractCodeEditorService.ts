@@ -18,7 +18,7 @@ import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, Injected
 import { IResourceEditorInput } from '../../../platform/editor/common/editor.js';
 import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
 import { ThemeColor } from '../../../base/common/themables.js';
-import { EditorOption } from '../../common/config/editorOptions.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
@@ -57,6 +57,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._codeEditors = Object.create(null);
@@ -157,28 +158,16 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
-			let resolvedOptions: IDecorationRenderOptions;
-			const tempEditor = this.listCodeEditors()[0];
-			if (tempEditor) {
-				const effectiveExperimentalEditContext = tempEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
-				if (!effectiveExperimentalEditContext) {
-					resolvedOptions = { ...options, fontFamily: undefined, fontSize: undefined, fontStyle: undefined, fontWeight: undefined };
-				} else {
-					resolvedOptions = { ...options };
-				}
-			} else {
-				resolvedOptions = { ...options };
-			}
 			const providerArgs: ProviderArguments = {
 				styleSheet: styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
-				options: resolvedOptions || Object.create(null)
+				options: options || Object.create(null)
 			};
 			if (!parentTypeKey) {
-				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
+				provider = new DecorationTypeOptionsProvider(description, this._themeService, this._accessibilityService, styleSheet, providerArgs);
 			} else {
-				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
+				provider = new DecorationSubTypeOptionsProvider(this._themeService, this._accessibilityService, styleSheet, providerArgs);
 			}
 			this._decorationOptionProviders.set(key, provider);
 			this._onDecorationTypeRegistered.fire(key);
@@ -413,14 +402,14 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 	private _beforeContentRules: DecorationCSSRules | null;
 	private _afterContentRules: DecorationCSSRules | null;
 
-	constructor(themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+	constructor(themeService: IThemeService, accessibilityService: IAccessibilityService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		this._styleSheet = styleSheet;
 		this._styleSheet.ref();
 		this._parentTypeKey = providerArgs.parentTypeKey!;
 		this.refCount = 0;
 
-		this._beforeContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName, providerArgs, themeService);
-		this._afterContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.AfterContentClassName, providerArgs, themeService);
+		this._beforeContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName, providerArgs, themeService, accessibilityService);
+		this._afterContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.AfterContentClassName, providerArgs, themeService, accessibilityService);
 	}
 
 	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
@@ -483,7 +472,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public beforeInjectedText: InjectedTextOptions | undefined;
 	public afterInjectedText: InjectedTextOptions | undefined;
 
-	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+	constructor(description: string, themeService: IThemeService, accessibilityService: IAccessibilityService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		this.description = description;
 
 		this._styleSheet = styleSheet;
@@ -491,7 +480,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.refCount = 0;
 
 		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
-			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			const rules = new DecorationCSSRules(type, providerArgs, themeService, accessibilityService);
 			this._disposables.add(rules);
 			if (rules.hasContent) {
 				return rules.className;
@@ -499,7 +488,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			return undefined;
 		};
 		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
-			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			const rules = new DecorationCSSRules(type, providerArgs, themeService, accessibilityService);
 			this._disposables.add(rules);
 			if (rules.hasContent) {
 				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
@@ -638,22 +627,25 @@ class DecorationCSSRules {
 
 	private _theme: IColorTheme;
 	private readonly _className: string;
+	private readonly _accessibilityService: IAccessibilityService;
 	private readonly _unThemedEditorSelector: string;
 	private readonly _lineBreaksSelector: string;
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
 	private readonly _ruleType: ModelDecorationCSSRuleType;
 	private _themeListener: IDisposable | null;
+	private _accessibilityListener: IDisposable | null;
 	private readonly _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
 
-	constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
+	constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService, accessibilityService: IAccessibilityService) {
 		this._theme = themeService.getColorTheme();
 		this._ruleType = ruleType;
 		this._providerArgs = providerArgs;
 		this._usesThemeColors = false;
 		this._hasContent = false;
 		this._hasLetterSpacing = false;
+		this._accessibilityService = accessibilityService;
 
 		let className = CSSNameHelper.getClassName(this._providerArgs.key, ruleType);
 		if (this._providerArgs.parentTypeKey) {
@@ -675,6 +667,16 @@ class DecorationCSSRules {
 		} else {
 			this._themeListener = null;
 		}
+		const options = this._providerArgs.options;
+		const concernsOptionalOps = !!options.fontFamily || !!options.fontSize || !!options.lineHeight;
+		if (concernsOptionalOps) {
+			this._accessibilityListener = accessibilityService.onDidChangeScreenReaderOptimized(theme => {
+				this._removeCSS();
+				this._buildCSS();
+			});
+		} else {
+			this._accessibilityListener = null;
+		}
 	}
 
 	public dispose() {
@@ -685,6 +687,10 @@ class DecorationCSSRules {
 		if (this._themeListener) {
 			this._themeListener.dispose();
 			this._themeListener = null;
+		}
+		if (this._accessibilityListener) {
+			this._accessibilityListener.dispose();
+			this._accessibilityListener = null;
 		}
 	}
 
@@ -789,7 +795,12 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		const cssStyleProperty = ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'];
+		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+		if (!isScreenReaderOptimized) {
+			cssStyleProperty.push('fontFamily', 'fontSize');
+		}
+		this.collectCSSText(opts, cssStyleProperty, cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}

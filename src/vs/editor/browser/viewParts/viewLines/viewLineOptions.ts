@@ -21,12 +21,12 @@ export class ViewLineOptions {
 	public readonly fontLigatures: string;
 	public readonly useGpu: boolean;
 
-	constructor(config: IEditorConfiguration, themeType: ColorScheme, renderWhitespacesInline: boolean = false) {
+	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
-		if (renderWhitespacesInline || experimentalWhitespaceRendering === 'off') {
+		if (experimentalWhitespaceRendering === 'off') {
 			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
 		} else {
 			// whitespace is rendered in a different layer
