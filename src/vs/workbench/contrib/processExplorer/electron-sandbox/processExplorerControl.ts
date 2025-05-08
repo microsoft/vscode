@@ -496,7 +496,7 @@ export class ProcessExplorerControl extends Disposable {
 	}
 
 	private async update(): Promise<void> {
-		const { processes, pidToNames } = await this.processService.resolve();
+		const { processes, pidToNames } = await this.processService.resolveProcesses();
 
 		this.model.update(processes, pidToNames);
 
