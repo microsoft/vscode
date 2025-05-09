@@ -327,7 +327,7 @@ export class InlineCompletionsModel extends Disposable {
 				const inlineEdit = new InlineEdit(edit, commands ?? [], inlineEditResult);
 
 				const edits = inlineEditResult.updatedEdit;
-				const e = edits ? TextEdit.fromOffsetEdit(edits, new TextModelText(this.textModel)).replacements : [edit];
+				const e = edits ? TextEdit.fromStringEdit(edits, new TextModelText(this.textModel)).replacements : [edit];
 
 				return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit };
 			}
