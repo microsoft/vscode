@@ -465,27 +465,27 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
-		console.log('register line height : ', this._editorId.editorNumber);
-		console.log('this.model : ', this.model);
+		let codeEditorType: 'simple' | 'originalDiff' | 'modifiedDiff';
+		const diffEditorId = this.codeEditorService.getDiffEditorIdForCodeEditorId(this._editorId.id);
+		if (!diffEditorId) {
+			codeEditorType = 'simple';
+		} else {
+			const diffEditor = this.codeEditorService.getDiffEditor(diffEditorId);
+			if (!diffEditor) {
+				codeEditorType = 'simple';
+			} else {
+				const editorNumber = this._editorId.editorNumber;
+				if (editorNumber === diffEditor.getOriginalEditor().getEditorNumber()) {
+					codeEditorType = 'originalDiff';
+				}
+				if (editorNumber === diffEditor.getModifiedEditor().getEditorNumber()) {
+					codeEditorType = 'modifiedDiff';
+				}
+			}
+		}
+
 		this._register(this.model.onDidChangeLineHeight((e) => {
-			console.log('onDidChangeLineHeight : ', e);
-			const diffEditors = this.codeEditorService.listDiffEditors();
-			console.log('diffEditors : ', diffEditors);
-			console.log('this._editorId.editorNumber : ', this._editorId.editorNumber);
-			const filteredChanges = e.changes.filter((change) => {
-				console.log('change.ownerId : ', change.ownerId);
-				if (change.ownerId === this._editorId.editorNumber || change.ownerId === 0) {
-					return true;
-				}
-				const diffEditorId = this.codeEditorService.getDiffEditorIdForCodeEditorId(this._editorId.id);
-				if (!diffEditorId) {
-					return false;
-				}
-				const changeEditorId = new CodeEditorId(change.ownerId);
-				const diffEditor = this.codeEditorService.getDiffEditor(diffEditorId);
-				console.log('changeEditorId.id : ', changeEditorId.id);
-				return changeEditorId.id === diffEditor?.getModifiedEditor().getId() || changeEditorId.id === diffEditor?.getOriginalEditor().getId();
-			});
+			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId.editorNumber || change.ownerId === 0);
 
 			this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 				for (const change of filteredChanges) {

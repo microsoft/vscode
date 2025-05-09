@@ -295,7 +295,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 		delete options.overflowWidgetsDomNode;
 		this._id = new CodeEditorId(++EDITOR_ID);
-		console.log('this._id : ', this._id);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 		this._telemetryData = codeEditorWidgetOptions.telemetryData;
