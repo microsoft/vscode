@@ -683,7 +683,10 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
 				title: localize2('configureCompletions', "Configure Code Completions..."),
-				precondition: ChatContextKeys.Setup.installed,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.Setup.installed,
+					ChatContextKeys.Setup.disabled.negate()
+				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
