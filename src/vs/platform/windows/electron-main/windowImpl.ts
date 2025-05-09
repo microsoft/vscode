@@ -305,7 +305,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				break;
 
 			case FocusMode.Force:
-				electron.app.focus({ steal: true });
+				if (isMacintosh) {
+					electron.app.focus({ steal: true });
+				}
 				this.doFocusWindow();
 				break;
 		}
