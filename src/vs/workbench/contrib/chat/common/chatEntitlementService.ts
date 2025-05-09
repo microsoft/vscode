@@ -56,13 +56,28 @@ export enum ChatEntitlement {
 	Enterprise
 }
 
-export enum ChatSentiment {
-	/** Out of the box value */
-	Standard = 1,
-	/** Explicitly disabled/hidden by user */
-	Disabled = 2,
-	/** Extensions installed */
-	Installed = 3
+export interface IChatSentiment {
+
+	/**
+	 * User has Chat installed.
+	 */
+	installed?: boolean;
+
+	/**
+	 * User signals no intent in using Chat.
+	 *
+	 * Note: in contrast to `disabled`, this should not only disable
+	 * Chat but also hide all of its UI.
+	 */
+	hidden?: boolean;
+
+	/**
+	 * User signals intent to disable Chat.
+	 *
+	 * Note: in contrast to `hidden`, this should not hide
+	 * Chat but but disable its functionality.
+	 */
+	disabled?: boolean;
 }
 
 export interface IChatEntitlementService {
@@ -82,7 +97,7 @@ export interface IChatEntitlementService {
 
 	readonly onDidChangeSentiment: Event<void>;
 
-	readonly sentiment: ChatSentiment;
+	readonly sentiment: IChatSentiment;
 }
 
 //#region Helper Functions
@@ -156,6 +171,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatContextKeys.Setup.hidden.key,
+					ChatContextKeys.Setup.disabled.key,
 					ChatContextKeys.Setup.installed.key
 				])), this._store
 			), () => { }, this._store
@@ -280,14 +296,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	readonly onDidChangeSentiment: Event<void>;
 
-	get sentiment(): ChatSentiment {
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true) {
-			return ChatSentiment.Installed;
-		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true) {
-			return ChatSentiment.Disabled;
-		}
-
-		return ChatSentiment.Standard;
+	get sentiment(): IChatSentiment {
+		return {
+			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true,
+			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true,
+			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.disabled.key) === true,
+		};
 	}
 
 	//#endregion
@@ -841,7 +855,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 //#region Context
 
-export interface IChatEntitlementContextState {
+export interface IChatEntitlementContextState extends IChatSentiment {
 
 	/**
 	 * Users last known or resolved entitlement.
@@ -852,27 +866,6 @@ export interface IChatEntitlementContextState {
 	 * User is or was a registered Chat user.
 	 */
 	registered?: boolean;
-
-	/**
-	 * User has Chat installed.
-	 */
-	installed?: boolean;
-
-	/**
-	 * User signals no intent in using Chat.
-	 *
-	 * Note: in contrast to `disabled`, this should not only disable
-	 * Chat but also hide all of its UI.
-	 */
-	hidden?: boolean;
-
-	/**
-	 * User signals intent to disable Chat.
-	 *
-	 * Note: in contrast to `hidden`, this should not hide
-	 * Chat but but disable its functionality.
-	 */
-	disabled?: boolean;
 }
 
 export class ChatEntitlementContext extends Disposable {
