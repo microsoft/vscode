@@ -10,9 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);
@@ -971,7 +972,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null) {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: OffsetRange[] | null) {
 		const actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -1460,7 +1461,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 14)]
+				[new OffsetRange(0, 14)]
 			),
 			{
 				html: [
@@ -1495,7 +1496,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 5)]
+				[new OffsetRange(0, 5)]
 			),
 			{
 				html: [
@@ -1526,7 +1527,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 5), new LineRange(9, 14)]
+				[new OffsetRange(0, 5), new OffsetRange(9, 14)]
 			),
 			{
 				html: [
@@ -1559,7 +1560,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(9, 14), new LineRange(0, 5)]
+				[new OffsetRange(9, 14), new OffsetRange(0, 5)]
 			),
 			{
 				html: [
@@ -1590,7 +1591,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 1), new LineRange(1, 2), new LineRange(2, 3)]
+				[new OffsetRange(0, 1), new OffsetRange(1, 2), new OffsetRange(2, 3)]
 			),
 			{
 				html: [
@@ -2522,7 +2523,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'selection',
 			false,
 			false,
-			[new LineRange(0, 47)]
+			[new OffsetRange(0, 47)]
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {

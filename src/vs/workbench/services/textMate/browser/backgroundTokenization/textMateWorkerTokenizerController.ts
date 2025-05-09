@@ -7,8 +7,8 @@ import { importAMDNodeModule } from '../../../../../amdX.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, keepObserved } from '../../../../../base/common/observable.js';
 import { Proxied } from '../../../../../base/common/worker/webWorker.js';
-import { countEOL } from '../../../../../editor/common/core/eolCounter.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { countEOL } from '../../../../../editor/common/core/misc/eolCounter.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -24,16 +24,16 @@ import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 export class TextMateWorkerTokenizerController extends Disposable {
 	private static _id = 0;
 
-	public readonly controllerId = TextMateWorkerTokenizerController._id++;
-	private readonly _pendingChanges: IModelContentChangedEvent[] = [];
+	public readonly controllerId;
+	private readonly _pendingChanges: IModelContentChangedEvent[];
 
 	/**
 	 * These states will eventually equal the worker states.
 	 * _states[i] stores the state at the end of line number i+1.
 	 */
-	private readonly _states = new TokenizationStateStore<StateStack>();
+	private readonly _states;
 
-	private readonly _loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
+	private readonly _loggingEnabled;
 
 	private _applyStateStackDiffFn?: typeof applyStateStackDiff;
 	private _initialState?: StateStack;
@@ -47,6 +47,10 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		private readonly _maxTokenizationLineLength: IObservable<number>,
 	) {
 		super();
+		this.controllerId = TextMateWorkerTokenizerController._id++;
+		this._pendingChanges = [];
+		this._states = new TokenizationStateStore<StateStack>();
+		this._loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
 
 		this._register(keepObserved(this._loggingEnabled));
 

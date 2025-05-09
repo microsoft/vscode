@@ -14,7 +14,7 @@ import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IProcessMainService } from '../../../../platform/process/common/process.js';
+import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
@@ -32,7 +32,7 @@ const MAX_GITHUB_API_LENGTH = 65500;
 
 
 export class IssueReporter extends BaseIssueReporterService {
-	private readonly processMainService: IProcessMainService;
+	private readonly processService: IProcessService;
 	constructor(
 		disableExtensions: boolean,
 		data: IssueReporterData,
@@ -45,15 +45,15 @@ export class IssueReporter extends BaseIssueReporterService {
 		window: Window,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
-		@IProcessMainService processMainService: IProcessMainService,
+		@IProcessService processService: IProcessService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IUpdateService private readonly updateService: IUpdateService
 	) {
 		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
-		this.processMainService = processMainService;
-		this.processMainService.$getSystemInfo().then(info => {
+		this.processService = processService;
+		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -61,7 +61,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			this.updatePreviewButtonState();
 		});
 		if (this.data.issueType === IssueType.PerformanceIssue) {
-			this.processMainService.$getPerformanceInfo().then(info => {
+			this.processService.getPerformanceInfo().then(info => {
 				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 			});
 		}
@@ -95,7 +95,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.issueReporterModel.update({ issueType: issueType });
 			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				this.processMainService.$getPerformanceInfo().then(info => {
+				this.processService.getPerformanceInfo().then(info => {
 					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 				});
 			}

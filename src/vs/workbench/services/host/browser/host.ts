@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { FocusMode, IElementData } from '../../../../platform/native/common/native.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
@@ -127,8 +126,6 @@ export interface IHostService {
 	 * Captures a screenshot.
 	 */
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
-
-	getElementData(rect: IRectangle, token: CancellationToken,): Promise<IElementData | undefined>;
 
 	//#endregion
 

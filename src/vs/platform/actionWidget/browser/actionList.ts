@@ -131,16 +131,18 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		data.text.textContent = stripNewlines(element.label);
 
-		if (element.description) {
+		// if there is a keybinding, prioritize over description for now
+		if (element.keybinding) {
+			data.description!.textContent = element.keybinding.getLabel();
+			data.description!.style.display = 'inline';
+			data.description!.style.letterSpacing = '0.5px';
+		} else if (element.description) {
 			data.description!.textContent = stripNewlines(element.description);
 			data.description!.style.display = 'inline';
 		} else {
 			data.description!.textContent = '';
 			data.description!.style.display = 'none';
 		}
-
-		data.keybinding.set(element.keybinding);
-		dom.setVisibility(!!element.keybinding, data.keybinding.element);
 
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();

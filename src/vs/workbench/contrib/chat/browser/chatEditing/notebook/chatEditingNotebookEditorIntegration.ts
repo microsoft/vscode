@@ -7,7 +7,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../../base/co
 import { autorun, debouncedObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
-import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixSumComputer.js';

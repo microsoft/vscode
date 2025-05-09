@@ -7,10 +7,10 @@ import { equals } from '../../../../../base/common/arrays.js';
 import { splitLines } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
 import { InlineDecoration } from '../../../../common/viewModel.js';
-import { ColumnRange } from '../../../../common/core/columnRange.js';
+import { ColumnRange } from '../../../../common/core/ranges/columnRange.js';
 
 export class GhostText {
 	constructor(

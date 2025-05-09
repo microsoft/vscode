@@ -6,7 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
-import { countEOL } from '../core/eolCounter.js';
+import { countEOL } from '../core/misc/eolCounter.js';
 import { ITextModel } from '../model.js';
 import { RateLimiter } from './common.js';
 
