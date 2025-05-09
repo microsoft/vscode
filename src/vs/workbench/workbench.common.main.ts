@@ -243,6 +243,9 @@ import './contrib/debug/browser/debugViewlet.js';
 // Markers
 import './contrib/markers/browser/markers.contribution.js';
 
+// Process Explorer
+import './contrib/processExplorer/browser/processExplorer.contribution.js';
+
 // Merge Editor
 import './contrib/mergeEditor/browser/mergeEditor.contribution.js';
 

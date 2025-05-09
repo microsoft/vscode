@@ -6,10 +6,10 @@
 import { groupAdjacentBy } from '../../../base/common/arrays.js';
 import { assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { LineRange } from '../core/lineRange.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
-import { AbstractText, SingleTextEdit, TextEdit } from '../core/textEdit.js';
+import { AbstractText, SingleTextEdit, TextEdit } from '../core/edits/textEdit.js';
 import { IChange } from './legacyLinesDiffComputer.js';
 
 /**
@@ -312,8 +312,8 @@ export function lineRangeMappingFromRangeMappings(alignments: readonly RangeMapp
 	for (const g of groupAdjacentBy(
 		alignments.map(a => getLineRangeMapping(a, originalLines, modifiedLines)),
 		(a1, a2) =>
-			a1.original.overlapOrTouch(a2.original)
-			|| a1.modified.overlapOrTouch(a2.modified)
+			a1.original.intersectsOrTouches(a2.original)
+			|| a1.modified.intersectsOrTouches(a2.modified)
 	)) {
 		const first = g[0];
 		const last = g[g.length - 1];

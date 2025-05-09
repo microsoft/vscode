@@ -147,7 +147,7 @@ class QuickDiffDecorator extends Disposable {
 				continue;
 			}
 
-			if (quickDiff.kind !== 'primary' && primaryQuickDiffChanges.some(c => c.change2.modified.overlapOrTouch(change.change2.modified))) {
+			if (quickDiff.kind !== 'primary' && primaryQuickDiffChanges.some(c => c.change2.modified.intersectsOrTouches(change.change2.modified))) {
 				// Overlap with primary quick diff changes
 				continue;
 			}

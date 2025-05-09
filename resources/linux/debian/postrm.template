@@ -22,11 +22,10 @@ if [ -e '/usr/share/debconf/confmodule' ]; then
 fi
 if [ "$RET" = "true" ]; then
 	eval $(apt-config shell APT_SOURCE_PARTS Dir::Etc::sourceparts/d)
-	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.list
+	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.sources
 	rm -f $CODE_SOURCE_PART
 
-	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
-	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
+	CODE_TRUSTED_PART=/usr/share/keyrings/microsoft.gpg
 	rm -f $CODE_TRUSTED_PART
 fi
 

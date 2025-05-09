@@ -18,7 +18,7 @@ export class At extends SimpleToken<'@'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '@' {
 		return At.symbol;
 	}
 

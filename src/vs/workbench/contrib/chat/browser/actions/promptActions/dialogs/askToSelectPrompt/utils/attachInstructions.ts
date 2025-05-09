@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatWidget, showChatView } from '../../../../../chat.js';
-import { URI } from '../../../../../../../../../base/common/uri.js';
-import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
-import { IAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
-import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
+import { URI } from '../../../../../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
+import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
+import { IChatWidget, showChatView } from '../../../../../chat.js';
+import { ACTION_ID_NEW_CHAT } from '../../../../chatActions.js';
+import { IAttachInstructionsActionOptions } from '../../../chatAttachInstructionsAction.js';
 
 /**
  * Options for the {@link attachInstructionsFiles} function.

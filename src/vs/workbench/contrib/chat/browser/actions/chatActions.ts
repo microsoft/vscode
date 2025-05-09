@@ -6,6 +6,7 @@
 import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -24,6 +25,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -44,6 +46,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
@@ -51,7 +54,7 @@ import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -63,6 +66,8 @@ import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
+export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
+export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
@@ -120,7 +125,9 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const viewsService = accessor.get(IViewsService);
 		const hostService = accessor.get(IHostService);
-
+		const chatAgentService = accessor.get(IChatAgentService);
+		const instaService = accessor.get(IInstantiationService);
+		const commandService = accessor.get(ICommandService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -133,10 +140,14 @@ abstract class OpenChatGlobalAction extends Action2 {
 			return;
 		}
 
-		const mode = opts?.mode ?? this.mode;
-		if (mode && validateChatMode(mode)) {
-			chatWidget.input.setChatMode(mode);
+		let switchToMode = opts?.mode ?? this.mode;
+		if (!switchToMode) {
+			switchToMode = opts?.query.startsWith('@') ? ChatMode.Ask : undefined;
 		}
+		if (switchToMode && validateChatMode(switchToMode)) {
+			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
+		}
+
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
@@ -149,13 +160,11 @@ abstract class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.query) {
-			if (opts.query.startsWith('@') && (chatWidget.input.currentMode === ChatMode.Agent || chatService.edits2Enabled)) {
-				chatWidget.input.setChatMode(ChatMode.Ask);
-			}
 			if (opts.isPartialQuery) {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
+				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentMode);
 				chatWidget.acceptInput(opts.query);
 			}
 		}
@@ -177,6 +186,39 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		chatWidget.focusInput();
 	}
+
+	private async handleSwitchToMode(switchToMode: ChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
+		const currentMode = chatWidget.input.currentMode;
+
+		if (switchToMode) {
+			const editingSession = chatWidget.viewModel?.model.editingSession;
+			const requestCount = chatWidget.viewModel?.model.getRequests().length ?? 0;
+			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode, requestCount, editingSession);
+			if (!chatModeCheck) {
+				return;
+			}
+			chatWidget.input.setChatMode(switchToMode);
+
+			if (chatModeCheck.needToClearSession) {
+				await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+			}
+		}
+	}
+}
+
+async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatMode): Promise<void> {
+	const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+	if (defaultAgent) {
+		return;
+	}
+
+	await Promise.race([
+		Event.toPromise(Event.filter(chatAgentService.onDidChangeAgents, () => {
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+			return Boolean(defaultAgent);
+		})),
+		timeout(60_000).then(() => { throw new Error('Timed out waiting for default agent'); })
+	]);
 }
 
 class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
@@ -873,6 +915,53 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
 	}
 
 	return true;
+}
+
+/**
+ * Returns whether we can switch the chat mode, based on whether the user had to agree to clear the session, false to cancel.
+ */
+export async function handleModeSwitch(
+	accessor: ServicesAccessor,
+	fromMode: ChatMode,
+	toMode: ChatMode,
+	requestCount: number,
+	editingSession: IChatEditingSession | undefined,
+): Promise<false | { needToClearSession: boolean }> {
+	if (!editingSession || fromMode === toMode) {
+		return { needToClearSession: false };
+	}
+
+	const configurationService = accessor.get(IConfigurationService);
+	const dialogService = accessor.get(IDialogService);
+	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatMode.Edit || toMode === ChatMode.Edit)) && requestCount > 0;
+	if (needToClearEdits) {
+		// If not using edits2 and switching into or out of edit mode, ask to discard the session
+		const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
+
+		const currentEdits = editingSession.entries.get();
+		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+		if (undecidedEdits.length > 0) {
+			if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
+				return false;
+			}
+
+			return { needToClearSession: true };
+		} else {
+			const confirmation = await dialogService.confirm({
+				title: localize('agent.newSession', "Start new session?"),
+				message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
+				primaryButton: localize('agent.newSession.confirm', "Yes"),
+				type: 'info'
+			});
+			if (!confirmation.confirmed) {
+				return false;
+			}
+
+			return { needToClearSession: true };
+		}
+	}
+
+	return { needToClearSession: false };
 }
 
 export interface IClearEditingSessionConfirmationOptions {

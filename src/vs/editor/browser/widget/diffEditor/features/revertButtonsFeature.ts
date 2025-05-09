@@ -13,7 +13,7 @@ import { DiffEditorEditors } from '../components/diffEditorEditors.js';
 import { DiffEditorOptions } from '../diffEditorOptions.js';
 import { DiffEditorViewModel } from '../diffEditorViewModel.js';
 import { DiffEditorWidget } from '../diffEditorWidget.js';
-import { LineRange, LineRangeSet } from '../../../../common/core/lineRange.js';
+import { LineRange, LineRangeSet } from '../../../../common/core/ranges/lineRange.js';
 import { Range } from '../../../../common/core/range.js';
 import { LineRangeMapping, RangeMapping } from '../../../../common/diff/rangeMapping.js';
 import { GlyphMarginLane } from '../../../../common/model.js';
@@ -107,17 +107,11 @@ export class RevertButtonsFeature extends Disposable {
 export class RevertButton extends Disposable implements IGlyphMarginWidget {
 	public static counter = 0;
 
-	private readonly _id: string = `revertButton${RevertButton.counter++}`;
+	private readonly _id: string;
 
 	getId(): string { return this._id; }
 
-	private readonly _domNode = h('div.revertButton', {
-		title: this._revertSelection
-			? localize('revertSelectedChanges', 'Revert Selected Changes')
-			: localize('revertChange', 'Revert Change')
-	},
-		[renderIcon(Codicon.arrowRight)]
-	).root;
+	private readonly _domNode;
 
 	constructor(
 		private readonly _lineNumber: number,
@@ -126,6 +120,14 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 		private readonly _revertSelection: boolean,
 	) {
 		super();
+		this._id = `revertButton${RevertButton.counter++}`;
+		this._domNode = h('div.revertButton', {
+			title: this._revertSelection
+				? localize('revertSelectedChanges', 'Revert Selected Changes')
+				: localize('revertChange', 'Revert Change')
+		},
+			[renderIcon(Codicon.arrowRight)]
+		).root;
 
 
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_DOWN, e => {
