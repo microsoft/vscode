@@ -5,7 +5,7 @@
 
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { TextLength } from '../../../../../editor/common/core/textLength.js';
+import { TextLength } from '../../../../../editor/common/core/text/textLength.js';
 
 export function rangeContainsPosition(range: Range, position: Position): boolean {
 	if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {

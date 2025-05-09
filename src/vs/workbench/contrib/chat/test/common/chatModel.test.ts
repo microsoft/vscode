@@ -9,7 +9,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { OffsetRange } from '../../../../../editor/common/core/offsetRange.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
