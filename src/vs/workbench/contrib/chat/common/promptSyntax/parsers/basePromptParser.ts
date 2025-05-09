@@ -240,8 +240,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			...options,
 		};
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-
 		const seenReferences = [...this.options.seenReferences];
 
 		// to prevent infinite file recursion, we keep track of all references in
