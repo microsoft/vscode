@@ -21,7 +21,7 @@ import { Position } from '../../../../common/core/position.js';
 import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
-import { OffsetEdits } from '../../../../common/model/textModelOffsetEdit.js';
+import { offsetEditFromContentChanges } from '../../../../common/model/textModelOffsetEdit.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
@@ -72,7 +72,7 @@ export class InlineCompletionsSource extends Disposable {
 			},
 			changeTracker: recordChanges({ versionId: this._versionId }),
 			update: (reader, previousValue, changes) => {
-				const edit = OffsetEdit.join(changes.changes.map(c => c.change ? OffsetEdits.fromContentChanges(c.change.changes) : OffsetEdit.empty).filter(isDefined));
+				const edit = OffsetEdit.compose(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : OffsetEdit.empty).filter(isDefined));
 
 				if (edit.isEmpty) {
 					return previousValue;

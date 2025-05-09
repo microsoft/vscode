@@ -14,7 +14,7 @@ import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { IModelDeltaDecoration } from '../../../common/model.js';
-import { TextLength } from '../../../common/core/ranges/textLength.js';
+import { TextLength } from '../../../common/core/text/textLength.js';
 
 export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelector: (val: T) => number, combine: (v1: T, v2: T) => T): readonly T[] {
 	if (arr1.length === 0) {

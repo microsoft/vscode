@@ -9,7 +9,7 @@ import { LineRange } from '../../core/ranges/lineRange.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
-import { ArrayText } from '../../core/edits/textEdit.js';
+import { ArrayText } from '../../core/text/abstractText.js';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from '../linesDiffComputer.js';
 import { DetailedLineRangeMapping, LineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../rangeMapping.js';
 import { DateTimeout, InfiniteTimeout, ITimeout, SequenceDiff } from './algorithms/diffAlgorithm.js';

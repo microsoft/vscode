@@ -8,9 +8,10 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../common/core/edits/offsetEdit.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../common/core/position.js';
-import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
-import { AbstractText, SingleTextEdit, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { AbstractText } from '../../../common/core/text/abstractText.js';
 
 export abstract class Random {
 	public static readonly alphabetSmallLowercase = 'abcdefgh';
@@ -70,7 +71,7 @@ export abstract class Random {
 	}
 
 	public nextTextEdit(target: AbstractText, singleTextEditCount: number): TextEdit {
-		const singleTextEdits: SingleTextEdit[] = [];
+		const singleTextEdits: TextReplacement[] = [];
 
 		const positions = this.nextConsecutivePositions(target, singleTextEditCount * 2);
 
@@ -78,7 +79,7 @@ export abstract class Random {
 			const start = positions[i * 2];
 			const end = positions[i * 2 + 1];
 			const newText = this.nextString(end.column - start.column, this.stringGenerator(Random.basicAlphabetMultiline));
-			singleTextEdits.push(new SingleTextEdit(Range.fromPositions(start, end), newText));
+			singleTextEdits.push(new TextReplacement(Range.fromPositions(start, end), newText));
 		}
 
 		return new TextEdit(singleTextEdits).normalize();

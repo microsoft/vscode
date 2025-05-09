@@ -23,8 +23,8 @@ import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { SingleTextEdit, TextEdit } from '../../../../common/core/edits/textEdit.js';
-import { TextLength } from '../../../../common/core/ranges/textLength.js';
+import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { TextLength } from '../../../../common/core/text/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
@@ -284,14 +284,14 @@ export class InlineCompletionsModel extends Disposable {
 		this._hasVisiblePeekWidgets = derived(this, reader => this._editorObs.openedPeekWidgets.read(reader) > 0);
 		this.state = derivedOpts<{
 			kind: 'ghostText';
-			edits: readonly SingleTextEdit[];
+			edits: readonly TextReplacement[];
 			primaryGhostText: GhostTextOrReplacement;
 			ghostTexts: readonly GhostTextOrReplacement[];
 			suggestItem: SuggestItemInfo | undefined;
 			inlineCompletion: InlineCompletionItem | undefined;
 		} | {
 			kind: 'inlineEdit';
-			edits: readonly SingleTextEdit[];
+			edits: readonly TextReplacement[];
 			inlineEdit: InlineEdit;
 			inlineCompletion: InlineEditItem;
 			cursorAtInlineEdit: IObservable<boolean>;
@@ -327,7 +327,7 @@ export class InlineCompletionsModel extends Disposable {
 				const inlineEdit = new InlineEdit(edit, commands ?? [], inlineEditResult);
 
 				const edits = inlineEditResult.updatedEdit;
-				const e = edits ? TextEdit.fromOffsetEdit(edits, new TextModelText(this.textModel)).edits : [edit];
+				const e = edits ? TextEdit.fromOffsetEdit(edits, new TextModelText(this.textModel)).replacements : [edit];
 
 				return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit };
 			}
@@ -676,7 +676,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly inlineEditAvailable;
 
-	private _computeAugmentation(suggestCompletion: SingleTextEdit, reader: IReader | undefined) {
+	private _computeAugmentation(suggestCompletion: TextReplacement, reader: IReader | undefined) {
 		const model = this.textModel;
 		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(reader);
 		const candidateInlineCompletions = suggestWidgetInlineCompletions
@@ -891,7 +891,7 @@ export class InlineCompletionsModel extends Disposable {
 				editor.pushUndoStop();
 				const replaceRange = Range.fromPositions(cursorPosition, ghostTextPos);
 				const newText = editor.getModel()!.getValueInRange(replaceRange) + partialGhostTextVal;
-				const primaryEdit = new SingleTextEdit(replaceRange, newText);
+				const primaryEdit = new TextReplacement(replaceRange, newText);
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 				TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion, type), () => {
@@ -983,7 +983,7 @@ export enum VersionIdChangeReason {
 	Other,
 }
 
-export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
+export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: TextReplacement): TextReplacement[] {
 	if (positions.length === 1) {
 		// No secondary cursor positions
 		return [];
@@ -1011,7 +1011,7 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 		);
 		const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
 		const range = Range.fromPositions(pos, pos.delta(0, l));
-		return new SingleTextEdit(range, secondaryEditText);
+		return new TextReplacement(range, secondaryEditText);
 	});
 }
 

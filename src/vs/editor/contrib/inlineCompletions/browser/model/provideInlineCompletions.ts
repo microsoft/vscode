@@ -16,7 +16,7 @@ import { SingleOffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind, PartialAcceptInfo } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
@@ -219,7 +219,7 @@ export class InlineCompletionProviderResult implements IDisposable {
 		private readonly providerResults: readonly InlineSuggestionList[],
 	) { }
 
-	public has(edit: SingleTextEdit): boolean {
+	public has(edit: TextReplacement): boolean {
 		return this.hashs.has(createHashFromSingleTextEdit(edit));
 	}
 
@@ -236,7 +236,7 @@ export class InlineCompletionProviderResult implements IDisposable {
 	}
 }
 
-function createHashFromSingleTextEdit(edit: SingleTextEdit): string {
+function createHashFromSingleTextEdit(edit: TextReplacement): string {
 	return JSON.stringify([edit.text, edit.range.getStartPosition().toString()]);
 }
 
@@ -344,7 +344,7 @@ export class InlineSuggestData {
 	public get showInlineEditMenu() { return this.sourceInlineCompletion.showInlineEditMenu ?? false; }
 
 	public getSingleTextEdit() {
-		return new SingleTextEdit(this.range, this.insertText);
+		return new TextReplacement(this.range, this.insertText);
 	}
 
 	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string): Promise<void> {
@@ -454,8 +454,8 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 	const currentLine = model.getLineContent(position.lineNumber);
 	const edit = SingleOffsetEdit.replace(new OffsetRange(position.column - 1, currentLine.length), text);
 
-	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.apply(currentLine)]);
-	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterApply());
+	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.replace(currentLine)]);
+	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterReplace());
 	if (!textTokens) {
 		return text;
 	}

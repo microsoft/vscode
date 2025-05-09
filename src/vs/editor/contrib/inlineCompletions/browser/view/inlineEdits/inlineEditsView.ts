@@ -15,8 +15,9 @@ import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
-import { AbstractText, SingleTextEdit, StringText } from '../../../../../common/core/edits/textEdit.js';
-import { TextLength } from '../../../../../common/core/ranges/textLength.js';
+import { TextReplacement } from '../../../../../common/core/edits/textEdit.js';
+import { AbstractText, StringText } from '../../../../../common/core/text/abstractText.js';
+import { TextLength } from '../../../../../common/core/text/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
@@ -377,7 +378,7 @@ export class InlineEditsView extends Disposable {
 			// Make sure there is no insertion, even if we grow them
 			if (
 				!inner.some(m => m.originalRange.isEmpty()) ||
-				!growEditsUntilWhitespace(inner.map(m => new SingleTextEdit(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
+				!growEditsUntilWhitespace(inner.map(m => new TextReplacement(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
 			) {
 				return 'wordReplacements';
 			}
@@ -432,7 +433,7 @@ export class InlineEditsView extends Disposable {
 			};
 		}
 
-		const replacements = inner.map(m => new SingleTextEdit(m.originalRange, newText.getValueOfRange(m.modifiedRange)));
+		const replacements = inner.map(m => new TextReplacement(m.originalRange, newText.getValueOfRange(m.modifiedRange)));
 		if (replacements.length === 0) {
 			return undefined;
 		}
@@ -519,16 +520,16 @@ function isSingleMultiLineInsertion(diff: DetailedLineRangeMapping[]) {
 	return true;
 }
 
-function growEditsToEntireWord(replacements: SingleTextEdit[], originalText: AbstractText): SingleTextEdit[] {
+function growEditsToEntireWord(replacements: TextReplacement[], originalText: AbstractText): TextReplacement[] {
 	return _growEdits(replacements, originalText, (char) => /^[a-zA-Z]$/.test(char));
 }
 
-function growEditsUntilWhitespace(replacements: SingleTextEdit[], originalText: AbstractText): SingleTextEdit[] {
+function growEditsUntilWhitespace(replacements: TextReplacement[], originalText: AbstractText): TextReplacement[] {
 	return _growEdits(replacements, originalText, (char) => !(/^\s$/.test(char)));
 }
 
-function _growEdits(replacements: SingleTextEdit[], originalText: AbstractText, fn: (c: string) => boolean): SingleTextEdit[] {
-	const result: SingleTextEdit[] = [];
+function _growEdits(replacements: TextReplacement[], originalText: AbstractText, fn: (c: string) => boolean): TextReplacement[] {
+	const result: TextReplacement[] = [];
 
 	replacements.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 
@@ -557,9 +558,9 @@ function _growEdits(replacements: SingleTextEdit[], originalText: AbstractText, 
 		}
 
 		// create new edit and merge together if they are touching
-		let newEdit = new SingleTextEdit(new Range(edit.range.startLineNumber, startIndex + 1, edit.range.endLineNumber, endIndex + 2), prefix + edit.text + suffix);
+		let newEdit = new TextReplacement(new Range(edit.range.startLineNumber, startIndex + 1, edit.range.endLineNumber, endIndex + 2), prefix + edit.text + suffix);
 		if (result.length > 0 && Range.areIntersectingOrTouching(result[result.length - 1].range, newEdit.range)) {
-			newEdit = SingleTextEdit.joinEdits([result.pop()!, newEdit], originalText);
+			newEdit = TextReplacement.joinReplacements([result.pop()!, newEdit], originalText);
 		}
 
 		result.push(newEdit);

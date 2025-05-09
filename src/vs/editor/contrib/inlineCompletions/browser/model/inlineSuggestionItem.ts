@@ -12,10 +12,11 @@ import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
-import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformerBase } from '../../../../common/core/positionToOffset.js';
+import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformerBase } from '../../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/edits/textEdit.js';
-import { TextLength } from '../../../../common/core/ranges/textLength.js';
+import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { StringText } from '../../../../common/core/text/abstractText.js';
+import { TextLength } from '../../../../common/core/text/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
 import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
@@ -78,7 +79,7 @@ abstract class InlineSuggestionItemBase {
 	private get _sourceInlineCompletion(): InlineCompletion { return this._data.sourceInlineCompletion; }
 
 
-	public abstract getSingleTextEdit(): SingleTextEdit;
+	public abstract getSingleTextEdit(): TextReplacement;
 
 	public abstract withEdit(userEdit: OffsetEdit, textModel: ITextModel): InlineSuggestionItem | undefined;
 
@@ -183,7 +184,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		textModel: ITextModel,
 	): InlineCompletionItem {
 		const identity = new InlineSuggestionIdentity();
-		const textEdit = new SingleTextEdit(data.range, data.insertText);
+		const textEdit = new TextReplacement(data.range, data.insertText);
 		const edit = getPositionOffsetTransformerFromTextModel(textModel).getSingleOffsetEdit(textEdit);
 		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
 
@@ -194,7 +195,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 
 	private constructor(
 		private readonly _edit: SingleOffsetEdit,
-		private readonly _textEdit: SingleTextEdit,
+		private readonly _textEdit: TextReplacement,
 		private readonly _originalRange: Range,
 		public readonly snippetInfo: SnippetInfo | undefined,
 		public readonly additionalTextEdits: readonly ISingleEditOperation[],
@@ -206,7 +207,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		super(data, identity, displayLocation);
 	}
 
-	override getSingleTextEdit(): SingleTextEdit { return this._textEdit; }
+	override getSingleTextEdit(): TextReplacement { return this._textEdit; }
 
 	override withIdentity(identity: InlineSuggestionIdentity): InlineCompletionItem {
 		return new InlineCompletionItem(
@@ -308,7 +309,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		const offsetEdit = getOffsetEdit(textModel, data.range, data.insertText);
 		const text = new TextModelText(textModel);
 		const textEdit = TextEdit.fromOffsetEdit(offsetEdit, text);
-		const singleTextEdit = textEdit.toSingle(text);
+		const singleTextEdit = textEdit.toReplacement(text);
 		const identity = new InlineSuggestionIdentity();
 
 		const edits = offsetEdit.edits.map(edit => {
@@ -326,7 +327,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 
 	private constructor(
 		private readonly _edit: OffsetEdit,
-		private readonly _textEdit: SingleTextEdit,
+		private readonly _textEdit: TextReplacement,
 
 		data: InlineSuggestData,
 
@@ -342,7 +343,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public get updatedEditModelVersion(): number { return this._inlineEditModelVersion; }
 	public get updatedEdit(): OffsetEdit { return this._edit; }
 
-	override getSingleTextEdit(): SingleTextEdit {
+	override getSingleTextEdit(): TextReplacement {
 		return this._textEdit;
 	}
 
@@ -395,7 +396,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 
 		const newEdit = new OffsetEdit(edits.map(edit => edit.edit!));
 		const positionOffsetTransformer = getPositionOffsetTransformerFromTextModel(textModel);
-		const newTextEdit = positionOffsetTransformer.getTextEdit(newEdit).toSingle(new TextModelText(textModel));
+		const newTextEdit = positionOffsetTransformer.getTextEdit(newEdit).toReplacement(new TextModelText(textModel));
 
 		let newDisplayLocation = this.displayLocation;
 		if (newDisplayLocation) {

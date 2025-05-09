@@ -106,7 +106,7 @@ export class GhostTextView extends Disposable {
 			const currentLine = textModel.getLineContent(ghostText.lineNumber);
 			const edit = new OffsetEdit(inlineTexts.map(t => SingleOffsetEdit.insert(t.column - 1, t.text)));
 			const tokens = syntaxHighlightingEnabled ? textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, [edit.apply(currentLine), ...additionalLines.map(l => l.content)]) : undefined;
-			const newRanges = edit.getNewTextRanges();
+			const newRanges = edit.getNewRanges();
 			const inlineTextsWithTokens = inlineTexts.map((t, idx) => ({ ...t, tokens: tokens?.[0]?.getTokensInRange(newRanges[idx]) }));
 
 			const tokenizedAdditionalLines: LineData[] = additionalLines.map((l, idx) => {

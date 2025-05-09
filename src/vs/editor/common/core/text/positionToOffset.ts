@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLastIdxMonotonous } from '../../../base/common/arraysFind.js';
-import { ITextModel } from '../model.js';
-import { OffsetEdit, SingleOffsetEdit } from './edits/offsetEdit.js';
-import { OffsetRange } from './ranges/offsetRange.js';
-import { Position } from './position.js';
-import { Range } from './range.js';
-import { SingleTextEdit, TextEdit } from './edits/textEdit.js';
-import { TextLength } from './ranges/textLength.js';
+import { findLastIdxMonotonous } from '../../../../base/common/arraysFind.js';
+import { ITextModel } from '../../model.js';
+import { OffsetEdit, SingleOffsetEdit } from '../edits/offsetEdit.js';
+import { OffsetRange } from '../ranges/offsetRange.js';
+import { Position } from '../position.js';
+import { Range } from '../range.js';
+import { TextReplacement, TextEdit } from '../edits/textEdit.js';
+import { TextLength } from '../text/textLength.js';
 
 export abstract class PositionOffsetTransformerBase {
 	abstract getOffset(position: Position): number;
@@ -32,16 +32,16 @@ export abstract class PositionOffsetTransformerBase {
 	}
 
 	getOffsetEdit(edit: TextEdit): OffsetEdit {
-		const edits = edit.edits.map(e => this.getSingleOffsetEdit(e));
+		const edits = edit.replacements.map(e => this.getSingleOffsetEdit(e));
 		return new OffsetEdit(edits);
 	}
 
-	getSingleOffsetEdit(edit: SingleTextEdit): SingleOffsetEdit {
+	getSingleOffsetEdit(edit: TextReplacement): SingleOffsetEdit {
 		return new SingleOffsetEdit(this.getOffsetRange(edit.range), edit.text);
 	}
 
-	getSingleTextEdit(edit: SingleOffsetEdit): SingleTextEdit {
-		return new SingleTextEdit(this.getRange(edit.replaceRange), edit.newText);
+	getSingleTextEdit(edit: SingleOffsetEdit): TextReplacement {
+		return new TextReplacement(this.getRange(edit.replaceRange), edit.newText);
 	}
 
 	getTextEdit(edit: OffsetEdit): TextEdit {

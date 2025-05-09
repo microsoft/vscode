@@ -11,7 +11,7 @@ import { LinesSliceCharSequence } from '../../../common/diff/defaultLinesDiffCom
 import { MyersDiffAlgorithm } from '../../../common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.js';
 import { DynamicProgrammingDiffing } from '../../../common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ArrayText } from '../../../common/core/edits/textEdit.js';
+import { ArrayText } from '../../../common/core/text/abstractText.js';
 
 suite('myers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

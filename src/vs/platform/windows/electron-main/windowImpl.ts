@@ -45,6 +45,7 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
+import { FocusMode } from '../../native/common/native.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -287,11 +288,32 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return !!this.documentEdited;
 	}
 
-	focus(options?: { force: boolean }): void {
-		if (isMacintosh && options?.force) {
-			electron.app.focus({ steal: true });
-		}
+	focus(options?: { mode: FocusMode }): void {
+		switch (options?.mode ?? FocusMode.Transfer) {
+			case FocusMode.Transfer:
+				this.doFocusWindow();
+				break;
 
+			case FocusMode.Notify:
+				if (isMacintosh) {
+					electron.app.dock?.bounce('informational');
+				} else if (isWindows) {
+					// On Windows, this just flashes the taskbar icon, which is desired
+					// https://github.com/electron/electron/issues/2867
+					this.win?.focus();
+				}
+				break;
+
+			case FocusMode.Force:
+				if (isMacintosh) {
+					electron.app.focus({ steal: true });
+				}
+				this.doFocusWindow();
+				break;
+		}
+	}
+
+	private doFocusWindow() {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -1054,7 +1076,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
-					this.focus({ force: true });
+					this.focus({ mode: FocusMode.Force });
 					this._win.webContents.openDevTools();
 				}
 			}, 10000)).schedule();
