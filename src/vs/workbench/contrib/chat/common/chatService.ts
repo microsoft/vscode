@@ -268,6 +268,11 @@ export interface IChatExtensionsContent {
 	kind: 'extensions';
 }
 
+export interface IChatPrepareToolInvocationPart {
+	readonly kind: 'prepareToolInvocation';
+	readonly toolName: string;
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -289,7 +294,8 @@ export type IChatProgress =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
-	| IChatUndoStop;
+	| IChatUndoStop
+	| IChatPrepareToolInvocationPart;
 
 export interface IChatFollowup {
 	kind: 'reply';

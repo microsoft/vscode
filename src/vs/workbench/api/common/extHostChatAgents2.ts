@@ -244,6 +244,15 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				prepareToolInvocation(toolName) {
+					throwIfDone(this.prepareToolInvocation);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = new extHostTypes.ChatPrepareToolInvocationPart(toolName);
+					const dto = typeConvert.ChatPrepareToolInvocationPart.from(part);
+					_report(dto);
+					return this;
+				},
 				push(part) {
 					throwIfDone(this.push);
 
@@ -285,6 +294,11 @@ class ChatAgentResponseStream {
 							that._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 						}
 						_report(dto);
+					} else if (part instanceof extHostTypes.ChatPrepareToolInvocationPart) {
+						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+						const dto = typeConvert.ChatPrepareToolInvocationPart.from(part);
+						_report(dto);
+						return this;
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
