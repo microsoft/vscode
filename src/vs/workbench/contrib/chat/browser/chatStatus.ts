@@ -402,14 +402,33 @@ class ChatStatusDashboard extends Disposable {
 		// New to Copilot / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
+			const disabled = this.chatEntitlementService.sentiment.disabled;
 			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			if (newUser || signedOut) {
+			if (newUser || signedOut || disabled) {
 				addSeparator();
 
-				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "Set up Copilot to use AI features.") : localize('signInDescription', "Sign in to use Copilot AI features.")));
+				let descriptionText: string;
+				if (newUser) {
+					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");
+				} else if (signedOut) {
+					descriptionText = localize('signInDescription', "Sign in to use Copilot AI features.");
+				} else {
+					descriptionText = localize('enableDescription', "Enable Copilot to use AI features.");
+				}
+
+				let buttonLabel: string;
+				if (newUser) {
+					buttonLabel = localize('activateCopilotButton', "Set up Copilot");
+				} else if (signedOut) {
+					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
+				} else {
+					buttonLabel = localize('enableCopilotButton', "Enable Copilot");
+				}
+
+				this.element.appendChild($('div.description', undefined, descriptionText));
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
-				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in to use Copilot");
+				button.label = buttonLabel;
 				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}
