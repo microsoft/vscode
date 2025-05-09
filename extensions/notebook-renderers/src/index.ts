@@ -16,7 +16,7 @@ function clearContainer(container: HTMLElement) {
 }
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
-	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
+	const blob = new Blob([outputInfo.data() as Uint8Array<ArrayBuffer>], { type: outputInfo.mime });
 	const src = URL.createObjectURL(blob);
 	const disposable = {
 		dispose: () => {

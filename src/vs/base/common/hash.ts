@@ -93,7 +93,7 @@ export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {
 		buff = input;
 	}
 
-	return crypto.subtle.digest('sha-1', buff).then(toHexString);
+	return crypto.subtle.digest('sha-1', buff as ArrayBufferView<ArrayBuffer>).then(toHexString);
 };
 
 const enum SHA1Constant {

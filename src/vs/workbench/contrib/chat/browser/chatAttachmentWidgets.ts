@@ -325,7 +325,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
 
 
-		const blob = new Blob([buffer], { type: 'image/png' });
+		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
