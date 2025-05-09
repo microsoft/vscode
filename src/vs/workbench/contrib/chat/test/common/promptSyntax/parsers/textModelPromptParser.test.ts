@@ -290,6 +290,51 @@ suite('TextModelPromptParser', () => {
 
 	suite('• header', () => {
 		suite(' • metadata', () => {
+			test(`• empty header`, async () => {
+				const test = createTest(
+					URI.file('/absolute/folder/and/a/filename.txt'),
+					[
+					/* 01 */"---",
+					/* 02 */"",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+					/* 05 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 06 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 07 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 08 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+					],
+				);
+
+				await test.validateReferences([
+					new ExpectedReference({
+						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+						text: '[text](./foo-bar-baz/another-file.ts)',
+						path: './foo-bar-baz/another-file.ts',
+						startLine: 5,
+						startColumn: 43,
+						pathStartColumn: 50,
+						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+					}),
+				]);
+
+				const { header, metadata } = test.parser;
+				assertDefined(
+					header,
+					'Prompt header must be defined.',
+				);
+
+				assert.deepStrictEqual(
+					metadata,
+					{
+						applyTo: undefined,
+						description: undefined,
+						mode: undefined,
+						tools: undefined,
+					},
+					'Must have empty metadata.',
+				);
+			});
+
 			test(`• has correct 'prompt' metadata`, async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.txt'),

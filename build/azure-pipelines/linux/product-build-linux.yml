@@ -132,28 +132,6 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download vscode sysroots
 
-  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
-    - script: |
-        set -e
-        includes=$(cat << 'EOF'
-        {
-          "target_defaults": {
-            "conditions": [
-              ["OS=='linux'", {
-                'cflags_cc!': [ '-std=gnu++20' ],
-                'cflags_cc': [ '-std=gnu++2a' ],
-              }]
-            ]
-          }
-        }
-        EOF
-        )
-        if [ ! -d "$HOME/.gyp" ]; then
-          mkdir -p "$HOME/.gyp"
-        fi
-        echo "$includes" > "$HOME/.gyp/include.gypi"
-      displayName: Override gnu target for arm64 and arm
-
   - script: |
       set -e
 
@@ -255,31 +233,17 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
 
-    - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
-      - script: |
-          set -e
+    - script: |
+        set -e
 
-          EXPECTED_GLIBC_VERSION="2.28" \
-          EXPECTED_GLIBCXX_VERSION="3.4.25" \
-          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-        env:
-          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
-          npm_config_arch: $(NPM_ARCH)
-          VSCODE_ARCH: $(VSCODE_ARCH)
-        displayName: Check GLIBC and GLIBCXX dependencies in server archive
-
-    - ${{ else }}:
-      - script: |
-          set -e
-
-          EXPECTED_GLIBC_VERSION="2.28" \
-          EXPECTED_GLIBCXX_VERSION="3.4.26" \
-          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-        env:
-          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
-          npm_config_arch: $(NPM_ARCH)
-          VSCODE_ARCH: $(VSCODE_ARCH)
-        displayName: Check GLIBC and GLIBCXX dependencies in server archive
+        EXPECTED_GLIBC_VERSION="2.28" \
+        EXPECTED_GLIBCXX_VERSION="3.4.26" \
+        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+      env:
+        SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+        npm_config_arch: $(NPM_ARCH)
+        VSCODE_ARCH: $(VSCODE_ARCH)
+      displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
     - script: npm run gulp "transpile-client-esbuild" "transpile-extensions"

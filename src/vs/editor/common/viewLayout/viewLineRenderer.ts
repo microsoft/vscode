@@ -11,7 +11,7 @@ import { StringBuilder } from '../core/stringBuilder.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
 import { InlineDecorationType } from '../viewModel.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 
 export const enum RenderWhitespace {
 	None = 0,

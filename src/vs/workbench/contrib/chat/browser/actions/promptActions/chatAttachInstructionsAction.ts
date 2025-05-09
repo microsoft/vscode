@@ -19,6 +19,16 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem } from '../../chatContextPickService.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { INSTRUCTIONS_COMMAND_ID } from '../../promptSyntax/contributions/attachInstructionsCommand.js';
+import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
+import { compare } from '../../../../../../base/common/strings.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { dirname } from '../../../../../../base/common/resources.js';
+import { IPromptFileVariableEntry } from '../../../common/chatModel.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -142,3 +152,65 @@ export const runAttachInstructionsAction = async (
 export const registerAttachPromptActions = () => {
 	registerAction2(AttachInstructionsAction);
 };
+
+
+export class ChatInstructionsPickerPick implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly label = localize('chatContext.attach.instructions.label', 'Instructions...');
+	readonly icon = Codicon.bookmark;
+	readonly commandId = INSTRUCTIONS_COMMAND_ID;
+
+	constructor(
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@ILabelService private readonly labelService: ILabelService
+	) { }
+
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+		return widget.attachmentModel.promptInstructions.featureEnabled;
+	}
+
+	asPicker(): { readonly placeholder: string; readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]> | ((query: string, token: CancellationToken) => Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]>) } {
+
+		const picks = this.promptsService.listPromptFiles('instructions').then(value => {
+
+			const result: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
+
+			value = value.slice(0).sort((a, b) => compare(a.storage, b.storage));
+
+			let storageType: string | undefined;
+
+			for (const { uri, storage } of value) {
+
+				if (storageType !== storage) {
+					storageType = storage;
+					result.push({
+						type: 'separator',
+						label: storage === 'user'
+							? localize('user-data-dir.capitalized', 'User data folder')
+							: this.labelService.getUriLabel(dirname(uri), { relative: true })
+					});
+				}
+
+				result.push({
+					label: getCleanPromptName(uri),
+					asAttachment: (): IPromptFileVariableEntry => {
+						return {
+							kind: 'promptFile',
+							id: uri.toString(),
+							value: uri,
+							name: this.labelService.getUriBasenameLabel(uri),
+						};
+					}
+				});
+			}
+			return result;
+		});
+
+		return {
+			placeholder: localize('placeholder', 'Select instructions files to attach'),
+			picks
+		};
+	}
+
+}

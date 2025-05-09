@@ -16,7 +16,7 @@ import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/c
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MarkersViewMode, Markers, MarkersContextKeys } from '../common/markers.js';
 import Messages from './messages.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IMarkersView } from './markers.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -36,6 +36,7 @@ import { IActivityService, NumberBadge } from '../../../services/activity/common
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { problemsConfigurationNodeBase } from '../../../common/configuration.js';
+import { MarkerChatContextContribution } from './markersChatContext.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -685,6 +686,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 }
 
 workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
+
+registerWorkbenchContribution2(MarkerChatContextContribution.ID, MarkerChatContextContribution, WorkbenchPhase.AfterRestored);
 
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
