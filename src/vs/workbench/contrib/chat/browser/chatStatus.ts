@@ -429,7 +429,7 @@ class ChatStatusDashboard extends Disposable {
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
 				button.label = buttonLabel;
-				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(signedOut ? () => this.chatEntitlementService.requests?.value.signIn() : 'workbench.action.chat.triggerSetup')));
 			}
 		}
 
