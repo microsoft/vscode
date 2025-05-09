@@ -202,6 +202,10 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 	public getLengthDelta(): number {
 		return sumBy(this.replacements, (replacement) => replacement.getLengthDelta());
 	}
+
+	public getNewDataLength(dataLength: number): number {
+		return dataLength + this.getLengthDelta();
+	}
 }
 
 export abstract class BaseReplacement<TSelf extends BaseReplacement<TSelf>> {
@@ -235,6 +239,9 @@ export abstract class BaseReplacement<TSelf extends BaseReplacement<TSelf>> {
 		return `{ ${this.replaceRange.toString()} -> ${this.getNewLength()} }`;
 	}
 }
+
+export type AnyEdit = BaseEdit<AnyReplacement, AnyEdit>;
+export type AnyReplacement = BaseReplacement<AnyReplacement>;
 
 export class Edit<T extends BaseReplacement<T>> extends BaseEdit<T, Edit<T>> {
 	/**
