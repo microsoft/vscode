@@ -62,10 +62,12 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
-import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -241,8 +243,15 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.scm.action.graph.viewChanges',
 			title: localize('openChanges', "Open Changes"),
+			icon: Codicon.diffMultiple,
 			f1: false,
 			menu: [
+				{
+					id: MenuId.SCMHistoryItemContext,
+					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
+					group: 'inline',
+					order: 1
+				},
 				{
 					id: MenuId.SCMHistoryItemContext,
 					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
@@ -313,6 +322,7 @@ interface HistoryItemTemplate {
 	readonly element: HTMLElement;
 	readonly label: IconLabel;
 	readonly graphContainer: HTMLElement;
+	readonly actionBar: WorkbenchToolBar;
 	readonly labelContainer: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
@@ -328,10 +338,14 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
@@ -348,7 +362,12 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const labelContainer = append(element, $('.label-container'));
 		element.appendChild(labelContainer);
 
-		return { element, graphContainer, label: iconLabel, labelContainer, elementDisposables: new DisposableStore(), disposables: new DisposableStore() };
+		const disposables = new DisposableStore();
+		const actionsContainer = append(element, $('.actions'));
+		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
+		disposables.add(actionBar);
+
+		return { element, graphContainer, label: iconLabel, labelContainer, actionBar, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -362,6 +381,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.elementDisposables.add(historyItemHover);
 
 		templateData.graphContainer.textContent = '';
+		templateData.graphContainer.style.borderLeft = `3px solid transparent`;
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
@@ -371,6 +391,13 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
 		this._renderBadges(historyItem, templateData);
+
+		const actions = this._menuService.getMenuActions(
+			MenuId.SCMHistoryItemContext,
+			this._contextKeyService,
+			{ arg: provider, shouldForwardArgs: true });
+		templateData.actionBar.context = historyItem;
+		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
 	}
 
 	private _renderBadges(historyItem: ISCMHistoryItem, templateData: HistoryItemTemplate): void {
@@ -595,6 +622,7 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeVie
 
 		templateData.graphPlaceholder.textContent = '';
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (element.element.graphColumns.length + 1)}px`;
+		templateData.graphPlaceholder.style.borderLeft = `3px solid transparent`;
 		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(element.element.graphColumns));
 
 		const uri = historyItemChange.uri;
