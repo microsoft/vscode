@@ -454,8 +454,8 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 	const currentLine = model.getLineContent(position.lineNumber);
 	const edit = SingleOffsetEdit.replace(new OffsetRange(position.column - 1, currentLine.length), text);
 
-	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.apply(currentLine)]);
-	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterApply());
+	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.replace(currentLine)]);
+	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterReplace());
 	if (!textTokens) {
 		return text;
 	}

@@ -33,6 +33,21 @@ export class StringEdit extends BaseEdit<StringReplacement, StringEdit> {
 		return new StringEdit([new StringReplacement(range, '')]);
 	}
 
+	public static fromJson(data: ISerializedStringEdit): StringEdit {
+		return new StringEdit(data.map(StringReplacement.fromJson));
+	}
+
+	public static compose(edits: readonly StringEdit[]): StringEdit {
+		if (edits.length === 0) {
+			return StringEdit.empty;
+		}
+		let result = edits[0];
+		for (let i = 1; i < edits.length; i++) {
+			result = result.compose(edits[i]);
+		}
+		return result;
+	}
+
 	protected override _createNew(replacements: readonly StringReplacement[]): StringEdit {
 		return new StringEdit(replacements);
 	}
@@ -42,7 +57,7 @@ export class StringEdit extends BaseEdit<StringReplacement, StringEdit> {
 		let pos = 0;
 		for (const edit of this.replacements) {
 			resultText.push(base.substring(pos, edit.replaceRange.start));
-			resultText.push(edit.newValue);
+			resultText.push(edit.newText);
 			pos = edit.replaceRange.endExclusive;
 		}
 		resultText.push(base.substring(pos));
@@ -57,34 +72,127 @@ export class StringEdit extends BaseEdit<StringReplacement, StringEdit> {
 		let offset = 0;
 		for (const e of this.replacements) {
 			edits.push(new StringReplacement(
-				OffsetRange.ofStartAndLength(e.replaceRange.start + offset, e.newValue.length),
+				OffsetRange.ofStartAndLength(e.replaceRange.start + offset, e.newText.length),
 				baseStr.substring(e.replaceRange.start, e.replaceRange.endExclusive),
 			));
-			offset += e.newValue.length - e.replaceRange.length;
+			offset += e.newText.length - e.replaceRange.length;
 		}
 		return new StringEdit(edits);
 	}
+
+	/**
+	 * Consider `t1 := text o base` and `t2 := text o this`.
+	 * We are interested in `tm := tryMerge(t1, t2, base: text)`.
+	 * For that, we compute `tm' := t1 o base o this.rebase(base)`
+	 * such that `tm' === tm`.
+	 */
+	public tryRebase(base: StringEdit): StringEdit;
+	public tryRebase(base: StringEdit, noOverlap: true): StringEdit | undefined;
+	public tryRebase(base: StringEdit, noOverlap?: true): StringEdit | undefined {
+		const newEdits: StringReplacement[] = [];
+
+		let baseIdx = 0;
+		let ourIdx = 0;
+		let offset = 0;
+
+		while (ourIdx < this.replacements.length || baseIdx < base.replacements.length) {
+			// take the edit that starts first
+			const baseEdit = base.replacements[baseIdx];
+			const ourEdit = this.replacements[ourIdx];
+
+			if (!ourEdit) {
+				// We processed all our edits
+				break;
+			} else if (!baseEdit) {
+				// no more edits from base
+				newEdits.push(new StringReplacement(
+					ourEdit.replaceRange.delta(offset),
+					ourEdit.newText,
+				));
+				ourIdx++;
+			} else if (ourEdit.replaceRange.intersectsOrTouches(baseEdit.replaceRange)) {
+				ourIdx++; // Don't take our edit, as it is conflicting -> skip
+				if (noOverlap) {
+					return undefined;
+				}
+			} else if (ourEdit.replaceRange.start < baseEdit.replaceRange.start) {
+				// Our edit starts first
+				newEdits.push(new StringReplacement(
+					ourEdit.replaceRange.delta(offset),
+					ourEdit.newText,
+				));
+				ourIdx++;
+			} else {
+				baseIdx++;
+				offset += baseEdit.newText.length - baseEdit.replaceRange.length;
+			}
+		}
+
+		return new StringEdit(newEdits);
+	}
+
+	public toJson(): ISerializedStringEdit {
+		return this.replacements.map(e => ({
+			txt: e.newText,
+			pos: e.replaceRange.start,
+			len: e.replaceRange.length,
+		}));
+	}
+}
+
+/**
+ * Warning: Be careful when changing this type, as it is used for serialization!
+*/
+export type ISerializedStringEdit = ISerializedStringReplacement[];
+
+/**
+ * Warning: Be careful when changing this type, as it is used for serialization!
+*/
+export interface ISerializedStringReplacement {
+	txt: string;
+	pos: number;
+	len: number;
 }
 
 export class StringReplacement extends BaseReplacement<StringReplacement> {
+	public static insert(offset: number, text: string): StringReplacement {
+		return new StringReplacement(OffsetRange.emptyAt(offset), text);
+	}
+
+	public static replace(range: OffsetRange, text: string): StringReplacement {
+		return new StringReplacement(range, text);
+	}
+
+	public static fromJson(data: ISerializedStringReplacement): StringReplacement {
+		return new StringReplacement(OffsetRange.ofStartAndLength(data.pos, data.len), data.txt);
+	}
+
 	constructor(
 		range: OffsetRange,
-		public readonly newValue: string,
+		public readonly newText: string,
 	) {
 		super(range);
 	}
 
 	override equals(other: StringReplacement): boolean {
-		return this.replaceRange.equals(other.replaceRange) && this.newValue === other.newValue;
+		return this.replaceRange.equals(other.replaceRange) && this.newText === other.newText;
 	}
 
-	getNewLength(): number { return this.newValue.length; }
+	getNewLength(): number { return this.newText.length; }
 
 	tryJoinTouching(other: StringReplacement): StringReplacement | undefined {
-		return new StringReplacement(this.replaceRange.joinRightTouching(other.replaceRange), this.newValue + other.newValue);
+		return new StringReplacement(this.replaceRange.joinRightTouching(other.replaceRange), this.newText + other.newText);
 	}
 
 	slice(range: OffsetRange, rangeInReplacement: OffsetRange): StringReplacement {
-		return new StringReplacement(range, rangeInReplacement.substring(this.newValue));
+		return new StringReplacement(range, rangeInReplacement.substring(this.newText));
+	}
+
+	override toString(): string {
+		return `${this.replaceRange} -> "${this.newText}"`;
+	}
+
+	replace(str: string): string {
+		return str.substring(0, this.replaceRange.start) + this.newText + str.substring(this.replaceRange.endExclusive);
 	}
 }

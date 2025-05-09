@@ -4,28 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OffsetRange } from '../ranges/offsetRange.js';
-import { BaseEdit, BaseReplacement } from './edit.js';
+import { AnyEdit, BaseEdit, BaseReplacement } from './edit.js';
 
+/**
+ * Like a normal edit, but only captures the length information.
+*/
 export class LengthEdit extends BaseEdit<LengthReplacement, LengthEdit> {
 	public static readonly empty = new LengthEdit([]);
 
-	public static create<T>(replacements: readonly LengthReplacement[]): LengthEdit {
+	public static fromEdit(edit: AnyEdit): LengthEdit {
+		return new LengthEdit(edit.replacements.map(r => new LengthReplacement(r.replaceRange, r.getNewLength())));
+	}
+
+	public static create(replacements: readonly LengthReplacement[]): LengthEdit {
 		return new LengthEdit(replacements);
 	}
 
-	public static single<T>(replacement: LengthReplacement): LengthEdit {
+	public static single(replacement: LengthReplacement): LengthEdit {
 		return new LengthEdit([replacement]);
 	}
 
-	public static replace<T>(range: OffsetRange, newLength: number): LengthEdit {
+	public static replace(range: OffsetRange, newLength: number): LengthEdit {
 		return new LengthEdit([new LengthReplacement(range, newLength)]);
 	}
 
-	public static insert<T>(offset: number, newLength: number): LengthEdit {
+	public static insert(offset: number, newLength: number): LengthEdit {
 		return new LengthEdit([new LengthReplacement(OffsetRange.emptyAt(offset), newLength)]);
 	}
 
-	public static delete<T>(range: OffsetRange): LengthEdit {
+	public static delete(range: OffsetRange): LengthEdit {
 		return new LengthEdit([new LengthReplacement(range, 0)]);
 	}
 

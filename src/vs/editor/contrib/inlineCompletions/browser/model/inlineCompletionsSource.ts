@@ -72,7 +72,7 @@ export class InlineCompletionsSource extends Disposable {
 			},
 			changeTracker: recordChanges({ versionId: this._versionId }),
 			update: (reader, previousValue, changes) => {
-				const edit = OffsetEdit.join(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : OffsetEdit.empty).filter(isDefined));
+				const edit = OffsetEdit.compose(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : OffsetEdit.empty).filter(isDefined));
 
 				if (edit.isEmpty) {
 					return previousValue;
