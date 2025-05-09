@@ -264,7 +264,8 @@ class ChatToolInvocationSubPart extends Disposable {
 					// View a single JSON line by default until they 'see more'
 					rawJsonInput.replace(/\n */g, ' '),
 					this.languageService.createById(langId),
-					createToolInputUri(toolInvocation.toolId)
+					createToolInputUri(toolInvocation.toolId),
+					true
 				));
 
 				const markerOwner = generateUuid();
@@ -437,7 +438,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			}
 		};
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId));
+		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId), undefined, true);
 		const editor = this._register(this.editorPool.get());
 		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
@@ -556,7 +557,9 @@ class ChatToolInvocationSubPart extends Disposable {
 		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
 			const model = this._register(this.modelService.createModel(
 				data,
-				this.languageService.createById('json')
+				this.languageService.createById('json'),
+				undefined,
+				true
 			));
 
 			return {
