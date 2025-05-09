@@ -11,7 +11,7 @@ import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Range } from '../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../common/core/edits/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
@@ -41,7 +41,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 				textModel.getPositionAt(e.replaceRange.start),
 				textModel.getPositionAt(e.replaceRange.endExclusive)
 			);
-			return new SingleTextEdit(innerEditRange, e.newText);
+			return new TextReplacement(innerEditRange, e.newText);
 		});
 
 		const diffEdits = new TextEdit(edits);

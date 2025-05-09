@@ -392,7 +392,7 @@ class QuickDiffWidget extends PeekViewWidget {
 				verticalHasArrows: false,
 				horizontalHasArrows: false
 			},
-			scrollBeyondLastLine: true,
+			scrollBeyondLastLine: false,
 			stickyScroll: { enabled: false }
 		};
 

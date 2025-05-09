@@ -210,8 +210,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			}
 		};
 
+		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const flows = getMsalFlows({
-			extensionHost: typeof navigator === 'undefined'
+			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
 		});

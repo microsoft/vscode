@@ -43,7 +43,8 @@ import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, searchFilesAndFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
+import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(

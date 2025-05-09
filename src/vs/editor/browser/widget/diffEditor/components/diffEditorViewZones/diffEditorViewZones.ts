@@ -40,15 +40,15 @@ import { Range } from '../../../../../common/core/range.js';
  * Make sure to add the view zones!
  */
 export class DiffEditorViewZones extends Disposable {
-	private readonly _originalTopPadding = observableValue(this, 0);
+	private readonly _originalTopPadding;
 	private readonly _originalScrollTop: IObservable<number>;
-	private readonly _originalScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _originalScrollOffsetAnimated = animatedObservable(this._targetWindow, this._originalScrollOffset, this._store);
+	private readonly _originalScrollOffset;
+	private readonly _originalScrollOffsetAnimated;
 
-	private readonly _modifiedTopPadding = observableValue(this, 0);
+	private readonly _modifiedTopPadding;
 	private readonly _modifiedScrollTop: IObservable<number>;
-	private readonly _modifiedScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._targetWindow, this._modifiedScrollOffset, this._store);
+	private readonly _modifiedScrollOffset;
+	private readonly _modifiedScrollOffsetAnimated;
 
 	public readonly viewZones: IObservable<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>;
 
@@ -65,6 +65,12 @@ export class DiffEditorViewZones extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
+		this._originalTopPadding = observableValue(this, 0);
+		this._originalScrollOffset = observableValue<number, boolean>(this, 0);
+		this._originalScrollOffsetAnimated = animatedObservable(this._targetWindow, this._originalScrollOffset, this._store);
+		this._modifiedTopPadding = observableValue(this, 0);
+		this._modifiedScrollOffset = observableValue<number, boolean>(this, 0);
+		this._modifiedScrollOffsetAnimated = animatedObservable(this._targetWindow, this._modifiedScrollOffset, this._store);
 
 		const state = observableValue('invalidateAlignmentsState', 0);
 

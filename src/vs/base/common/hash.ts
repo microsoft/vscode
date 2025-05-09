@@ -18,7 +18,7 @@ export function hash<T>(obj: T extends NotSyncHashable ? never : T): number {
 	return doHash(obj, 0);
 }
 
-export function doHash(obj: any, hashVal: number): number {
+export function doHash(obj: unknown, hashVal: number): number {
 	switch (typeof obj) {
 		case 'object':
 			if (obj === null) {
