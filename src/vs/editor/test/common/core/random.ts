@@ -6,7 +6,7 @@
 import { numberComparator } from '../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../common/core/edits/offsetEdit.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../common/core/position.js';
 import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';

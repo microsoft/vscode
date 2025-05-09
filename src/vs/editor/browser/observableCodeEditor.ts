@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../ba
 import { IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/ranges/lineRange.js';
-import { OffsetRange } from '../common/core/offsetRange.js';
+import { OffsetRange } from '../common/core/ranges/offsetRange.js';
 import { Position } from '../common/core/position.js';
 import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';

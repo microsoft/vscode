@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Random } from './random.js';
 import { StringEdit, StringReplacement } from '../../../common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ArrayEdit, ArrayReplacement } from '../../../common/core/edits/arrayEdit.js';
 
 suite('Edit', () => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OffsetRange } from '../offsetRange.js';
+import { OffsetRange } from '../ranges/offsetRange.js';
 import { BaseEdit, BaseReplacement } from './edit.js';
 
 export class LengthEdit extends BaseEdit<LengthReplacement, LengthEdit> {

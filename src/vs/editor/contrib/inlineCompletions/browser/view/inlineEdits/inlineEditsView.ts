@@ -16,7 +16,7 @@ import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { AbstractText, SingleTextEdit, StringText } from '../../../../../common/core/edits/textEdit.js';
-import { TextLength } from '../../../../../common/core/textLength.js';
+import { TextLength } from '../../../../../common/core/ranges/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';

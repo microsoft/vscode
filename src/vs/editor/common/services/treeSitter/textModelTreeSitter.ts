@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Range } from '../../core/range.js';
 import { LimitedQueue } from '../../../../base/common/async.js';
-import { TextLength } from '../../core/textLength.js';
+import { TextLength } from '../../core/ranges/textLength.js';
 import { TreeSitterLanguages } from './treeSitterLanguages.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { IFileService } from '../../../../platform/files/common/files.js';

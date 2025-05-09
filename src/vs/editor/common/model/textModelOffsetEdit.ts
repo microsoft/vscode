@@ -6,7 +6,7 @@
 import { EditOperation } from '../core/editOperation.js';
 import { Range } from '../core/range.js';
 import { OffsetEdit, SingleOffsetEdit } from '../core/edits/offsetEdit.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { ITextModel, IIdentifiedSingleEditOperation } from '../model.js';
 import { IModelContentChange } from '../textModelEvents.js';
