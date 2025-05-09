@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IBrowserElementsService } from './browserElementsService.js';
 
-class BrowsersElementsService implements IBrowserElementsService {
+class WebBrowserElementsService implements IBrowserElementsService {
 	_serviceBrand: undefined;
 
 	constructor() { }
@@ -19,4 +19,4 @@ class BrowsersElementsService implements IBrowserElementsService {
 	}
 }
 
-registerSingleton(IBrowserElementsService, BrowsersElementsService, InstantiationType.Delayed);
+registerSingleton(IBrowserElementsService, WebBrowserElementsService, InstantiationType.Delayed);
