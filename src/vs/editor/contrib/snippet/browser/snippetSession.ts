@@ -289,7 +289,13 @@ export class OneSnippet {
 	merge(others: OneSnippet[]): void {
 
 		const model = this._editor.getModel();
-		this._nestingLevel *= 10;
+		const nestingLevel = Math.max(8, ...others.map((o, i) => {
+			if (i < this._placeholderGroups[this._placeholderGroupsIdx].length) {
+				return o._snippet.placeholderInfo.last!.index || 8;
+			}
+			return 8;
+		})) + 2;
+		this._nestingLevel *= nestingLevel;
 
 		this._editor.changeDecorations(accessor => {
 
@@ -309,9 +315,9 @@ export class OneSnippet {
 
 				for (const nestedPlaceholder of nested._snippet.placeholderInfo.all) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + ((indexLastPlaceholder + 1) / this._nestingLevel);
+						nestedPlaceholder.index = placeholder.index + ((indexLastPlaceholder + 1) / nestingLevel);
 					} else {
-						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / this._nestingLevel);
+						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / nestingLevel);
 					}
 				}
 				this._snippet.replace(placeholder, nested._snippet.children);
@@ -339,6 +345,15 @@ export class OneSnippet {
 			// Last, re-create the placeholder groups by sorting placeholders by their index.
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
+		// Reorder indexes to only use ints to avoid floating point issues
+		for (const [i, placeholderGroup] of this._placeholderGroups.entries()) {
+			for (const placeholder of placeholderGroup) {
+				if (placeholder.isFinalTabstop) {
+					break;
+				}
+				placeholder.index = i + 1;
+			}
+		}
 	}
 
 	getEnclosingRange(): Range | undefined {
