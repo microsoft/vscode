@@ -7,7 +7,6 @@ import { importAMDNodeModule } from '../../../../../amdX.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, keepObserved } from '../../../../../base/common/observable.js';
 import { Proxied } from '../../../../../base/common/worker/webWorker.js';
-import { countEOL } from '../../../../../editor/common/core/misc/eolCounter.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
@@ -17,9 +16,10 @@ import { IModelContentChange, IModelContentChangedEvent } from '../../../../../e
 import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from '../arrayOperation.js';
+import { MonotonousIndexTransformer } from '../indexTransformer.js';
 import type { StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
+import { linesLengthEditFromModelContentChange } from '../../../../../editor/common/model/textModelOffsetEdit.js';
 
 export class TextMateWorkerTokenizerController extends Disposable {
 	private static _id = 0;
@@ -151,7 +151,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 
 			const curToFutureTransformerTokens = MonotonousIndexTransformer.fromMany(
-				this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
+				this._pendingChanges.map((c) => linesLengthEditFromModelContentChange(c.changes))
 			);
 
 			// Filter tokens in lines that got changed in the future to prevent flickering
@@ -180,7 +180,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		}
 
 		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
-			this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
+			this._pendingChanges.map((c) => linesLengthEditFromModelContentChange(c.changes))
 		);
 
 		if (!this._applyStateStackDiffFn || !this._initialState) {
@@ -225,21 +225,6 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 }
 
-function fullLineArrayEditFromModelContentChange(c: IModelContentChange[]): ArrayEdit {
-	return new ArrayEdit(
-		c.map(
-			(c) =>
-				new SingleArrayEdit(
-					c.range.startLineNumber - 1,
-					// Expand the edit range to include the entire line
-					c.range.endLineNumber - c.range.startLineNumber + 1,
-					countEOL(c.text)[0] + 1
-				)
-		)
-	);
-}
-
 function changesToString(changes: IModelContentChange[]): string {
 	return changes.map(c => Range.lift(c.range).toString() + ' => ' + c.text).join(' & ');
 }
-
