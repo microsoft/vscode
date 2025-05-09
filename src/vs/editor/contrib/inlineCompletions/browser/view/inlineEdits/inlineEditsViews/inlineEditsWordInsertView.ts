@@ -14,7 +14,7 @@ import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
-import { SingleTextEdit } from '../../../../../../common/core/edits/textEdit.js';
+import { TextReplacement } from '../../../../../../common/core/edits/textEdit.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
@@ -35,7 +35,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
-		private readonly _edit: SingleTextEdit,
+		private readonly _edit: TextReplacement,
 		private readonly _tabAction: IObservable<InlineEditTabAction>
 	) {
 		super();

@@ -12,7 +12,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { Position } from '../../../common/core/position.js';
 import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
 
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
@@ -33,12 +33,12 @@ export function substringPos(text: string, pos: Position): string {
 	return text.substring(offset);
 }
 
-export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+export function getEndPositionsAfterApplying(edits: readonly TextReplacement[]): Position[] {
 	const newRanges = getModifiedRangesAfterApplying(edits);
 	return newRanges.map(range => range.getEndPosition());
 }
 
-export function getModifiedRangesAfterApplying(edits: readonly SingleTextEdit[]): Range[] {
+export function getModifiedRangesAfterApplying(edits: readonly TextReplacement[]): Range[] {
 	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
 	const edit = new TextEdit(sortPerm.apply(edits));
 	const sortedNewRanges = edit.getNewRanges();

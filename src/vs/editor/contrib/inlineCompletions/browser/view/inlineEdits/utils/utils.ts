@@ -22,7 +22,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../../common/core/edits/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../../../../common/core/edits/textEdit.js';
 import { RangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';
@@ -165,10 +165,10 @@ function offsetRangeToRange(columnOffsetRange: OffsetRange, startPos: Position):
 
 export function createReindentEdit(text: string, range: LineRange): TextEdit {
 	const newLines = splitLines(text);
-	const edits: SingleTextEdit[] = [];
+	const edits: TextReplacement[] = [];
 	const minIndent = findFirstMin(range.mapToLineArray(l => getIndentationLength(newLines[l - 1])), numberComparator)!;
 	range.forEach(lineNumber => {
-		edits.push(new SingleTextEdit(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
+		edits.push(new TextReplacement(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
 	});
 	return new TextEdit(edits);
 }

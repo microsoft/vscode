@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../core/range.js';
-import { AbstractText } from '../core/edits/textEdit.js';
+import { AbstractText } from '../core/abstractText.js';
 import { TextLength } from '../core/ranges/textLength.js';
 import { ITextModel } from '../model.js';
 
