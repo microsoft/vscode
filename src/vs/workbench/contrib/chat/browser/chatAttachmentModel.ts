@@ -18,6 +18,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { equals } from '../../../../base/common/objects.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 export interface IChatAttachmentChangeEvent {
 	readonly deleted: readonly string[];
@@ -74,19 +75,7 @@ export class ChatAttachmentModel extends Disposable {
 		this._onDidChange.fire({ deleted, added: [], updated: [] });
 	}
 
-	delete(...variableEntryIds: string[]) {
-		const deleted: string[] = [];
 
-		for (const variableEntryId of variableEntryIds) {
-			if (this._attachments.delete(variableEntryId)) {
-				deleted.push(variableEntryId);
-			}
-		}
-
-		if (deleted.length > 0) {
-			this._onDidChange.fire({ deleted, added: [], updated: [] });
-		}
-	}
 
 	async addFile(uri: URI, range?: IRange) {
 		if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(uri.path)) {
@@ -133,35 +122,17 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
-		const added: IChatRequestVariableEntry[] = [];
-
-		for (const attachment of attachments) {
-			if (!this._attachments.has(attachment.id)) {
-				this._attachments.set(attachment.id, attachment);
-				added.push(attachment);
-			}
-		}
-
-		if (added.length > 0) {
-			this._onDidChange.fire({ deleted: [], added, updated: [] });
-		}
+		attachments = attachments.filter(attachment => !this._attachments.has(attachment.id));
+		this.updateContent(Iterable.empty(), attachments);
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
-		const deleted = Array.from(this._attachments.keys());
-		this._attachments.clear();
-
-		const added: IChatRequestVariableEntry[] = [];
-		for (const attachment of attachments) {
-			this._attachments.set(attachment.id, attachment);
-			added.push(attachment);
-		}
-
-		if (deleted.length > 0 || added.length > 0) {
-			this._onDidChange.fire({ deleted, added, updated: [] });
-		}
+		this.updateContent(Array.from(this._attachments.keys()), attachments);
 	}
 
+	delete(...variableEntryIds: string[]) {
+		this.updateContent(variableEntryIds, Iterable.empty());
+	}
 	updateContent(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
 		const deleted: string[] = [];
 		const added: IChatRequestVariableEntry[] = [];
@@ -174,6 +145,14 @@ export class ChatAttachmentModel extends Disposable {
 		}
 
 		for (const item of upsert) {
+
+			if (item.kind === 'promptFile') {
+				// TODO@jrieken @aeschli @legomushroom Let's make instructions normal
+				// attachment types so that this isn't needed
+				this.promptInstructions.add(item.value as URI);
+				continue;
+			}
+
 			const oldItem = this._attachments.get(item.id);
 			if (!oldItem) {
 				this._attachments.set(item.id, item);
