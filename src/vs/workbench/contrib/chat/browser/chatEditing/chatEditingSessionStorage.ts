@@ -8,7 +8,7 @@ import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { OffsetEdit, ISingleOffsetEdit, IOffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
+import { OffsetEdit, IOffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -180,7 +180,7 @@ export class ChatEditingSessionStorage {
 				languageId: entry.languageId,
 				originalHash: addFileContent(entry.original),
 				currentHash: addFileContent(entry.current),
-				originalToCurrentEdit: entry.originalToCurrentEdit.edits.map(edit => ({ pos: edit.replaceRange.start, len: edit.replaceRange.length, txt: edit.newText } satisfies ISingleOffsetEdit)),
+				originalToCurrentEdit: entry.originalToCurrentEdit.toJson(),
 				state: entry.state,
 				snapshotUri: entry.snapshotUri.toString(),
 				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command }

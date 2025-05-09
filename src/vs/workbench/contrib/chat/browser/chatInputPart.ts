@@ -16,7 +16,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -134,23 +134,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
 
-	private _onDidLoadInputState = this._register(new Emitter<any>());
-	readonly onDidLoadInputState = this._onDidLoadInputState.event;
+	private _onDidLoadInputState: Emitter<IChatInputState | undefined>;
+	readonly onDidLoadInputState: Event<IChatInputState | undefined>;
 
-	private _onDidChangeHeight = this._register(new Emitter<void>());
-	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+	private _onDidChangeHeight: Emitter<void>;
+	readonly onDidChangeHeight: Event<void>;
 
-	private _onDidFocus = this._register(new Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
+	private _onDidFocus: Emitter<void>;
+	readonly onDidFocus: Event<void>;
 
-	private _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
+	private _onDidBlur: Emitter<void>;
+	readonly onDidBlur: Event<void>;
 
-	private _onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
-	readonly onDidChangeContext = this._onDidChangeContext.event;
+	private _onDidChangeContext: Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
+	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 
-	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
-	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
+	private _onDidAcceptFollowup: Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
+	readonly onDidAcceptFollowup: Event<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 
 	private readonly _attachmentModel: ChatAttachmentModel;
 	public get attachmentModel(): ChatAttachmentModel {
@@ -215,7 +215,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return (this.implicitContext.isPromptFile && this.implicitContext.enabled);
 	}
 
-	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
+	private _indexOfLastAttachedContextDeletedWithKeyboard: number;
 
 	private _implicitContext: ChatImplicitContext | undefined;
 	public get implicitContext(): ChatImplicitContext | undefined {
@@ -229,38 +229,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _hasFileAttachmentContextKey: IContextKey<boolean>;
 
-	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+	private readonly _onDidChangeVisibility: Emitter<boolean>;
+	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
-	private inputEditorHeight = 0;
+	private inputEditorHeight: number;
 	private container!: HTMLElement;
 
 	private inputSideToolbarContainer?: HTMLElement;
 
 	private followupsContainer!: HTMLElement;
-	private readonly followupsDisposables = this._register(new DisposableStore());
+	private readonly followupsDisposables: DisposableStore;
 
 	private attachmentsContainer!: HTMLElement;
 
 	private attachedContextContainer!: HTMLElement;
-	private readonly attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly attachedContextDisposables: MutableDisposable<DisposableStore>;
 
 	private relatedFilesContainer!: HTMLElement;
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
 
-	private _inputPartHeight: number = 0;
+	private _inputPartHeight: number;
 	get inputPartHeight() {
 		return this._inputPartHeight;
 	}
 
-	private _followupsHeight: number = 0;
+	private _followupsHeight: number;
 	get followupsHeight() {
 		return this._followupsHeight;
 	}
 
-	private _editSessionWidgetHeight: number = 0;
+	private _editSessionWidgetHeight: number;
 	get editSessionWidgetHeight() {
 		return this._editSessionWidgetHeight;
 	}
@@ -297,8 +297,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatMode: IContextKey<ChatMode>;
 
 	private modelWidget: ModelPickerActionItem | undefined;
-	private readonly _waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
-	private _onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
+	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
+	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	get currentLanguageModel() {
@@ -309,10 +309,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
-	private _onDidChangeCurrentChatMode = this._register(new Emitter<void>());
-	readonly onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
+	private _onDidChangeCurrentChatMode: Emitter<void>;
+	readonly onDidChangeCurrentChatMode: Event<void>;
 
-	private _currentMode: ChatMode = ChatMode.Ask;
+	private _currentMode: ChatMode;
 	public get currentMode(): ChatMode {
 		return this._currentMode === ChatMode.Agent && !this.agentService.hasToolsAgent ?
 			ChatMode.Edit :
@@ -323,10 +323,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private cachedExecuteToolbarWidth: number | undefined;
 	private cachedInputToolbarWidth: number | undefined;
 
-	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
+	readonly inputUri: URI;
 
-	private readonly _chatEditsActionsDisposables = this._register(new DisposableStore());
-	private readonly _chatEditsDisposables = this._register(new DisposableStore());
+	private readonly _chatEditsActionsDisposables: DisposableStore;
+	private readonly _chatEditsDisposables: DisposableStore;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 	get selectedElements(): URI[] {
@@ -341,7 +341,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return edits;
 	}
 
-	private _attemptedWorkingSetEntriesCount: number = 0;
+	private _attemptedWorkingSetEntriesCount: number;
 	/**
 	 * The number of working set entries that the user actually wanted to attach.
 	 * This is less than or equal to {@link ChatInputPart.chatEditWorkingSetFiles}.
@@ -385,6 +385,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 	) {
 		super();
+		this._onDidLoadInputState = this._register(new Emitter<any>());
+		this.onDidLoadInputState = this._onDidLoadInputState.event;
+		this._onDidChangeHeight = this._register(new Emitter<void>());
+		this.onDidChangeHeight = this._onDidChangeHeight.event;
+		this._onDidFocus = this._register(new Emitter<void>());
+		this.onDidFocus = this._onDidFocus.event;
+		this._onDidBlur = this._register(new Emitter<void>());
+		this.onDidBlur = this._onDidBlur.event;
+		this._onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
+		this.onDidChangeContext = this._onDidChangeContext.event;
+		this._onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
+		this.onDidAcceptFollowup = this._onDidAcceptFollowup.event;
+		this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
+		this._onDidChangeVisibility = this._register(new Emitter<boolean>());
+		this._contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+		this.inputEditorHeight = 0;
+		this.followupsDisposables = this._register(new DisposableStore());
+		this.attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
+		this._inputPartHeight = 0;
+		this._followupsHeight = 0;
+		this._editSessionWidgetHeight = 0;
+		this._waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
+		this._onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
+		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
+		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
+		this._currentMode = ChatMode.Ask;
+		this.inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
+		this._chatEditsActionsDisposables = this._register(new DisposableStore());
+		this._chatEditsDisposables = this._register(new DisposableStore());
+		this._attemptedWorkingSetEntriesCount = 0;
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, observableFromEvent(this, this.onDidChangeCurrentChatMode, () => this.currentMode)));
