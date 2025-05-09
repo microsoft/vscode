@@ -10,11 +10,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
 import * as path from '../../../../../../base/common/path.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -239,8 +239,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			...DEFAULT_OPTIONS,
 			...options,
 		};
-
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
 
 		const seenReferences = [...this.options.seenReferences];
 
@@ -861,10 +859,9 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 
 	/**
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
 	 */
-	public onUpdate(callback: () => void): IDisposable {
-		return this.parser.onUpdate(callback);
+	public onUpdate(...args: Parameters<Event<void>>): ReturnType<Event<void>> {
+		return this.parser.onUpdate(...args);
 	}
 
 	public get range(): Range {

@@ -228,8 +228,6 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
-
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
 	}
 
 	/**
