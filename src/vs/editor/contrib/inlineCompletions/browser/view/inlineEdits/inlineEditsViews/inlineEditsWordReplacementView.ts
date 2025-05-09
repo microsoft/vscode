@@ -17,7 +17,7 @@ import { LineSource, renderLines, RenderOptions } from '../../../../../../browse
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { SingleOffsetEdit } from '../../../../../../common/core/edits/offsetEdit.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
-import { SingleTextEdit } from '../../../../../../common/core/edits/textEdit.js';
+import { TextReplacement } from '../../../../../../common/core/edits/textEdit.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
@@ -44,7 +44,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
-		private readonly _edit: SingleTextEdit,
+		private readonly _edit: TextReplacement,
 		protected readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
