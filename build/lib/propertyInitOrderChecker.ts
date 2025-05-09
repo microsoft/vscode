@@ -26,7 +26,6 @@ const ignored = new Set([
 	'vs/editor/browser/view/viewLayer.ts',
 	'vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
 	'vs/editor/contrib/inlayHints/browser/inlayHintsController.ts',
-	'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
 	'vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
 	'vs/workbench/api/common/extHostLanguageFeatures.ts',
 ]);
