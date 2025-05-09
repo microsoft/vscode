@@ -61,11 +61,11 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			const origLine = tm.getLineContent(this._edit.range.startLineNumber);
 
 			const edit = SingleOffsetEdit.replace(new OffsetRange(this._edit.range.startColumn - 1, this._edit.range.endColumn - 1), this._edit.text);
-			const lineToTokenize = edit.apply(origLine);
+			const lineToTokenize = edit.replace(origLine);
 			const t = tm.tokenization.tokenizeLinesAt(this._edit.range.startLineNumber, [lineToTokenize])?.[0];
 			let tokens: LineTokens;
 			if (t) {
-				tokens = TokenArray.fromLineTokens(t).slice(edit.getRangeAfterApply()).toLineTokens(this._edit.text, this._languageService.languageIdCodec);
+				tokens = TokenArray.fromLineTokens(t).slice(edit.getRangeAfterReplace()).toLineTokens(this._edit.text, this._languageService.languageIdCodec);
 			} else {
 				tokens = LineTokens.createEmpty(this._edit.text, this._languageService.languageIdCodec);
 			}
