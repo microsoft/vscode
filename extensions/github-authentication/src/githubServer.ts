@@ -118,7 +118,7 @@ export class GitHubServer implements IGitHubServer {
 			target: this._type === AuthProviderType.github
 				? GitHubTarget.DotCom
 				: supportedTarget ? GitHubTarget.HostedEnterprise : GitHubTarget.Enterprise,
-			extensionHost: typeof navigator === 'undefined'
+			extensionHost: typeof WorkerGlobalScope === 'undefined'
 				? this._extensionKind === vscode.ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
 			isSupportedClient: supportedClient
