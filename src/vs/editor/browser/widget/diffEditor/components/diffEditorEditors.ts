@@ -96,6 +96,7 @@ export class DiffEditorEditors extends Disposable {
 	}
 
 	private _createLeftHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
+		console.log('DiffEditorEditors._createLeftHandSideEditor');
 		const leftHandSideOptions = this._adjustOptionsForLeftHandSide(undefined, options);
 		const editor = this._constructInnerEditor(this._instantiationService, this.originalEditorElement, leftHandSideOptions, codeEditorWidgetOptions);
 
@@ -107,6 +108,7 @@ export class DiffEditorEditors extends Disposable {
 	}
 
 	private _createRightHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
+		console.log('DiffEditorEditors._createRightHandSideEditor')
 		const rightHandSideOptions = this._adjustOptionsForRightHandSide(undefined, options);
 		const editor = this._constructInnerEditor(this._instantiationService, this.modifiedEditorElement, rightHandSideOptions, codeEditorWidgetOptions);
 

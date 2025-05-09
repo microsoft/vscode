@@ -79,7 +79,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	) {
 		super();
 
-		console.log('editorId : ', editorId.editorNumber);
+		console.log('ViewModel editorId : ', editorId.editorNumber);
 		console.log('model : ', model);
 		this._editorId = editorId;
 		this._configuration = configuration;
@@ -168,6 +168,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public override dispose(): void {
+		console.log('dispose this._editorId.editorNumber : ', this._editorId.editorNumber);
 		// First remove listeners, as disposing the lines might end up sending
 		// model decoration changed events ... and we no longer care about them ...
 		super.dispose();
@@ -190,10 +191,35 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getCustomLineHeights(): ICustomLineHeightData[] {
-		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId.editorNumber);
+		const diffEditorId = this.codeEditorService.getDiffEditorIdForCodeEditorId(this._editorId.id);
+		if (!diffEditorId) {
+			return this._getCustomLineHeightsFromModel(this, this._editorId.editorNumber);
+		}
+		const diffEditor = this.codeEditorService.getDiffEditor(diffEditorId);
+		if (!diffEditor) {
+			return [];
+		}
+		const originalEditor = diffEditor.getOriginalEditor();
+		const modifiedEditor = diffEditor.getModifiedEditor();
+		if (this._editorId.id === originalEditor.getId()) {
+			const viewModel = modifiedEditor._getViewModel();
+			if (!viewModel) {
+				return [];
+			}
+			return this._getCustomLineHeightsFromModel(viewModel, modifiedEditor.getEditorNumber());
+		}
+		if (this._editorId.id === modifiedEditor.getId()) {
+			return this._getCustomLineHeightsFromModel(this, this._editorId.editorNumber);
+		}
+		return [];
+	}
+
+	private _getCustomLineHeightsFromModel(viewModel: IViewModel, ownerId: number): ICustomLineHeightData[] {
+		const model = viewModel.model;
+		const decorations = model.getCustomLineHeightsDecorations(ownerId);
 		return decorations.map((d) => {
 			const lineNumber = d.range.startLineNumber;
-			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+			const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 			return {
 				decorationId: d.id,
 				startLineNumber: viewRange.startLineNumber,
@@ -440,8 +466,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		console.log('register line height : ', this._editorId.editorNumber);
+		console.log('this.model : ', this.model);
 		this._register(this.model.onDidChangeLineHeight((e) => {
-			console.log('e : ', e);
+			console.log('onDidChangeLineHeight : ', e);
 			const diffEditors = this.codeEditorService.listDiffEditors();
 			console.log('diffEditors : ', diffEditors);
 			console.log('this._editorId.editorNumber : ', this._editorId.editorNumber);

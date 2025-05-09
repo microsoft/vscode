@@ -23,7 +23,9 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 
 	protected abstract get _targetEditor(): CodeEditorWidget;
 
-	getId(): string { return this.getEditorType() + ':v2:' + this._id; }
+	getId(): string { return this.getEditorType() + ':v2:' + this.getEditorNumber(); }
+
+	getEditorNumber(): number { return this._id; }
 
 	abstract getEditorType(): string;
 	abstract updateOptions(newOptions: IEditorOptions): void;

@@ -157,10 +157,15 @@ export default class TypeScriptServiceClientHost extends Disposable {
 				}, onCompletionAccepted);
 			}
 			setTimeout(() => {
+				let j = 0;
 				vscode.window.onDidChangeVisibleTextEditors(e => {
 					e.forEach(async editor => {
-						this._setDecorations(editor);
+						if (j === 0) {
+							this._setDecorations(editor);
+							j++;
+						}
 					});
+					j = 0;
 				});
 				let i = 0;
 				vscode.window.visibleTextEditors.forEach(async editor => {

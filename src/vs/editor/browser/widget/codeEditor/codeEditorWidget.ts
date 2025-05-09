@@ -286,6 +286,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
+		console.log('CodeEditorWidget constructor');
 		codeEditorService.willCreateCodeEditor();
 
 		const options = { ..._options };
@@ -294,6 +295,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 		delete options.overflowWidgetsDomNode;
 		this._id = new CodeEditorId(++EDITOR_ID);
+		console.log('this._id : ', this._id);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 		this._telemetryData = codeEditorWidgetOptions.telemetryData;
@@ -413,11 +415,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getId(): string {
-		return this.getEditorType() + ':' + this._id;
+		return this._id.id;
 	}
 
 	public getEditorType(): string {
-		return editorCommon.EditorType.ICodeEditor;
+		return this._id.editorType;
+	}
+
+	public getEditorNumber(): number {
+		return this._id.editorNumber;
 	}
 
 	public override dispose(): void {
