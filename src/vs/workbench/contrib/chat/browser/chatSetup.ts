@@ -180,6 +180,9 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		const agent = disposables.add(instantiationService.createInstance(SetupAgent, context, controller, location));
 		disposables.add(chatAgentService.registerAgentImplementation(id, agent));
+		if (mode === ChatMode.Agent) {
+			chatAgentService.updateAgent(id, { themeIcon: Codicon.tools });
+		}
 
 		return { agent, disposable: disposables };
 	}
