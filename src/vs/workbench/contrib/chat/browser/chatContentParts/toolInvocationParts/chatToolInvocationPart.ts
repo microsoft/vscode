@@ -4,33 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { assertNever } from '../../../../../../base/common/assert.js';
-import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorunWithStore } from '../../../../../../base/common/observable.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
-import { getAttachableImageExtension } from '../../chatAttachmentResolve.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
-import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
+import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
-import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { ChatTerminalMarkdownProgressPart } from './chatTerminalMarkdownProgressPart.js';
 import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
+import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -102,7 +96,37 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return this.instantiationService.createInstance(ChatResultListSubPart, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.resultDetails, this.listPool);
 		}
 
-		return this.instantiationService.createInstance(ChatToolInvocationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.codeBlockStartIndex);
+		if (isToolResultInputOutputDetails(this.toolInvocation.resultDetails)) {
+			return this.instantiationService.createInstance(
+				ChatInputOutputMarkdownProgressPart,
+				this.toolInvocation,
+				this.context,
+				this.editorPool,
+				this.codeBlockStartIndex,
+				this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage,
+				this.toolInvocation.originMessage,
+				this.toolInvocation.resultDetails.input,
+				this.toolInvocation.resultDetails.output,
+				!!this.toolInvocation.resultDetails.isError
+			);
+		}
+
+		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.toolSpecificData?.kind === 'input' && !this.toolInvocation.isComplete) {
+			return this.instantiationService.createInstance(
+				ChatInputOutputMarkdownProgressPart,
+				this.toolInvocation,
+				this.context,
+				this.editorPool,
+				this.codeBlockStartIndex,
+				this.toolInvocation.invocationMessage,
+				this.toolInvocation.originMessage,
+				typeof this.toolInvocation.toolSpecificData.rawInput === 'string' ? this.toolInvocation.toolSpecificData.rawInput : JSON.stringify(this.toolInvocation.toolSpecificData.rawInput, null, 2),
+				undefined,
+				false
+			);
+		}
+
+		return this.instantiationService.createInstance(ChatToolInvocationSubPart, this.toolInvocation, this.context, this.renderer);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -116,8 +140,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 class ChatToolInvocationSubPart extends Disposable {
 	private static idPool = 0;
-	/** Remembers expanded tool parts on re-render */
-	private static readonly _expandedByDefault = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
 	private readonly _codeblocksPartId = 'tool-' + (ChatToolInvocationSubPart.idPool++);
 
@@ -129,35 +151,24 @@ class ChatToolInvocationSubPart extends Disposable {
 	private _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	private markdownPart: ChatMarkdownContentPart | undefined;
 	private _codeblocks: IChatCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this.markdownPart?.codeblocks ?? this._codeblocks;
+		return this._codeblocks;
 	}
 
 	public get codeblocksPartId(): string {
-		return this.markdownPart?.codeblocksPartId ?? this._codeblocksPartId;
+		return this._codeblocksPartId;
 	}
 
 	constructor(
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
-		private readonly editorPool: EditorPool,
-		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
-		if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
-			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output, !!toolInvocation.resultDetails.isError);
-		} else if (toolInvocation.kind === 'toolInvocation' && toolInvocation.toolSpecificData?.kind === 'input' && !toolInvocation.isComplete) {
-			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2), undefined, false);
-		} else {
-			this.domNode = this.createProgressPart();
-		}
+		this.domNode = this.createProgressPart();
 
 		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
 			toolInvocation.isCompletePromise.then(() => this._onNeedsRerender.fire());
@@ -196,90 +207,6 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;
 		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride);
-	}
-
-	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output: IToolResultInputOutputDetails['output'] | undefined, isError: boolean): HTMLElement {
-		let codeBlockIndex = this.codeBlockStartIndex;
-		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
-			const model = this._register(this.modelService.createModel(
-				data,
-				this.languageService.createById('json'),
-				undefined,
-				true
-			));
-
-			return {
-				kind: 'code',
-				textModel: model,
-				languageId: model.getLanguageId(),
-				options: {
-					hideToolbar: true,
-					reserveWidth: 19,
-					maxHeightInLines: 13,
-					verticalPadding: 5,
-					editorOptions: {
-						wordWrap: 'on'
-					}
-				},
-				codeBlockInfo: {
-					codeBlockIndex: codeBlockIndex++,
-					codemapperUri: undefined,
-					elementId: this.context.element.id,
-					focus: () => { },
-					isStreaming: false,
-					ownerMarkdownPartId: this.codeblocksPartId,
-					uri: model.uri,
-					chatSessionId: this.context.element.sessionId,
-					uriPromise: Promise.resolve(model.uri)
-				}
-			};
-		};
-
-		if (typeof output === 'string') { // back compat with older stored versions
-			output = [{ type: 'text', value: output }];
-		}
-
-		const collapsibleListPart = this._register(this.instantiationService.createInstance(
-			ChatCollapsibleInputOutputContentPart,
-			message,
-			subtitle,
-			this.context,
-			this.editorPool,
-			toCodePart(input),
-			output && {
-				parts: output.map((o): IChatCollapsibleIODataPart | IChatCollapsibleIOCodePart => {
-					if (o.type === 'data') {
-						const decoded = decodeBase64(o.value64).buffer;
-						if (getAttachableImageExtension(o.mimeType)) {
-							return { kind: 'data', value: decoded, mimeType: o.mimeType };
-						} else {
-							return toCodePart(localize('toolResultData', "Data of type {0} ({1} bytes)", o.mimeType, decoded.byteLength));
-						}
-					} else if (o.type === 'text') {
-						return toCodePart(o.value);
-					} else {
-						assertNever(o);
-					}
-				}),
-			},
-			isError,
-			ChatToolInvocationSubPart._expandedByDefault.get(this.toolInvocation) ?? false,
-		));
-		this._codeblocks.push(...collapsibleListPart.codeblocks);
-		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		this._register(toDisposable(() => ChatToolInvocationSubPart._expandedByDefault.set(this.toolInvocation, collapsibleListPart.expanded)));
-
-		const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
-		if (progressObservable) {
-			this._register(autorunWithStore((reader, store) => {
-				const progress = progressObservable?.read(reader);
-				if (progress.message) {
-					collapsibleListPart.title = progress.message;
-				}
-			}));
-		}
-
-		return collapsibleListPart.domNode;
 	}
 }
 
