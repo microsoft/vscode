@@ -29,7 +29,7 @@ import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { BaseChatToolInvocationSubPart } from './chatToolInvocationPart.js';
+import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -57,7 +57,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
-		super();
+		super(toolInvocation);
 
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');

@@ -25,6 +25,7 @@ import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js'
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
+import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -93,7 +94,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (Array.isArray(this.toolInvocation.resultDetails) && this.toolInvocation.resultDetails?.length) {
-			return this.instantiationService.createInstance(ChatResultListSubPart, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.resultDetails, this.listPool);
+			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.resultDetails, this.listPool);
 		}
 
 		if (isToolResultInputOutputDetails(this.toolInvocation.resultDetails)) {
@@ -169,10 +170,6 @@ class ChatToolInvocationSubPart extends Disposable {
 		super();
 
 		this.domNode = this.createProgressPart();
-
-		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
-			toolInvocation.isCompletePromise.then(() => this._onNeedsRerender.fire());
-		}
 	}
 
 	private createProgressPart(): HTMLElement {
@@ -208,19 +205,4 @@ class ChatToolInvocationSubPart extends Disposable {
 				Codicon.check : undefined;
 		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride);
 	}
-}
-
-export abstract class BaseChatToolInvocationSubPart extends Disposable {
-	protected static idPool = 0;
-	public abstract readonly domNode: HTMLElement;
-
-	protected _onNeedsRerender = this._register(new Emitter<void>());
-	public readonly onNeedsRerender = this._onNeedsRerender.event;
-
-	protected _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
-	public abstract codeblocks: IChatCodeBlockInfo[];
-
-	public readonly codeblocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);
 }

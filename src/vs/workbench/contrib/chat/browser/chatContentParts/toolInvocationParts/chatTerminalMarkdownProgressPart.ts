@@ -15,7 +15,7 @@ import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
-import { BaseChatToolInvocationSubPart } from './chatToolInvocationPart.js';
+import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -36,7 +36,7 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super();
+		super(toolInvocation);
 
 		const content = new MarkdownString(`\`\`\`${terminalData.language}\n${terminalData.command}\n\`\`\``);
 		const chatMarkdownContent: IChatMarkdownContent = {

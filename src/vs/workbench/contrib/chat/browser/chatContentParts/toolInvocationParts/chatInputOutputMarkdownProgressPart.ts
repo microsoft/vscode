@@ -19,7 +19,7 @@ import { getAttachableImageExtension } from '../../chatAttachmentResolve.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
-import { BaseChatToolInvocationSubPart } from './chatToolInvocationPart.js';
+import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationSubPart {
 	/** Remembers expanded tool parts on re-render */
@@ -42,11 +42,11 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		input: string,
 		output: IToolResultInputOutputDetails['output'] | undefined,
 		isError: boolean,
-		instantiationService: IInstantiationService,
-		modelService: IModelService,
-		languageService: ILanguageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@ILanguageService languageService: ILanguageService,
 	) {
-		super();
+		super(toolInvocation);
 
 		let codeBlockIndex = codeBlockStartIndex;
 		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
