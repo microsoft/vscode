@@ -41,12 +41,14 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { CodeEditorId } from '../../browser/widget/codeEditor/codeEditorWidget.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
 export class ViewModel extends Disposable implements IViewModel {
 
-	private readonly _editorId: number;
+	private readonly _editorId: CodeEditorId;
 	private readonly _configuration: IEditorConfiguration;
 	public readonly model: ITextModel;
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
@@ -63,12 +65,13 @@ export class ViewModel extends Disposable implements IViewModel {
 	public readonly glyphLanes: IGlyphMarginLanesModel;
 
 	constructor(
-		editorId: number,
+		editorId: CodeEditorId,
 		configuration: IEditorConfiguration,
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
+		private readonly codeEditorService: ICodeEditorService,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
@@ -76,6 +79,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	) {
 		super();
 
+		console.log('editorId : ', editorId.editorNumber);
+		console.log('model : ', model);
 		this._editorId = editorId;
 		this._configuration = configuration;
 		this.model = model;
@@ -100,7 +105,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wordBreak = options.get(EditorOption.wordBreak);
 
 			this._lines = new ViewModelLinesFromProjectedModel(
-				this._editorId,
+				this._editorId.editorNumber,
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
@@ -137,7 +142,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitOutgoingEvent(e);
 		}));
 
-		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
+		this._decorations = new ViewModelDecorations(this._editorId.editorNumber, this.model, this._configuration, this._lines, this.coordinatesConverter);
 
 		this._registerModelEvents();
 
@@ -185,7 +190,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getCustomLineHeights(): ICustomLineHeightData[] {
-		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
+		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId.editorNumber);
 		return decorations.map((d) => {
 			const lineNumber = d.range.startLineNumber;
 			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
@@ -317,7 +322,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								const line = change.detail[lineIdx];
 								let injectedText = change.injectedTexts[lineIdx];
 								if (injectedText) {
-									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId.editorNumber));
 								}
 								lineBreaksComputer.addRequest(line, injectedText, null);
 							}
@@ -326,7 +331,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						case textModelEvents.RawContentChangedType.LineChanged: {
 							let injectedText: textModelEvents.LineInjectedText[] | null = null;
 							if (change.injectedText) {
-								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId.editorNumber));
 							}
 							lineBreaksComputer.addRequest(change.detail, injectedText, null);
 							break;
@@ -434,8 +439,26 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
+		console.log('register line height : ', this._editorId.editorNumber);
 		this._register(this.model.onDidChangeLineHeight((e) => {
-			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+			console.log('e : ', e);
+			const diffEditors = this.codeEditorService.listDiffEditors();
+			console.log('diffEditors : ', diffEditors);
+			console.log('this._editorId.editorNumber : ', this._editorId.editorNumber);
+			const filteredChanges = e.changes.filter((change) => {
+				console.log('change.ownerId : ', change.ownerId);
+				if (change.ownerId === this._editorId.editorNumber || change.ownerId === 0) {
+					return true;
+				}
+				const diffEditorId = this.codeEditorService.getDiffEditorIdForCodeEditorId(this._editorId.id);
+				if (!diffEditorId) {
+					return false;
+				}
+				const changeEditorId = new CodeEditorId(change.ownerId);
+				const diffEditor = this.codeEditorService.getDiffEditor(diffEditorId);
+				console.log('changeEditorId.id : ', changeEditorId.id);
+				return changeEditorId.id === diffEditor?.getModifiedEditor().getId() || changeEditorId.id === diffEditor?.getOriginalEditor().getId();
+			});
 
 			this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 				for (const change of filteredChanges) {
@@ -813,7 +836,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
-		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
+		const decorations = this.model.getOverviewRulerDecorations(this._editorId.editorNumber, filterValidationDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
 		for (const decoration of decorations) {
 			const decorationOptions = <ModelDecorationOptions>decoration.options;

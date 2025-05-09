@@ -162,8 +162,12 @@ export default class TypeScriptServiceClientHost extends Disposable {
 						this._setDecorations(editor);
 					});
 				});
+				let i = 0;
 				vscode.window.visibleTextEditors.forEach(async editor => {
-					this._setDecorations(editor);
+					if (i === 0) {
+						this._setDecorations(editor);
+						i++;
+					}
 				});
 				vscode.workspace.onDidChangeTextDocument(_ => {
 					const activeTextEditor = vscode.window.activeTextEditor;
