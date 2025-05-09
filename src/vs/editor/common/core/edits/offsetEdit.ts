@@ -11,7 +11,7 @@ import { OffsetRange } from '../ranges/offsetRange.js';
  * Use `TextEdit` to describe edits for a 1-based line/column text.
 */
 export class OffsetEdit {
-	public static join(edits: readonly OffsetEdit[]): OffsetEdit {
+	public static compose(edits: readonly OffsetEdit[]): OffsetEdit {
 		if (edits.length === 0) {
 			return OffsetEdit.empty;
 		}
@@ -46,6 +46,14 @@ export class OffsetEdit {
 			}
 			lastEndEx = edit.replaceRange.endExclusive;
 		}
+	}
+
+	toJson(): IOffsetEdit {
+		return this.edits.map(e => ({
+			txt: e.newText,
+			pos: e.replaceRange.start,
+			len: e.replaceRange.length,
+		}));
 	}
 
 	normalize(): OffsetEdit {
@@ -110,7 +118,7 @@ export class OffsetEdit {
 		return new OffsetEdit(edits);
 	}
 
-	getNewTextRanges(): OffsetRange[] {
+	getNewRanges(): OffsetRange[] {
 		const ranges: OffsetRange[] = [];
 		let offset = 0;
 		for (const e of this.edits) {
@@ -263,11 +271,11 @@ export class SingleOffsetEdit {
 		return this.newText.length === 0 && this.replaceRange.length === 0;
 	}
 
-	apply(str: string): string {
+	replace(str: string): string {
 		return str.substring(0, this.replaceRange.start) + this.newText + str.substring(this.replaceRange.endExclusive);
 	}
 
-	getRangeAfterApply(): OffsetRange {
+	getRangeAfterReplace(): OffsetRange {
 		return new OffsetRange(this.replaceRange.start, this.replaceRange.start + this.newText.length);
 	}
 
