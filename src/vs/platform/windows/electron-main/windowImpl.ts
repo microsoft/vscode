@@ -296,7 +296,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			case FocusMode.Notify:
 				if (isMacintosh) {
-					electron.app.dock.bounce('informational');
+					electron.app.dock?.bounce('informational');
 				} else if (isWindows) {
 					// On Windows, this just flashes the taskbar icon, which is desired
 					// https://github.com/electron/electron/issues/2867
