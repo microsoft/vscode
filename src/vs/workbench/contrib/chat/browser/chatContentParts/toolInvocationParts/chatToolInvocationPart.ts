@@ -3,46 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../base/browser/dom.js';
-import { assertNever } from '../../../../../base/common/assert.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { decodeBase64 } from '../../../../../base/common/buffer.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorunWithStore } from '../../../../../base/common/observable.js';
-import { count } from '../../../../../base/common/strings.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isEmptyObject } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { Location } from '../../../../../editor/common/languages.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
-import { CancelChatActionId } from '../actions/chatExecuteActions.js';
-import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../chat.js';
-import { getAttachableImageExtension } from '../chatAttachmentResolve.js';
-import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
-import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { ChatMarkdownContentPart, EditorPool } from './chatMarkdownContentPart.js';
-import { ChatCustomProgressPart, ChatProgressContentPart } from './chatProgressContentPart.js';
-import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from './chatReferencesContentPart.js';
-import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { assertNever } from '../../../../../../base/common/assert.js';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorunWithStore } from '../../../../../../base/common/observable.js';
+import { count } from '../../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { isEmptyObject } from '../../../../../../base/common/types.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { Location } from '../../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { localize } from '../../../../../../nls.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
+import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { IChatRendererContent } from '../../../common/chatViewModel.js';
+import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
+import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
+import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
+import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
+import { getAttachableImageExtension } from '../../chatAttachmentResolve.js';
+import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
+import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
+import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
+import { ChatCustomProgressPart, ChatProgressContentPart } from '../chatProgressContentPart.js';
+import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
+import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
+import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -335,7 +336,7 @@ class ChatToolInvocationSubPart extends Disposable {
 	}
 }
 
-abstract class BaseChatToolInvocationSubPart extends Disposable {
+export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	protected static idPool = 0;
 	public abstract readonly domNode: HTMLElement;
 
@@ -347,123 +348,7 @@ abstract class BaseChatToolInvocationSubPart extends Disposable {
 
 	public abstract codeblocks: IChatCodeBlockInfo[];
 
-	public readonly codeblocksPartId = 'tool-' + (TerminalConfirmationWidgetSubPart.idPool++);
-}
-
-class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
-	public readonly domNode: HTMLElement;
-	public readonly codeblocks: IChatCodeBlockInfo[] = [];
-
-	constructor(
-		toolInvocation: IChatToolInvocation,
-		terminalData: IChatTerminalToolInvocationData,
-		private readonly context: IChatContentPartRenderContext,
-		private readonly renderer: MarkdownRenderer,
-		private readonly editorPool: EditorPool,
-		private readonly currentWidthDelegate: () => number,
-		private readonly codeBlockStartIndex: number,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-	) {
-		super();
-
-		if (!toolInvocation.confirmationMessages) {
-			throw new Error('Confirmation messages are missing');
-		}
-
-		const title = toolInvocation.confirmationMessages.title;
-		const message = toolInvocation.confirmationMessages.message;
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
-		const cancelLabel = localize('cancel', "Cancel");
-		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
-		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
-
-		const buttons: IChatConfirmationButton[] = [
-			{
-				label: continueLabel,
-				data: true,
-				tooltip: continueTooltip
-			},
-			{
-				label: cancelLabel,
-				data: false,
-				isSecondary: true,
-				tooltip: cancelTooltip
-			}];
-		const renderedMessage = this._register(this.renderer.render(
-			typeof message === 'string' ? new MarkdownString(message) : message,
-			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
-		));
-		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
-			hideToolbar: true,
-			reserveWidth: 19,
-			verticalPadding: 5,
-			editorOptions: {
-				wordWrap: 'on',
-				readOnly: false
-			}
-		};
-		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId), undefined, true);
-		const editor = this._register(this.editorPool.get());
-		const renderPromise = editor.object.render({
-			codeBlockIndex: this.codeBlockStartIndex,
-			codeBlockPartIndex: 0,
-			element: this.context.element,
-			languageId: langId,
-			renderOptions: codeBlockRenderOptions,
-			textModel: Promise.resolve(model),
-			chatSessionId: this.context.element.sessionId
-		}, this.currentWidthDelegate());
-		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
-		this.codeblocks.push({
-			codeBlockIndex: this.codeBlockStartIndex,
-			codemapperUri: undefined,
-			elementId: this.context.element.id,
-			focus: () => editor.object.focus(),
-			isStreaming: false,
-			ownerMarkdownPartId: this.codeblocksPartId,
-			uri: model.uri,
-			uriPromise: Promise.resolve(model.uri),
-			chatSessionId: this.context.element.sessionId
-		});
-		this._register(editor.object.onDidChangeContentHeight(() => {
-			editor.object.layout(this.currentWidthDelegate());
-			this._onDidChangeHeight.fire();
-		}));
-		this._register(model.onDidChangeContent(e => {
-			terminalData.command = model.getValue();
-		}));
-		const element = dom.$('');
-		dom.append(element, editor.object.element);
-		dom.append(element, renderedMessage.element);
-		const confirmWidget = this._register(this.instantiationService.createInstance(
-			ChatCustomConfirmationWidget,
-			title,
-			undefined,
-			element,
-			buttons,
-			this.context.container,
-		));
-
-		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
-		this._register(confirmWidget.onDidClick(button => {
-			toolInvocation.confirmed.complete(button.data);
-			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
-		}));
-		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		toolInvocation.confirmed.p.then(() => {
-			ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(false);
-			this._onNeedsRerender.fire();
-		});
-		this.domNode = confirmWidget.domNode;
-	}
+	public readonly codeblocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);
 }
 
 class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
