@@ -35,11 +35,6 @@ import { OpenFailed, RecursiveReference } from '../../../../common/promptFileRef
 /**
  * TODO: @legomushroom
  */
-class Test extends Disposable { }
-
-/**
- * TODO: @legomushroom
- */
 const asTreeNode = <T extends object>(
 	item: T,
 	children: readonly TTree<T>[],
