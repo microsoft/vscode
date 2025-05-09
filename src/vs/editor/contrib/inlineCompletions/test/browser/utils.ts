@@ -21,9 +21,9 @@ import { LanguageFeaturesService } from '../../../../common/services/languageFea
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
 import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextEdit } from '../../../../common/core/textEdit.js';
+import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];

@@ -8,9 +8,9 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, ITransaction, observableFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { OffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -61,7 +61,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
 
 	protected readonly _lastModifyingResponseInProgressObs = this._lastModifyingResponseObs.map((value, r) => {
-		return value && observableFromEvent(this, value.onDidChange, () => !value.isComplete && !value.isPendingConfirmation).read(r);
+		return value?.isInProgress.read(r) ?? false;
 	});
 
 	protected readonly _rewriteRatioObs = observableValue<number>(this, 0);

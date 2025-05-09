@@ -37,9 +37,13 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 		this._register(
 			this.parser.onSettled(this.onPromptSettled.bind(this)),
 		);
-		this.parser
-			.onDispose(this.dispose.bind(this))
-			.start();
+
+		this._register(
+			this.parser
+				.onDispose(this.dispose.bind(this)),
+		);
+
+		this.parser.start();
 
 		// initialize an update
 		setTimeout(this.onPromptSettled.bind(this));
