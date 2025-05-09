@@ -842,11 +842,37 @@ export class ChatEntitlementRequests extends Disposable {
 //#region Context
 
 export interface IChatEntitlementContextState {
+
+	/**
+	 * Users last known or resolved entitlement.
+	 */
 	entitlement: ChatEntitlement;
-	hidden?: boolean;
-	installed?: boolean;
-	disabled?: boolean;
+
+	/**
+	 * User is or was a registered Chat user.
+	 */
 	registered?: boolean;
+
+	/**
+	 * User has Chat installed.
+	 */
+	installed?: boolean;
+
+	/**
+	 * User signals no intent in using Chat.
+	 *
+	 * Note: in contrast to `disabled`, this should not only disable
+	 * Chat but also hide all of its UI.
+	 */
+	hidden?: boolean;
+
+	/**
+	 * User signals intent to disable Chat.
+	 *
+	 * Note: in contrast to `hidden`, this should not hide
+	 * Chat but but disable its functionality.
+	 */
+	disabled?: boolean;
 }
 
 export class ChatEntitlementContext extends Disposable {
@@ -855,11 +881,13 @@ export class ChatEntitlementContext extends Disposable {
 
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
+
 	private readonly limitedContextKey: IContextKey<boolean>;
 	private readonly proContextKey: IContextKey<boolean>;
 	private readonly proPlusContextKey: IContextKey<boolean>;
 	private readonly businessContextKey: IContextKey<boolean>;
 	private readonly enterpriseContextKey: IContextKey<boolean>;
+
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
 	private readonly disabledContext: IContextKey<boolean>;
@@ -913,11 +941,10 @@ export class ChatEntitlementContext extends Disposable {
 			}
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-			this.update({
-				// TODO@bpasero considering enablement state here as well for historic reasons, should revisit when Copilot can be enabled/disabled more generally
-				installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local),
-				disabled: !!defaultChatExtension?.local && !this.extensionEnablementService.isEnabled(defaultChatExtension.local)
-			});
+			const installed = !!defaultChatExtension?.local;
+			const disabled = installed && !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
+
+			this.update({ installed, disabled });
 		}));
 	}
 
@@ -931,8 +958,8 @@ export class ChatEntitlementContext extends Disposable {
 			this._state.installed = context.installed;
 			this._state.disabled = context.disabled;
 
-			if (context.installed) {
-				context.hidden = false; // allows to fallback if the extension is uninstalled
+			if (context.installed && !context.disabled) {
+				context.hidden = false; // treat this as a sign to make Chat visible again in case it is hidden
 			}
 		}
 
