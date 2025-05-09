@@ -6,7 +6,7 @@
 import { findLastMonotonous } from '../../../../base/common/arraysFind.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
-import { TextLength } from '../textLength.js';
+import { TextLength } from './textLength.js';
 
 /**
  * Represents a list of mappings of ranges from one document to another.

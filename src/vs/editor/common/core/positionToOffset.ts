@@ -6,11 +6,11 @@
 import { findLastIdxMonotonous } from '../../../base/common/arraysFind.js';
 import { ITextModel } from '../model.js';
 import { OffsetEdit, SingleOffsetEdit } from './edits/offsetEdit.js';
-import { OffsetRange } from './offsetRange.js';
+import { OffsetRange } from './ranges/offsetRange.js';
 import { Position } from './position.js';
 import { Range } from './range.js';
 import { SingleTextEdit, TextEdit } from './edits/textEdit.js';
-import { TextLength } from './textLength.js';
+import { TextLength } from './ranges/textLength.js';
 
 export abstract class PositionOffsetTransformerBase {
 	abstract getOffset(position: Position): number;

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Range } from '../../../common/core/range.js';
 import { getLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { LinesSliceCharSequence } from '../../../common/diff/defaultLinesDiffComputer/linesSliceCharSequence.js';
 import { MyersDiffAlgorithm } from '../../../common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.js';
 import { DynamicProgrammingDiffing } from '../../../common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.js';

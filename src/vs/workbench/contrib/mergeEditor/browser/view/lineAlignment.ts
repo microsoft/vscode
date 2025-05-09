@@ -8,7 +8,7 @@ import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.
 import { isDefined } from '../../../../../base/common/types.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { TextLength } from '../../../../../editor/common/core/textLength.js';
+import { TextLength } from '../../../../../editor/common/core/ranges/textLength.js';
 import { RangeMapping } from '../model/mapping.js';
 import { ModifiedBaseRange } from '../model/modifiedBaseRange.js';
 import { addLength, lengthBetweenPositions, lengthOfRange } from '../model/rangeUtils.js';

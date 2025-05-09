@@ -9,7 +9,7 @@ import { setTimeout0 } from '../../../base/common/platform.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { countEOL } from '../core/misc/eolCounter.js';
 import { LineRange } from '../core/ranges/lineRange.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { Position } from '../core/position.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from '../languages.js';

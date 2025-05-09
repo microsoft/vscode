@@ -13,7 +13,7 @@ import { OffsetEdit } from './offsetEdit.js';
 import { Position } from '../position.js';
 import { PositionOffsetTransformer } from '../positionToOffset.js';
 import { Range } from '../range.js';
-import { TextLength } from '../textLength.js';
+import { TextLength } from '../ranges/textLength.js';
 
 export class TextEdit {
 	public static fromOffsetEdit(edit: OffsetEdit, initialState: AbstractText): TextEdit {

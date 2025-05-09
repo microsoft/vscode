@@ -13,7 +13,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { SingleOffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';

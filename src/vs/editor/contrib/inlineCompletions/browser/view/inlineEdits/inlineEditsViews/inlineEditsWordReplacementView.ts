@@ -16,7 +16,7 @@ import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { SingleOffsetEdit } from '../../../../../../common/core/edits/offsetEdit.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { SingleTextEdit } from '../../../../../../common/core/edits/textEdit.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';

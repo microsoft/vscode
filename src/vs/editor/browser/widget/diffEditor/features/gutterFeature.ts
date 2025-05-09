@@ -18,7 +18,7 @@ import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/ho
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { LineRange, LineRangeSet } from '../../../../common/core/ranges/lineRange.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../common/diff/rangeMapping.js';
