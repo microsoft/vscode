@@ -10,7 +10,7 @@ import { LineRange } from '../core/ranges/lineRange.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { TextReplacement, TextEdit } from '../core/edits/textEdit.js';
-import { AbstractText } from '../core/abstractText.js';
+import { AbstractText } from '../core/text/abstractText.js';
 import { IChange } from './legacyLinesDiffComputer.js';
 
 /**

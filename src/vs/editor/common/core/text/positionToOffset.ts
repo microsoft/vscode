@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLastIdxMonotonous } from '../../../base/common/arraysFind.js';
-import { ITextModel } from '../model.js';
-import { OffsetEdit, SingleOffsetEdit } from './edits/offsetEdit.js';
-import { OffsetRange } from './ranges/offsetRange.js';
-import { Position } from './position.js';
-import { Range } from './range.js';
-import { TextReplacement, TextEdit } from './edits/textEdit.js';
-import { TextLength } from './ranges/textLength.js';
+import { findLastIdxMonotonous } from '../../../../base/common/arraysFind.js';
+import { ITextModel } from '../../model.js';
+import { OffsetEdit, SingleOffsetEdit } from '../edits/offsetEdit.js';
+import { OffsetRange } from '../ranges/offsetRange.js';
+import { Position } from '../position.js';
+import { Range } from '../range.js';
+import { TextReplacement, TextEdit } from '../edits/textEdit.js';
+import { TextLength } from '../text/textLength.js';
 
 export abstract class PositionOffsetTransformerBase {
 	abstract getOffset(position: Position): number;

@@ -11,8 +11,8 @@ import { ISingleEditOperation } from '../editOperation.js';
 import { OffsetEdit } from './offsetEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
-import { TextLength } from '../ranges/textLength.js';
-import { AbstractText, StringText } from '../abstractText.js';
+import { TextLength } from '../text/textLength.js';
+import { AbstractText, StringText } from '../text/abstractText.js';
 
 export class TextEdit {
 	public static fromOffsetEdit(edit: OffsetEdit, initialState: AbstractText): TextEdit {

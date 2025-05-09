@@ -11,7 +11,7 @@ import { OffsetEdit, SingleOffsetEdit } from './offsetEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
 import { TextReplacement, TextEdit } from './textEdit.js';
-import { AbstractText } from '../abstractText.js';
+import { AbstractText } from '../text/abstractText.js';
 
 export class LineEdit {
 	public static readonly empty = new LineEdit([]);

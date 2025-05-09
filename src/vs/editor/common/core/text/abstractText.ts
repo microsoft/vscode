@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../../../base/common/assert.js';
-import { splitLines } from '../../../base/common/strings.js';
-import { Position } from './position.js';
+import { assert } from '../../../../base/common/assert.js';
+import { splitLines } from '../../../../base/common/strings.js';
+import { Position } from '../position.js';
 import { PositionOffsetTransformer } from './positionToOffset.js';
-import { Range } from './range.js';
-import { LineRange } from './ranges/lineRange.js';
-import { TextLength } from './ranges/textLength.js';
+import { Range } from '../range.js';
+import { LineRange } from '../ranges/lineRange.js';
+import { TextLength } from '../text/textLength.js';
 
 export abstract class AbstractText {
 	abstract getValueOfRange(range: Range): string;
