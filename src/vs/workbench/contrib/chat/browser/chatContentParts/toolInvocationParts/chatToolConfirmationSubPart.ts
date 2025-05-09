@@ -35,10 +35,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
-	private _codeblocks: IChatCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		// TODO this is weird, the separate cases should maybe be their own "subparts"
-		return this.markdownPart?.codeblocks ?? this._codeblocks;
+		return this.markdownPart?.codeblocks ?? [];
 	}
 
 	constructor(

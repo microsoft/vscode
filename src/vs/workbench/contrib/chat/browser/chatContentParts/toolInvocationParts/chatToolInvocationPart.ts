@@ -11,7 +11,6 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorunWithStore } from '../../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Location } from '../../../../../../editor/common/languages.js';
@@ -19,18 +18,18 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { getAttachableImageExtension } from '../../chatAttachmentResolve.js';
-import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { ChatCustomProgressPart, ChatProgressContentPart } from '../chatProgressContentPart.js';
+import { ChatProgressContentPart } from '../chatProgressContentPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
+import { ChatTerminalMarkdownProgressPart } from './chatTerminalMarkdownProgressPart.js';
 import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 
@@ -95,7 +94,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 			}
 		} else {
-			return this.instantiationService.createInstance(ChatToolInvocationSubPart, this.toolInvocation, this.context, this.renderer, this.listPool, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
+			if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
+				return this.instantiationService.createInstance(ChatTerminalMarkdownProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
+			} else {
+				return this.instantiationService.createInstance(ChatToolInvocationSubPart, this.toolInvocation, this.context, this.renderer, this.listPool, this.editorPool, this.codeBlockStartIndex);
+			}
 		}
 	}
 
@@ -126,7 +129,6 @@ class ChatToolInvocationSubPart extends Disposable {
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	private _codeblocks: IChatCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		// TODO this is weird, the separate cases should maybe be their own "subparts"
 		return this.markdownPart?.codeblocks ?? this._codeblocks;
 	}
 
@@ -140,8 +142,6 @@ class ChatToolInvocationSubPart extends Disposable {
 		private readonly renderer: MarkdownRenderer,
 		private readonly listPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
-		private readonly currentWidthDelegate: () => number,
-		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -149,9 +149,7 @@ class ChatToolInvocationSubPart extends Disposable {
 	) {
 		super();
 
-		if (toolInvocation.toolSpecificData?.kind === 'terminal') {
-			this.domNode = this.createTerminalMarkdownProgressPart(toolInvocation, toolInvocation.toolSpecificData);
-		} else if (Array.isArray(toolInvocation.resultDetails) && toolInvocation.resultDetails?.length) {
+		if (Array.isArray(toolInvocation.resultDetails) && toolInvocation.resultDetails?.length) {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
 		} else if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
 			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output, !!toolInvocation.resultDetails.isError);
@@ -198,31 +196,6 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;
 		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride);
-	}
-
-	private createTerminalMarkdownProgressPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, terminalData: IChatTerminalToolInvocationData): HTMLElement {
-		const content = new MarkdownString(`\`\`\`${terminalData.language}\n${terminalData.command}\n\`\`\``);
-		const chatMarkdownContent: IChatMarkdownContent = {
-			kind: 'markdownContent',
-			content: content as IMarkdownString,
-		};
-
-		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
-			hideToolbar: true,
-			reserveWidth: 19,
-			verticalPadding: 5,
-			editorOptions: {
-				wordWrap: 'on'
-			}
-		};
-		this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
-		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		const icon = !this.toolInvocation.isConfirmed ?
-			Codicon.error :
-			this.toolInvocation.isComplete ?
-				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
-		const progressPart = this.instantiationService.createInstance(ChatCustomProgressPart, this.markdownPart.domNode, icon);
-		return progressPart.domNode;
 	}
 
 	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, subtitle: string | IMarkdownString | undefined, input: string, output: IToolResultInputOutputDetails['output'] | undefined, isError: boolean): HTMLElement {
