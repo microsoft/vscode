@@ -11,9 +11,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorunWithStore } from '../../../../../../base/common/observable.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { Location } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
@@ -27,11 +25,12 @@ import { getAttachableImageExtension } from '../../chatAttachmentResolve.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
-import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
+import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ChatCollapsibleInputOutputContentPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { ChatTerminalMarkdownProgressPart } from './chatTerminalMarkdownProgressPart.js';
 import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
+import { ChatResultListSubPart } from './chatResultListSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -93,13 +92,17 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			} else {
 				return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 			}
-		} else {
-			if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
-				return this.instantiationService.createInstance(ChatTerminalMarkdownProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
-			} else {
-				return this.instantiationService.createInstance(ChatToolInvocationSubPart, this.toolInvocation, this.context, this.renderer, this.listPool, this.editorPool, this.codeBlockStartIndex);
-			}
 		}
+
+		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
+			return this.instantiationService.createInstance(ChatTerminalMarkdownProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
+		}
+
+		if (Array.isArray(this.toolInvocation.resultDetails) && this.toolInvocation.resultDetails?.length) {
+			return this.instantiationService.createInstance(ChatResultListSubPart, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.resultDetails, this.listPool);
+		}
+
+		return this.instantiationService.createInstance(ChatToolInvocationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.codeBlockStartIndex);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -140,7 +143,6 @@ class ChatToolInvocationSubPart extends Disposable {
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
-		private readonly listPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -149,9 +151,7 @@ class ChatToolInvocationSubPart extends Disposable {
 	) {
 		super();
 
-		if (Array.isArray(toolInvocation.resultDetails) && toolInvocation.resultDetails?.length) {
-			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
-		} else if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
+		if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
 			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output, !!toolInvocation.resultDetails.isError);
 		} else if (toolInvocation.kind === 'toolInvocation' && toolInvocation.toolSpecificData?.kind === 'input' && !toolInvocation.isComplete) {
 			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2), undefined, false);
@@ -279,24 +279,6 @@ class ChatToolInvocationSubPart extends Disposable {
 			}));
 		}
 
-		return collapsibleListPart.domNode;
-	}
-
-	private createResultList(
-		message: string | IMarkdownString,
-		toolDetails: Array<URI | Location>,
-	): HTMLElement {
-		const collapsibleListPart = this._register(this.instantiationService.createInstance(
-			ChatCollapsibleListContentPart,
-			toolDetails.map<IChatCollapsibleListItem>(detail => ({
-				kind: 'reference',
-				reference: detail,
-			})),
-			message,
-			this.context,
-			this.listPool,
-		));
-		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		return collapsibleListPart.domNode;
 	}
 }
