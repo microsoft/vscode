@@ -13,7 +13,7 @@ import { LegacyLinesDiffComputer } from '../../../common/diff/legacyLinesDiffCom
 import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { Range } from '../../../common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AbstractText, ArrayText, SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
+import { AbstractText, ArrayText, SingleTextEdit, TextEdit } from '../../../common/core/edits/textEdit.js';
 import { LinesDiff } from '../../../common/diff/linesDiffComputer.js';
 
 suite('diffing fixtures', () => {

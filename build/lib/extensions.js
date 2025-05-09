@@ -61,7 +61,6 @@ const crypto_1 = __importDefault(require("crypto"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const stats_1 = require("./stats");
 const util2 = __importStar(require("./util"));
-const vzip = require('gulp-vinyl-zip');
 const gulp_filter_1 = __importDefault(require("gulp-filter"));
 const gulp_rename_1 = __importDefault(require("gulp-rename"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
@@ -72,6 +71,7 @@ const dependencies_1 = require("./dependencies");
 const builtInExtensions_1 = require("./builtInExtensions");
 const getVersion_1 = require("./getVersion");
 const fetch_1 = require("./fetch");
+const vzip = require('gulp-vinyl-zip');
 const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 const commit = (0, getVersion_1.getVersion)(root);
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
@@ -104,7 +104,10 @@ function updateExtensionPackageJSON(input, update) {
         .pipe(packageJsonFilter.restore);
 }
 function fromLocal(extensionPath, forWeb, disableMangle) {
-    const webpackConfigFileName = forWeb ? 'extension-browser.webpack.config.js' : 'extension.webpack.config.js';
+    const esm = JSON.parse(fs_1.default.readFileSync(path_1.default.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
+    const webpackConfigFileName = forWeb
+        ? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
+        : `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
     const isWebPacked = fs_1.default.existsSync(path_1.default.join(extensionPath, webpackConfigFileName));
     let input = isWebPacked
         ? fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle)

@@ -11,7 +11,7 @@ import { ILabelService } from '../../../../../../../../platform/label/common/lab
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
 import { PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
-import { IPromptsService, TPromptsStorage, TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
+import { IPromptPath, IPromptsService, TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
@@ -20,7 +20,7 @@ import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../..
 interface IAskForFolderOptions {
 
 	readonly type: TPromptsType;
-	readonly storage: TPromptsStorage;
+	readonly placeHolder: string;
 
 	readonly labelService: ILabelService;
 	readonly openerService: IOpenerService;
@@ -29,17 +29,21 @@ interface IAskForFolderOptions {
 	readonly workspaceService: IWorkspaceContextService;
 }
 
+interface IFolderQuickPickItem extends IQuickPickItem {
+	readonly folder: IPromptPath;
+}
+
 /**
  * Asks the user for a specific prompt folder, if multiple folders provided.
  * Returns immediately if only one folder available.
  */
 export const askForPromptSourceFolder = async (
 	options: IAskForFolderOptions,
-): Promise<URI | undefined> => {
-	const { storage, type, promptsService, quickInputService, labelService, openerService, workspaceService } = options;
+): Promise<IPromptPath | undefined> => {
+	const { type, placeHolder, promptsService, quickInputService, labelService, openerService, workspaceService } = options;
 
 	// get prompts source folders based on the prompt type
-	const folders = promptsService.getSourceFolders(type, storage);
+	const folders = promptsService.getSourceFolders(type);
 
 	// if no source folders found, show 'learn more' dialog
 	// note! this is a temporary solution and must be replaced with a dialog to select
@@ -51,20 +55,31 @@ export const askForPromptSourceFolder = async (
 	// if there is only one folder, no need to ask
 	// note! when we add more actions to the dialog, this will have to go
 	if (folders.length === 1) {
-		return folders[0].uri;
+		return folders[0];
 	}
 
-	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
-		placeHolder: localize(
-			'commands.prompts.create.ask-folder.placeholder',
-			"Select a prompt source folder",
-		),
+	const pickOptions: IPickOptions<IFolderQuickPickItem> = {
+		placeHolder,
 		canPickMany: false,
 		matchOnDescription: true,
 	};
 
 	// create list of source folder locations
-	const foldersList = folders.map(({ uri }): WithUriValue<IQuickPickItem> => {
+	const foldersList = folders.map<IFolderQuickPickItem>(folder => {
+		const uri = folder.uri;
+		if (folder.storage === 'user') {
+			return {
+				type: 'item',
+				label: localize(
+					'commands.prompts.create.source-folder.user',
+					"User Data Folder",
+				),
+				description: labelService.getUriLabel(uri),
+				tooltip: uri.fsPath,
+				folder
+			};
+		}
+
 		const { folders } = workspaceService.getWorkspace();
 		const isMultirootWorkspace = (folders.length > 1);
 
@@ -78,7 +93,7 @@ export const askForPromptSourceFolder = async (
 				label: basename(uri),
 				description: labelService.getUriLabel(uri, { relative: true }),
 				tooltip: uri.fsPath,
-				value: uri,
+				folder,
 			};
 		}
 
@@ -93,7 +108,7 @@ export const askForPromptSourceFolder = async (
 			// use absolute path as the description
 			description: labelService.getUriLabel(uri, { relative: false }),
 			tooltip: uri.fsPath,
-			value: uri,
+			folder,
 		};
 	});
 
@@ -102,7 +117,7 @@ export const askForPromptSourceFolder = async (
 		return;
 	}
 
-	return answer.value;
+	return answer.folder;
 };
 
 /**

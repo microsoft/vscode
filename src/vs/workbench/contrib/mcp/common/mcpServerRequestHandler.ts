@@ -57,6 +57,10 @@ export class McpServerRequestHandler extends Disposable {
 		return this._serverInit.capabilities;
 	}
 
+	public get serverInfo(): MCP.Implementation {
+		return this._serverInit.serverInfo;
+	}
+
 	// Event emitters for server notifications
 	private readonly _onDidReceiveCancelledNotification = this._register(new Emitter<MCP.CancelledNotification>());
 	readonly onDidReceiveCancelledNotification = this._onDidReceiveCancelledNotification.event;
@@ -466,7 +470,7 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Call a specific tool
 	 */
-	callTool(params: MCP.CallToolRequest['params'], token?: CancellationToken): Promise<MCP.CallToolResult> {
+	callTool(params: MCP.CallToolRequest['params'] & MCP.Request['params'], token?: CancellationToken): Promise<MCP.CallToolResult> {
 		return this.sendRequest<MCP.CallToolRequest, MCP.CallToolResult>({ method: 'tools/call', params }, token);
 	}
 

@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OffsetRange } from '../../../../editor/common/core/offsetRange.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IChatAgentData, IChatAgentService } from './chatAgents.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
+import { IPromptsService } from './promptSyntax/service/types.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
+const slashReg = /\/([\w_\-\.:]+)(?=(\s|$|\b))/i; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -28,12 +29,15 @@ export class ChatRequestParser {
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
 	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
-		const toolsByName = new Map<string, IToolData>((this.variableService.getSelectedTools(sessionId)).filter(t => t.toolReferenceName).map(t => [t.toolReferenceName!, t]));
+		const toolsByName = new Map<string, IToolData>((this.variableService.getSelectedTools(sessionId))
+			.filter(t => t.canBeReferencedInPrompt && t.toolReferenceName)
+			.map(t => [t.toolReferenceName!, t]));
 
 		let lineNumber = 1;
 		let column = 1;
@@ -152,14 +156,14 @@ export class ChatRequestParser {
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
 		const tool = toolsByName.get(name);
-		if (tool && tool.canBeReferencedInPrompt) {
+		if (tool) {
 			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id, tool.displayName, tool.icon);
 		}
 
 		return;
 	}
 
-	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation, context?: IChatParserContext): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
+	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation, context?: IChatParserContext): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | ChatRequestSlashPromptPart | undefined {
 		const nextSlashMatch = remainingMessage.match(slashReg);
 		if (!nextSlashMatch) {
 			return;
@@ -208,8 +212,13 @@ export class ChatRequestParser {
 					return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 				}
 			}
-		}
 
+			// if there's no agent, check if it's a prompt command
+			const promptCommand = this.promptsService.asPromptSlashCommand(command);
+			if (promptCommand) {
+				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, promptCommand);
+			}
+		}
 		return;
 	}
 

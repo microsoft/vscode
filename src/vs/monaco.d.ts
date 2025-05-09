@@ -125,7 +125,7 @@ declare namespace monaco {
 	 * ```
 	 */
 	export class Uri implements UriComponents {
-		static isUri(thing: any): thing is Uri;
+		static isUri(thing: unknown): thing is Uri;
 		/**
 		 * scheme is the 'http' part of 'http://www.example.com/some/path?query#fragment'.
 		 * The part before the first colon.
@@ -518,6 +518,7 @@ declare namespace monaco {
 		readonly altKey: boolean;
 		readonly metaKey: boolean;
 		readonly timestamp: number;
+		readonly defaultPrevented: boolean;
 		preventDefault(): void;
 		stopPropagation(): void;
 	}

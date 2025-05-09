@@ -284,10 +284,12 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 
 	private convertArgument(arg: TreeViewItemHandleArg | TreeViewPaneHandleArg): any {
 		const treeView = this.treeViews.get(arg.$treeViewId);
-		if (treeView && '$treeItemHandle' in arg) {
-			return treeView.getExtensionElement(arg.$treeItemHandle);
+		const asItemHandle = arg as Partial<TreeViewItemHandleArg>;
+		if (treeView && asItemHandle.$treeItemHandle) {
+			return treeView.getExtensionElement(asItemHandle.$treeItemHandle);
 		}
-		if (treeView && '$focusedTreeItem' in arg && arg.$focusedTreeItem) {
+		const asPaneHandle = arg as Partial<TreeViewPaneHandleArg>;
+		if (treeView && asPaneHandle.$focusedTreeItem) {
 			return treeView.focusedElement;
 		}
 		return null;

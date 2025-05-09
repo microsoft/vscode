@@ -368,7 +368,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -712,7 +712,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -1199,7 +1199,7 @@ export namespace ProxyChannel {
 
 					// Dynamic Event
 					if (propertyIsDynamicEvent(propKey)) {
-						return function (arg: any) {
+						return function (arg: unknown) {
 							return channel.listen(propKey, arg);
 						};
 					}
@@ -1252,7 +1252,7 @@ const colorTables = [
 	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
 ];
 
-function prettyWithoutArrays(data: any): any {
+function prettyWithoutArrays(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data;
 	}
@@ -1265,7 +1265,7 @@ function prettyWithoutArrays(data: any): any {
 	return data;
 }
 
-function pretty(data: any): any {
+function pretty(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data.map(prettyWithoutArrays);
 	}

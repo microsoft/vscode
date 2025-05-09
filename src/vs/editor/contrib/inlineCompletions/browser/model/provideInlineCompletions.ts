@@ -12,11 +12,11 @@ import { SetMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
-import { SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { SingleOffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core/edits/textEdit.js';
 import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind, PartialAcceptInfo } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
@@ -25,18 +25,20 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 
+export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
+
 export async function provideInlineCompletions(
 	providers: InlineCompletionsProvider[],
 	positionOrRange: Position | Range,
 	model: ITextModel,
-	context: InlineCompletionContext,
+	context: InlineCompletionContextWithoutUuid,
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
 	const requestUuid = generateUuid();
 	const tokenSource = new CancellationTokenSource(baseToken);
 	const token = tokenSource.token;
-	const contextWithUuid = { ...context, requestUuid: requestUuid };
+	const contextWithUuid: InlineCompletionContext = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 

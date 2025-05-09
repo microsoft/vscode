@@ -9,13 +9,13 @@ import { observableSignal, IObservable } from '../../../../../base/common/observ
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
-import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
-import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformerBase } from '../../../../common/core/positionToOffset.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
-import { TextLength } from '../../../../common/core/textLength.js';
+import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { TextLength } from '../../../../common/core/ranges/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
 import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
@@ -161,7 +161,7 @@ class InlineSuggestDisplayLocation implements IDisplayLocation {
 		public readonly label: string,
 	) { }
 
-	public withEdit(edit: OffsetEdit, positionOffsetTransformer: PositionOffsetTransformer): InlineSuggestDisplayLocation | undefined {
+	public withEdit(edit: OffsetEdit, positionOffsetTransformer: PositionOffsetTransformerBase): InlineSuggestDisplayLocation | undefined {
 		const newOffsetRange = applyEditsToRanges([this._offsetRange], edit)[0];
 		if (!newOffsetRange || newOffsetRange.length !== this._offsetRange.length) {
 			return undefined;

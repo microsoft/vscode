@@ -327,12 +327,11 @@ export interface IDefaultChatAgent {
 	readonly chatExtensionId: string;
 
 	readonly documentationUrl: string;
-	readonly termsStatementUrl: string;
-	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
 	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
+	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 
 	readonly providerId: string;

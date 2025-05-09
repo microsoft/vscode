@@ -6,13 +6,18 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+
+/**
+ * Prefix for all prompt instruction variable IDs.
+ */
+const PROMPT_VARIABLE_ID_PREFIX = 'vscode.prompt.instructions';
 
 /**
  * Prompt IDs start with a well-defined prefix that is used by
@@ -27,7 +32,7 @@ export const createPromptVariableId = (
 	isRoot: boolean,
 ): string => {
 	// the default prefix that is used for all prompt files
-	let prefix = 'vscode.prompt.instructions';
+	let prefix = PROMPT_VARIABLE_ID_PREFIX;
 	// if the reference is the root object, add the `.root` suffix
 	if (isRoot) {
 		prefix += '.root';
@@ -53,7 +58,7 @@ export const createPromptVariableId = (
 export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
-): IChatRequestVariableEntry => {
+): IPromptVariableEntry => {
 	const { uri, isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
@@ -70,7 +75,7 @@ export const toChatVariable = (
 
 	const modelDescription = (isPromptFile)
 		? 'Prompt instructions file'
-		: undefined;
+		: 'File attachment';
 
 	return {
 		id,
@@ -78,8 +83,19 @@ export const toChatVariable = (
 		value: uri,
 		kind: 'file',
 		modelDescription,
+		isRoot,
 	};
 };
+
+/**
+ * Checks of a provided chat variable is a `prompt file` variable.
+ */
+export function isPromptFileChatVariable(
+	variable: IChatRequestVariableEntry,
+): variable is IPromptVariableEntry {
+	return isChatRequestFileEntry(variable)
+		&& variable.id.startsWith(PROMPT_VARIABLE_ID_PREFIX);
+}
 
 /**
  * Model for a collection of prompt instruction attachments.
@@ -138,6 +154,26 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	}
 
 	/**
+	 * Get list of tools associated with all attached prompt files.
+	 */
+	public get toolsMetadata(): readonly string[] | null {
+		const result = [];
+
+		for (const child of this.attachments.values()) {
+			const { toolsMetadata } = child;
+
+			if (toolsMetadata === null) {
+				continue;
+			}
+
+			result.push(...toolsMetadata);
+		}
+
+		// return unique list of all tools
+		return [...new Set(result)];
+	}
+
+	/**
 	 * Get the list of all prompt instruction attachment variables, including all
 	 * nested child references of each attachment explicitly attached by user.
 	 */
@@ -175,7 +211,7 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	 * Promise that resolves when parsing of all attached prompt instruction
 	 * files completes, including parsing of all its possible child references.
 	 */
-	public async allSettled(): Promise<void> {
+	public async allSettled(): Promise<this> {
 		const attachments = [...this.attachments.values()];
 
 		await Promise.allSettled(
@@ -183,6 +219,8 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				return attachment.allSettled;
 			}),
 		);
+
+		return this;
 	}
 
 	constructor(
@@ -197,32 +235,37 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	/**
 	 * Add a prompt instruction attachment instance with the provided `URI`.
 	 * @param uri URI of the prompt instruction attachment to add.
-	 *
-	 * @returns `true` if the attachment already exists, `false` otherwise.
 	 */
-	public add(uri: URI): boolean {
-		// if already exists, nothing to do
-		if (this.attachments.has(uri.path)) {
-			return true;
+	public add(uris: URI | readonly URI[]) {
+		const uriList = Array.isArray(uris) ? uris : [uris];
+
+		// if no URIs provided, nothing to do
+		if (uriList.length === 0) {
+			return;
 		}
 
-		const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
-			.onUpdate(this._onUpdate.fire)
-			.onDispose(() => {
-				// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
-				//       alternative results in an infinite loop of calling this callback
-				this.attachments.deleteAndLeak(uri.path);
-				this._onUpdate.fire();
-				this._onRemove.fire(instruction);
-			});
+		for (const uri of uriList) {
+			// if already exists, nothing to do
+			if (this.attachments.has(uri.path)) {
+				continue;
+			}
 
-		this.attachments.set(uri.path, instruction);
-		instruction.resolve();
+			const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri);
+			instruction.addDisposables(
+				instruction.onDispose(() => {
+					// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
+					//       alternative results in an infinite loop of calling this callback
+					this.attachments.deleteAndLeak(uri.path);
+					this._onUpdate.fire();
+					this._onRemove.fire(instruction);
+				}),
+				instruction.onUpdate(this._onUpdate.fire),
+			);
 
-		this._onAdd.fire(instruction);
-		this._onUpdate.fire();
-
-		return false;
+			this.attachments.set(uri.path, instruction);
+			this._onAdd.fire(instruction);
+			this._onUpdate.fire();
+		}
 	}
 
 	/**
@@ -245,5 +288,17 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	 */
 	public get featureEnabled(): boolean {
 		return PromptsConfig.enabled(this.configService);
+	}
+
+	/**
+	 * Clear all prompt instruction attachments.
+	 */
+	public clear(): this {
+		for (const attachment of this.attachments.values()) {
+			this.remove(attachment.uri);
+		}
+
+		this._onUpdate.fire();
+		return this;
 	}
 }

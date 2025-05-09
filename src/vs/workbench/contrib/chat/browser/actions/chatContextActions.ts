@@ -38,7 +38,6 @@ import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../..
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
@@ -61,12 +60,12 @@ import { IToolData } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
-import { createFolderQuickPick } from '../contrib/chatDynamicVariables.js';
+import { createFilesAndFolderQuickPick } from '../contrib/chatDynamicVariables.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
 import { INSTRUCTIONS_COMMAND_ID } from '../promptSyntax/contributions/attachInstructionsCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { runAttachInstructionsAction } from './promptActions/index.js';
+import { runAttachInstructionsAction, registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -79,7 +78,7 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IWorkspaceSymbolsQuickPickItem
 	| IToolsQuickPickItem | IToolQuickPickItem
 	| IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem
 	| IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IInstructionsQuickPickItem
@@ -97,11 +96,13 @@ function isIAttachmentQuickPickItem(obj: unknown): obj is IAttachmentQuickPickIt
 const attachmentsOrdinals: (IAttachmentQuickPickItem['kind'])[] = [
 	// bottom-most
 	'tools',
+	'command',
 	'screenshot',
 	'image',
-	'quickaccess',
+	'workspaceSymbol',
 	'diagnostic',
 	'instructions',
+	'related-files',
 	'folder',
 	'open-editors',
 	// top-most
@@ -181,10 +182,9 @@ interface IToolQuickPickItem extends IQuickPickItem {
 	tool: IToolData;
 }
 
-interface IQuickAccessQuickPickItem extends IQuickPickItem {
-	kind: 'quickaccess';
+interface IWorkspaceSymbolsQuickPickItem extends IQuickPickItem {
+	kind: 'workspaceSymbol';
 	id: string;
-	prefix: string;
 }
 
 interface IOpenEditorsQuickPickItem extends IQuickPickItem {
@@ -487,7 +487,6 @@ export class AttachContextAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
 		const quickInputService = accessor.get(IQuickInputService);
-
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 
@@ -557,13 +556,13 @@ export class AttachContextAction extends Action2 {
 							}
 							return acc;
 						}, []));
-					const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
-					for (const file of selectedFiles ?? []) {
+					const selectedFile = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set') });
+					if (selectedFile) {
 						toAttach.push({
 							kind: 'file',
-							id: this._getFileContextId({ resource: file.value }),
-							value: file.value,
-							name: file.label,
+							id: this._getFileContextId({ resource: selectedFile.value }),
+							value: selectedFile.value,
+							name: selectedFile.label,
 							omittedState: OmittedState.NotOmitted
 						});
 					}
@@ -629,6 +628,7 @@ export class AttachContextAction extends Action2 {
 							fullName: pick.label,
 							value: resizedImage,
 							kind: 'image',
+							references: [{ reference: pick.resource, kind: 'reference' }]
 						});
 					}
 				} else {
@@ -673,19 +673,18 @@ export class AttachContextAction extends Action2 {
 		const clipboardService = accessor.get(IClipboardService);
 		const editorService = accessor.get(IEditorService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		const extensionService = accessor.get(IExtensionService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
 		const chatEditingService = accessor.get(IChatEditingService);
 
-		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
+		const context: { widget?: IChatWidget; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
-		if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
+		if (widget.input.selectedLanguageModel?.metadata.capabilities?.vision) {
 			const imageData = await clipboardService.readImage();
 			if (isImage(imageData)) {
 				quickPickItems.push({
@@ -738,16 +737,15 @@ export class AttachContextAction extends Action2 {
 		});
 
 		quickPickItems.push({
-			kind: 'quickaccess',
+			kind: 'workspaceSymbol',
 			label: localize('chatContext.symbol', 'Symbols...'),
 			iconClass: ThemeIcon.asClassName(Codicon.symbolField),
-			prefix: SymbolsQuickAccessProvider.PREFIX,
 			id: 'symbol'
 		});
 
 		quickPickItems.push({
 			kind: 'folder',
-			label: localize('chatContext.folder', 'Folders...'),
+			label: localize('chatContext.folder', 'Files & Folders...'),
 			iconClass: ThemeIcon.asClassName(Codicon.folder),
 			id: 'folder',
 		});
@@ -775,31 +773,29 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		if (context?.showFilesOnly) {
-			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || widget.attachmentModel.fileAttachments.length > 0)) {
-				quickPickItems.unshift({
-					kind: 'related-files',
-					id: 'related-files',
-					label: localize('chatContext.relatedFiles', 'Related Files'),
-					iconClass: ThemeIcon.asClassName(Codicon.sparkle),
-				});
-			}
-			if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
-				quickPickItems.unshift({
-					kind: 'open-editors',
-					id: 'open-editors',
-					label: localize('chatContext.editors', 'Open Editors'),
-					iconClass: ThemeIcon.asClassName(Codicon.files),
-				});
-			}
-			if (SearchContext.HasSearchResults.getValue(contextKeyService)) {
-				quickPickItems.unshift({
-					kind: 'search-results',
-					id: 'search-results',
-					label: localize('chatContext.searchResults', 'Search Results'),
-					iconClass: ThemeIcon.asClassName(Codicon.search),
-				});
-			}
+		if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || widget.attachmentModel.fileAttachments.length > 0)) {
+			quickPickItems.push({
+				kind: 'related-files',
+				id: 'related-files',
+				label: localize('chatContext.relatedFiles', 'Related Files'),
+				iconClass: ThemeIcon.asClassName(Codicon.sparkle),
+			});
+		}
+		if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
+			quickPickItems.push({
+				kind: 'open-editors',
+				id: 'open-editors',
+				label: localize('chatContext.editors', 'Open Editors'),
+				iconClass: ThemeIcon.asClassName(Codicon.files),
+			});
+		}
+		if (SearchContext.HasSearchResults.getValue(contextKeyService)) {
+			quickPickItems.push({
+				kind: 'search-results',
+				id: 'search-results',
+				label: localize('chatContext.searchResults', 'Search Results'),
+				iconClass: ThemeIcon.asClassName(Codicon.search),
+			});
 		}
 
 		// if the `reusable prompts` feature is enabled, add
@@ -858,8 +854,8 @@ export class AttachContextAction extends Action2 {
 
 				if (isIAttachmentQuickPickItem(item)) {
 
-					if (item.kind === 'quickaccess') {
-						instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, item.prefix, placeholder);
+					if (item.kind === 'workspaceSymbol') {
+						instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, SymbolsQuickAccessProvider.PREFIX, placeholder);
 						return;
 					} else if (item.kind === 'instructions') {
 						runAttachInstructionsAction(commandService, { widget });
@@ -937,7 +933,7 @@ export class AttachContextAction extends Action2 {
 	}
 
 	private async _showFolders(instantiationService: IInstantiationService): Promise<IFolderResultQuickPickItem | undefined> {
-		const folder = await instantiationService.invokeFunction(accessor => createFolderQuickPick(accessor));
+		const folder = await instantiationService.invokeFunction(createFilesAndFolderQuickPick);
 		if (!folder) {
 			return undefined;
 		}
@@ -950,7 +946,6 @@ export class AttachContextAction extends Action2 {
 		};
 	}
 }
-
 
 async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAccept?: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
@@ -987,7 +982,7 @@ async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAc
 	const store = new DisposableStore();
 	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
 	quickPick.canAcceptInBackground = !onBackgroundAccept;
-	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
+	quickPick.placeholder = localize('pickAProblem', 'Select a problem to attach');
 	quickPick.items = items;
 
 	return new Promise<IDiagnosticVariableEntryFilterData | undefined>(resolve => {
@@ -1004,23 +999,18 @@ async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAc
 	}).finally(() => store.dispose());
 }
 
-
 async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): Promise<IToolQuickPickItem | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
 
 
 	function classify(tool: IToolData) {
-		if (tool.source.type === 'extension') {
-			if (!tool.source.isExternalTool) {
-				return { ordinal: 1, groupLabel: tool.source.label };
-			} else {
-				return { ordinal: 3, groupLabel: localize('chatContext.tools.extension', 'Extensions') };
-			}
+		if (tool.source.type === 'internal' || tool.source.type === 'extension' && !tool.source.isExternalTool) {
+			return { ordinal: 1, groupLabel: localize('chatContext.tools.internal', 'Built-In') };
 		} else if (tool.source.type === 'mcp') {
 			return { ordinal: 2, groupLabel: localize('chatContext.tools.mcp', 'MCP Servers') };
 		} else {
-			return { ordinal: 4, groupLabel: '' };
+			return { ordinal: 3, groupLabel: localize('chatContext.tools.extension', 'Extensions') };
 		}
 	}
 
@@ -1049,20 +1039,10 @@ async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): P
 
 	items.sort((a, b) => {
 		let res = a.ordinal - b.ordinal;
-		if (res !== 0) {
-			return res;
+		if (res === 0) {
+			res = a.label.localeCompare(b.label);
 		}
-
-		let strA = a.tool.source.type !== 'internal' ? a.tool.source.label : '';
-		let strB = b.tool.source.type !== 'internal' ? b.tool.source.label : '';
-		res = strA.localeCompare(strB);
-		if (res !== 0) {
-			return res;
-		}
-
-		strA = a.label;
-		strB = b.label;
-		return strA.localeCompare(strB);
+		return res;
 	});
 
 	let lastGroupLabel: string | undefined;
@@ -1078,9 +1058,14 @@ async function showToolsPick(accessor: ServicesAccessor, widget: IChatWidget): P
 	}
 
 	const result = await quickPickService.pick(picks, {
-		placeHolder: localize('chatContext.tools.placeholder', 'Select a Tool'),
+		placeHolder: localize('chatContext.tools.placeholder', 'Select a tool'),
 		canPickMany: false
 	});
 
 	return result;
 }
+
+/**
+ * Register all actions related to reusable prompt files.
+ */
+registerPromptActions();

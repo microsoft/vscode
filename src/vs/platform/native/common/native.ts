@@ -148,7 +148,7 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(): Promise<VSBuffer | undefined>;
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
@@ -190,6 +190,7 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	stopTracing(): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;

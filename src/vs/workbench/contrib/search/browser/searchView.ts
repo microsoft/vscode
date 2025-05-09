@@ -84,6 +84,7 @@ import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocati
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
 
@@ -166,6 +167,7 @@ export class SearchView extends ViewPane {
 	private _refreshResultsScheduler: RunOnceScheduler;
 
 	private _onSearchResultChangedDisposable: IDisposable | undefined;
+	private _onAIResultChangedDisposable: IDisposable | undefined;
 
 	private searchDataSource: SearchViewDataSource | undefined;
 
@@ -200,7 +202,8 @@ export class SearchView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -528,6 +531,17 @@ export class SearchView extends ViewPane {
 		}
 
 		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged(async (event) => await this.onSearchResultsChanged(event)));
+
+		// Subscribe to AI search result changes and update the tree when new AI results are reported
+		this._onAIResultChangedDisposable?.dispose();
+		this._onAIResultChangedDisposable = this._register(
+			this.viewModel.searchResult.aiTextSearchResult.onChange(() => {
+				// Only refresh the AI node, not the whole tree
+				if (this.tree && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+					this.tree.updateChildren(this.searchResult.aiTextSearchResult);
+				}
+			})
+		);
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
@@ -1794,7 +1808,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	public async addAIResults() {
+	public async addAIResults(element: ITextSearchHeading, createIterator: (e: ITextSearchHeading) => Iterable<RenderableMatch>) {
 		const excludePatternText = this._getExcludePattern();
 		const includePatternText = this._getIncludePattern();
 		let progressComplete: () => void;
@@ -1817,8 +1831,8 @@ export class SearchView extends ViewPane {
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		this.viewModel.searchResult.setAIQueryUsingTextQuery();
-		const result = this.viewModel.addAIResults();
-		return result.then((complete) => {
+		const result = this.viewModel.aiSearch();
+		result.then((complete) => {
 			clearTimeout(slowTimer);
 			if (complete.aiKeywords && complete.aiKeywords.length > 0) {
 				this.updateKeywordSuggestion(complete.aiKeywords);
@@ -1829,6 +1843,12 @@ export class SearchView extends ViewPane {
 		}, (e) => {
 			clearTimeout(slowTimer);
 			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText, undefined, false);
+		});
+		return new Promise<Iterable<RenderableMatch>>(resolve => {
+			const disposable = element.onChange(() => {
+				disposable.dispose(); // Clean up listener after first result
+				resolve(createIterator(element));
+			});
 		});
 	}
 
@@ -1952,49 +1972,50 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private handleKeywordClick(keyword: string) {
+	private handleKeywordClick(keyword: string, index: number, maxKeywords: number) {
 		this.searchWidget.searchInput?.setValue(keyword);
 		this.triggerQueryChange({ preserveFocus: false, triggeredOnType: false, shouldKeepAIResults: false });
+		type KeywordClickClassification = {
+			owner: 'osortega';
+			comment: 'Fired when the user clicks on a keyword suggestion';
+			index: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The index of the keyword clicked' };
+			maxKeywords: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total number of suggested keywords' };
+		};
+		type KeywordClickEvent = {
+			index: number;
+			maxKeywords: number;
+		};
+		this.telemetryService.publicLog2<KeywordClickEvent, KeywordClickClassification>('searchKeywordClick', {
+			index,
+			maxKeywords
+		});
 	}
 
 	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
-		let currentKeyword = keywords.shift()?.keyword || '';
 		const messageEl = this.clearMessage();
+		messageEl.classList.add('ai-keywords');
 
-		// Refresh icon
-		if (keywords.length !== 0) {
-			const icon = dom.append(messageEl, dom.$(''));
-			icon.ariaLabel = nls.localize('search.refresh', "Get new suggestion");
-			icon.role = 'button';
-			icon.tabIndex = 0;
-			icon.classList.add('codicon', 'codicon-refresh', 'keyword-refresh');
-			icon.onclick = () => {
-				// change the keyword to the next one
-				const nextKeyword = keywords.shift();
-				if (nextKeyword) {
-					currentKeyword = nextKeyword.keyword;
-					textButton.element.textContent = currentKeyword;
-				}
-				if (keywords.length === 0) {
-					icon.remove();
-				}
-			};
+		if (keywords.length === 0) {
+			// Do not display anything if there are no keywords
+			return;
 		}
 
-		// Unclickable message
+		// Add unclickable message
 		const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
-		this.tree.ariaLabel = resultMsg + nls.localize('aiSearchForTerm', " - Search: {0}", currentKeyword);
 		dom.append(messageEl, resultMsg);
 
-		const textButton = this.messageDisposables.add(new SearchLinkButton(
-			currentKeyword,
-			() => this.handleKeywordClick(currentKeyword),
-			this.hoverService,
-		));
-
-		dom.append(messageEl, textButton.element);
-
-
+		const topKeywords = keywords.slice(0, 3);
+		topKeywords.forEach((keyword, index) => {
+			if (index > 0 && index < topKeywords.length) {
+				dom.append(messageEl, ', ');
+			}
+			const button = this.messageDisposables.add(new SearchLinkButton(
+				keyword.keyword,
+				() => this.handleKeywordClick(keyword.keyword, index, topKeywords.length),
+				this.hoverService
+			));
+			dom.append(messageEl, button.element);
+		});
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
@@ -2489,7 +2510,7 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			return this.createSearchResultIterator(element);
 		} else if (isTextSearchHeading(element)) {
 			if (element.isAIContributed && !this.searchView.model.hasAIResults) {
-				return this.searchView.addAIResults().then(() => this.createTextSearchResultIterator(element));
+				return this.searchView.addAIResults(element, (e: ITextSearchHeading) => this.createTextSearchResultIterator(e));
 			}
 			return this.createTextSearchResultIterator(element);
 		} else if (isSearchTreeFolderMatch(element)) {

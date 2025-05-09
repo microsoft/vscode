@@ -470,6 +470,12 @@ suite('URI', () => {
 			with() { return this; },
 			toString() { return ''; }
 		}), true);
+
+		assert.strictEqual(URI.isUri(1), false);
+		assert.strictEqual(URI.isUri("1"), false);
+		assert.strictEqual(URI.isUri("http://sample.com"), false);
+		assert.strictEqual(URI.isUri(null), false);
+		assert.strictEqual(URI.isUri(undefined), false);
 	});
 
 	test('isUriComponents', function () {

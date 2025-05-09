@@ -15,17 +15,23 @@ import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
+import * as Convert from './extHostTypeConverters.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
 export interface IExtHostMpcService extends ExtHostMcpShape {
-	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable;
+	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable;
 }
 
 export class ExtHostMcpService extends Disposable implements IExtHostMpcService {
 	protected _proxy: MainThreadMcpShape;
 	private readonly _initialProviderPromises = new Set<Promise<void>>();
 	private readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
+	private readonly _unresolvedMcpServers = new Map</* collectionId */ string, {
+		provider: vscode.McpServerDefinitionProvider;
+		servers: vscode.McpServerDefinition[];
+	}>();
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 	) {
@@ -61,50 +67,60 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		await Promise.all(this._initialProviderPromises);
 	}
 
-	/** {@link vscode.lm.registerMcpConfigurationProvider} */
-	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable {
+	async $resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined> {
+		const rec = this._unresolvedMcpServers.get(collectionId);
+		if (!rec) {
+			return;
+		}
+
+		const server = rec.servers.find(s => s.label === label);
+		if (!server) {
+			return;
+		}
+		if (!rec.provider.resolveMcpServerDefinition) {
+			return Convert.McpServerDefinition.from(server);
+		}
+
+		const resolved = await rec.provider.resolveMcpServerDefinition(server, CancellationToken.None);
+		return resolved ? Convert.McpServerDefinition.from(resolved) : undefined;
+	}
+
+	/** {@link vscode.lm.registerMcpServerDefinitionProvider} */
+	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable {
 		const store = new DisposableStore();
 
-		const metadata = extension.contributes?.modelContextServerCollections?.find(m => m.id === id);
+		const metadata = extension.contributes?.mcpServerDefinitionProviders?.find(m => m.id === id);
 		if (!metadata) {
-			throw new Error(`MCP configuration providers must be registered in the contributes.modelContextServerCollections array within your package.json, but "${id}" was not`);
+			throw new Error(`MCP configuration providers must be registered in the contributes.mcpServerDefinitionProviders array within your package.json, but "${id}" was not`);
 		}
 
 		const mcp: McpCollectionDefinition.FromExtHost = {
 			id: extensionPrefixedIdentifier(extension.identifier, id),
 			isTrustedByDefault: true,
 			label: metadata?.label ?? extension.displayName ?? extension.name,
-			scope: StorageScope.WORKSPACE
+			scope: StorageScope.WORKSPACE,
+			canResolveLaunch: typeof provider.resolveMcpServerDefinition === 'function',
+			extensionId: extension.identifier.value,
 		};
 
 		const update = async () => {
-
 			const list = await provider.provideMcpServerDefinitions(CancellationToken.None);
+			this._unresolvedMcpServers.set(mcp.id, { servers: list ?? [], provider });
 
-			function isSSEConfig(candidate: vscode.McpServerDefinition): candidate is vscode.McpSSEServerDefinition {
-				return !!(candidate as vscode.McpSSEServerDefinition).uri;
-			}
-
-			const servers: McpServerDefinition[] = [];
-
+			const servers: McpServerDefinition.Serialized[] = [];
 			for (const item of list ?? []) {
+				let id = ExtensionIdentifier.toKey(extension.identifier) + '/' + item.label;
+				if (servers.some(s => s.id === id)) {
+					let i = 2;
+					while (servers.some(s => s.id === id + i)) { i++; }
+					id = id + i;
+				}
+
 				servers.push({
-					id: ExtensionIdentifier.toKey(extension.identifier),
+					id,
 					label: item.label,
-					launch: isSSEConfig(item)
-						? {
-							type: McpServerTransportType.HTTP,
-							uri: item.uri,
-							headers: item.headers,
-						}
-						: {
-							type: McpServerTransportType.Stdio,
-							cwd: item.cwd,
-							args: item.args,
-							command: item.command,
-							env: item.env,
-							envFile: undefined,
-						}
+					cacheNonce: item.version,
+					launch: Convert.McpServerDefinition.from(item)
 				});
 			}
 
@@ -112,11 +128,19 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		};
 
 		store.add(toDisposable(() => {
+			this._unresolvedMcpServers.delete(mcp.id);
 			this._proxy.$deleteMcpCollection(mcp.id);
 		}));
 
-		if (provider.onDidChange) {
-			store.add(provider.onDidChange(update));
+		if (provider.onDidChangeMcpServerDefinitions) {
+			store.add(provider.onDidChangeMcpServerDefinitions(update));
+		}
+		// todo@connor4312: proposed API back-compat
+		if ((provider as any).onDidChangeServerDefinitions) {
+			store.add((provider as any).onDidChangeServerDefinitions(update));
+		}
+		if ((provider as any).onDidChange) {
+			store.add((provider as any).onDidChange(update));
 		}
 
 		const promise = new Promise<void>(resolve => {
@@ -204,7 +228,7 @@ class McpHTTPHandle extends Disposable {
 			headers['Mcp-Session-Id'] = sessionId;
 		}
 
-		const res = await fetch(this._launch.uri.toString(), {
+		const res = await fetch(this._launch.uri.toString(true), {
 			method: 'POST',
 			signal: this._abortCtrl.signal,
 			headers,
@@ -230,7 +254,16 @@ class McpHTTPHandle extends Disposable {
 		}
 
 		if (res.status >= 300) {
-			this._log(LogLevel.Warning, `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}`);
+			// "When a client receives HTTP 404 in response to a request containing an Mcp-Session-Id, it MUST start a new session by sending a new InitializeRequest without a session ID attached"
+			// Though this says only 404, some servers send 400s as well, including their example
+			// https://github.com/modelcontextprotocol/typescript-sdk/issues/389
+			const retryWithSessionId = this._mode.value === HttpMode.Http && !!this._mode.sessionId;
+
+			this._proxy.$onDidChangeState(this._id, {
+				state: McpConnectionState.Kind.Error,
+				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + retryWithSessionId ? `; will retry with new session ID` : '',
+				shouldRetry: retryWithSessionId,
+			});
 			return;
 		}
 
@@ -303,7 +336,7 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(), {
+				res = await fetch(this._launch.uri.toString(true), {
 					method: 'GET',
 					signal: this._abortCtrl.signal,
 					headers,
@@ -346,7 +379,7 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(), {
+			res = await fetch(this._launch.uri.toString(true), {
 				method: 'GET',
 				signal: this._abortCtrl.signal,
 				headers: {
@@ -367,7 +400,7 @@ class McpHTTPHandle extends Disposable {
 			if (event.type === 'message') {
 				this._proxy.$onDidReceiveMessage(this._id, event.data);
 			} else if (event.type === 'endpoint') {
-				postEndpoint.complete(new URL(event.data, this._launch.uri.toString()).toString());
+				postEndpoint.complete(new URL(event.data, this._launch.uri.toString(true)).toString());
 			}
 		});
 

@@ -9,15 +9,15 @@ import { ResourceLabels } from '../../../../../browser/labels.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { InstructionsAttachmentWidget } from './promptInstructionsWidget.js';
-import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 /**
  * Widget for a collection of prompt instructions attachments.
- * See {@linkcode InstructionsAttachmentWidget}.
+ * See {@link InstructionsAttachmentWidget}.
  */
 export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
@@ -28,18 +28,13 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * Event that fires when number of attachments change
 	 *
-	 * See {@linkcode onAttachmentsCountChange}.
+	 * See {@link onAttachmentsChange}.
 	 */
-	private _onAttachmentsCountChange = this._register(new Emitter<void>());
+	private _onAttachmentsChange = this._register(new Emitter<void>());
 	/**
-	 * Subscribe to the `onAttachmentsCountChange` event.
-	 * @param callback Function to invoke when number of attachments change.
+	 * Subscribe to the event that fires when number of attachments change.
 	 */
-	public onAttachmentsCountChange(callback: () => unknown): this {
-		this._register(this._onAttachmentsCountChange.event(callback));
-
-		return this;
-	}
+	public readonly onAttachmentsChange = this._onAttachmentsChange.event;
 
 	/**
 	 * The parent DOM node this widget was rendered into.
@@ -63,6 +58,14 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	}
 
 	/**
+	 * Get a promise that resolves when parsing/resolving processes
+	 * are fully completed, including all possible nested child references.
+	 */
+	public allSettled() {
+		return this.model.allSettled();
+	}
+
+	/**
 	 * Check if child widget list is empty (no attachments present).
 	 */
 	public get empty(): boolean {
@@ -72,11 +75,11 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * Check if any of the attachments is a prompt file.
 	 */
-	public get hasPromptFile(): boolean {
+	public get hasInstructions(): boolean {
 		return this.references.some((uri) => {
 			const model = this.modelService.getModel(uri);
 			const languageId = model ? model.getLanguageId() : this.languageService.guessLanguageIdByFilepathOrFirstLine(uri);
-			return languageId === PROMPT_LANGUAGE_ID;
+			return languageId === INSTRUCTIONS_LANGUAGE_ID;
 		});
 	}
 
@@ -113,7 +116,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 			}
 
 			// fire the event to notify about the change in the number of attachments
-			this._onAttachmentsCountChange.fire();
+			this._onAttachmentsChange.fire();
 		}));
 	}
 
@@ -164,7 +167,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 		this.parentNode?.removeChild(widget.domNode);
 
 		// fire the event to notify about the change in the number of attachments
-		this._onAttachmentsCountChange.fire();
+		this._onAttachmentsChange.fire();
 
 		return this;
 	}
@@ -187,8 +190,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	}
 
 	/**
-	 * Dispose of the widget, including all the child
-	 * widget instances.
+	 * Dispose of the widget, including all the child widget instances.
 	 */
 	public override dispose(): void {
 		for (const child of this.children) {

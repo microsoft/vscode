@@ -1021,7 +1021,7 @@ export class Repository implements Disposable {
 	 * Quick diff label
 	 */
 	get label(): string {
-		return l10n.t('Git local changes (working tree)');
+		return l10n.t('Git Local Changes (Working Tree)');
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
@@ -2805,8 +2805,7 @@ export class Repository implements Disposable {
 }
 
 export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
-	readonly visible: boolean = true;
-	readonly label = l10n.t('Git local changes (index)');
+	readonly label = l10n.t('Git Local Changes (Index)');
 
 	constructor(
 		private readonly _repository: Repository,

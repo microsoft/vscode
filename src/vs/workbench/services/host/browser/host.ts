@@ -128,7 +128,7 @@ export interface IHostService {
 	/**
 	 * Captures a screenshot.
 	 */
-	getScreenshot(): Promise<VSBuffer | undefined>;
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
 
 	//#endregion
 
