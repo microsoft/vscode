@@ -52,7 +52,7 @@ suite('ChatModel', () => {
 		assert.strictEqual(hasInitialized, false);
 
 		model.startInitialize();
-		model.initialize(undefined);
+		model.initialize();
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
 	});
@@ -68,7 +68,7 @@ suite('ChatModel', () => {
 		await timeout(0);
 		assert.strictEqual(hasInitialized, false);
 
-		assert.throws(() => model.initialize(undefined));
+		assert.throws(() => model.initialize());
 		assert.strictEqual(hasInitialized, false);
 	});
 
@@ -81,7 +81,7 @@ suite('ChatModel', () => {
 		});
 
 		model.startInitialize();
-		model.initialize(undefined);
+		model.initialize();
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
 
@@ -92,7 +92,7 @@ suite('ChatModel', () => {
 		});
 
 		model.startInitialize();
-		model.initialize(undefined);
+		model.initialize();
 		await timeout(0);
 		assert.strictEqual(hasInitialized2, true);
 	});
@@ -101,22 +101,22 @@ suite('ChatModel', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model.startInitialize();
-		model.initialize(undefined);
-		assert.throws(() => model.initialize(undefined));
+		model.initialize();
+		assert.throws(() => model.initialize());
 	});
 
 	test('Initialization fails when model is disposed', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 		model.dispose();
 
-		assert.throws(() => model.initialize(undefined));
+		assert.throws(() => model.initialize());
 	});
 
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model.startInitialize();
-		model.initialize(undefined);
+		model.initialize();
 		const text = 'hello';
 		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
 		const requests = model.getRequests();
@@ -131,10 +131,10 @@ suite('ChatModel', () => {
 		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model1.startInitialize();
-		model1.initialize(undefined);
+		model1.initialize();
 
 		model2.startInitialize();
-		model2.initialize(undefined);
+		model2.initialize();
 
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
@@ -160,7 +160,7 @@ suite('ChatModel', () => {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		model1.startInitialize();
-		model1.initialize(undefined);
+		model1.initialize();
 
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, true);
