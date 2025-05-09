@@ -46,7 +46,6 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
 import { FocusMode } from '../../native/common/native.js';
-import { assertNever } from '../../../base/common/assert.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -290,14 +289,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	}
 
 	focus(options?: { mode: FocusMode }): void {
-		const hasAnyFocusedWindow = electron.BrowserWindow.getAllWindows().some(w => w.isFocused());
-		const mode = options?.mode ?? FocusMode.Transfer;
-
-		switch (mode) {
+		switch (options?.mode ?? FocusMode.Transfer) {
 			case FocusMode.Transfer:
-				if (hasAnyFocusedWindow) {
-					this._win?.focus();
-				}
+				this.doFocusWindow();
 				break;
 
 			case FocusMode.Notify:
@@ -314,10 +308,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				electron.app.focus({ steal: true });
 				this.doFocusWindow();
 				break;
-
-			default:
-				assertNever(mode);
-
 		}
 	}
 
