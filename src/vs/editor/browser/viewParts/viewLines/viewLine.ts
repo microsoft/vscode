@@ -11,7 +11,7 @@ import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
@@ -19,6 +19,7 @@ import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -116,7 +117,7 @@ export class ViewLine implements IVisibleLine {
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
 		// Only send selection information when needed for rendering whitespace
-		let selectionsOnLine: LineRange[] | null = null;
+		let selectionsOnLine: OffsetRange[] | null = null;
 		if (isHighContrast(options.themeType) || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
@@ -138,7 +139,7 @@ export class ViewLine implements IVisibleLine {
 							selectionsOnLine = [];
 						}
 
-						selectionsOnLine.push(new LineRange(startColumn - 1, endColumn - 1));
+						selectionsOnLine.push(new OffsetRange(startColumn - 1, endColumn - 1));
 					}
 				}
 			}

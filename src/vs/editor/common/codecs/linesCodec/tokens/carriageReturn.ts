@@ -24,14 +24,14 @@ export class CarriageReturn extends SimpleToken<'\r'> {
 	/**
 	 * The byte representation of the token.
 	 */
-	public get byte() {
+	public get byte(): VSBuffer {
 		return CarriageReturn.byte;
 	}
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '\r' {
 		return CarriageReturn.symbol;
 	}
 

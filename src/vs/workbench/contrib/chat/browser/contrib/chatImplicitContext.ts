@@ -33,9 +33,9 @@ import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsColl
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
 
-	private readonly _currentCancelTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _currentCancelTokenSource: MutableDisposable<CancellationTokenSource>;
 
-	private _implicitContextEnablement = this.configurationService.getValue<{ [mode: string]: string }>('chat.implicitContext.enabled');
+	private _implicitContextEnablement: { [mode: string]: string };
 
 	constructor(
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -47,6 +47,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		super();
+		this._currentCancelTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+		this._implicitContextEnablement = this.configurationService.getValue<{ [mode: string]: string }>('chat.implicitContext.enabled');
 
 		const activeEditorDisposables = this._register(new DisposableStore());
 

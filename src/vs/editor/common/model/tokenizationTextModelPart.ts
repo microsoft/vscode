@@ -7,8 +7,8 @@ import { CharCode } from '../../../base/common/charCode.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { countEOL } from '../core/eolCounter.js';
-import { LineRange } from '../core/lineRange.js';
+import { countEOL } from '../core/misc/eolCounter.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { IWordAtPosition, getWordAtText } from '../core/wordHelper.js';
@@ -34,19 +34,19 @@ import { SparseTokensStore } from '../tokens/sparseTokensStore.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
-	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
+	private readonly _semanticTokens: SparseTokensStore;
 
-	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
-	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeLanguage.event;
+	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent>;
+	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent>;
 
-	private readonly _onDidChangeLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
-	public readonly onDidChangeLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent> = this._onDidChangeLanguageConfiguration.event;
+	private readonly _onDidChangeLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent>;
+	public readonly onDidChangeLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent>;
 
-	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
-	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
+	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
+	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
 	private _tokens!: AbstractTokens;
-	private readonly _tokensDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly _tokensDisposables: DisposableStore;
 
 	constructor(
 		private readonly _textModel: TextModel,
@@ -58,6 +58,14 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+		this._semanticTokens = new SparseTokensStore(this._languageService.languageIdCodec);
+		this._onDidChangeLanguage = this._register(new Emitter<IModelLanguageChangedEvent>());
+		this.onDidChangeLanguage = this._onDidChangeLanguage.event;
+		this._onDidChangeLanguageConfiguration = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
+		this.onDidChangeLanguageConfiguration = this._onDidChangeLanguageConfiguration.event;
+		this._onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
+		this.onDidChangeTokens = this._onDidChangeTokens.event;
+		this._tokensDisposables = this._register(new DisposableStore());
 
 		// We just look at registry changes to determine whether to use tree sitter.
 		// This means that removing a language from the setting will not cause a switch to textmate and will require a reload.

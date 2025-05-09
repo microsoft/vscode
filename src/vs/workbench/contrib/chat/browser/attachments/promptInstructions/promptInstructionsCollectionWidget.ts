@@ -32,14 +32,9 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	 */
 	private _onAttachmentsChange = this._register(new Emitter<void>());
 	/**
-	 * Subscribe to the `onAttachmentsChange` event.
-	 * @param callback Function to invoke when number of attachments change.
+	 * Subscribe to the event that fires when number of attachments change.
 	 */
-	public onAttachmentsChange(callback: () => unknown): this {
-		this._register(this._onAttachmentsChange.event(callback));
-
-		return this;
-	}
+	public readonly onAttachmentsChange = this._onAttachmentsChange.event;
 
 	/**
 	 * The parent DOM node this widget was rendered into.
@@ -195,8 +190,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	}
 
 	/**
-	 * Dispose of the widget, including all the child
-	 * widget instances.
+	 * Dispose of the widget, including all the child widget instances.
 	 */
 	public override dispose(): void {
 		for (const child of this.children) {
