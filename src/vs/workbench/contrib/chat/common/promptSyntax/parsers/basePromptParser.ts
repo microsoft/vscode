@@ -328,6 +328,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		// decode the byte stream to a stream of prompt tokens
 		this.stream = ChatPromptCodec.decode(streamOrError);
 
+		/**
+		 * !NOTE! The order of event subscriptions below is critical here because
+		 *        the `data` event is also starts the stream, hence changing
+		 *        the order of event subscriptions can lead to race conditions.
+		 *        See {@link ReadableStreamEvents} for more info.
+		 */
+
 		// on error or stream end, dispose the stream and fire the update event
 		this.stream.on('error', this.onStreamEnd.bind(this, this.stream));
 		this.stream.on('end', this.onStreamEnd.bind(this, this.stream));
