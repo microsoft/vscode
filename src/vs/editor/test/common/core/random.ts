@@ -8,10 +8,10 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../common/core/edits/offsetEdit.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../common/core/position.js';
-import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
-import { AbstractText } from '../../../common/core/abstractText.js';
+import { AbstractText } from '../../../common/core/text/abstractText.js';
 
 export abstract class Random {
 	public static readonly alphabetSmallLowercase = 'abcdefgh';

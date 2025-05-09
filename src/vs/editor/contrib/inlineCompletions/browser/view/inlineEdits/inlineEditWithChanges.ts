@@ -7,7 +7,7 @@ import { SingleLineEdit } from '../../../../../common/core/edits/lineEdit.js';
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
-import { AbstractText } from '../../../../../common/core/abstractText.js';
+import { AbstractText } from '../../../../../common/core/text/abstractText.js';
 import { Command } from '../../../../../common/languages.js';
 import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 

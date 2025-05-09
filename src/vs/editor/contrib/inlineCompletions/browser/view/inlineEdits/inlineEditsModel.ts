@@ -10,7 +10,7 @@ import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
-import { StringText } from '../../../../../common/core/abstractText.js';
+import { StringText } from '../../../../../common/core/text/abstractText.js';
 import { Command, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';

@@ -14,7 +14,7 @@ import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffC
 import { Range } from '../../../common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
-import { AbstractText, ArrayText } from '../../../common/core/abstractText.js';
+import { AbstractText, ArrayText } from '../../../common/core/text/abstractText.js';
 import { LinesDiff } from '../../../common/diff/linesDiffComputer.js';
 
 suite('diffing fixtures', () => {

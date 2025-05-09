@@ -5,7 +5,7 @@
 
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextLength } from '../../../../common/core/ranges/textLength.js';
+import { TextLength } from '../../../../common/core/text/textLength.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 

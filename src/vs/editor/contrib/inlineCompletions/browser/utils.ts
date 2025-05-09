@@ -10,7 +10,7 @@ import { IObservable, observableValue, ISettableObservable, autorun, transaction
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Position } from '../../../common/core/position.js';
-import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
 
