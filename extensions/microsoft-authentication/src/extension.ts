@@ -72,7 +72,7 @@ export async function activate(context: ExtensionContext) {
 		}
 	}));
 	// Only activate the new extension if we are not running in a browser environment
-	if (useMsal && typeof navigator === 'undefined') {
+	if (useMsal && typeof WorkerGlobalScope === 'undefined') {
 		await extensionV2.activate(context, mainTelemetryReporter);
 	} else {
 		mainTelemetryReporter.sendActivatedWithClassicImplementationEvent();
