@@ -175,8 +175,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
+			// Disabled
+			if (this.chatEntitlementService.sentiment.disabled) {
+				text = `$(copilot-unavailable)`;
+				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
+			}
+
 			// Signed out
-			if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 				const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
 
 				text = `$(copilot-not-connected) ${signedOutWarning}`;
@@ -410,26 +416,26 @@ class ChatStatusDashboard extends Disposable {
 				let descriptionText: string;
 				if (newUser) {
 					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");
-				} else if (signedOut) {
-					descriptionText = localize('signInDescription', "Sign in to use Copilot AI features.");
-				} else {
+				} else if (disabled) {
 					descriptionText = localize('enableDescription', "Enable Copilot to use AI features.");
+				} else {
+					descriptionText = localize('signInDescription', "Sign in to use Copilot AI features.");
 				}
 
 				let buttonLabel: string;
 				if (newUser) {
 					buttonLabel = localize('activateCopilotButton', "Set up Copilot");
-				} else if (signedOut) {
-					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
-				} else {
+				} else if (disabled) {
 					buttonLabel = localize('enableCopilotButton', "Enable Copilot");
+				} else {
+					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
 				}
 
 				this.element.appendChild($('div.description', undefined, descriptionText));
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
 				button.label = buttonLabel;
-				disposables.add(button.onDidClick(() => this.runCommandAndClose(signedOut ? () => this.chatEntitlementService.requests?.value.signIn() : 'workbench.action.chat.triggerSetup')));
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser || disabled ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}
 
