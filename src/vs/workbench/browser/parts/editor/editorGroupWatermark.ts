@@ -222,16 +222,43 @@ export class EditorGroupWatermark extends Disposable {
 		buttonContainer.style.marginBottom = "16px";
 
 		// Creator mode button
-		const creatorButton = append(buttonContainer, $('button.open-folder-button'));
+		// Create a container for the Creator Mode button with relative positioning
+		const creatorButtonContainer = append(buttonContainer, $('.creator-button-container'));
+		creatorButtonContainer.style.position = 'relative';
+		creatorButtonContainer.style.display = 'flex';
+		creatorButtonContainer.style.width = '100%';
+
+		// Add the rainbow glow element
+		const rainbowGlow = append(creatorButtonContainer, $('.rainbow-border-glow'));
+		rainbowGlow.style.position = 'absolute';
+		rainbowGlow.style.inset = '-1px';
+		rainbowGlow.style.borderRadius = '9999px';
+		// Use the exact gradient from the example
+		rainbowGlow.style.background = 'linear-gradient(90deg, rgba(255, 128, 128, 0.7) 0%, rgba(255, 192, 128, 0.7) 14%, rgba(255, 255, 128, 0.7) 28%, rgba(128, 255, 128, 0.7) 42%, rgba(128, 255, 255, 0.7) 56%, rgba(128, 128, 255, 0.7) 70%, rgba(192, 128, 255, 0.7) 84%, rgba(255, 128, 192, 0.7) 100%)';
+		rainbowGlow.style.backgroundSize = '200% auto';
+		rainbowGlow.style.filter = 'blur(7.5px)';
+		rainbowGlow.style.zIndex = '0';
+		rainbowGlow.style.opacity = '0';
+		rainbowGlow.style.transition = 'opacity 3s ease';
+
+		// Create the actual button
+		const creatorButton = append(creatorButtonContainer, $('button.open-folder-button'));
 		creatorButton.style.backgroundColor = 'black';
 		creatorButton.style.color = 'white';
 		creatorButton.style.display = 'flex';
+		creatorButton.style.width = '100%';
+		creatorButton.style.position = 'relative';
+		creatorButton.style.zIndex = '2';
+		creatorButton.style.borderRadius = '6px';
+		creatorButton.style.border = 'none';
+
 		// sparkles icon and text in separate spans
 		const sparkleIcon = append(creatorButton, $('span.codicon.codicon-sparkle'));
 		sparkleIcon.style.color = 'white';
 		const creatorTextSpan = append(creatorButton, $('span.text', {}, localize('watermark.openCreator', "Creator Mode")));
 		creatorTextSpan.style.flex = '1';
 		creatorTextSpan.style.textAlign = 'center';
+
 		// click handler for Creator Mode button
 		this._register(addDisposableListener(creatorButton, EventType.CLICK, (e: MouseEvent) => {
 			e.preventDefault();
@@ -239,8 +266,35 @@ export class EditorGroupWatermark extends Disposable {
 			this.commandService.executeCommand('workbench.action.openCreatorView');
 		}));
 
-		const openFolderButton = append(buttonContainer, $('button.open-folder-button'));
+		// Add animation to the rainbow glow
+		// Create a style element with a rotation animation
+		const style = document.createElement('style');
+		style.textContent = `
+			@keyframes rainbow-flow {
+				to {
+					background-position: 200% center;
+				}
+			}
+		`;
+		document.head.appendChild(style);
+		rainbowGlow.style.animation = 'rainbow-flow 3s linear infinite';
+
+		// Fade in the rainbow glow after a short delay
+		setTimeout(() => {
+			rainbowGlow.style.opacity = '0.7';
+		}, 300);
+
+		// Create a container for the Open Folder button to match Creator button structure
+		const openFolderButtonContainer = append(buttonContainer, $('.open-folder-button-container'));
+		openFolderButtonContainer.style.position = 'relative';
+		openFolderButtonContainer.style.display = 'flex';
+		openFolderButtonContainer.style.width = '100%';
+
+		const openFolderButton = append(openFolderButtonContainer, $('button.open-folder-button'));
 		openFolderButton.style.display = 'flex';
+		openFolderButton.style.width = '100%';
+		openFolderButton.style.position = 'relative';
+		openFolderButton.style.borderRadius = '6px';
 		// folder icon and text in separate spans
 		append(openFolderButton, $('span.codicon.codicon-folder-opened'));
 		const folderTextSpan = append(openFolderButton, $('span.text', {}, localize('watermark.openFolder', "Open Folder")));
