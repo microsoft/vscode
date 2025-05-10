@@ -251,9 +251,7 @@ export class EditorGroupWatermark extends Disposable {
 		creatorButton.style.borderRadius = '6px';
 		creatorButton.style.border = 'none';
 
-		// sparkles icon and text in separate spans
-		const sparkleIcon = append(creatorButton, $('span.codicon.codicon-sparkle'));
-		sparkleIcon.style.color = 'white';
+		
 		const creatorTextSpan = append(creatorButton, $('span.text', {}, localize('watermark.openCreator', "Creator Mode")));
 		creatorTextSpan.style.flex = '1';
 		creatorTextSpan.style.textAlign = 'center';
