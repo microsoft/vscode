@@ -39,6 +39,7 @@ export interface IQuickPickItem {
 	 */
 	keybinding?: ResolvedKeybinding;
 	iconClasses?: readonly string[];
+	iconAttributes?: Record<string, string>;
 	iconPath?: { dark: URI; light?: URI };
 	iconClass?: string;
 	italic?: boolean;
