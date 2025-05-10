@@ -8,7 +8,7 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 
 export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseEdit<T, TEdit>> {
-	protected constructor(
+	constructor(
 		public readonly replacements: readonly T[],
 	) {
 		let lastEndEx = -1;

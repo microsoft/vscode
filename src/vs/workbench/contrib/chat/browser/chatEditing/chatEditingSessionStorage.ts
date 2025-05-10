@@ -8,7 +8,7 @@ import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { OffsetEdit, IOffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
+import { StringEdit, ISerializedStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -80,7 +80,7 @@ export class ChatEditingSessionStorage {
 				languageId: entry.languageId,
 				original: await getFileContent(entry.originalHash),
 				current: await getFileContent(entry.currentHash),
-				originalToCurrentEdit: OffsetEdit.fromJson(entry.originalToCurrentEdit),
+				originalToCurrentEdit: StringEdit.fromJson(entry.originalToCurrentEdit),
 				state: entry.state,
 				snapshotUri: URI.parse(entry.snapshotUri),
 				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, sessionId: this.chatSessionId, result: undefined }
@@ -275,7 +275,7 @@ interface ISnapshotEntryDTO {
 	readonly languageId: string;
 	readonly originalHash: string;
 	readonly currentHash: string;
-	readonly originalToCurrentEdit: IOffsetEdit;
+	readonly originalToCurrentEdit: ISerializedStringEdit;
 	readonly state: ModifiedFileEntryState;
 	readonly snapshotUri: string;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfoDTO;

@@ -13,7 +13,7 @@ import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { OffsetEdit } from '../../../../../editor/common/core/edits/offsetEdit.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -22,7 +22,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
-import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelOffsetEdit.js';
+import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -78,7 +78,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	private readonly _docFileEditorModel: IResolvedTextEditorModel;
 
-	private _edit: OffsetEdit = OffsetEdit.empty;
+	private _edit: StringEdit = StringEdit.empty;
 	private _isEditFromUs: boolean = false;
 	private _allEditsAreFromUs: boolean = true;
 	private _diffOperation: Promise<IDocumentDiff | undefined> | undefined;
@@ -440,7 +440,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._diffInfo.set(nullDocumentDiff, tx);
-		this._edit = OffsetEdit.empty;
+		this._edit = StringEdit.empty;
 		await this._collapse(tx);
 
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);

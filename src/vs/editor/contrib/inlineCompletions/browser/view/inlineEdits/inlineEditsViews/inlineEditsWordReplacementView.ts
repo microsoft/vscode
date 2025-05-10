@@ -15,7 +15,7 @@ import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { SingleOffsetEdit } from '../../../../../../common/core/edits/offsetEdit.js';
+import { StringReplacement } from '../../../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { TextReplacement } from '../../../../../../common/core/edits/textEdit.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
@@ -60,7 +60,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			const tm = this._editor.model.get()!;
 			const origLine = tm.getLineContent(this._edit.range.startLineNumber);
 
-			const edit = SingleOffsetEdit.replace(new OffsetRange(this._edit.range.startColumn - 1, this._edit.range.endColumn - 1), this._edit.text);
+			const edit = StringReplacement.replace(new OffsetRange(this._edit.range.startColumn - 1, this._edit.range.endColumn - 1), this._edit.text);
 			const lineToTokenize = edit.replace(origLine);
 			const t = tm.tokenization.tokenizeLinesAt(this._edit.range.startLineNumber, [lineToTokenize])?.[0];
 			let tokens: LineTokens;
