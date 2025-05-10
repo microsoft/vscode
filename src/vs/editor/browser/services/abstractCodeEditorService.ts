@@ -148,6 +148,16 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return this._editorStyleSheets.get(editorId)!;
 	}
 
+	private _processOptions(options: IDecorationRenderOptions): IDecorationRenderOptions {
+		if (!options) {
+			return Object.create(null);
+		}
+		return {
+			...options,
+			lineHeight: options.lineHeight && options.lineHeight > 300 ? 300 : options.lineHeight
+		};
+	}
+
 	_removeEditorStyleSheets(editorId: string): void {
 		this._editorStyleSheets.delete(editorId);
 	}
@@ -156,11 +166,12 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
+			const processedOptions = this._processOptions(options);
 			const providerArgs: ProviderArguments = {
 				styleSheet: styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
-				options: options || Object.create(null)
+				options: processedOptions
 			};
 			if (!parentTypeKey) {
 				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
