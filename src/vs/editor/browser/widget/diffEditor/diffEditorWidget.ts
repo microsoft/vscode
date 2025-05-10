@@ -419,6 +419,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
+		console.log('DiffEditorWidget._createInnerEditor');
 		const editor = instantiationService.createInstance(CodeEditorWidget, container, options, editorWidgetOptions);
 		return editor;
 	}
@@ -509,6 +510,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				const vm = viewModel?.object;
 				/** @description DiffEditorWidget.setModel */
 				observableFromEvent.batchEventsGlobally(tx, () => {
+					console.log('vm.model.original ', vm?.model.original);
+					console.log('vm.model.modified : ', vm?.model.modified);
 					this._editors.original.setModel(vm ? vm.model.original : null);
 					this._editors.modified.setModel(vm ? vm.model.modified : null);
 				});
