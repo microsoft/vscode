@@ -804,7 +804,8 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${scopeForSocket}-${version}-${type}-sock`;
+		const sessionName = process.env.SESSIONNAME;
+		return `\\\\.\\pipe\\${scopeForSocket}-${sessionName}-${version}-${type}-sock`;
 	}
 
 	// Mac & Unix: Use socket file
