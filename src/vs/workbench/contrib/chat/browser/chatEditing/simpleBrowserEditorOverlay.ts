@@ -35,6 +35,7 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
 
+
 class SimpleBrowserOverlayWidget {
 
 	private readonly _domNode: HTMLElement;
@@ -89,6 +90,9 @@ class SimpleBrowserOverlayWidget {
 		cancelButton.element.className = 'element-selection-cancel hidden';
 		cancelButton.label = localize('cancel', 'Cancel');
 
+		const attachLogs = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.attachLogs', "Attach Logs") }));
+		attachLogs.icon = Codicon.terminal;
+
 		const configure = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
 		configure.icon = Codicon.gear;
 
@@ -98,6 +102,9 @@ class SimpleBrowserOverlayWidget {
 		const nextSelection = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.nextSelection', "Select Again") }));
 		nextSelection.icon = Codicon.close;
 		nextSelection.element.classList.add('hidden');
+
+
+		// attachLogs.element.classList.add('hidden');
 
 		// shown if the overlay is collapsed
 		const expandOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.expandOverlay', "Expand Overlay") }));
@@ -165,6 +172,10 @@ class SimpleBrowserOverlayWidget {
 
 		this._showStore.add(addDisposableListener(configure.element, 'click', () => {
 			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:chat.sendElementsToChat.enabled,chat.sendElementsToChat.attachCSS,chat.sendElementsToChat.attachImages' });
+		}));
+
+		this._showStore.add(addDisposableListener(attachLogs.element, 'click', async () => {
+			await this.addConsolesToChat();
 		}));
 	}
 
@@ -234,6 +245,23 @@ class SimpleBrowserOverlayWidget {
 		widget?.attachmentModel?.addContext(...toAttach);
 	}
 
+	async addConsolesToChat() {
+		const logs = await this._browserElementsService.getConsoleLogs();
+		const toAttach: IChatRequestVariableEntry[] = [];
+
+		toAttach.push({
+			id: 'element-' + Date.now(),
+			name: localize('consoleLogs', 'Console Logs'),
+			fullName: localize('consoleLogs', 'Console Logs'),
+			value: logs,
+			kind: 'element',
+			icon: ThemeIcon.fromId(Codicon.terminal.id),
+		});
+
+		const widget = this._chatWidgetService.lastFocusedWidget ?? await showChatView(this._viewService);
+		widget?.attachmentModel?.addContext(...toAttach);
+	}
+
 
 	getDisplayNameFromOuterHTML(outerHTML: string): string {
 		const firstElementMatch = outerHTML.match(/^<(\w+)([^>]*?)>/);
@@ -269,6 +297,7 @@ class SimpleBrowserOverlayController {
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 	) {
 
 		if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
@@ -286,7 +315,10 @@ class SimpleBrowserOverlayController {
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
-		const show = () => {
+		let cts = new CancellationTokenSource();
+		const show = async () => {
+			cts = new CancellationTokenSource();
+			await this._browserElementsService.startConsoleSession(cts.token);
 			if (!container.contains(this._domNode)) {
 				container.appendChild(this._domNode);
 			}
@@ -294,6 +326,8 @@ class SimpleBrowserOverlayController {
 
 		const hide = () => {
 			if (container.contains(this._domNode)) {
+				console.log('Hiding overlay');
+				cts.cancel();
 				this._domNode.remove();
 			}
 		};

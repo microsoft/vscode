@@ -23,4 +23,8 @@ export interface INativeBrowserElementsService {
 	readonly windowId: number;
 
 	getElementData(rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined>;
+
+	startConsoleSession(token: CancellationToken, cancelAndDetachId?: number): Promise<void>;
+
+	getConsoleLogs(): Promise<string | undefined>;
 }

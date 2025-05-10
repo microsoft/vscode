@@ -15,4 +15,8 @@ export interface IBrowserElementsService {
 
 	// no browser implementation yet
 	getElementData(rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined>;
+
+	startConsoleSession(token: CancellationToken): Promise<void>;
+
+	getConsoleLogs(): Promise<string | undefined>;
 }

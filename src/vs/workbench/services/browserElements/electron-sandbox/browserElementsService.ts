@@ -24,6 +24,7 @@ class WorkbenchNativeBrowserElementsService extends NativeBrowserElementsService
 }
 
 let cancelSelectionIdPool = 0;
+let cancelAndDetachIdPool = 0;
 
 class WorkbenchBrowserElementsService implements IBrowserElementsService {
 	_serviceBrand: undefined;
@@ -31,6 +32,27 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 	constructor(
 		@INativeBrowserElementsService private readonly simpleBrowser: INativeBrowserElementsService
 	) { }
+
+	async getConsoleLogs(): Promise<string | undefined> {
+		return await this.simpleBrowser.getConsoleLogs();
+	}
+
+	async startConsoleSession(token: CancellationToken): Promise<void> {
+		const cancelAndDetachId = cancelAndDetachIdPool++;
+		const onCancelChannel = `vscode:changeElementSelection${cancelAndDetachId}`;
+
+		const disposable = token.onCancellationRequested(() => {
+			console.log('cancellation requested', cancelAndDetachId);
+			ipcRenderer.send(onCancelChannel, cancelAndDetachId);
+			disposable.dispose();
+		});
+		try {
+			await this.simpleBrowser.startConsoleSession(token, cancelAndDetachId);
+		} catch (error) {
+			disposable.dispose();
+			throw new Error('No target found error coming from browser', error);
+		}
+	}
 
 	async getElementData(rect: IRectangle, token: CancellationToken): Promise<IElementData | undefined> {
 		const cancelSelectionId = cancelSelectionIdPool++;
