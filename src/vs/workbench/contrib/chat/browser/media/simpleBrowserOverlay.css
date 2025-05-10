@@ -32,10 +32,15 @@
 	right: 15px;
 }
 
-.element-selection-cancel,
-.element-selection-start {
+.element-selection-cancel {
 	padding: 2px 8px;
 	width: fit-content;
+}
+
+.element-selection-message .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	height: 24px;
+	align-content: center;
+	padding: 0px 5px;
 }
 
 .element-selection-message .monaco-button.codicon.codicon-close,
