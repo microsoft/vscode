@@ -366,7 +366,7 @@ export namespace WindowStateValidator {
 		return undefined;
 	}
 
-	function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
+	export function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
 
 		// Prefer the working area of the display to account for taskbars on the
 		// desktop being positioned somewhere (https://github.com/microsoft/vscode/issues/50830).

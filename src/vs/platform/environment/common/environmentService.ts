@@ -240,6 +240,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get useInMemorySecretStorage(): boolean { return !!this.args['use-inmemory-secretstorage']; }
 
 	@memoize
+	get enableRDPDisplayTracking(): boolean { return !!this.args['enable-rdp-display-tracking']; }
+
+	@memoize
 	get policyFile(): URI | undefined {
 		if (this.args['__enable-file-policy']) {
 			const vscodePortable = env['VSCODE_PORTABLE'];
