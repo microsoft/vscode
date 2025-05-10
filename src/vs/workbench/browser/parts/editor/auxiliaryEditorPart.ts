@@ -89,7 +89,6 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.disableCompactAuxiliaryWindow',
 			title: localize('disableCompactAuxiliaryWindow', "Unset Compact Mode"),
 			icon: Codicon.screenNormal,
-			toggled: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext),
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext),
