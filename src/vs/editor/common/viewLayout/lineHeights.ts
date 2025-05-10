@@ -219,8 +219,10 @@ export class LineHeightsManager {
 			const totalHeightDeleted = deleteCount * this._defaultLineHeight;
 			for (let i = endIndexOfDeletion; i < this._orderedCustomLines.length; i++) {
 				const customLine = this._orderedCustomLines[i];
-				customLine.lineNumber -= deleteCount;
-				customLine.prefixSum -= totalHeightDeleted;
+				if (customLine.lineNumber > toLineNumber) {
+					customLine.lineNumber -= deleteCount;
+					customLine.prefixSum -= totalHeightDeleted;
+				}
 			}
 		}
 	}
