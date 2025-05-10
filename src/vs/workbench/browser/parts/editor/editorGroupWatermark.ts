@@ -217,7 +217,9 @@ export class EditorGroupWatermark extends Disposable {
 		buttonContainer.style.display = 'flex';
 		buttonContainer.style.flexDirection = 'column';
 		buttonContainer.style.gap = '16px';
-		buttonContainer.style.width = '196px';
+		buttonContainer.style.width = '70%';
+		buttonContainer.style.paddingLeft = "20px";
+		buttonContainer.style.paddingRight = "20px";
 		buttonContainer.style.margin = '0 auto';
 		buttonContainer.style.marginBottom = "16px";
 
@@ -251,8 +253,8 @@ export class EditorGroupWatermark extends Disposable {
 		creatorButton.style.borderRadius = '6px';
 		creatorButton.style.border = 'none';
 
-		
-		const creatorTextSpan = append(creatorButton, $('span.text', {}, localize('watermark.openCreator', "Creator Mode")));
+
+		const creatorTextSpan = append(creatorButton, $('span.text', {}, localize('watermark.openCreator', "PearAI Creator")));
 		creatorTextSpan.style.flex = '1';
 		creatorTextSpan.style.textAlign = 'center';
 
