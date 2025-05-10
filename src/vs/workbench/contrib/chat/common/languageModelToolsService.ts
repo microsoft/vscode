@@ -94,10 +94,6 @@ export interface IToolInvocationContext {
 	sessionId: string;
 }
 
-export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
-	return typeof obj === 'object' && typeof obj.sessionId === 'string';
-}
-
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
 	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
