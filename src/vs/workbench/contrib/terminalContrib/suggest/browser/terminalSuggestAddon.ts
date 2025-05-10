@@ -314,7 +314,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new TerminalCompletionModel(
+		const model = new TerminalCompletionModel( // it seems like items != _items. Lot of them get filtered here unexpectedly
 			[
 				...completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
 				this._inlineCompletionItem,
@@ -653,7 +653,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		suggestWidget.setCompletionModel(model);
 		this._register(suggestWidget.onDidFocus(() => this._terminal?.focus()));
 		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
-			return;
+			return; // getting returned here... explicitly invoked is undefined and model.items.length is 0.... model._items is full though!
 		}
 		this._model = model;
 		const dimensions = this._getTerminalDimensions();
