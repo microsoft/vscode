@@ -51,6 +51,8 @@ export interface IWorkspacesManagementMainService {
 
 	resolveLocalWorkspace(path: URI): Promise<IResolvedWorkspace | undefined>;
 
+	findWindowLocalWorkspace(windows: ICodeWindow[], path: URI): Promise<ICodeWindow | undefined>;
+
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 }
 
@@ -265,6 +267,12 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return result;
 	}
 
+	async findWindowLocalWorkspace(windows: ICodeWindow[], path: URI): Promise<ICodeWindow | undefined> {
+		return await findWindowOnWorkspaceOrFolder(windows, path, (workspace) => {
+			return Promise.resolve(this.resolveLocalWorkspace(workspace.configPath));
+		});
+	}
+
 	private async isValidTargetWorkspacePath(window: ICodeWindow, windows: ICodeWindow[], workspacePath?: URI): Promise<boolean> {
 		if (!workspacePath) {
 			return true;
@@ -275,7 +283,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
+		if (await this.findWindowLocalWorkspace(windows, workspacePath)) {
 			await this.dialogMainService.showMessageBox({
 				type: 'info',
 				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
