@@ -477,6 +477,7 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container > .update-button {
 	display: flex;
+	font-size: 12px;
 	text-align: center;
 	align-items: center;
 	justify-content: center;
@@ -489,4 +490,24 @@
 	&:hover {
 		background-color: var(--vscode-button-hoverBackground);
 	}
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container > .creator-mode-button {
+	display: flex;
+	/* width: 75px; */
+	font-size: 12px;
+	text-align: center;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border-radius: 8px;
+	padding: 4px 10px;
+	margin: 5px 6px;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	&:hover {
+		background-color: var(--vscode-button-hoverBackground);
+	}
+	transition: opacity 500ms ease-out, width 500ms ease-out, background-color 300ms ease-out, color 300ms ease-out;
+
 }

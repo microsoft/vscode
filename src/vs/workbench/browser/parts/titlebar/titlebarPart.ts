@@ -479,8 +479,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
-			this.createUpdateButton();
 			this.createCreatorModeButton();
+			this.createUpdateButton();
 		}
 
 		// Window Controls Container
@@ -612,7 +612,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.actionToolBar = this.actionToolBarDisposable.add(this.instantiationService.createInstance(WorkbenchToolBar, this.actionToolBarElement, {
 			contextMenu: MenuId.TitleBarContext,
 			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('ariaLabelTitleActions', "Title actions"),
+			ariaLabel: localize('ariaLabelTitleActions', 'Title actions'),
 			getKeyBinding: action => this.getKeybinding(action),
 			overflowBehavior: { maxItems: 9, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
@@ -755,23 +755,23 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				switch (updateState) {
 					case StateType.AvailableForDownload:
 						updateButton.style.display = 'flex';
-						span.innerText = "Download Update";
+						span.innerText = 'Download Update';
 						break;
 					case StateType.Downloaded:
 						updateButton.style.display = 'flex';
-						span.innerText = "Install Update";
+						span.innerText = 'Install Update';
 						break;
 					case StateType.Downloading:
 						updateButton.style.display = 'flex';
-						span.innerText = "Downloading...";
+						span.innerText = 'Downloading...';
 						break;
 					case StateType.Updating:
 						updateButton.style.display = 'flex';
-						span.innerText = "Installing..."
+						span.innerText = 'Installing...';
 						break;
 					case StateType.Ready:
 						updateButton.style.display = 'flex';
-						span.innerText = "Restart to Update";
+						span.innerText = 'Restart to Update';
 						break;
 					default:
 						updateButton.style.display = 'none';
@@ -788,70 +788,46 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		);
 		const isLightTheme = titleBackground && Color.fromHex(titleBackground).isLighter();
 
-		button.style.backgroundColor = isLightTheme ? "#000000" : "#ffffff";
-		button.style.color = isLightTheme ? "#ffffff" : "#000000";
+		button.style.backgroundColor = isLightTheme ? '#000000' : '#ffffff';
+		button.style.color = isLightTheme ? '#ffffff' : '#000000';
 	}
 
 	private createCreatorModeButton() {
 		// Adding the creator mode button to the action toolbar so there's always space for it
 		const creatorModeButton = append(
 			this.actionToolBarElement,
-			$(".creator-mode-button")
+			$('.creator-mode-button')
 		);
 
 		this.updateCreatorButtonColors(creatorModeButton);
-		creatorModeButton.style.padding = "4px 6px";
-		creatorModeButton.style.margin = "6px";
-		creatorModeButton.style.borderRadius = "8px";
-		creatorModeButton.style.border = "none";
-		creatorModeButton.style.cursor = "pointer";
-		creatorModeButton.style.fontSize = "14px";
-		creatorModeButton.style.display = "inline-flex";
-		creatorModeButton.style.alignItems = "center";
-		creatorModeButton.style.justifyContent = "center";
-		creatorModeButton.style.whiteSpace = "nowrap";
-		creatorModeButton.style.transition =
-			"opacity 500ms ease-out, width 500ms ease-out, background-color 300ms ease-out, color 300ms ease-out";
-		creatorModeButton.style.width = "110px";
+
 
 		// Create content wrapper for animation
-		const textSpan = document.createElement("span");
-		textSpan.innerText = "Enter Creator";
-		textSpan.style.transition = "opacity 300ms ease-out";
-		textSpan.style.textAlign = "center";
-		textSpan.style.whiteSpace = "nowrap";
+		const textSpan = document.createElement('span');
+		textSpan.innerText = 'Enter Creator';
+		textSpan.style.transition = 'opacity 300ms ease-out';
+		textSpan.style.textAlign = 'center';
+		textSpan.style.whiteSpace = 'nowrap';
 
-		const iconContainer = document.createElement("span");
-		iconContainer.style.position = "absolute";
-		iconContainer.style.left = "6px"; // Initial left position
-		iconContainer.style.opacity = "0";
+		const iconContainer = document.createElement('span');
+		iconContainer.style.position = 'absolute';
+		iconContainer.style.left = '6px'; // Initial left position
+		iconContainer.style.opacity = '0';
 		iconContainer.style.transition =
-			"opacity 500ms ease-out, left 500ms ease-out, transform 500ms ease-out"; // Added left and transform transitions
+			'opacity 500ms ease-out, left 500ms ease-out, transform 500ms ease-out'; // Added left and transform transitions
 
 		iconContainer.appendChild(getLogOutSVG());
 
 		creatorModeButton.appendChild(textSpan);
 		creatorModeButton.appendChild(iconContainer);
 
-		// Cloning the creator mode button so we can make it fixed and add it to the body, so it's always visible
-		const visibleCreatorModeButton = creatorModeButton.cloneNode(
-			true,
-		) as HTMLDivElement;
-		document.body.appendChild(visibleCreatorModeButton);
-
-		// Setting the opacity of the original button to 0 so we don't see it but it still makes space
-		creatorModeButton.style.opacity = "0";
-		visibleCreatorModeButton.style.position = "fixed";
-		visibleCreatorModeButton.style.top = "0";
-		visibleCreatorModeButton.style.right = "0";
-		visibleCreatorModeButton.style.zIndex = "999";
-		visibleCreatorModeButton.style.cursor = "pointer";
+		const visibleCreatorModeButton = creatorModeButton;
 
 		// Add CSS transition properties for animation
 		visibleCreatorModeButton.style.transition =
-			"width 500ms ease-out, padding 500ms ease-out";
-		visibleCreatorModeButton.style.overflow = "hidden"; // Ensure content doesn't overflow during width change
-		visibleCreatorModeButton.setAttribute("id", "creator-mode-visible-button");
+			'width 500ms ease-out, padding 500ms ease-out';
+		visibleCreatorModeButton.style.overflow = 'hidden'; // Ensure content doesn't overflow during width change
+		visibleCreatorModeButton.setAttribute('id', 'creator-mode-visible-button');
 
 		// Initial colors for visible button
 		this.updateCreatorButtonColors(visibleCreatorModeButton);
@@ -863,7 +839,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}));
 
 		visibleCreatorModeButton.onclick = () => {
-			CommandEmitter.emit("workbench.action.toggleCreatorView");
+			CommandEmitter.emit('workbench.action.toggleCreatorView');
 		};
 	}
 
