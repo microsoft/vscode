@@ -341,7 +341,8 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	updateOptions(options: { compact: boolean }): void {
 		if (options.compact && !this.optionsDisposable.value) {
 			this.optionsDisposable.value = this.enforcePartOptions({
-				showTabs: 'none'
+				showTabs: 'none',
+				closeEmptyGroups: true
 			});
 		} else if (!options.compact) {
 			this.optionsDisposable.clear();
