@@ -212,12 +212,40 @@ export class EditorGroupWatermark extends Disposable {
 		this.commandService.executeCommand('workbench.action.closeAuxiliaryBar');
 		const container = append(this.watermark, $('.editor-group-watermark-no-workspace'));
 
-		// button container
+		// button container with flex layout
 		const buttonContainer = append(container, $('.button-container'));
+		buttonContainer.style.display = 'flex';
+		buttonContainer.style.flexDirection = 'column';
+		buttonContainer.style.gap = '16px';
+		buttonContainer.style.width = '196px';
+		buttonContainer.style.margin = '0 auto';
+		buttonContainer.style.marginBottom = "16px";
+
+		// Creator mode button
+		const creatorButton = append(buttonContainer, $('button.open-folder-button'));
+		creatorButton.style.backgroundColor = 'black';
+		creatorButton.style.color = 'white';
+		creatorButton.style.display = 'flex';
+		// sparkles icon and text in separate spans
+		const sparkleIcon = append(creatorButton, $('span.codicon.codicon-sparkle'));
+		sparkleIcon.style.color = 'white';
+		const creatorTextSpan = append(creatorButton, $('span.text', {}, localize('watermark.openCreator', "Creator Mode")));
+		creatorTextSpan.style.flex = '1';
+		creatorTextSpan.style.textAlign = 'center';
+		// click handler for Creator Mode button
+		this._register(addDisposableListener(creatorButton, EventType.CLICK, (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.commandService.executeCommand('workbench.action.openCreatorView');
+		}));
+
 		const openFolderButton = append(buttonContainer, $('button.open-folder-button'));
+		openFolderButton.style.display = 'flex';
 		// folder icon and text in separate spans
 		append(openFolderButton, $('span.codicon.codicon-folder-opened'));
-		append(openFolderButton, $('span.text', {}, localize('watermark.openFolder', "Open Folder")));
+		const folderTextSpan = append(openFolderButton, $('span.text', {}, localize('watermark.openFolder', "Open Folder")));
+		folderTextSpan.style.flex = '1';
+		folderTextSpan.style.textAlign = 'center';
 		// click handler for Open Folder button
 		this._register(addDisposableListener(openFolderButton, EventType.CLICK, (e: MouseEvent) => {
 			e.preventDefault();
