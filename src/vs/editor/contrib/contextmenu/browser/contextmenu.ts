@@ -374,7 +374,7 @@ export class ContextMenuController implements IEditorContribution {
 	}
 
 	private _keybindingFor(action: IAction): ResolvedKeybinding | undefined {
-		return this._keybindingService.lookupKeybinding(action.id);
+		return this._keybindingService.lookupKeybinding(action.id, this._contextKeyService);
 	}
 
 	public dispose(): void {
