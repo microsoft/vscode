@@ -232,7 +232,6 @@ export class EditorGroupWatermark extends Disposable {
 		const rainbowGlow = append(creatorButtonContainer, $('.rainbow-border-glow'));
 		rainbowGlow.style.position = 'absolute';
 		rainbowGlow.style.inset = '-1px';
-		rainbowGlow.style.borderRadius = '9999px';
 		// Use the exact gradient from the example
 		rainbowGlow.style.background = 'linear-gradient(90deg, rgba(255, 128, 128, 0.7) 0%, rgba(255, 192, 128, 0.7) 14%, rgba(255, 255, 128, 0.7) 28%, rgba(128, 255, 128, 0.7) 42%, rgba(128, 255, 255, 0.7) 56%, rgba(128, 128, 255, 0.7) 70%, rgba(192, 128, 255, 0.7) 84%, rgba(255, 128, 192, 0.7) 100%)';
 		rainbowGlow.style.backgroundSize = '200% auto';
