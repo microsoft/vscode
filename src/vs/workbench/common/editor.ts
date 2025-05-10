@@ -1241,6 +1241,7 @@ interface IEditorPartConfiguration {
 	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
+	titleScrollbarVisibility?: 'auto' | 'visible' | 'hidden';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
