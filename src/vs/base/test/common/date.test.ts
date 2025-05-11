@@ -74,13 +74,13 @@ suite('Date', () => {
 
 		suite('safeIntl', () => {
 			test('Collator fallback', () => {
-				const collator = safeIntl.Collator('en_IT');
+				const collator = safeIntl.Collator('en_IT').value;
 				const comparison = collator.compare('a', 'b');
 				strictEqual(comparison, -1);
 			});
 
 			test('Locale fallback', () => {
-				const locale = safeIntl.Locale('en_IT');
+				const locale = safeIntl.Locale('en_IT').value;
 				strictEqual(locale.baseName, LANGUAGE_DEFAULT);
 			});
 		});

@@ -180,6 +180,10 @@ export interface IProductConfiguration {
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
+	readonly extensionProperties: IStringDictionary<{
+		readonly hasPrereleaseVersion?: boolean;
+		readonly excludeVersionRange?: string;
+	}>;
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -323,12 +327,11 @@ export interface IDefaultChatAgent {
 	readonly chatExtensionId: string;
 
 	readonly documentationUrl: string;
-	readonly termsStatementUrl: string;
-	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
 	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
+	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 
 	readonly providerId: string;

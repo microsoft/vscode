@@ -12,9 +12,9 @@ import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSou
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -632,59 +632,59 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 
 async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
-	const enabled = config.get<boolean>('diagnosticsCommitHook.Enabled', false) === true;
-	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.Sources', { '*': 'error' });
+	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
+	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.sources', { '*': 'error' });
 
 	if (!enabled) {
 		return true;
 	}
 
-	const changes: Uri[] = [];
+	const resources: Uri[] = [];
 	if (repository.indexGroup.resourceStates.length > 0) {
 		// Staged files
-		changes.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
 	} else if (options.all === 'tracked') {
 		// Tracked files
-		changes.push(...repository.workingTreeGroup.resourceStates
+		resources.push(...repository.workingTreeGroup.resourceStates
 			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
 			.map(r => r.resourceUri));
 	} else {
 		// All files
-		changes.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
-		changes.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
 	}
 
-	const diagnostics = languages.getDiagnostics();
-	const changesDiagnostics = diagnostics.filter(([uri, diags]) => {
-		// File
-		if (uri.scheme !== 'file' || !changes.find(c => pathEquals(c.fsPath, uri.fsPath))) {
-			return false;
-		}
+	const diagnostics: Map<Uri, number> = new Map();
 
-		// Diagnostics
-		return diags.find(d => {
-			// No source or ignored source
-			if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+	for (const resource of resources) {
+		const unresolvedDiagnostics = languages.getDiagnostics(resource)
+			.filter(d => {
+				// No source or ignored source
+				if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+					return false;
+				}
+
+				// Source severity
+				if (Object.keys(sourceSeverity).includes(d.source) &&
+					d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+					return true;
+				}
+
+				// Wildcard severity
+				if (Object.keys(sourceSeverity).includes('*') &&
+					d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+					return true;
+				}
+
 				return false;
-			}
+			});
 
-			// Source severity
-			if (Object.keys(sourceSeverity).includes(d.source) &&
-				d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
-				return true;
-			}
+		if (unresolvedDiagnostics.length > 0) {
+			diagnostics.set(resource, unresolvedDiagnostics.length);
+		}
+	}
 
-			// Wildcard severity
-			if (Object.keys(sourceSeverity).includes('*') &&
-				d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
-				return true;
-			}
-
-			return false;
-		});
-	});
-
-	if (changesDiagnostics.length === 0) {
+	if (diagnostics.size === 0) {
 		return true;
 	}
 
@@ -692,9 +692,9 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	const commit = l10n.t('Commit Anyway');
 	const view = l10n.t('View Problems');
 
-	const message = changesDiagnostics.length === 1
-		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
-		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', changesDiagnostics.length);
+	const message = diagnostics.size === 1
+		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(diagnostics.keys().next().value!.fsPath))
+		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', diagnostics.size);
 
 	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
 
@@ -1020,18 +1020,37 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.continueInLocalClone')
-	async continueInLocalClone(): Promise<Uri | void> {
-		if (this.model.repositories.length === 0) { return; }
-
-		// Pick a single repository to continue working on in a local clone if there's more than one
-		const items = this.model.repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
+	private getRepositoriesWithRemote(repositories: Repository[]) {
+		return repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
 			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
 			if (remote?.pushUrl) {
 				items.push({ repository: repository, label: remote.pushUrl });
 			}
 			return items;
 		}, []);
+	}
+
+	@command('git.continueInLocalClone')
+	async continueInLocalClone(): Promise<Uri | void> {
+		if (this.model.repositories.length === 0) { return; }
+
+		// Pick a single repository to continue working on in a local clone if there's more than one
+		let items = this.getRepositoriesWithRemote(this.model.repositories);
+
+		// We have a repository but there is no remote URL (e.g. git init)
+		if (items.length === 0) {
+			const pick = this.model.repositories.length === 1
+				? { repository: this.model.repositories[0] }
+				: await window.showQuickPick(this.model.repositories.map((i) => ({ repository: i, label: i.root })), { canPickMany: false, placeHolder: l10n.t('Choose which repository to publish') });
+			if (!pick) { return; }
+
+			await this.publish(pick.repository);
+
+			items = this.getRepositoriesWithRemote([pick.repository]);
+			if (items.length === 0) {
+				return;
+			}
+		}
 
 		let selection = items[0];
 		if (items.length > 1) {
@@ -1955,16 +1974,6 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (!isGitUri(modifiedUri)) {
-			return;
-		}
-
-		const { ref } = fromGitUri(modifiedUri);
-
-		if (ref !== '') {
-			return;
-		}
-
 		const repository = this.model.getRepository(modifiedUri);
 		if (!repository) {
 			return;
@@ -1989,6 +1998,7 @@ export class CommandCenter {
 		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+
 		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];
@@ -1998,13 +2008,20 @@ export class CommandCenter {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(invertLineChange);
-
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
-		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
+		// if (modifiedUri.scheme === 'file') {
+		// 	// Editor
+		// 	this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(selectedDiffs)}`);
+		// 	await this._unstageChanges(textEditor, selectedDiffs);
+		// 	return;
+		// }
+
+		const selectedDiffsInverted = selectedDiffs.map(invertLineChange);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffsInverted: ${JSON.stringify(selectedDiffsInverted)}`);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, selectedDiffsInverted);
+		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
 	}
 
 	@command('git.unstageFile')
@@ -2029,6 +2046,49 @@ export class CommandCenter {
 		await repository.revert(resources);
 	}
 
+	@command('git.unstageChange')
+	async unstageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
+		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+		if (!textEditor) {
+			return;
+		}
+
+		await this._unstageChanges(textEditor, [changes[index]]);
+	}
+
+	private async _unstageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
+		const modifiedDocument = textEditor.document;
+		const modifiedUri = modifiedDocument.uri;
+
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (!workingTreeDiffInformation) {
+			return;
+		}
+
+		// Approach to unstage change(s):
+		// - use file on disk as original document
+		// - revert all changes from the working tree
+		// - revert the specify change(s) from the index
+		const workingTreeDiffs = toLineChanges(workingTreeDiffInformation);
+		const workingTreeDiffsInverted = workingTreeDiffs.map(invertLineChange);
+		const changesInverted = changes.map(invertLineChange);
+		const diffsInverted = [...changesInverted, ...workingTreeDiffsInverted].sort(compareLineChanges);
+
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const result = applyLineChanges(modifiedDocument, originalDocument, diffsInverted);
+
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
+	}
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
@@ -4544,8 +4604,11 @@ export class CommandCenter {
 		}
 
 		const rootUri = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', rootUri);
+		const commitShortHashLength = config.get<number>('commitShortHashLength', 7);
+
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
+		const title = `${truncate(historyItemId, commitShortHashLength, false)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });

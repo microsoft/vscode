@@ -5,13 +5,14 @@
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
-import { ITreeSitterImporter } from '../treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterImporter } from '../treeSitterParserService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { canASAR } from '../../../../amdX.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { PromiseResult } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
 
@@ -30,9 +31,21 @@ export class TreeSitterLanguages extends Disposable {
 	constructor(private readonly _treeSitterImporter: ITreeSitterImporter,
 		private readonly _fileService: IFileService,
 		private readonly _environmentService: IEnvironmentService,
+		configurationService: IConfigurationService,
 		private readonly _registeredLanguages: Map<string, string>,
 	) {
 		super();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {
+				for (const language of this._languages.keys()) {
+					if (e.affectsConfiguration(`${EDITOR_EXPERIMENTAL_PREFER_TREESITTER}.${language}`)) {
+						if (this._languages.getSyncIfCached(language) === undefined) {
+							this._languages.delete(language);
+						}
+					}
+				}
+			}
+		}));
 	}
 
 	public getOrInitLanguage(languageId: string): Parser.Language | undefined {
@@ -104,6 +117,14 @@ class AsyncCache<TKey, T> {
 
 	isCached(key: TKey): boolean {
 		return this._values.get(key)?.result !== undefined;
+	}
+
+	delete(key: TKey) {
+		return this._values.delete(key);
+	}
+
+	keys() {
+		return this._values.keys();
 	}
 }
 

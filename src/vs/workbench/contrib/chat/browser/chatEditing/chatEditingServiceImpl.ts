@@ -220,6 +220,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// multiple times during the process of response streaming.
 		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
 
+		let editorDidChange = false;
+		const editorListener = Event.once(this._editorService.onDidActiveEditorChange)(() => {
+			editorDidChange = true;
+		});
+
 		const editedFilesExist = new ResourceMap<Promise<void>>();
 		const ensureEditorOpen = (partUri: URI) => {
 			const uri = CellUri.parse(partUri)?.notebook ?? partUri;
@@ -233,8 +238,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					return;
 				}
 				const activeUri = this._editorService.activeEditorPane?.input.resource;
-				const inactive = this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId ||
-					Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
+				const inactive = editorDidChange
+					|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId
+					|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 			}));
 		};
@@ -250,6 +256,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 			editsSeen.length = 0;
 			editedFilesExist.clear();
+			editorListener.dispose();
 		};
 
 		const handleResponseParts = async () => {
@@ -420,7 +427,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		}
 		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
 		if (isModified) {
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			return {
 				weight: 1000,
 				letter: Codicon.diffModified,

@@ -90,28 +90,28 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 	static readonly id: string = 'notebook.multiCursorController';
 
-	private word: string = '';
+	private word: string;
 	private startPosition: {
 		cellIndex: number;
 		position: Position;
 	} | undefined;
-	private trackedCells: TrackedCell[] = [];
+	private trackedCells: TrackedCell[];
 
-	private readonly _onDidChangeAnchorCell = this._register(new Emitter<void>());
-	readonly onDidChangeAnchorCell: Event<void> = this._onDidChangeAnchorCell.event;
+	private readonly _onDidChangeAnchorCell;
+	readonly onDidChangeAnchorCell: Event<void>;
 	private anchorCell: [ICellViewModel, ICodeEditor] | undefined;
 
-	private readonly anchorDisposables = this._register(new DisposableStore());
-	private readonly cursorsDisposables = this._register(new DisposableStore());
-	private cursorsControllers: ResourceMap<CursorsController> = new ResourceMap<CursorsController>();
+	private readonly anchorDisposables;
+	private readonly cursorsDisposables;
+	private cursorsControllers: ResourceMap<CursorsController>;
 
-	private state: NotebookMultiCursorState = NotebookMultiCursorState.Idle;
+	private state: NotebookMultiCursorState;
 	public getState(): NotebookMultiCursorState {
 		return this.state;
 	}
 
-	private _nbIsMultiSelectSession = NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor.bindTo(this.contextKeyService);
-	private _nbMultiSelectState = NOTEBOOK_MULTI_CURSOR_CONTEXT.NotebookMultiSelectCursorState.bindTo(this.contextKeyService);
+	private _nbIsMultiSelectSession;
+	private _nbMultiSelectState;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -123,6 +123,16 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super();
+		this.word = '';
+		this.trackedCells = [];
+		this._onDidChangeAnchorCell = this._register(new Emitter<void>());
+		this.onDidChangeAnchorCell = this._onDidChangeAnchorCell.event;
+		this.anchorDisposables = this._register(new DisposableStore());
+		this.cursorsDisposables = this._register(new DisposableStore());
+		this.cursorsControllers = new ResourceMap<CursorsController>();
+		this.state = NotebookMultiCursorState.Idle;
+		this._nbIsMultiSelectSession = NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor.bindTo(this.contextKeyService);
+		this._nbMultiSelectState = NOTEBOOK_MULTI_CURSOR_CONTEXT.NotebookMultiSelectCursorState.bindTo(this.contextKeyService);
 
 		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 

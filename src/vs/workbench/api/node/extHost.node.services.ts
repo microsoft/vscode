@@ -28,7 +28,7 @@ import { ISignService } from '../../../platform/sign/common/sign.js';
 import { SignService } from '../../../platform/sign/node/signService.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
 import { IExtHostMpcService } from '../common/extHostMcp.js';
-import { NodeExtHostMpcService } from './extHostMpcNode.js';
+import { NodeExtHostMpcService } from './extHostMcpNode.js';
 
 // #########################################################################
 // ###                                                                   ###

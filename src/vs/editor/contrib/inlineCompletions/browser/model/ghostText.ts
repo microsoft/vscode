@@ -7,10 +7,10 @@ import { equals } from '../../../../../base/common/arrays.js';
 import { splitLines } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
 import { InlineDecoration } from '../../../../common/viewModel.js';
-import { ColumnRange } from '../../../../common/core/columnRange.js';
+import { ColumnRange } from '../../../../common/core/ranges/columnRange.js';
 
 export class GhostText {
 	constructor(
@@ -30,7 +30,7 @@ export class GhostText {
 	*/
 	render(documentText: string, debug: boolean = false): string {
 		return new TextEdit([
-			...this.parts.map(p => new SingleTextEdit(
+			...this.parts.map(p => new TextReplacement(
 				Range.fromPositions(new Position(this.lineNumber, p.column)),
 				debug ? `[${p.lines.map(line => line.line).join('\n')}]` : p.lines.map(line => line.line).join('\n')
 			)),
@@ -45,7 +45,7 @@ export class GhostText {
 
 		const cappedLineText = lineText.substr(0, lastPart.column - 1);
 		const text = new TextEdit([
-			...this.parts.map(p => new SingleTextEdit(
+			...this.parts.map(p => new TextReplacement(
 				Range.fromPositions(new Position(1, p.column)),
 				p.lines.map(line => line.line).join('\n')
 			)),
@@ -127,12 +127,12 @@ export class GhostTextReplacement {
 
 		if (debug) {
 			return new TextEdit([
-				new SingleTextEdit(Range.fromPositions(replaceRange.getStartPosition()), '('),
-				new SingleTextEdit(Range.fromPositions(replaceRange.getEndPosition()), `)[${this.newLines.join('\n')}]`),
+				new TextReplacement(Range.fromPositions(replaceRange.getStartPosition()), '('),
+				new TextReplacement(Range.fromPositions(replaceRange.getEndPosition()), `)[${this.newLines.join('\n')}]`),
 			]).applyToString(documentText);
 		} else {
 			return new TextEdit([
-				new SingleTextEdit(replaceRange, this.newLines.join('\n')),
+				new TextReplacement(replaceRange, this.newLines.join('\n')),
 			]).applyToString(documentText);
 		}
 	}

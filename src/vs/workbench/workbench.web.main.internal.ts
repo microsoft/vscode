@@ -67,6 +67,7 @@ import './services/userDataProfile/browser/userDataProfileStorageService.js';
 import './services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import './services/browserElements/browser/webBrowserElementsService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -139,9 +140,6 @@ import './contrib/debug/browser/extensionHostDebugService.js';
 // Welcome Banner
 import './contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
 
-// Welcome Dialog
-import './contrib/welcomeDialog/browser/welcomeDialog.contribution.js';
-
 // Webview
 import './contrib/webview/browser/webview.web.contribution.js';
 
@@ -167,6 +165,9 @@ import './contrib/splash/browser/splash.contribution.js';
 
 // Remote Start Entry for the Web
 import './contrib/remote/browser/remoteStartEntry.contribution.js';
+
+// Process Explorer
+import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
 
 //#endregion
 

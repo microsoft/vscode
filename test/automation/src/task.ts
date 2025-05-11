@@ -34,17 +34,16 @@ export class Task {
 	}
 
 	async assertTasks(filter: string, expected: ITaskConfigurationProperties[], type: 'run' | 'configure') {
-		await this.code.sendKeybinding('right');
 		// TODO https://github.com/microsoft/vscode/issues/242535
-		await wait(100);
-		await this.editors.saveOpenedFile();
+		// Artificial delay before running non hidden tasks
+		// so that entries from configureTask show up in the quick access.
+		await wait(1000);
 		type === 'run' ? await this.quickaccess.runCommand('workbench.action.tasks.runTask', { keepOpen: true }) : await this.quickaccess.runCommand('workbench.action.tasks.configureTask', { keepOpen: true });
 		if (expected.length === 0) {
 			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.every(label => label.trim() !== filter.trim()));
-		} else {
-			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.some(label => label.trim() === filter.trim()));
 		}
 		if (expected.length > 0 && !expected[0].hide) {
+			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.some(label => label.trim() === filter.trim()));
 			// select the expected task
 			await this.quickinput.selectQuickInputElement(0, true);
 			// Continue without scanning the output

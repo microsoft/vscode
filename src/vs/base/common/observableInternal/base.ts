@@ -570,21 +570,3 @@ export class DisposableObservableValue<T extends IDisposable | undefined, TChang
 		this._value?.dispose();
 	}
 }
-
-export interface IChangeTracker {
-	/**
-	 * Returns if this change should cause an invalidation.
-	 * Implementations can record changes.
-	*/
-	handleChange(context: IChangeContext): boolean;
-}
-
-export interface IChangeContext {
-	readonly changedObservable: IObservableWithChange<any, any>;
-	readonly change: unknown;
-
-	/**
-	 * Returns if the given observable caused the change.
-	 */
-	didChange<T, TChange>(observable: IObservableWithChange<T, TChange>): this is { change: TChange };
-}

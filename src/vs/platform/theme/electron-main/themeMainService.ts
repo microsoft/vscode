@@ -10,10 +10,10 @@ import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.j
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IStateService } from '../../state/node/state.js';
-import { IPartsSplash, IPartsSplashWorkspaceOverride } from '../common/themeService.js';
+import { IPartsSplash } from '../common/themeService.js';
 import { IColorScheme } from '../../window/common/window.js';
 import { ThemeTypeSelector } from '../common/theme.js';
-import { IBaseWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 
@@ -28,12 +28,30 @@ const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
 
 const THEME_WINDOW_SPLASH_KEY = 'windowSplash';
-const THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
+const THEME_WINDOW_SPLASH_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
+
+const AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility';
 
 namespace ThemeSettings {
 	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
 	export const DETECT_HC = 'window.autoDetectHighContrast';
 	export const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
+}
+
+interface IPartSplashOverrideWorkspaces {
+	[workspaceId: string]: {
+		sideBarVisible: boolean;
+		auxiliaryBarVisible: boolean;
+	};
+}
+
+interface IPartsSplashOverride {
+	layoutInfo: {
+		sideBarWidth: number;
+		auxiliaryBarWidth: number;
+
+		workspaces: IPartSplashOverrideWorkspaces;
+	};
 }
 
 export const IThemeMainService = createDecorator<IThemeMainService>('themeMainService');
@@ -46,8 +64,8 @@ export interface IThemeMainService {
 
 	getBackgroundColor(): string;
 
-	saveWindowSplash(windowId: number | undefined, workspace: IBaseWorkspaceIdentifier | undefined, splash: IPartsSplash): void;
-	getWindowSplash(workspace: IBaseWorkspaceIdentifier | undefined): IPartsSplash | undefined;
+	saveWindowSplash(windowId: number | undefined, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash): void;
+	getWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): IPartsSplash | undefined;
 
 	getColorScheme(): IColorScheme;
 }
@@ -56,10 +74,17 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private static readonly DEFAULT_BAR_WIDTH = 300;
+
+	private static readonly WORKSPACE_OVERRIDE_LIMIT = 50;
+
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
-	constructor(@IStateService private stateService: IStateService, @IConfigurationService private configurationService: IConfigurationService) {
+	constructor(
+		@IStateService private stateService: IStateService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super();
 
 		// System Theme
@@ -78,8 +103,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	private updateSystemColorTheme(): void {
 		if (isLinux || this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			// only with `system` we can detect the system color scheme
-			electron.nativeTheme.themeSource = 'system';
+			electron.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
 		} else {
 			switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(ThemeSettings.SYSTEM_COLOR_THEME)) {
 				case 'dark':
@@ -99,28 +123,34 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 					electron.nativeTheme.themeSource = 'system';
 					break;
 			}
-
 		}
 	}
 
 	getColorScheme(): IColorScheme {
+
+		// high contrast is reflected by the shouldUseInvertedColorScheme property
 		if (isWindows) {
-			// high contrast is reflected by the shouldUseInvertedColorScheme property
 			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
 				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
 			}
-		} else if (isMacintosh) {
-			// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set, reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
+		}
+
+		// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set,
+		// reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
+		else if (isMacintosh) {
 			if (electron.nativeTheme.shouldUseInvertedColorScheme || electron.nativeTheme.shouldUseHighContrastColors) {
 				return { dark: electron.nativeTheme.shouldUseDarkColors, highContrast: true };
 			}
-		} else if (isLinux) {
-			// ubuntu gnome seems to have 3 states, light dark and high contrast
+		}
+
+		// ubuntu gnome seems to have 3 states, light dark and high contrast
+		else if (isLinux) {
 			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				return { dark: true, highContrast: true };
 			}
 		}
+
 		return {
 			dark: electron.nativeTheme.shouldUseDarkColors,
 			highContrast: false
@@ -132,9 +162,11 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && colorScheme.highContrast) {
 			return colorScheme.dark ? ThemeTypeSelector.HC_BLACK : ThemeTypeSelector.HC_LIGHT;
 		}
+
 		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			return colorScheme.dark ? ThemeTypeSelector.VS_DARK : ThemeTypeSelector.VS;
 		}
+
 		return undefined;
 	}
 
@@ -149,6 +181,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 				return storedBackground;
 			}
 		}
+
 		// Otherwise we return the default background for the preferred base theme. If there's no preferred, use the stored one.
 		switch (preferred ?? stored) {
 			case ThemeTypeSelector.VS: return DEFAULT_BG_LIGHT;
@@ -168,7 +201,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 	}
 
-	saveWindowSplash(windowId: number | undefined, workspace: IBaseWorkspaceIdentifier | undefined, splash: IPartsSplash): void {
+	saveWindowSplash(windowId: number | undefined, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash): void {
 
 		// Update override as needed
 		const splashOverride = this.updateWindowSplashOverride(workspace, splash);
@@ -178,7 +211,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
 			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
 			{ key: THEME_WINDOW_SPLASH_KEY, data: splash },
-			splashOverride ? { key: THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY, data: splashOverride } : undefined
+			splashOverride ? { key: THEME_WINDOW_SPLASH_OVERRIDE_KEY, data: splashOverride } : undefined
 		]));
 
 		// Update in opened windows
@@ -190,33 +223,89 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.updateSystemColorTheme();
 	}
 
-	private updateWindowSplashOverride(workspace: IBaseWorkspaceIdentifier | undefined, splash: IPartsSplash): IPartsSplashWorkspaceOverride | undefined {
-		let splashOverride: IPartsSplashWorkspaceOverride | undefined = undefined;
+	private updateWindowSplashOverride(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash): IPartsSplashOverride | undefined {
+		let splashOverride: IPartsSplashOverride | undefined = undefined;
 		let changed = false;
 		if (workspace) {
 			splashOverride = { ...this.getWindowSplashOverride() }; // make a copy for modifications
 
-			const [auxiliarySideBarWidth, workspaceIds] = splashOverride.layoutInfo.auxiliarySideBarWidth;
-			if (splash.layoutInfo?.auxiliarySideBarWidth) {
-				if (auxiliarySideBarWidth !== splash.layoutInfo.auxiliarySideBarWidth) {
-					splashOverride.layoutInfo.auxiliarySideBarWidth[0] = splash.layoutInfo.auxiliarySideBarWidth;
-					changed = true;
-				}
-
-				if (!workspaceIds.includes(workspace.id)) {
-					workspaceIds.push(workspace.id);
-					changed = true;
-				}
-			} else {
-				const index = workspaceIds.indexOf(workspace.id);
-				if (index > -1) {
-					workspaceIds.splice(index, 1);
-					changed = true;
-				}
-			}
+			changed = this.doUpdateWindowSplashOverride(workspace, splash, splashOverride, 'sideBar');
+			changed = this.doUpdateWindowSplashOverride(workspace, splash, splashOverride, 'auxiliaryBar') || changed;
 		}
 
 		return changed ? splashOverride : undefined;
+	}
+
+	private doUpdateWindowSplashOverride(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, splash: IPartsSplash, splashOverride: IPartsSplashOverride, part: 'sideBar' | 'auxiliaryBar'): boolean {
+		const currentWidth = part === 'sideBar' ? splash.layoutInfo?.sideBarWidth : splash.layoutInfo?.auxiliarySideBarWidth;
+		const overrideWidth = part === 'sideBar' ? splashOverride.layoutInfo.sideBarWidth : splashOverride.layoutInfo.auxiliaryBarWidth;
+
+		// No layout info: remove override
+		let changed = false;
+		if (typeof currentWidth !== 'number') {
+			if (splashOverride.layoutInfo.workspaces[workspace.id]) {
+				delete splashOverride.layoutInfo.workspaces[workspace.id];
+				changed = true;
+			}
+
+			return changed;
+		}
+
+		let workspaceOverride = splashOverride.layoutInfo.workspaces[workspace.id];
+		if (!workspaceOverride) {
+			const workspaceEntries = Object.keys(splashOverride.layoutInfo.workspaces);
+			if (workspaceEntries.length >= ThemeMainService.WORKSPACE_OVERRIDE_LIMIT) {
+				delete splashOverride.layoutInfo.workspaces[workspaceEntries[0]];
+				changed = true;
+			}
+
+			workspaceOverride = { sideBarVisible: false, auxiliaryBarVisible: false };
+			splashOverride.layoutInfo.workspaces[workspace.id] = workspaceOverride;
+			changed = true;
+		}
+
+		// Part has width: update width & visibility override
+		if (currentWidth > 0) {
+			if (overrideWidth !== currentWidth) {
+				splashOverride.layoutInfo[part === 'sideBar' ? 'sideBarWidth' : 'auxiliaryBarWidth'] = currentWidth;
+				changed = true;
+			}
+
+			switch (part) {
+				case 'sideBar':
+					if (!workspaceOverride.sideBarVisible) {
+						workspaceOverride.sideBarVisible = true;
+						changed = true;
+					}
+					break;
+				case 'auxiliaryBar':
+					if (!workspaceOverride.auxiliaryBarVisible) {
+						workspaceOverride.auxiliaryBarVisible = true;
+						changed = true;
+					}
+					break;
+			}
+		}
+
+		// Part is hidden: update visibility override
+		else {
+			switch (part) {
+				case 'sideBar':
+					if (workspaceOverride.sideBarVisible) {
+						workspaceOverride.sideBarVisible = false;
+						changed = true;
+					}
+					break;
+				case 'auxiliaryBar':
+					if (workspaceOverride.auxiliaryBarVisible) {
+						workspaceOverride.auxiliaryBarVisible = false;
+						changed = true;
+					}
+					break;
+			}
+		}
+
+		return changed;
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
@@ -228,34 +317,81 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 	}
 
-	getWindowSplash(workspace: IBaseWorkspaceIdentifier | undefined): IPartsSplash | undefined {
+	getWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): IPartsSplash | undefined {
 		const partSplash = this.stateService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH_KEY);
 		if (!partSplash?.layoutInfo) {
 			return partSplash; // return early: overrides currently only apply to layout info
 		}
 
-		// Apply workspace specific overrides
-		let auxiliarySideBarWidthOverride: number | undefined;
+		const override = this.getWindowSplashOverride();
+
+		// Figure out side bar width based on workspace and overrides
+		let sideBarWidth: number;
 		if (workspace) {
-			const [auxiliarySideBarWidth, workspaceIds] = this.getWindowSplashOverride().layoutInfo.auxiliarySideBarWidth;
-			if (workspaceIds.includes(workspace.id)) {
-				auxiliarySideBarWidthOverride = auxiliarySideBarWidth;
+			if (override.layoutInfo.workspaces[workspace.id]?.sideBarVisible === false) {
+				sideBarWidth = 0;
+			} else {
+				sideBarWidth = override.layoutInfo.sideBarWidth || partSplash.layoutInfo.sideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
 			}
+		} else {
+			sideBarWidth = 0;
+		}
+
+		// Figure out auxiliary bar width based on workspace, configuration and overrides
+		const auxiliarySideBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY);
+		let auxiliarySideBarWidth: number;
+		if (workspace) {
+			const auxiliaryBarVisible = override.layoutInfo.workspaces[workspace.id]?.auxiliaryBarVisible;
+			if (auxiliaryBarVisible === true) {
+				auxiliarySideBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliarySideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
+			} else if (auxiliaryBarVisible === false) {
+				auxiliarySideBarWidth = 0;
+			} else {
+				if (auxiliarySideBarDefaultVisibility === 'visible' || auxiliarySideBarDefaultVisibility === 'visibleInWorkspace') {
+					auxiliarySideBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliarySideBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
+				} else {
+					auxiliarySideBarWidth = 0;
+				}
+			}
+		} else {
+			auxiliarySideBarWidth = 0; // technically not true if configured 'visible', but we never store splash per empty window, so we decide on a default here
 		}
 
 		return {
 			...partSplash,
 			layoutInfo: {
 				...partSplash.layoutInfo,
-				// Only apply an auxiliary bar width when we have a workspace specific
-				// override. Auxiliary bar is not visible by default unless explicitly
-				// opened in a workspace.
-				auxiliarySideBarWidth: typeof auxiliarySideBarWidthOverride === 'number' ? auxiliarySideBarWidthOverride : 0
+				sideBarWidth,
+				auxiliarySideBarWidth
 			}
 		};
 	}
 
-	private getWindowSplashOverride(): IPartsSplashWorkspaceOverride {
-		return this.stateService.getItem<IPartsSplashWorkspaceOverride>(THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY, { layoutInfo: { auxiliarySideBarWidth: [0, []] } });
+	private getWindowSplashOverride(): IPartsSplashOverride {
+		let override = this.stateService.getItem<IPartsSplashOverride>(THEME_WINDOW_SPLASH_OVERRIDE_KEY);
+
+		if (!override?.layoutInfo) {
+			override = {
+				layoutInfo: {
+					sideBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH,
+					auxiliaryBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH,
+					workspaces: {}
+				}
+			};
+		}
+
+		if (!override.layoutInfo.sideBarWidth) {
+			override.layoutInfo.sideBarWidth = ThemeMainService.DEFAULT_BAR_WIDTH;
+		}
+
+		if (!override.layoutInfo.auxiliaryBarWidth) {
+			override.layoutInfo.auxiliaryBarWidth = ThemeMainService.DEFAULT_BAR_WIDTH;
+		}
+
+		if (!override.layoutInfo.workspaces) {
+			override.layoutInfo.workspaces = {};
+		}
+
+		return override;
 	}
 }

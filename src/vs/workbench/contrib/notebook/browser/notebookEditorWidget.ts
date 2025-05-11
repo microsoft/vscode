@@ -91,7 +91,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { NotebookPerfMarks } from '../common/notebookPerformance.js';
 import { BaseCellEditorOptions } from './viewModel/cellEditorOptions.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
-import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { CellFindMatchModel } from './contrib/find/findModel.js';
 import { INotebookLoggingService } from '../common/notebookLoggingService.js';
 import { Schemas } from '../../../../base/common/network.js';

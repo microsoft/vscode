@@ -3,33 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageFilter } from '../../../../../editor/common/languageSelector.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
+import { LanguageSelector } from '../../../../../editor/common/languageSelector.js';
 
 /**
  * Documentation link for the reusable prompts feature.
  */
-export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
 
 /**
- * Supported reusable prompt file patterns.
+ * Language ID for the reusable prompt syntax.
  */
-const REUSABLE_PROMPT_FILE_PATTERNS = Object.freeze([
-	/**
-	 * Any file that has the prompt file extension.
-	 * See {@link PROMPT_FILE_EXTENSION}.
-	 */
-	`**/*${PROMPT_FILE_EXTENSION}`,
-
-	/**
-	 * Copilot custom instructions file inside a `.github` folder.
-	 */
-	`**/.github/${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME}`,
-]);
+export const PROMPT_LANGUAGE_ID = 'prompt';
 
 /**
- * Prompt files language selector.
+ * Language ID for instructions syntax.
  */
-export const LANGUAGE_SELECTOR: LanguageFilter = Object.freeze({
-	pattern: `{${REUSABLE_PROMPT_FILE_PATTERNS.join(',')}}`,
-});
+export const INSTRUCTIONS_LANGUAGE_ID = 'instructions';
+
+/**
+ * Prompt and instructions files language selector.
+ */
+export const PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID];

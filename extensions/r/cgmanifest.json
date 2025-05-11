@@ -6,11 +6,11 @@
 				"git": {
 					"name": "REditorSupport/vscode-R",
 					"repositoryUrl": "https://github.com/REditorSupport/vscode-R",
-					"commitHash": "c937cdd39982995d8ee1f1125919f7c2d150b35d"
+					"commitHash": "b0781feedfadbcc35f40db5ce09cc9956d78547c"
 				}
 			},
 			"license": "MIT",
-			"version": "2.8.4"
+			"version": "2.8.6"
 		}
 	],
 	"version": 1
