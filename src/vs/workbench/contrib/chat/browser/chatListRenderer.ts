@@ -13,6 +13,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -69,14 +70,13 @@ import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
-import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWarningContentPart } from './chatContentParts/chatWarningContentPart.js';
+import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
-import { findLast } from '../../../../base/common/arraysFind.js';
 
 const $ = dom.$;
 
@@ -853,7 +853,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			lastPart.kind === 'references' ||
 			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete)) ||
-			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled)
+			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
+			lastPart.kind === 'prepareToolInvocation'
 		) {
 			return true;
 		}
