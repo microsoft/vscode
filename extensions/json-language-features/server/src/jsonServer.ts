@@ -40,6 +40,10 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+namespace ValidateContentRequest {
+	export const type: RequestType<{ schemaUri: string; content: string }, Diagnostic[], any> = new RequestType('json/validateContent');
+}
+
 export interface DocumentSortingParams {
 	/**
 	 * The uri of the document to sort.
@@ -75,6 +79,8 @@ export interface RuntimeEnvironment {
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
 	};
 }
+
+const sortCodeActionKind = CodeActionKind.Source.concat('.sort', '.json');
 
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
@@ -190,7 +196,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				interFileDependencies: false,
 				workspaceDiagnostics: false
 			},
-			codeActionProvider: true
+			codeActionProvider: {
+				codeActionKinds: [sortCodeActionKind]
+			}
 		};
 
 		return { capabilities };
@@ -299,6 +307,14 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return [];
 	});
 
+	connection.onRequest(ValidateContentRequest.type, async ({ schemaUri, content }) => {
+		const docURI = 'vscode://schemas/temp/' + new Date().getTime();
+		const document = TextDocument.create(docURI, 'json', 1, content);
+		updateConfiguration([{ uri: schemaUri, fileMatch: [docURI] }]);
+		return await validateTextDocument(document);
+	});
+
+
 	connection.onRequest(LanguageStatusRequest.type, async uri => {
 		const document = documents.get(uri);
 		if (document) {
@@ -319,7 +335,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return [];
 	});
 
-	function updateConfiguration() {
+	function updateConfiguration(extraSchemas?: SchemaConfiguration[]) {
 		const languageSettings = {
 			validate: validateEnabled,
 			allowComments: true,
@@ -350,6 +366,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				}
 			});
 		}
+		if (extraSchemas) {
+			languageSettings.schemas.push(...extraSchemas);
+		}
+
 		languageService.configure(languageSettings);
 
 		diagnosticsSupport?.requestRefresh();
@@ -430,7 +450,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(codeActionParams.textDocument.uri);
 			if (document) {
-				const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source.concat('.sort', '.json'));
+				const sortCodeAction = CodeAction.create('Sort JSON', sortCodeActionKind);
 				sortCodeAction.command = {
 					command: 'json.sort',
 					title: l10n.t('Sort JSON')
@@ -529,3 +549,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 function getFullRange(document: TextDocument): Range {
 	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
 }
+
+
+
+

@@ -50,6 +50,11 @@ export interface IPaneCompositePartService {
 	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
 
 	/**
+	 * Returns id of all view containers following visual order.
+	 */
+	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
+
+	/**
 	 * Returns the progress indicator for the side bar.
 	 */
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined;

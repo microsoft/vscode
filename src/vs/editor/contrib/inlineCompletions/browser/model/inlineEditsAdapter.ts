@@ -6,12 +6,11 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorunWithStore, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { Position } from '../../../../common/core/position.js';
-import { IInlineEdit, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineEditProvider, InlineEditTriggerKind } from '../../../../common/languages.js';
+import { IInlineEdit, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineEditProvider, InlineEditTriggerKind } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 
@@ -33,34 +32,33 @@ export class InlineEditsAdapterContribution extends Disposable {
 }
 
 export class InlineEditsAdapter extends Disposable {
-	public static experimentalInlineEditsEnabled = 'editor.inlineSuggest.experimentalInlineEditsEnabled';
-	private readonly _inlineCompletionInlineEdits = observableConfigValue(InlineEditsAdapter.experimentalInlineEditsEnabled, false, this._configurationService);
-
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
 		const didChangeSignal = observableSignalFromEvent('didChangeSignal', this._languageFeaturesService.inlineEditProvider.onDidChange);
 
 		this._register(autorunWithStore((reader, store) => {
-			if (!this._inlineCompletionInlineEdits.read(reader)) { return; }
 			didChangeSignal.read(reader);
 
-			type InlineCompletionsAndEdits = InlineCompletions & {
+			type InlineCompletionsAndEdits = InlineCompletions<InlineCompletion & { edit: IInlineEdit }> & {
 				edits: {
 					result: IInlineEdit;
 					provider: InlineEditProvider<IInlineEdit>;
 				}[];
 			};
 
-			store.add(this._languageFeaturesService.inlineCompletionsProvider.register('*', new class implements InlineCompletionsProvider<InlineCompletionsAndEdits> {
-				async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletionsAndEdits> {
+			store.add(this._languageFeaturesService.inlineCompletionsProvider.register('*', {
+				async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletionsAndEdits | undefined> {
+					if (!context.includeInlineEdits) { return undefined; }
+
 					const allInlineEditProvider = _languageFeaturesService.inlineEditProvider.all(model);
 					const inlineEdits = await Promise.all(allInlineEditProvider.map(async provider => {
 						const result = await provider.provideInlineEdit(model, {
 							triggerKind: InlineEditTriggerKind.Automatic,
+							requestUuid: context.requestUuid
 						}, token);
 						if (!result) { return undefined; }
 						return { result, provider };
@@ -72,22 +70,33 @@ export class InlineEditsAdapter extends Disposable {
 						items: definedEdits.map(e => {
 							return {
 								range: e.result.range,
+								showRange: e.result.showRange,
 								insertText: e.result.text,
 								command: e.result.accepted,
+								shownCommand: e.result.shown,
+								action: e.result.action,
 								isInlineEdit: true,
+								edit: e.result,
 							};
 						}),
+						commands: definedEdits.flatMap(e => e.result.commands ?? []),
+						enableForwardStability: true,
 					};
-				}
+				},
+				handleRejection: (completions: InlineCompletions, item: InlineCompletionsAndEdits['items'][number]): void => {
+					if (item.edit.rejected) {
+						this._commandService.executeCommand(item.edit.rejected.id, ...(item.edit.rejected.arguments ?? []));
+					}
+				},
 				freeInlineCompletions(c: InlineCompletionsAndEdits) {
 					for (const e of c.edits) {
 						e.provider.freeInlineEdit(e.result);
 					}
-				}
+				},
 				toString(): string {
 					return 'InlineEditsAdapter';
 				}
-			}));
+			} satisfies InlineCompletionsProvider<InlineCompletionsAndEdits>));
 		}));
 	}
 }

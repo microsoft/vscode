@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IRectangle } from '../../window/common/window.js';
 
 export interface IResolvableEditorModel extends IDisposable {
 
@@ -249,11 +252,6 @@ export interface IEditorOptions {
 	inactive?: boolean;
 
 	/**
-	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
-	 * message as needed. By default, an error will be presented as notification if opening was not possible.
-	 */
-
-	/**
 	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
 	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
 	 * in that case.
@@ -301,6 +299,27 @@ export interface IEditorOptions {
 	 * not turn transient.
 	 */
 	transient?: boolean;
+
+	/**
+	 * Options that only apply when `AUX_WINDOW_GROUP` is used for opening.
+	 */
+	auxiliary?: {
+
+		/**
+		 * Define the bounds of the editor window.
+		 */
+		bounds?: Partial<IRectangle>;
+
+		/**
+		 * Show editor compact, hiding unnecessary elements.
+		 */
+		compact?: boolean;
+
+		/**
+		 * Show the editor always on top of other windows.
+		 */
+		alwaysOnTop?: boolean;
+	};
 }
 
 export interface ITextEditorSelection {
@@ -375,4 +394,30 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Source of the call that caused the selection.
 	 */
 	selectionSource?: TextEditorSelectionSource | string;
+}
+
+export type ITextEditorChange = [
+	originalStartLineNumber: number,
+	originalEndLineNumberExclusive: number,
+	modifiedStartLineNumber: number,
+	modifiedEndLineNumberExclusive: number
+];
+
+export interface ITextEditorDiffInformation {
+	readonly documentVersion: number;
+	readonly original: URI | undefined;
+	readonly modified: URI;
+	readonly changes: readonly ITextEditorChange[];
+}
+
+export function isTextEditorDiffInformationEqual(
+	uriIdentityService: IUriIdentityService,
+	diff1: ITextEditorDiffInformation | undefined,
+	diff2: ITextEditorDiffInformation | undefined): boolean {
+	return diff1?.documentVersion === diff2?.documentVersion &&
+		uriIdentityService.extUri.isEqual(diff1?.original, diff2?.original) &&
+		uriIdentityService.extUri.isEqual(diff1?.modified, diff2?.modified) &&
+		equals<ITextEditorChange>(diff1?.changes, diff2?.changes, (a, b) => {
+			return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+		});
 }

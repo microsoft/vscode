@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
-import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent, IEditorControl } from '../../../common/editor.js';
+import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent, IEditorControl, ITextResourceDiffEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
@@ -490,14 +490,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
+		return this.doGetVisibleTextEditorControls(this.visibleEditorPanes);
+	}
+
+	private doGetVisibleTextEditorControls(editorPanes: IVisibleEditorPane[]): Array<ICodeEditor | IDiffEditor> {
 		const visibleTextEditorControls: Array<ICodeEditor | IDiffEditor> = [];
-		for (const visibleEditorPane of this.visibleEditorPanes) {
+		for (const editorPane of editorPanes) {
 			const controls: Array<IEditorControl | undefined> = [];
-			if (visibleEditorPane instanceof SideBySideEditorPane) {
-				controls.push(visibleEditorPane.getPrimaryEditorPane()?.getControl());
-				controls.push(visibleEditorPane.getSecondaryEditorPane()?.getControl());
+			if (editorPane instanceof SideBySideEditorPane) {
+				controls.push(editorPane.getPrimaryEditorPane()?.getControl());
+				controls.push(editorPane.getSecondaryEditorPane()?.getControl());
 			} else {
-				controls.push(visibleEditorPane.getControl());
+				controls.push(editorPane.getControl());
 			}
 
 			for (const control of controls) {
@@ -508,6 +512,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return visibleTextEditorControls;
+	}
+
+	getVisibleTextEditorControls(order: EditorsOrder): readonly (ICodeEditor | IDiffEditor)[] {
+		return this.doGetVisibleTextEditorControls(coalesce(this.editorGroupsContainer.getGroups(order === EditorsOrder.SEQUENTIAL ? GroupsOrder.GRID_APPEARANCE : GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.activeEditorPane)));
 	}
 
 	get visibleEditors(): EditorInput[] {
@@ -522,6 +530,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined>;
 	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined> {

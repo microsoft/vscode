@@ -60,6 +60,7 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo 339.12', prefix: undefined, suffix: ' 339.12', hasRow: true, hasCol: true },
 	{ link: 'foo 339.12-789', prefix: undefined, suffix: ' 339.12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
 	{ link: 'foo 339.12-341.789', prefix: undefined, suffix: ' 339.12-341.789', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
+	{ link: 'foo, 339', prefix: undefined, suffix: ', 339', hasRow: true, hasCol: false },
 
 	// Double quotes
 	{ link: '"foo",339', prefix: '"', suffix: '",339', hasRow: true, hasCol: false },
@@ -317,6 +318,48 @@ suite('TerminalLinkParsing', () => {
 							}
 						}
 					}
+				] as IParsedLink[]
+			);
+		});
+
+		test('should detect multiple links when opening brackets are in the text', () => {
+			deepStrictEqual(
+				detectLinks('notlink[foo:45]', OperatingSystem.Linux),
+				[
+					{
+						path: {
+							index: 0,
+							text: 'notlink[foo'
+						},
+						prefix: undefined,
+						suffix: {
+							col: undefined,
+							row: 45,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: {
+								index: 11,
+								text: ':45'
+							}
+						}
+					},
+					{
+						path: {
+							index: 8,
+							text: 'foo'
+						},
+						prefix: undefined,
+						suffix: {
+							col: undefined,
+							row: 45,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: {
+								index: 11,
+								text: ':45'
+							}
+						}
+					},
 				] as IParsedLink[]
 			);
 		});

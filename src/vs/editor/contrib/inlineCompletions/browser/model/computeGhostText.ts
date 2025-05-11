@@ -7,7 +7,7 @@ import { IDiffChange, LcsDiff } from '../../../../../base/common/diff/diff.js';
 import { getLeadingWhitespace } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { ITextModel } from '../../../../common/model.js';
 import { GhostText, GhostTextPart } from './ghostText.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
@@ -17,7 +17,7 @@ import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
  * 	If the text is `hello` and the suffix length is 2, the non-preview part is `hel` and the preview-part is `lo`.
 */
 export function computeGhostText(
-	edit: SingleTextEdit,
+	edit: TextReplacement,
 	model: ITextModel,
 	mode: 'prefix' | 'subword' | 'subwordSmart',
 	cursorPosition?: Position,
@@ -58,7 +58,7 @@ export function computeGhostText(
 			// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
 			: e.text.substring(suggestionAddedIndentationLength);
 
-		e = new SingleTextEdit(rangeThatDoesNotReplaceIndentation, suggestionWithoutIndentationChange);
+		e = new TextReplacement(rangeThatDoesNotReplaceIndentation, suggestionWithoutIndentationChange);
 	}
 
 	// This is a single line string
@@ -159,7 +159,7 @@ function deletedCharacters(changes: readonly IDiffChange[]): number {
  *
  * The parenthesis are preprocessed to ensure that they match correctly.
  */
-function smartDiff(originalValue: string, newValue: string, smartBracketMatching: boolean): (readonly IDiffChange[]) | undefined {
+export function smartDiff(originalValue: string, newValue: string, smartBracketMatching: boolean): (readonly IDiffChange[]) | undefined {
 	if (originalValue.length > 5000 || newValue.length > 5000) {
 		// We don't want to work on strings that are too big
 		return undefined;

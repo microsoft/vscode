@@ -10,7 +10,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -27,7 +27,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js alpine $VSCODE_ARCH > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js alpine $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -59,7 +59,7 @@ steps:
 
   - task: Docker@1
     inputs:
-      azureSubscriptionEndpoint: "vscode-builds-subscription"
+      azureSubscriptionEndpoint: vscode
       azureContainerRegistry: vscodehub.azurecr.io
       command: "Run an image"
       imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"

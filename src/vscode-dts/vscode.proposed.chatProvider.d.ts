@@ -5,11 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface ChatResponseFragment {
-		index: number;
-		part: string;
-	}
-
 	export interface ChatResponseFragment2 {
 		index: number;
 		part: LanguageModelTextPart | LanguageModelToolCallPart;
@@ -19,16 +14,14 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
-	 */
+	*/
 	export interface LanguageModelChatProvider {
 
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
-		provideLanguageModelResponse(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
-		provideLanguageModelResponse2?(messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
-
-		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
+		provideTokenCount(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
 
 	export type ChatResponseProvider = LanguageModelChatProvider;
@@ -46,6 +39,16 @@ declare module 'vscode' {
 		 * but they are defined by extensions contributing languages and subject to change.
 		 */
 		readonly family: string;
+
+		/**
+		 * An optional, human-readable description of the language model.
+		 */
+		readonly description?: string;
+
+		/**
+		 * An optional, human-readable string representing the cost of using the language model.
+		 */
+		readonly cost?: string;
 
 		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
@@ -67,19 +70,24 @@ declare module 'vscode' {
 		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
 		readonly isDefault?: boolean;
 		readonly isUserSelectable?: boolean;
+		readonly capabilities?: {
+			readonly vision?: boolean;
+			readonly toolCalling?: boolean;
+			readonly agentMode?: boolean;
+		};
+
+		/**
+		 * Optional category to group models by in the model picker.
+		 * The lower the order, the higher the category appears in the list.
+		 * Has no effect if `isUserSelectable` is `false`.
+		 * If not specified, the model will appear in the "Other Models" category.
+		 */
+		readonly category?: { label: string; order: number };
 	}
 
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
 		extensions?: string[];
-	}
-
-	export namespace chat {
-
-		/**
-		 * @deprecated use `lm.registerChatResponseProvider` instead
-		*/
-		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 
 	export namespace lm {

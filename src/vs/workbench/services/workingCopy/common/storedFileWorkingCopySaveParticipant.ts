@@ -11,7 +11,7 @@ import { IDisposable, Disposable, toDisposable } from '../../../../base/common/l
 import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from './workingCopyFileService.js';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from './storedFileWorkingCopy.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 
@@ -45,6 +45,8 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 			message: localize('saveParticipants1', "Running Code Actions and Formatters...")
 		});
 
+		let bubbleCancel = false;
+
 		// create an "inner" progress to allow to skip over long running save participants
 		await this.progressService.withProgress({
 			priority: NotificationPriority.URGENT,
@@ -52,7 +54,14 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 			cancellable: localize('skip', "Skip"),
 			delay: workingCopy.isDirty() ? 5000 : 3000
 		}, async progress => {
-			for (const saveParticipant of this.saveParticipants) {
+
+			const participants = Array.from(this.saveParticipants).sort((a, b) => {
+				const aValue = a.ordinal ?? 0;
+				const bValue = b.ordinal ?? 0;
+				return aValue - bValue;
+			});
+
+			for (const saveParticipant of participants) {
 				if (cts.token.isCancellationRequested || workingCopy.isDisposed()) {
 					break;
 				}
@@ -63,6 +72,11 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 				} catch (err) {
 					if (!isCancellationError(err)) {
 						this.logService.error(err);
+					} else if (!cts.token.isCancellationRequested) {
+						// we see a cancellation error BUT the token didn't signal it
+						// this means the participant wants the save operation to be cancelled
+						cts.cancel();
+						bubbleCancel = true;
 					}
 				}
 			}
@@ -74,6 +88,10 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 		workingCopy.model?.pushStackElement();
 
 		cts.dispose();
+
+		if (bubbleCancel) {
+			throw new CancellationError();
+		}
 	}
 
 	override dispose(): void {

@@ -41,7 +41,7 @@ impl From<reqwest::Error> for WrappedError {
 				"error requesting {}",
 				e.url().map_or("<unknown>", |u| u.as_str())
 			),
-			original: format!("{}", e),
+			original: format!("{e}"),
 		}
 	}
 }
@@ -53,7 +53,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{:?}", original),
+		original: format!("{original:?}"),
 	}
 }
 
@@ -64,7 +64,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{}", original),
+		original: format!("{original}"),
 	}
 }
 
@@ -93,10 +93,7 @@ impl StatusError {
 		let body = res.text().await.map_err(|e| {
 			wrap(
 				e,
-				format!(
-					"failed to read response body on {} code from {}",
-					status_code, url
-				),
+				format!("failed to read response body on {status_code} code from {url}"),
 			)
 		})?;
 
@@ -290,7 +287,7 @@ pub struct CannotForwardControlPort();
 
 impl std::fmt::Display for CannotForwardControlPort {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Cannot forward or unforward port {}.", CONTROL_PORT)
+		write!(f, "Cannot forward or unforward port {CONTROL_PORT}.")
 	}
 }
 
@@ -308,7 +305,7 @@ pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Already registered the service. Run `{} tunnel service uninstall` to unregister it first", APPLICATION_NAME)
+		write!(f, "Already registered the service. Run `{APPLICATION_NAME} tunnel service uninstall` to unregister it first")
 	}
 }
 
@@ -434,7 +431,7 @@ impl Display for DbusConnectFailedError {
 		str.push_str(&self.0);
 		str.push('\n');
 
-		write!(f, "{}", str)
+		write!(f, "{str}")
 	}
 }
 

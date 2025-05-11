@@ -11,8 +11,8 @@ function _definePolyfillMarks(timeOrigin?: number) {
 		_data.push('code/timeOrigin', timeOrigin);
 	}
 
-	function mark(name: string) {
-		_data.push(name, Date.now());
+	function mark(name: string, markOptions?: { startTime?: number }) {
+		_data.push(name, markOptions?.startTime ?? Date.now());
 	}
 	function getMarks() {
 		const result = [];
@@ -45,8 +45,8 @@ function _define() {
 		} else {
 			// use "native" performance for mark and getMarks
 			return {
-				mark(name: string) {
-					performance.mark(name);
+				mark(name: string, markOptions?: { startTime?: number }) {
+					performance.mark(name, markOptions);
 				},
 				getMarks() {
 					let timeOrigin = performance.timeOrigin;
@@ -89,7 +89,7 @@ function _factory(sharedObj: any) {
 
 const perf = _factory(globalThis);
 
-export const mark: (name: string) => void = perf.mark;
+export const mark: (name: string, markOptions?: { startTime?: number }) => void = perf.mark;
 
 export interface PerformanceMark {
 	readonly name: string;

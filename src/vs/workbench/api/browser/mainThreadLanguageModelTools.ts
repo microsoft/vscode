@@ -5,8 +5,10 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolProgress, toolResultHasBuffers, IToolProgressStep } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
@@ -14,7 +16,10 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 
 	private readonly _proxy: ExtHostLanguageModelToolsShape;
 	private readonly _tools = this._register(new DisposableMap<string>());
-	private readonly _countTokenCallbacks = new Map</* call ID */string, CountTokensCallback>();
+	private readonly _runningToolCalls = new Map</* call ID */string, {
+		countTokens: CountTokensCallback;
+		progress: ToolProgress;
+	}>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -30,36 +35,46 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
-		return await this._languageModelToolsService.invokeTool(
+	async $invokeTool(dto: IToolInvocation, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+		const result = await this._languageModelToolsService.invokeTool(
 			dto,
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
-			token,
+			token ?? CancellationToken.None,
 		);
+
+		// Don't return extra metadata to EH
+		const out: Dto<IToolResult> = { content: result.content };
+		return toolResultHasBuffers(result) ? new SerializableObjectWithBuffers(out) : out;
+	}
+
+	$acceptToolProgress(callId: string, progress: IToolProgressStep): void {
+		this._runningToolCalls.get(callId)?.progress.report(progress);
 	}
 
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
-		const fn = this._countTokenCallbacks.get(callId);
+		const fn = this._runningToolCalls.get(callId);
 		if (!fn) {
 			throw new Error(`Tool invocation call ${callId} not found`);
 		}
 
-		return fn(input, token);
+		return fn.countTokens(input, token);
 	}
 
 	$registerTool(id: string): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
 			id,
 			{
-				invoke: async (dto, countTokens, token) => {
+				invoke: async (dto, countTokens, progress, token) => {
 					try {
-						this._countTokenCallbacks.set(dto.callId, countTokens);
-						return await this._proxy.$invokeTool(dto, token);
+						this._runningToolCalls.set(dto.callId, { countTokens, progress });
+						const resultSerialized = await this._proxy.$invokeTool(dto, token);
+						const resultDto: Dto<IToolResult> = resultSerialized instanceof SerializableObjectWithBuffers ? resultSerialized.value : resultSerialized;
+						return revive<IToolResult>(resultDto);
 					} finally {
-						this._countTokenCallbacks.delete(dto.callId);
+						this._runningToolCalls.delete(dto.callId);
 					}
 				},
-				prepareToolInvocation: (participantName, parameters, token) => this._proxy.$prepareToolInvocation(id, participantName, parameters, token),
+				prepareToolInvocation: (parameters, token) => this._proxy.$prepareToolInvocation(id, parameters, token),
 			});
 		this._tools.set(id, disposable);
 	}

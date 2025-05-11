@@ -50,23 +50,25 @@ export class SashLayout {
 }
 
 export class DiffEditorSash extends Disposable {
-	private readonly _sash = this._register(new Sash(this._domNode, {
-		getVerticalSashTop: (_sash: Sash): number => 0,
-		getVerticalSashLeft: (_sash: Sash): number => this.sashLeft.get(),
-		getVerticalSashHeight: (_sash: Sash): number => this._dimensions.height.get(),
-	}, { orientation: Orientation.VERTICAL }));
+	private readonly _sash;
 
-	private _startSashPosition: number | undefined = undefined;
+	private _startSashPosition: number | undefined;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
 		private readonly _dimensions: { height: IObservable<number>; width: IObservable<number> },
 		private readonly _enabled: IObservable<boolean>,
-		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined>,
 		public readonly sashLeft: ISettableObservable<number>,
 		private readonly _resetSash: () => void,
 	) {
 		super();
+		this._sash = this._register(new Sash(this._domNode, {
+			getVerticalSashTop: (_sash: Sash): number => 0,
+			getVerticalSashLeft: (_sash: Sash): number => this.sashLeft.get(),
+			getVerticalSashHeight: (_sash: Sash): number => this._dimensions.height.get(),
+		}, { orientation: Orientation.VERTICAL }));
+		this._startSashPosition = undefined;
 
 		this._register(this._sash.onDidStart(() => {
 			this._startSashPosition = this.sashLeft.get();

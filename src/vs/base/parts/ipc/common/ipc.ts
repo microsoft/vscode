@@ -10,7 +10,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../common/canc
 import { memoize } from '../../../common/decorators.js';
 import { CancellationError, ErrorNoTelemetry } from '../../../common/errors.js';
 import { Emitter, Event, EventMultiplexer, Relay } from '../../../common/event.js';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { createSingleCallFunction } from '../../../common/functional.js';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { revive } from '../../../common/marshalling.js';
 import * as strings from '../../../common/strings.js';
 import { isFunction, isUndefinedOrNull } from '../../../common/types.js';
@@ -367,7 +368,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -580,6 +581,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 
 		let disposable: IDisposable;
+		let disposableWithRequestCancel: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
@@ -635,14 +637,20 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				e(new CancellationError());
 			};
 
-			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
-			disposable = combinedDisposable(toDisposable(cancel), cancellationTokenListener);
-			this.activeRequests.add(disposable);
+			disposable = cancellationToken.onCancellationRequested(cancel);
+			disposableWithRequestCancel = {
+				dispose: createSingleCallFunction(() => {
+					cancel();
+					disposable.dispose();
+				})
+			};
+
+			this.activeRequests.add(disposableWithRequestCancel);
 		});
 
 		return result.finally(() => {
-			disposable.dispose();
-			this.activeRequests.delete(disposable);
+			disposable?.dispose(); // Seen as undefined in tests.
+			this.activeRequests.delete(disposableWithRequestCancel);
 		});
 	}
 
@@ -655,12 +663,19 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const emitter = new Emitter<any>({
 			onWillAddFirstListener: () => {
-				uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
-				uninitializedPromise.then(() => {
-					uninitializedPromise = null;
+				const doRequest = () => {
 					this.activeRequests.add(emitter);
 					this.sendRequest(request);
-				});
+				};
+				if (this.state === State.Idle) {
+					doRequest();
+				} else {
+					uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
+					uninitializedPromise.then(() => {
+						uninitializedPromise = null;
+						doRequest();
+					});
+				}
 			},
 			onDidRemoveLastListener: () => {
 				if (uninitializedPromise) {
@@ -697,7 +712,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	private send(header: any, body: any = undefined): number {
+	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
 		serialize(writer, header);
 		serialize(writer, body);
@@ -933,6 +948,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				disposables = undefined;
 			}
 		});
+		that.disposables.add(emitter);
 
 		return emitter.event;
 	}
@@ -1183,7 +1199,7 @@ export namespace ProxyChannel {
 
 					// Dynamic Event
 					if (propertyIsDynamicEvent(propKey)) {
-						return function (arg: any) {
+						return function (arg: unknown) {
 							return channel.listen(propKey, arg);
 						};
 					}
@@ -1236,7 +1252,7 @@ const colorTables = [
 	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
 ];
 
-function prettyWithoutArrays(data: any): any {
+function prettyWithoutArrays(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data;
 	}
@@ -1249,7 +1265,7 @@ function prettyWithoutArrays(data: any): any {
 	return data;
 }
 
-function pretty(data: any): any {
+function pretty(data: unknown): any {
 	if (Array.isArray(data)) {
 		return data.map(prettyWithoutArrays);
 	}

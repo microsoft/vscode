@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
+import { performance } from 'perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
@@ -23,6 +24,14 @@ import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 perf.mark('code/didStartMain');
+
+perf.mark('code/willLoadMainBundle', {
+	// When built, the main bundle is a single JS file with all
+	// dependencies inlined. As such, we mark `willLoadMainBundle`
+	// as the start of the main bundle loading process.
+	startTime: Math.floor(performance.timeOrigin)
+});
+perf.mark('code/didLoadMainBundle');
 
 // Enable portable support
 const portable = configurePortable(product);
@@ -140,10 +149,35 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		const traceOptions = {
-			categoryFilter: args['trace-category-filter'] || '*',
-			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
-		};
+		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
+		if (args['trace-memory-infra']) {
+			const customCategories = args['trace-category-filter']?.split(',') || [];
+			customCategories.push('disabled-by-default-memory-infra', 'disabled-by-default-memory-infra.v8.code_stats');
+			traceOptions = {
+				included_categories: customCategories,
+				excluded_categories: ['*'],
+				memory_dump_config: {
+					allowed_dump_modes: ['light', 'detailed'],
+					triggers: [
+						{
+							type: 'periodic_interval',
+							mode: 'detailed',
+							min_time_between_dumps_ms: 10000
+						},
+						{
+							type: 'periodic_interval',
+							mode: 'light',
+							min_time_between_dumps_ms: 1000
+						}
+					]
+				}
+			};
+		} else {
+			traceOptions = {
+				categoryFilter: args['trace-category-filter'] || '*',
+				traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+			};
+		}
 
 		contentTracing.startRecording(traceOptions).finally(() => onReady());
 	} else {
@@ -177,9 +211,8 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	await bootstrapESM();
 
 	// Load Main
-	perf.mark('code/willLoadMainBundle');
 	await import('./vs/code/electron-main/main.js');
-	perf.mark('code/didLoadMainBundle');
+	perf.mark('code/didRunMainBundle');
 }
 
 function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
@@ -278,6 +311,14 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		}
 	});
 
+	// Following features are enabled from the runtime:
+	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
+	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
+	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
+	const featuresToEnable =
+		`DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
+	app.commandLine.appendSwitch('enable-features', featuresToEnable);
+
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
 	const featuresToDisable =
@@ -286,8 +327,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 
 	// Blink features to configure.
 	// `FontMatchingCTMigration` - Siwtch font matching on macOS to Appkit (Refs https://github.com/microsoft/vscode/issues/224496#issuecomment-2270418470).
+	// `StandardizedBrowserZoom` - Disable zoom adjustment for bounding box (https://github.com/microsoft/vscode/issues/232750#issuecomment-2459495394)
 	const blinkFeaturesToDisable =
-		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
+		`FontMatchingCTMigration,StandardizedBrowserZoom,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags
@@ -295,6 +337,11 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+
+	// Use portal version 4 that supports current_folder option
+	// to address https://github.com/microsoft/vscode/issues/213780
+	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
+	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
 
 	return argvConfig;
 }
@@ -480,6 +527,18 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	if (process.platform === 'linux') {
+		// Fix cppgc crash on Linux with 16KB page size.
+		// Refs https://issues.chromium.org/issues/378017037
+		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
+		// only affects non-renderer process.
+		// The following will ensure that the flag will be
+		// applied to the renderer process as well.
+		// TODO(deepak1556): Remove this once we update to
+		// Chromium >= 134.
+		jsFlags.push('--nodecommit_pooled_pages');
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;

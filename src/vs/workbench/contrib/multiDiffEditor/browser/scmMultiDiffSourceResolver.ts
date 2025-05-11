@@ -84,21 +84,25 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 }
 
 class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
-	private readonly _resources = observableFromEvent<MultiDiffEditorItem[]>(
-		this._group.onDidChangeResources,
-		() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
-	);
-	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
+	private readonly _resources;
+	readonly resources;
 
-	public readonly contextKeys: Record<string, ContextKeyValue> = {
-		scmResourceGroup: this._group.id,
-		scmProvider: this._repository.provider.contextValue,
-	};
+	public readonly contextKeys: Record<string, ContextKeyValue>;
 
 	constructor(
 		private readonly _group: ISCMResourceGroup,
 		private readonly _repository: ISCMRepository,
-	) { }
+	) {
+		this._resources = observableFromEvent<MultiDiffEditorItem[]>(
+			this._group.onDidChangeResources,
+			() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
+		);
+		this.resources = new ValueWithChangeEventFromObservable(this._resources);
+		this.contextKeys = {
+			scmResourceGroup: this._group.id,
+			scmProvider: this._repository.provider.contextValue,
+		};
+	}
 }
 
 interface UriFields {
@@ -139,7 +143,7 @@ export class OpenScmGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: '_workbench.openScmMultiDiffEditor',
-			title: localize2('viewChanges', 'View Changes'),
+			title: localize2('openChanges', 'Open Changes'),
 			f1: false
 		});
 	}

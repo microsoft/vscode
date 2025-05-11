@@ -156,12 +156,26 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 		return view as vscode.TreeView<T>;
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined> {
+	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(number | ITreeItem)[][] | undefined> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new NoTreeViewError(treeViewId));
 		}
-		return treeView.getChildren(treeItemHandle);
+		if (!treeItemHandles) {
+			const children = await treeView.getChildren();
+			return children ? [[0, ...children]] : undefined;
+		}
+		// Keep order of treeItemHandles in case extension trees already depend on this
+		const result = [];
+		for (let i = 0; i < treeItemHandles.length; i++) {
+			const treeItemHandle = treeItemHandles[i];
+			const children = await treeView.getChildren(treeItemHandle);
+			if (children) {
+				result.push([i, ...children]);
+			}
+
+		}
+		return result;
 	}
 
 	async $handleDrop(destinationViewId: string, requestId: number, treeDataTransferDTO: DataTransferDTO, targetItemHandle: string | undefined, token: CancellationToken,
@@ -270,10 +284,12 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 
 	private convertArgument(arg: TreeViewItemHandleArg | TreeViewPaneHandleArg): any {
 		const treeView = this.treeViews.get(arg.$treeViewId);
-		if (treeView && '$treeItemHandle' in arg) {
-			return treeView.getExtensionElement(arg.$treeItemHandle);
+		const asItemHandle = arg as Partial<TreeViewItemHandleArg>;
+		if (treeView && asItemHandle.$treeItemHandle) {
+			return treeView.getExtensionElement(asItemHandle.$treeItemHandle);
 		}
-		if (treeView && '$focusedTreeItem' in arg && arg.$focusedTreeItem) {
+		const asPaneHandle = arg as Partial<TreeViewPaneHandleArg>;
+		if (treeView && asPaneHandle.$focusedTreeItem) {
 			return treeView.focusedElement;
 		}
 		return null;

@@ -7,6 +7,7 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import { localize } from '../../../../../nls.js';
 import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../../platform/product/common/product.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalStickyScrollSettingId {
 	Enabled = 'terminal.integrated.stickyScroll.enabled',
@@ -20,7 +21,7 @@ export interface ITerminalStickyScrollConfiguration {
 
 export const terminalStickyScrollConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalStickyScrollSettingId.Enabled]: {
-		markdownDescription: localize('stickyScroll.enabled', "Shows the current command at the top of the terminal."),
+		markdownDescription: localize('stickyScroll.enabled', "Shows the current command at the top of the terminal. This feature requires [shell integration]({0}) to be activated. See {1}.", 'https://code.visualstudio.com/docs/terminal/shell-integration', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
 		type: 'boolean',
 		default: product.quality !== 'stable'
 	},

@@ -1,6 +1,7 @@
 name: CI
 
 on: workflow_dispatch
+permissions: {}
 
 # on:
 #   push:
@@ -21,6 +22,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -28,7 +31,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "2.x"
+          python-version: "3.x"
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -103,12 +106,14 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
       - name: Setup Build Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxkbfile-dev pkg-config libkrb5-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo apt-get install -y libxkbfile-dev pkg-config libkrb5-dev libxss1 xvfb libgtk-3-0 libgbm1
           sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
           sudo chmod +x /etc/init.d/xvfb
           sudo update-rc.d xvfb defaults
@@ -185,6 +190,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -258,6 +265,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -298,6 +307,9 @@ jobs:
 
       - name: Run Valid Layers Checks
         run: npm run valid-layers-check
+
+      - name: Run Property Init Order Checks
+        run: npm run property-init-order-check
 
       - name: Compile /build/
         run: npm run compile

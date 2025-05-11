@@ -5,11 +5,23 @@
 
 import * as vscode from 'vscode';
 
-export function disposeAll(disposables: vscode.Disposable[]) {
+
+export function disposeAll(disposables: Iterable<vscode.Disposable>) {
+	const errors: any[] = [];
+
 	for (const disposable of disposables) {
-		disposable.dispose();
+		try {
+			disposable.dispose();
+		} catch (e) {
+			errors.push(e);
+		}
 	}
-	disposables.length = 0;
+
+	if (errors.length === 1) {
+		throw errors[0];
+	} else if (errors.length > 1) {
+		throw new AggregateError(errors, 'Encountered errors while disposing of store');
+	}
 }
 
 export interface IDisposable {

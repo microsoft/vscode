@@ -10,10 +10,9 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { parseSavedSearchEditor, parseSerializedSearchEditor } from './searchEditorSerialization.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
-import { SearchConfiguration } from './searchEditorInput.js';
+import { SearchConfiguration, SearchEditorWorkingCopyTypeId } from './constants.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
 import { createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel.js';
-import { SearchEditorWorkingCopyTypeId } from './constants.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { SEARCH_RESULT_LANGUAGE_ID } from '../../../services/search/common/search.js';

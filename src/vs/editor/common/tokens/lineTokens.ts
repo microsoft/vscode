@@ -7,8 +7,9 @@ import { ILanguageIdCodec } from '../languages.js';
 import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from '../encodedTokenAttributes.js';
 import { IPosition } from '../core/position.js';
 import { ITextModel } from '../model.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { TokenArray, TokenArrayBuilder } from './tokenArray.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 
 
 export interface IViewLineTokens {
@@ -101,10 +102,18 @@ export class LineTokens implements IViewLineTokens {
 	) >>> 0;
 
 	constructor(tokens: Uint32Array, text: string, decoder: ILanguageIdCodec) {
+		const tokensLength = tokens.length > 1 ? tokens[tokens.length - 2] : 0;
+		if (tokensLength !== text.length) {
+			onUnexpectedError(new Error('Token length and text length do not match!'));
+		}
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
 		this.languageIdCodec = decoder;
+	}
+
+	public getTextLength(): number {
+		return this._text.length;
 	}
 
 	public equals(other: IViewLineTokens): boolean {
@@ -203,6 +212,10 @@ export class LineTokens implements IViewLineTokens {
 		return new SliceLineTokens(this, startOffset, endOffset, deltaOffset);
 	}
 
+	public sliceZeroCopy(range: OffsetRange): IViewLineTokens {
+		return this.sliceAndInflate(range.start, range.endExclusive, 0);
+	}
+
 	/**
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.
@@ -279,6 +292,14 @@ export class LineTokens implements IViewLineTokens {
 		for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex++) {
 			callback(tokenIndex);
 		}
+	}
+
+	toString(): string {
+		let result = '';
+		this.forEach((i) => {
+			result += `[${this.getTokenText(i)}]{${this.getClassName(i)}}`;
+		});
+		return result;
 	}
 }
 

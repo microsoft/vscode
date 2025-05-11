@@ -182,7 +182,7 @@ export class AzureActiveDirectoryService {
 
 		for (const token of this._tokens) {
 			/* __GDPR__
-				"login" : {
+				"account" : {
 					"owner": "TylerLeonhardt",
 					"comment": "Used to determine the usage of the Microsoft Auth Provider.",
 					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },
@@ -551,7 +551,7 @@ export class AzureActiveDirectoryService {
 			throw e;
 		}
 
-		const id = `${claims.tid}/${(claims.oid ?? (claims.altsecid ?? '' + claims.ipd ?? ''))}`;
+		const id = `${claims.tid}/${(claims.oid ?? (claims.altsecid ?? '' + claims.ipd))}`;
 		const sessionId = existingId || `${id}/${randomUUID()}`;
 		this._logger.trace(`[${scopeData.scopeStr}] '${sessionId}' Token response parsed successfully.`);
 		return {

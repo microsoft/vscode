@@ -5,20 +5,21 @@
 
 import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { CONTEXT_IN_CHAT_SESSION } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
-export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
+export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
-	readonly when = CONTEXT_IN_CHAT_SESSION;
+	readonly when = ChatContextKeys.inChatSession;
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
@@ -32,7 +33,6 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 
 		const verifiedWidget: IChatWidget = widget;
 		const focusedItem = verifiedWidget.getFocus();
-
 		if (!focusedItem) {
 			return;
 		}
@@ -64,6 +64,34 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
+		}
+		if (isResponseVM(item)) {
+
+			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
+			for (const toolInvocation of toolInvocations) {
+				if (toolInvocation.confirmationMessages) {
+					const title = toolInvocation.confirmationMessages.title;
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
+					const command = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
+					responseContent += `${title}`;
+					if (command) {
+						responseContent += `: ${command}`;
+					}
+					responseContent += `\n${message}\n`;
+				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
+					responseContent += toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
+					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
+				}
+			}
+
+			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
+			for (const pastConfirmation of pastConfirmations) {
+				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
+					if (pastConfirmation.pastTenseMessage) {
+						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderMarkdownAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
+					}
+				}
+			}
 		}
 		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
 	}

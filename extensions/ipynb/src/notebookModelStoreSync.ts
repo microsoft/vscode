@@ -14,7 +14,7 @@ const noop = () => {
 };
 
 /**
- * Code here is used to ensure the Notebook Model is in sync the the ipynb JSON file.
+ * Code here is used to ensure the Notebook Model is in sync the ipynb JSON file.
  * E.g. assume you add a new cell, this new cell will not have any metadata at all.
  * However when we save the ipynb, the metadata will be an empty object `{}`.
  * Now thats completely different from the metadata os being `empty/undefined` in the model.
@@ -110,7 +110,7 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 	updates.forEach(({ cell, metadata }) => {
 		const newMetadata = { ...cell.metadata, ...metadata };
 		if (!metadata.execution_count && newMetadata.execution_count) {
-			delete newMetadata.execution_count;
+			newMetadata.execution_count = null;
 		}
 		if (!metadata.attachments && newMetadata.attachments) {
 			delete newMetadata.attachments;
@@ -123,6 +123,7 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 	promise.then(clean, clean);
 }
 
+const pendingCellUpdates = new WeakSet<NotebookCell>();
 function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 	if (!isSupportedNotebook(e.notebook)) {
 		return;
@@ -150,8 +151,26 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 			metadata.execution_count = e.executionSummary.executionOrder;
 			metadataUpdated = true;
 		} else if (!e.executionSummary && !e.metadata && e.outputs?.length === 0 && currentMetadata.execution_count) {
-			// Clear all.
-			delete metadata.execution_count;
+			// Clear all (user hit clear all).
+			// NOTE: At this point we're updating the `execution_count` in metadata to `null`.
+			// Thus this is a change in metadata, which we will need to update in the model.
+			metadata.execution_count = null;
+			metadataUpdated = true;
+			// Note: We will get another event for this, see below for the check.
+			// track the fact that we're expecting an update for this cell.
+			pendingCellUpdates.add(e.cell);
+		} else if ((!e.executionSummary || (!e.executionSummary?.executionOrder && !e.executionSummary?.success && !e.executionSummary?.timing))
+			&& !e.metadata && !e.outputs && currentMetadata.execution_count && pendingCellUpdates.has(e.cell)) {
+			// This is a result of the cell being cleared (i.e. we perfomed an update request and this is now the update event).
+			metadata.execution_count = null;
+			metadataUpdated = true;
+			pendingCellUpdates.delete(e.cell);
+		} else if (!e.executionSummary?.executionOrder && !e.executionSummary?.success && !e.executionSummary?.timing
+			&& !e.metadata && !e.outputs && currentMetadata.execution_count && !pendingCellUpdates.has(e.cell)) {
+			// This is a result of the cell without outupts but has execution count being cleared
+			// Create two cells, one that produces output and one that doesn't. Run both and then clear the output or all cells.
+			// This condition will be satisfied for first cell without outputs.
+			metadata.execution_count = null;
 			metadataUpdated = true;
 		}
 

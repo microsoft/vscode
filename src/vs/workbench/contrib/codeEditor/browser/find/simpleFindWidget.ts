@@ -68,7 +68,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	private _foundMatch: boolean = false;
 	private _width: number = 0;
 
-	readonly state: FindReplaceState = new FindReplaceState();
+	readonly state: FindReplaceState;
 
 	constructor(
 		options: IFindOptions,
@@ -79,6 +79,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	) {
 		super();
 
+		this.state = this._register(new FindReplaceState());
 		this._matchesLimit = options.matchesLimit ?? Number.MAX_SAFE_INTEGER;
 
 		this._findInput = this._register(new ContextScopedFindInput(null, contextViewService, {

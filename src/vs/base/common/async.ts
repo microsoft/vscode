@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
 import { BugIndicatingError, CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
 import { extUri as defaultExtUri, IExtUri } from './resources.js';
 import { URI } from './uri.js';
 import { setTimeout0 } from './platform.js';
@@ -21,19 +21,41 @@ export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
 }
 
+/**
+ * Returns a promise that can be cancelled using the provided cancellation token.
+ *
+ * @remarks When cancellation is requested, the promise will be rejected with a {@link CancellationError}.
+ * If the promise resolves to a disposable object, it will be automatically disposed when cancellation
+ * is requested.
+ *
+ * @param callback A function that accepts a cancellation token and returns a promise
+ * @returns A promise that can be cancelled
+ */
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Promise<T>): CancelablePromise<T> {
 	const source = new CancellationTokenSource();
 
 	const thenable = callback(source.token);
+
+	let isCancelled = false;
+
 	const promise = new Promise<T>((resolve, reject) => {
 		const subscription = source.token.onCancellationRequested(() => {
+			isCancelled = true;
 			subscription.dispose();
 			reject(new CancellationError());
 		});
 		Promise.resolve(thenable).then(value => {
 			subscription.dispose();
 			source.dispose();
-			resolve(value);
+
+			if (!isCancelled) {
+				resolve(value);
+
+			} else if (isDisposable(value)) {
+				// promise has been cancelled, result is disposable and will
+				// be cleaned up
+				value.dispose();
+			}
 		}, err => {
 			subscription.dispose();
 			source.dispose();
@@ -46,10 +68,10 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 			source.cancel();
 			source.dispose();
 		}
-		then<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
+		then<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: unknown) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 			return promise.then(resolve, reject);
 		}
-		catch<TResult = never>(reject?: ((reason: any) => TResult | Promise<TResult>) | undefined | null): Promise<T | TResult> {
+		catch<TResult = never>(reject?: ((reason: unknown) => TResult | Promise<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
 		}
 		finally(onfinally?: (() => void) | undefined | null): Promise<T> {
@@ -298,6 +320,10 @@ export class SequencerByKey<TKey> {
 		this.promiseMap.set(key, newPromise);
 		return newPromise;
 	}
+
+	keys(): IterableIterator<TKey> {
+		return this.promiseMap.keys();
+	}
 }
 
 interface IScheduledLater extends IDisposable {
@@ -362,7 +388,7 @@ export class Delayer<T> implements IDisposable {
 	private deferred: IScheduledLater | null;
 	private completionPromise: Promise<any> | null;
 	private doResolve: ((value?: any | Promise<any>) => void) | null;
-	private doReject: ((err: any) => void) | null;
+	private doReject: ((err: unknown) => void) | null;
 	private task: ITask<T | Promise<T>> | null;
 
 	constructor(public defaultDelay: number | typeof MicrotaskDelay) {
@@ -557,7 +583,7 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 	}, timeout);
 	const disposable = toDisposable(() => {
 		clearTimeout(timer);
-		store?.deleteAndLeak(disposable);
+		store?.delete(disposable);
 	});
 	store?.add(disposable);
 	return disposable;
@@ -577,9 +603,9 @@ export function sequence<T>(promiseFactories: ITask<Promise<T>>[]): Promise<T[]>
 		return index < len ? promiseFactories[index++]() : null;
 	}
 
-	function thenHandler(result: any): Promise<any> {
+	function thenHandler(result: unknown): Promise<any> {
 		if (result !== undefined && result !== null) {
-			results.push(result);
+			results.push(result as T);
 		}
 
 		const n = next();
@@ -1299,6 +1325,7 @@ export class ThrottledWorker<T> extends Disposable {
 	override dispose(): void {
 		super.dispose();
 
+		this.pendingWork.length = 0;
 		this.disposed = true;
 	}
 }
@@ -1858,7 +1885,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		});
 	}
 
-	public static fromPromises<T>(promises: Promise<T>[]): AsyncIterableObject<T> {
+	public static fromPromisesResolveOrder<T>(promises: Promise<T>[]): AsyncIterableObject<T> {
 		return new AsyncIterableObject<T>(async (emitter) => {
 			await Promise.all(promises.map(async (p) => emitter.emitOne(await p)));
 		});

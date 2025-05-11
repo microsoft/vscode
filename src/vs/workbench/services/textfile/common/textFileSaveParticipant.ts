@@ -12,7 +12,7 @@ import { IDisposable, Disposable, toDisposable } from '../../../../base/common/l
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { localize } from '../../../../nls.js';
 import { NotificationPriority } from '../../../../platform/notification/common/notification.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 
 export class TextFileSaveParticipant extends Disposable {
 
@@ -42,6 +42,8 @@ export class TextFileSaveParticipant extends Disposable {
 			message: localize('saveParticipants1', "Running Code Actions and Formatters...")
 		});
 
+		let bubbleCancel = false;
+
 		// create an "inner" progress to allow to skip over long running save participants
 		await this.progressService.withProgress({
 			priority: NotificationPriority.URGENT,
@@ -49,7 +51,14 @@ export class TextFileSaveParticipant extends Disposable {
 			cancellable: localize('skip', "Skip"),
 			delay: model.isDirty() ? 5000 : 3000
 		}, async progress => {
-			for (const saveParticipant of this.saveParticipants) {
+
+			const participants = Array.from(this.saveParticipants).sort((a, b) => {
+				const aValue = a.ordinal ?? 0;
+				const bValue = b.ordinal ?? 0;
+				return aValue - bValue;
+			});
+
+			for (const saveParticipant of participants) {
 				if (cts.token.isCancellationRequested || !model.textEditorModel /* disposed */) {
 					break;
 				}
@@ -60,6 +69,11 @@ export class TextFileSaveParticipant extends Disposable {
 				} catch (err) {
 					if (!isCancellationError(err)) {
 						this.logService.error(err);
+					} else if (!cts.token.isCancellationRequested) {
+						// we see a cancellation error BUT the token didn't signal it
+						// this means the participant wants the save operation to be cancelled
+						cts.cancel();
+						bubbleCancel = true;
 					}
 				}
 			}
@@ -71,6 +85,10 @@ export class TextFileSaveParticipant extends Disposable {
 		model.textEditorModel?.pushStackElement();
 
 		cts.dispose();
+
+		if (bubbleCancel) {
+			throw new CancellationError();
+		}
 	}
 
 	override dispose(): void {

@@ -84,6 +84,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 						if (notebookEditorId === undefined) {
 							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.notebook.uri.toString()}`);
 						}
+						if ('skipIfAlreadySelected' in v) {
+							return { notebookEditorId, skipIfAlreadySelected: v.skipIfAlreadySelected };
+						}
 						return { notebookEditorId };
 					}
 					return v;
@@ -721,17 +724,7 @@ class NotebookCellExecutionTask extends Disposable {
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
 
-				const error = executionError ? {
-					message: executionError.message,
-					stack: executionError.stack,
-					location: executionError?.location ? {
-						startLineNumber: executionError.location.start.line,
-						startColumn: executionError.location.start.character,
-						endLineNumber: executionError.location.end.line,
-						endColumn: executionError.location.end.character
-					} : undefined,
-					uri: executionError.uri
-				} : undefined;
+				const error = createSerializeableError(executionError);
 
 				that._proxy.$completeExecution(that._handle, new SerializableObjectWithBuffers({
 					runEndTime: endTime,
@@ -769,6 +762,31 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 }
 
+function createSerializeableError(executionError: vscode.CellExecutionError | undefined) {
+	const convertRange = (range: vscode.Range | undefined) => (range ? {
+		startLineNumber: range.start.line,
+		startColumn: range.start.character,
+		endLineNumber: range.end.line,
+		endColumn: range.end.character
+	} : undefined);
+
+	const convertStackFrame = (frame: vscode.CellErrorStackFrame) => ({
+		uri: frame.uri,
+		position: frame.position,
+		label: frame.label
+	});
+
+	const error = executionError ? {
+		name: executionError.name,
+		message: executionError.message,
+		stack: executionError.stack instanceof Array
+			? executionError.stack.map(frame => convertStackFrame(frame))
+			: executionError.stack,
+		location: convertRange(executionError.location),
+		uri: executionError.uri
+	} : undefined;
+	return error;
+}
 
 enum NotebookExecutionTaskState {
 	Init,

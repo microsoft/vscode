@@ -13,12 +13,15 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityHelpAction } from './accessibleViewActions.js';
-import { CONTEXT_CHAT_ENABLED } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility.js';
 import { CommentContextKeys } from '../../comments/common/commentContextKeys.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibilityVerbositySettingId } from './accessibilityConfiguration.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -49,7 +52,9 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -71,9 +76,21 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 				content.push(AccessibilityHelpNLS.editableEditor);
 			}
 		}
+		if (this.accessibilityService.isScreenReaderOptimized() && this._configurationService.getValue('accessibility.windowTitleOptimized')) {
+			content.push(AccessibilityHelpNLS.defaultWindowTitleIncludesEditorState);
+		} else {
+			content.push(AccessibilityHelpNLS.defaultWindowTitleExcludingEditorState);
+		}
+		content.push(AccessibilityHelpNLS.toolbar);
+
+		const chatEditInfo = getChatEditInfo(this._keybindingService, this._contextKeyService, this._editor);
+		if (chatEditInfo) {
+			content.push(chatEditInfo);
+		}
 
 		content.push(AccessibilityHelpNLS.listSignalSounds);
 		content.push(AccessibilityHelpNLS.listAlerts);
+
 
 		const chatCommandInfo = getChatCommandInfo(this._keybindingService, this._contextKeyService);
 		if (chatCommandInfo) {
@@ -84,6 +101,10 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		if (commentCommandInfo) {
 			content.push(commentCommandInfo);
 		}
+
+		content.push(AccessibilityHelpNLS.suggestActions);
+		content.push(AccessibilityHelpNLS.acceptSuggestAction);
+		content.push(AccessibilityHelpNLS.toggleSuggestionFocus);
 
 		if (options.get(EditorOption.stickyScroll).enabled) {
 			content.push(AccessibilityHelpNLS.stickScroll);
@@ -115,8 +136,18 @@ export function getCommentCommandInfo(keybindingService: IKeybindingService, con
 }
 
 export function getChatCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService): string | undefined {
-	if (CONTEXT_CHAT_ENABLED.getValue(contextKeyService)) {
+	if (ChatContextKeys.enabled.getValue(contextKeyService)) {
 		return [AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.startInlineChat].join('\n');
+	}
+	return;
+}
+
+export function getChatEditInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, editor: ICodeEditor): string | undefined {
+	const editorContext = contextKeyService.getContext(editor.getDomNode()!);
+	if (editorContext.getValue<boolean>(ctxHasEditorModification.key)) {
+		return AccessibilityHelpNLS.chatEditorModification + '\n' + AccessibilityHelpNLS.chatEditActions;
+	} else if (editorContext.getValue<boolean>(ctxHasRequestInProgress.key)) {
+		return AccessibilityHelpNLS.chatEditorRequestInProgress;
 	}
 	return;
 }

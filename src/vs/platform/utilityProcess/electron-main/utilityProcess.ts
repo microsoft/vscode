@@ -27,6 +27,11 @@ export interface IUtilityProcessConfiguration {
 	readonly type: string;
 
 	/**
+	 * A human-readable name for the utility process.
+	 */
+	readonly name: string;
+
+	/**
 	 * The entry point to load in the utility process.
 	 */
 	readonly entryPoint: string;
@@ -169,7 +174,6 @@ export class UtilityProcess extends Disposable {
 	private process: ElectronUtilityProcess | undefined = undefined;
 	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
-	private killed = false;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -245,7 +249,7 @@ export class UtilityProcess extends Disposable {
 		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
-			execArgv,
+			execArgv, // !!! Add `--trace-warnings` for node.js tracing !!!
 			allowLoadingUnsignedLibraries,
 			respondToAuthRequestsFromMainProcess,
 			stdio
@@ -307,7 +311,7 @@ export class UtilityProcess extends Disposable {
 			this.processPid = process.pid;
 
 			if (typeof process.pid === 'number') {
-				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.type} [${configuration.responseWindowId}]` : configuration.type });
+				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.name} [${configuration.responseWindowId}]` : configuration.name });
 			}
 
 			this.log('successfully created', Severity.Info);
@@ -316,11 +320,10 @@ export class UtilityProcess extends Disposable {
 
 		// Exit
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
-			const normalizedCode = this.isNormalExit(code) ? 0 : code;
-			this.log(`received exit event with code ${normalizedCode}`, Severity.Info);
+			this.log(`received exit event with code ${code}`, Severity.Info);
 
 			// Event
-			this._onExit.fire({ pid: this.processPid!, code: normalizedCode, signal: 'unknown' });
+			this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
 
 			// Cleanup
 			this.onDidExitOrCrashOrKill();
@@ -368,7 +371,7 @@ export class UtilityProcess extends Disposable {
 
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-			if (details.type === 'Utility' && details.name === serviceName && !this.isNormalExit(details.exitCode)) {
+			if (details.type === 'Utility' && details.name === serviceName) {
 				this.log(`crashed with code ${details.exitCode} and reason '${details.reason}'`, Severity.Error);
 
 				// Telemetry
@@ -458,22 +461,10 @@ export class UtilityProcess extends Disposable {
 		const killed = this.process.kill();
 		if (killed) {
 			this.log('successfully killed the process', Severity.Info);
-			this.killed = true;
 			this.onDidExitOrCrashOrKill();
 		} else {
 			this.log('unable to kill the process', Severity.Warning);
 		}
-	}
-
-	private isNormalExit(exitCode: number): boolean {
-		if (exitCode === 0) {
-			return true;
-		}
-
-		// Treat an exit code of 15 (SIGTERM) as a normal exit
-		// if we triggered the termination from process.kill()
-
-		return this.killed && exitCode === 15 /* SIGTERM */;
 	}
 
 	private onDidExitOrCrashOrKill(): void {

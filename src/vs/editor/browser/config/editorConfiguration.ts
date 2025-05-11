@@ -16,12 +16,13 @@ import { TabFocus } from './tabFocus.js';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo.js';
-import { IDimension } from '../../common/core/dimension.js';
+import { IDimension } from '../../common/core/2d/dimension.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { getWindow, getWindowById } from '../../../base/browser/dom.js';
 import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 import { MenuId } from '../../../platform/actions/common/actions.js';
+import { InputMode } from '../../common/inputMode.js';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -95,6 +96,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
 		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+		this._register(InputMode.onDidChangeInputMode(() => this._recomputeOptions()));
 	}
 
 	private _recomputeOptions(): void {
@@ -126,8 +128,10 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
+			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
-			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
+			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount,
+			editContextSupported: partialEnv.editContextSupported
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
 	}
@@ -139,6 +143,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
+			editContextSupported: typeof (globalThis as any).EditContext === 'function',
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -246,6 +251,7 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	accessibilitySupport: AccessibilitySupport;
+	editContextSupported: boolean;
 }
 
 class ValidatedEditorOptions implements IValidatedEditorOptions {

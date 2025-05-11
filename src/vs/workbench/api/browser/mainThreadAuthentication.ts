@@ -20,17 +20,18 @@ import { getAuthenticationProviderActivationEvent } from '../../services/authent
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
-interface AuthenticationForceNewSessionOptions {
+export interface AuthenticationInteractiveOptions {
 	detail?: string;
 	learnMore?: UriComponents;
 	sessionToRecreate?: AuthenticationSession;
 }
 
-interface AuthenticationGetSessionOptions {
+export interface AuthenticationGetSessionOptions {
 	clearSessionPreference?: boolean;
-	createIfNone?: boolean;
-	forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
+	createIfNone?: boolean | AuthenticationInteractiveOptions;
+	forceNewSession?: boolean | AuthenticationInteractiveOptions;
 	silent?: boolean;
 	account?: AuthenticationSessionAccount;
 }
@@ -70,6 +71,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	private readonly _proxy: ExtHostAuthenticationShape;
 
 	private readonly _registrations = this._register(new DisposableMap<string>());
+	private _sentProviderUsageEvents = new Set<string>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -81,7 +83,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -96,6 +99,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
+		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
+			// If telemetry shows that this is not happening much, we can instead throw an error here.
+			this.logService.warn(`Authentication provider ${id} was not declared in the Extension Manifest.`);
+			type AuthProviderNotDeclaredClassification = {
+				owner: 'TylerLeonhardt';
+				comment: 'An authentication provider was not declared in the Extension Manifest.';
+				id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider id.' };
+			};
+			this.telemetryService.publicLog2<{ id: string }, AuthProviderNotDeclaredClassification>('authentication.providerNotDeclared', { id });
+		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, emitter);
@@ -123,7 +136,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
-	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationForceNewSessionOptions): Promise<boolean> {
+	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {
 		let message: string;
 
 		// An internal provider is a special case which is for model access only.
@@ -232,9 +245,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// We may need to prompt because we don't have a valid session
 		// modal flows
 		if (options.createIfNone || options.forceNewSession) {
-			let uiOptions: AuthenticationForceNewSessionOptions | undefined;
+			let uiOptions: AuthenticationInteractiveOptions | undefined;
 			if (typeof options.forceNewSession === 'object') {
 				uiOptions = options.forceNewSession;
+			} else if (typeof options.createIfNone === 'object') {
+				uiOptions = options.createIfNone;
 			}
 
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
@@ -286,6 +301,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+		this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
 		const session = await this.doGetSession(providerId, scopes, extensionId, extensionName, options);
 
 		if (session) {
@@ -301,7 +317,34 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return accounts;
 	}
 
+	// TODO@TylerLeonhardt this is a temporary addition to telemetry to understand what extensions are overriding the client id.
+	// We can use this telemetry to reach out to these extension authors and let them know that they many need configuration changes
+	// due to the adoption of the Microsoft broker.
+	// Remove this in a few iterations.
+	private _sentClientIdUsageEvents = new Set<string>();
+	private sendClientIdUsageTelemetry(extensionId: string, providerId: string, scopes: string[]): void {
+		const containsVSCodeClientIdScope = scopes.some(scope => scope.startsWith('VSCODE_CLIENT_ID:'));
+		const key = `${extensionId}|${providerId}|${containsVSCodeClientIdScope}`;
+		if (this._sentClientIdUsageEvents.has(key)) {
+			return;
+		}
+		this._sentClientIdUsageEvents.add(key);
+		if (containsVSCodeClientIdScope) {
+			type ClientIdUsageClassification = {
+				owner: 'TylerLeonhardt';
+				comment: 'Used to see which extensions are using the VSCode client id override';
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+			};
+			this.telemetryService.publicLog2<{ extensionId: string }, ClientIdUsageClassification>('authentication.clientIdUsage', { extensionId });
+		}
+	}
+
 	private sendProviderUsageTelemetry(extensionId: string, providerId: string): void {
+		const key = `${extensionId}|${providerId}`;
+		if (this._sentProviderUsageEvents.has(key)) {
+			return;
+		}
+		this._sentProviderUsageEvents.add(key);
 		type AuthProviderUsageClassification = {
 			owner: 'TylerLeonhardt';
 			comment: 'Used to see which extensions are using which providers';

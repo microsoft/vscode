@@ -99,7 +99,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private readonly _keychain: Keychain;
 	private readonly _accountsSeen = new Set<string>();
 	private readonly _disposable: vscode.Disposable | undefined;
-	private _supportsMultipleAccounts = false;
 
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
 
@@ -136,24 +135,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
-		this._supportsMultipleAccounts = this._shouldSupportMultipleAccounts();
-
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: this._supportsMultipleAccounts }),
-			this.context.secrets.onDidChange(() => this.checkForUpdates()),
-			vscode.workspace.onDidChangeConfiguration(async e => {
-				if (e.affectsConfiguration('github.experimental.multipleAccounts')) {
-					const newValue = this._shouldSupportMultipleAccounts();
-					if (newValue === this._supportsMultipleAccounts) {
-						return;
-					}
-					const result = await vscode.window.showInformationMessage(vscode.l10n.t('Please reload the window to apply the new setting.'), { modal: true }, vscode.l10n.t('Reload Window'));
-					if (result) {
-						vscode.commands.executeCommand('workbench.action.reloadWindow');
-					}
-				}
-			})
+			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: true }),
+			this.context.secrets.onDidChange(() => this.checkForUpdates())
 		);
 	}
 
@@ -251,9 +236,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			if (!this._supportsMultipleAccounts && scopesSeen.has(scopesStr)) {
-				return undefined;
-			}
 			let userInfo: { id: string; accountName: string } | undefined;
 			if (!session.account) {
 				try {
@@ -332,21 +314,14 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			});
 
 			const sessions = await this._sessionsPromise;
-
-			// First we use the account specified in the options, otherwise we use the first account we have to seed auth.
-			const loginWith = options?.account?.label ?? sessions[0]?.account.label;
+			const loginWith = options?.account?.label;
 			this._logger.info(`Logging in with '${loginWith ? loginWith : 'any'}' account...`);
-
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessionIndex = sessions.findIndex(
-				this._supportsMultipleAccounts
-					? s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes)
-					: s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes)
-			);
+			const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
 			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
 				removed.push(...sessions.splice(sessionIndex, 1, session));
@@ -423,27 +398,5 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._logger.error(e);
 			throw e;
 		}
-	}
-
-	private _shouldSupportMultipleAccounts(): boolean {
-		// First check if there is a setting value to allow user to override the default
-		const inspect = vscode.workspace.getConfiguration('github.experimental').inspect<boolean>('multipleAccounts');
-		if (inspect?.workspaceFolderValue !== undefined) {
-			this._logger.trace(`Acquired multi-account enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
-			return inspect.workspaceFolderValue;
-		}
-		if (inspect?.workspaceValue !== undefined) {
-			this._logger.trace(`Acquired multi-account enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
-			return inspect.workspaceValue;
-		}
-		if (inspect?.globalValue !== undefined) {
-			this._logger.trace(`Acquired multi-account enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
-			return inspect.globalValue;
-		}
-
-		const value = vscode.env.uriScheme !== 'vscode';
-		this._logger.trace(`Acquired multi-account enablement value from default. Value: ${value} because of uriScheme: ${vscode.env.uriScheme}`);
-		// If no setting or experiment value is found, default to false on stable and true on insiders
-		return value;
 	}
 }

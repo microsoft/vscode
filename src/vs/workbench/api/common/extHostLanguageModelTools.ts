@@ -11,9 +11,46 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
+import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
+import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
+import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
+
+class Tool {
+
+	private _data: IToolDataDto;
+	private _apiObject: vscode.LanguageModelToolInformation | undefined;
+
+	constructor(data: IToolDataDto) {
+		this._data = data;
+	}
+
+	update(newData: IToolDataDto): void {
+		this._data = newData;
+	}
+
+	get data(): IToolDataDto {
+		return this._data;
+	}
+
+	get apiObject(): vscode.LanguageModelToolInformation {
+		if (!this._apiObject) {
+			const that = this;
+			this._apiObject = Object.freeze({
+				get name() { return that._data.id; },
+				get description() { return that._data.modelDescription; },
+				get inputSchema() { return that._data.inputSchema; },
+				get tags() { return that._data.tags ?? []; },
+			});
+		}
+		return this._apiObject;
+	}
+}
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -22,14 +59,17 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	private readonly _tokenCountFuncs = new Map</* call ID */string, (text: string, token?: vscode.CancellationToken) => Thenable<number>>();
 
 	/** A map of all known tools, from other EHs or registered in vscode core */
-	private readonly _allTools = new Map<string, IToolDataDto>();
+	private readonly _allTools = new Map<string, Tool>();
 
-	constructor(mainContext: IMainContext) {
+	constructor(
+		mainContext: IMainContext,
+		private readonly _languageModels: ExtHostLanguageModels,
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModelTools);
 
 		this._proxy.$getTools().then(tools => {
 			for (const tool of tools) {
-				this._allTools.set(tool.id, revive(tool));
+				this._allTools.set(tool.id, new Tool(revive(tool)));
 			}
 		});
 	}
@@ -43,106 +83,189 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await fn(input, token);
 	}
 
-	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
-		if (!options.requestedContentTypes?.length) {
-			throw new Error('LanguageModelToolInvocationOptions.requestedContentTypes is required to be set');
+	async invokeTool(extension: IExtensionDescription, toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+		const callId = generateUuid();
+		if (options.tokenizationOptions) {
+			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
 		}
 
-		const callId = generateUuid();
-		if (options.tokenOptions) {
-			this._tokenCountFuncs.set(callId, options.tokenOptions.countTokens);
-		}
 		try {
+			if (options.toolInvocationToken && !isToolInvocationContext(options.toolInvocationToken)) {
+				throw new Error(`Invalid tool invocation token`);
+			}
+
+			if ((toolId === InternalEditToolId || toolId === ExtensionEditToolId) && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+				throw new Error(`Invalid tool: ${toolId}`);
+			}
+
 			// Making the round trip here because not all tools were necessarily registered in this EH
 			const result = await this._proxy.$invokeTool({
 				toolId,
 				callId,
-				parameters: options.parameters,
-				tokenBudget: options.tokenOptions?.tokenBudget,
+				parameters: options.input,
+				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
-				requestedContentTypes: options.requestedContentTypes,
+				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
+				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 			}, token);
-			return result;
+
+			const dto: Dto<IToolResult> = result instanceof SerializableObjectWithBuffers ? result.value : result;
+			return typeConvert.LanguageModelToolResult2.to(revive(dto));
 		} finally {
 			this._tokenCountFuncs.delete(callId);
 		}
 	}
 
 	$onDidChangeTools(tools: IToolDataDto[]): void {
-		this._allTools.clear();
+
+		const oldTools = new Set(this._registeredTools.keys());
+
 		for (const tool of tools) {
-			this._allTools.set(tool.id, tool);
+			oldTools.delete(tool.id);
+			const existing = this._allTools.get(tool.id);
+			if (existing) {
+				existing.update(tool);
+			} else {
+				this._allTools.set(tool.id, new Tool(revive(tool)));
+			}
+		}
+
+		for (const id of oldTools) {
+			this._allTools.delete(id);
 		}
 	}
 
-	get tools(): vscode.LanguageModelToolDescription[] {
+	getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] {
 		return Array.from(this._allTools.values())
-			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
+			.map(tool => tool.apiObject)
+			.filter(tool => {
+				switch (tool.name) {
+					case InternalEditToolId:
+					case ExtensionEditToolId:
+					case InternalFetchWebPageToolId:
+					case SearchExtensionsToolId:
+						return isProposedApiEnabled(extension, 'chatParticipantPrivate');
+					default:
+						return true;
+				}
+			});
 	}
 
-	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
+	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedContentTypes: dto.requestedContentTypes };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
+			input: dto.parameters,
+			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+		};
+		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
+			options.chatRequestId = dto.chatRequestId;
+			options.chatInteractionId = dto.chatInteractionId;
+			options.chatSessionId = dto.context?.sessionId;
+
+			if (dto.toolSpecificData?.kind === 'terminal') {
+				options.terminalCommand = dto.toolSpecificData.command;
+			}
+		}
+
+		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
+			options.model = await this.getModel(dto.modelId, item.extension);
+		}
+
 		if (dto.tokenBudget !== undefined) {
-			options.tokenOptions = {
+			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
 				countTokens: this._tokenCountFuncs.get(dto.callId) || ((value, token = CancellationToken.None) =>
 					this._proxy.$countTokensForInvocation(dto.callId, value, token))
 			};
 		}
 
-		// Some participant in extHostChatAgents calls invokeTool, goes to extHostLMTools
-		// mainThreadLMTools invokes the tool, which calls back to extHostLMTools
-		// The tool requests permission
-		// The tool in extHostLMTools calls for permission back to mainThreadLMTools
-		// And back to extHostLMTools, and back to the participant in extHostChatAgents
-		// Is there a tool call ID to identify the call?
-		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token)), token);
+		let progress: vscode.Progress<{ message?: string | vscode.MarkdownString; increment?: number }> | undefined;
+		if (isProposedApiEnabled(item.extension, 'toolProgress')) {
+			progress = {
+				report: value => {
+					this._proxy.$acceptToolProgress(dto.callId, {
+						message: typeConvert.MarkdownString.fromStrict(value.message),
+						increment: value.increment,
+						total: 100,
+					});
+				}
+			};
+		}
+
+		// todo: 'any' cast because TS can't handle the overloads
+		const extensionResult = await raceCancellation(Promise.resolve((item.tool.invoke as any)(options, token, progress!)), token);
 		if (!extensionResult) {
 			throw new CancellationError();
 		}
 
-		for (const key of Object.keys(extensionResult)) {
-			const value = extensionResult[key];
-			if (value instanceof Promise) {
-				throw new Error(`Tool result for '${key}' cannot be a Promise`);
-			} else if (!options.requestedContentTypes.includes(key) && key !== 'toString') {
-				// This could help the scenario where a tool updated the prompt-tsx library, but did not update the contentType in package.json.
-				// Or, where a tool author didn't declare supportedContentTypes and isn't checking the list of requestedContentTypes.
-				// toString check can be temp, just to help with tools that are already published.
-				throw new Error(`Tool result for '${key}' was not requested from ${dto.toolId}.`);
+		return typeConvert.LanguageModelToolResult2.from(extensionResult, item.extension);
+	}
+
+	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
+		let model: vscode.LanguageModelChat | undefined;
+		if (modelId) {
+			model = await this._languageModels.getLanguageModelByIdentifier(extension, modelId);
+		}
+		if (!model) {
+			model = await this._languageModels.getDefaultLanguageModel(extension);
+			if (!model) {
+				throw new Error('Language model unavailable');
 			}
 		}
 
-		return extensionResult;
+		return model;
 	}
 
-	async $prepareToolInvocation(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async $prepareToolInvocation(toolId: string, input: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const item = this._registeredTools.get(toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${toolId}`);
 		}
 
-		if (!item.tool.prepareToolInvocation) {
-			return undefined;
+		const options: vscode.LanguageModelToolInvocationPrepareOptions<any> = { input };
+		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && item.tool.prepareInvocation2) {
+			const result = await item.tool.prepareInvocation2(options, token);
+			if (!result) {
+				return undefined;
+			}
+
+			return {
+				confirmationMessages: result.confirmationMessages ? {
+					title: result.confirmationMessages.title,
+					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+				} : undefined,
+				toolSpecificData: {
+					kind: 'terminal',
+					language: result.language,
+					command: result.command,
+				}
+			};
+		} else if (item.tool.prepareInvocation) {
+			const result = await item.tool.prepareInvocation(options, token);
+			if (!result) {
+				return undefined;
+			}
+
+			if (result.pastTenseMessage || result.presentation) {
+				checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+			}
+
+			return {
+				confirmationMessages: result.confirmationMessages ? {
+					title: result.confirmationMessages.title,
+					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+				} : undefined,
+				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
+				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
+				presentation: result.presentation
+			};
 		}
 
-		const result = await item.tool.prepareToolInvocation({ participantName, parameters }, token);
-		if (!result) {
-			return undefined;
-		}
-
-		return {
-			confirmationMessages: result.confirmationMessages ? {
-				title: result.confirmationMessages.title,
-				message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
-			} : undefined,
-			invocationMessage: result.invocationMessage
-		};
+		return undefined;
 	}
 
 	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool<any>): IDisposable {

@@ -188,7 +188,7 @@ export default class FileConfigurationManager extends Disposable {
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
 			jsxAttributeCompletionStyle: getJsxAttributeCompletionStyle(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
-			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('renameShorthandProperties', true) === false ? false : preferencesConfig.get<boolean>('useAliasesForRenames', true),
+			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('useAliasesForRenames', true),
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
@@ -238,15 +238,23 @@ export default class FileConfigurationManager extends Disposable {
 	}
 
 	private getOrganizeImportsPreferences(config: vscode.WorkspaceConfiguration): Proto.UserPreferences {
+		const organizeImportsCollation = config.get<'ordinal' | 'unicode'>('organizeImports.unicodeCollation');
+		const organizeImportsCaseSensitivity = config.get<'auto' | 'caseInsensitive' | 'caseSensitive'>('organizeImports.caseSensitivity');
 		return {
 			// More specific settings
-			organizeImportsAccentCollation: config.get<boolean>('organizeImports.accentCollation'),
-			organizeImportsCaseFirst: withDefaultAsUndefined(config.get<'default' | 'upper' | 'lower'>('organizeImports.caseFirst', 'default'), 'default'),
-			organizeImportsCollation: config.get<'ordinal' | 'unicode'>('organizeImports.collation'),
-			organizeImportsIgnoreCase: withDefaultAsUndefined(config.get<'auto' | 'caseInsensitive' | 'caseSensitive'>('organizeImports.caseSensitivity'), 'auto'),
-			organizeImportsLocale: config.get<string>('organizeImports.locale'),
-			organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
 			organizeImportsTypeOrder: withDefaultAsUndefined(config.get<'auto' | 'last' | 'inline' | 'first'>('organizeImports.typeOrder', 'auto'), 'auto'),
+			organizeImportsIgnoreCase: organizeImportsCaseSensitivity === 'caseInsensitive' ? true
+				: organizeImportsCaseSensitivity === 'caseSensitive' ? false
+					: 'auto',
+			organizeImportsCollation,
+
+			// The rest of the settings are only applicable when using unicode collation
+			...(organizeImportsCollation === 'unicode' ? {
+				organizeImportsCaseFirst: organizeImportsCaseSensitivity === 'caseInsensitive' ? undefined : withDefaultAsUndefined(config.get<'default' | 'upper' | 'lower' | false>('organizeImports.caseFirst', false), 'default'),
+				organizeImportsAccentCollation: config.get<boolean>('organizeImports.accentCollation'),
+				organizeImportsLocale: config.get<string>('organizeImports.locale'),
+				organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
+			} : {}),
 		};
 	}
 }

@@ -41,7 +41,7 @@ import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../../..
 import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from '../../../../../services/workingCopy/common/workingCopyFileService.js';
 import { NotebookMultiCursorController, NotebookMultiCursorState } from '../multicursor/notebookMulticursor.js';
 
-abstract class NotebookSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
+export abstract class NotebookSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
 		private readonly _editorService: IEditorService,
 	) { }

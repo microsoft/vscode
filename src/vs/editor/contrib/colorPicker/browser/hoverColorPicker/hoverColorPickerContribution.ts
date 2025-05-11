@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../browser/editorBrowser.js';
+import { ICodeEditor, IEditorMouseEvent } from '../../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
 import { IEditorContribution } from '../../../../common/editorCommon.js';
-import { ColorDecorationInjectedTextMarker } from '../colorDetector.js';
 import { ContentHoverController } from '../../../hover/browser/contentHoverController.js';
 import { HoverStartMode, HoverStartSource } from '../../../hover/browser/hoverOperation.js';
+import { isOnColorDecorator } from './hoverColorPicker.js';
 
 export class HoverColorPickerContribution extends Disposable implements IEditorContribution {
 
@@ -34,32 +34,21 @@ export class HoverColorPickerContribution extends Disposable implements IEditorC
 		if (colorDecoratorsActivatedOn !== 'click' && colorDecoratorsActivatedOn !== 'clickAndHover') {
 			return;
 		}
-
-		const target = mouseEvent.target;
-
-		if (target.type !== MouseTargetType.CONTENT_TEXT) {
+		if (!isOnColorDecorator(mouseEvent)) {
 			return;
 		}
-
-		if (!target.detail.injectedText) {
-			return;
-		}
-
-		if (target.detail.injectedText.options.attachedData !== ColorDecorationInjectedTextMarker) {
-			return;
-		}
-
-		if (!target.range) {
-			return;
-		}
-
 		const hoverController = this._editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		if (!hoverController) {
 			return;
 		}
-		if (!hoverController.isColorPickerVisible) {
-			const range = new Range(target.range.startLineNumber, target.range.startColumn + 1, target.range.endLineNumber, target.range.endColumn + 1);
-			hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
+		if (hoverController.isColorPickerVisible) {
+			return;
 		}
+		const targetRange = mouseEvent.target.range;
+		if (!targetRange) {
+			return;
+		}
+		const range = new Range(targetRange.startLineNumber, targetRange.startColumn + 1, targetRange.endLineNumber, targetRange.endColumn + 1);
+		hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Click, false);
 	}
 }

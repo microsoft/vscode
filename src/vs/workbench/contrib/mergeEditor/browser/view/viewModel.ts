@@ -12,7 +12,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { LineRange } from '../model/lineRange.js';
+import { MergeEditorLineRange } from '../model/lineRange.js';
 import { MergeEditorModel } from '../model/mergeEditorModel.js';
 import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from '../model/modifiedBaseRange.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -22,11 +22,9 @@ import { InputCodeEditorView } from './editors/inputCodeEditorView.js';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView.js';
 
 export class MergeEditorViewModel extends Disposable {
-	private readonly manuallySetActiveModifiedBaseRange = observableValue<
-		{ range: ModifiedBaseRange | undefined; counter: number }
-	>(this, { range: undefined, counter: 0 });
+	private readonly manuallySetActiveModifiedBaseRange;
 
-	private readonly attachedHistory = this._register(new AttachedHistory(this.model.resultTextModel));
+	private readonly attachedHistory;
 
 	constructor(
 		public readonly model: MergeEditorModel,
@@ -39,6 +37,108 @@ export class MergeEditorViewModel extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+		this.manuallySetActiveModifiedBaseRange = observableValue<
+			{ range: ModifiedBaseRange | undefined; counter: number }
+		>(this, { range: undefined, counter: 0 });
+		this.attachedHistory = this._register(new AttachedHistory(this.model.resultTextModel));
+		this.shouldUseAppendInsteadOfAccept = observableConfigValue<boolean>(
+			'mergeEditor.shouldUseAppendInsteadOfAccept',
+			false,
+			this.configurationService,
+		);
+		this.counter = 0;
+		this.lastFocusedEditor = derivedObservableWithWritableCache<
+			{ view: CodeEditorView | undefined; counter: number }
+		>(this, (reader, lastValue) => {
+			const editors = [
+				this.inputCodeEditorView1,
+				this.inputCodeEditorView2,
+				this.resultCodeEditorView,
+				this.baseCodeEditorView.read(reader),
+			];
+			const view = editors.find((e) => e && e.isFocused.read(reader));
+			return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
+		});
+		this.baseShowDiffAgainst = derived<1 | 2 | undefined>(this, reader => {
+			const lastFocusedEditor = this.lastFocusedEditor.read(reader);
+			if (lastFocusedEditor.view === this.inputCodeEditorView1) {
+				return 1;
+			} else if (lastFocusedEditor.view === this.inputCodeEditorView2) {
+				return 2;
+			}
+			return undefined;
+		});
+		this.focusedEditorType = derived<MergeEditorType | undefined>(this, reader => {
+			const lastFocusedEditor = this.lastFocusedEditor.read(reader);
+
+			if (!lastFocusedEditor.view) {
+				return undefined;
+			}
+
+			if (lastFocusedEditor.view === this.inputCodeEditorView1) {
+				return 'input1';
+			} else if (lastFocusedEditor.view === this.inputCodeEditorView2) {
+				return 'input2';
+			} else if (lastFocusedEditor.view === this.resultCodeEditorView) {
+				return 'result';
+			} else if (lastFocusedEditor.view === this.baseCodeEditorView.read(reader)) {
+				return 'base';
+			}
+
+			return undefined;
+		});
+		this.selectionInBase = derived(this, reader => {
+			const sourceEditor = this.lastFocusedEditor.read(reader).view;
+			if (!sourceEditor) {
+				return undefined;
+			}
+			const selections = sourceEditor.selection.read(reader) || [];
+
+			const rangesInBase = selections.map((selection) => {
+				if (sourceEditor === this.inputCodeEditorView1) {
+					return this.model.translateInputRangeToBase(1, selection);
+				} else if (sourceEditor === this.inputCodeEditorView2) {
+					return this.model.translateInputRangeToBase(2, selection);
+				} else if (sourceEditor === this.resultCodeEditorView) {
+					return this.model.translateResultRangeToBase(selection);
+				} else if (sourceEditor === this.baseCodeEditorView.read(reader)) {
+					return selection;
+				} else {
+					return selection;
+				}
+			});
+
+			return {
+				rangesInBase,
+				sourceEditor
+			};
+		});
+		this.activeModifiedBaseRange = derived(this,
+			(reader) => {
+				/** @description activeModifiedBaseRange */
+				const focusedEditor = this.lastFocusedEditor.read(reader);
+				const manualRange = this.manuallySetActiveModifiedBaseRange.read(reader);
+				if (manualRange.counter > focusedEditor.counter) {
+					return manualRange.range;
+				}
+
+				if (!focusedEditor.view) {
+					return;
+				}
+				const cursorLineNumber = focusedEditor.view.cursorLineNumber.read(reader);
+				if (!cursorLineNumber) {
+					return undefined;
+				}
+
+				const modifiedBaseRanges = this.model.modifiedBaseRanges.read(reader);
+				return modifiedBaseRanges.find((r) => {
+					const range = this.getRangeOfModifiedBaseRange(focusedEditor.view!, r, reader);
+					return range.isEmpty
+						? range.startLineNumber === cursorLineNumber
+						: range.contains(cursorLineNumber);
+				});
+			}
+		);
 
 		this._register(resultCodeEditorView.editor.onDidChangeModelContent(e => {
 			if (this.model.isApplyingEditInResult || e.isRedoing || e.isUndoing) {
@@ -49,7 +149,7 @@ export class MergeEditorViewModel extends Disposable {
 
 			for (const change of e.changes) {
 				const rangeInBase = this.model.translateResultRangeToBase(Range.lift(change.range));
-				const baseRanges = this.model.findModifiedBaseRangesInRange(new LineRange(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
+				const baseRanges = this.model.findModifiedBaseRangesInRange(MergeEditorLineRange.fromLength(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
 				if (baseRanges.length === 1) {
 					const isHandled = this.model.isHandled(baseRanges[0]).get();
 					if (!isHandled) {
@@ -86,64 +186,21 @@ export class MergeEditorViewModel extends Disposable {
 		}));
 	}
 
-	public readonly shouldUseAppendInsteadOfAccept = observableConfigValue<boolean>(
-		'mergeEditor.shouldUseAppendInsteadOfAccept',
-		false,
-		this.configurationService,
-	);
+	public readonly shouldUseAppendInsteadOfAccept;
 
-	private counter = 0;
-	private readonly lastFocusedEditor = derivedObservableWithWritableCache<
-		{ view: CodeEditorView | undefined; counter: number }
-	>(this, (reader, lastValue) => {
-		const editors = [
-			this.inputCodeEditorView1,
-			this.inputCodeEditorView2,
-			this.resultCodeEditorView,
-			this.baseCodeEditorView.read(reader),
-		];
-		const view = editors.find((e) => e && e.isFocused.read(reader));
-		return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
-	});
+	private counter;
+	private readonly lastFocusedEditor;
 
-	public readonly baseShowDiffAgainst = derived<1 | 2 | undefined>(this, reader => {
-		const lastFocusedEditor = this.lastFocusedEditor.read(reader);
-		if (lastFocusedEditor.view === this.inputCodeEditorView1) {
-			return 1;
-		} else if (lastFocusedEditor.view === this.inputCodeEditorView2) {
-			return 2;
-		}
-		return undefined;
-	});
+	public readonly baseShowDiffAgainst;
 
-	public readonly selectionInBase = derived(this, reader => {
-		const sourceEditor = this.lastFocusedEditor.read(reader).view;
-		if (!sourceEditor) {
-			return undefined;
-		}
-		const selections = sourceEditor.selection.read(reader) || [];
+	/**
+	 * Returns an observable that tracks which editor type is currently focused
+	 */
+	public readonly focusedEditorType;
 
-		const rangesInBase = selections.map((selection) => {
-			if (sourceEditor === this.inputCodeEditorView1) {
-				return this.model.translateInputRangeToBase(1, selection);
-			} else if (sourceEditor === this.inputCodeEditorView2) {
-				return this.model.translateInputRangeToBase(2, selection);
-			} else if (sourceEditor === this.resultCodeEditorView) {
-				return this.model.translateResultRangeToBase(selection);
-			} else if (sourceEditor === this.baseCodeEditorView.read(reader)) {
-				return selection;
-			} else {
-				return selection;
-			}
-		});
+	public readonly selectionInBase;
 
-		return {
-			rangesInBase,
-			sourceEditor
-		};
-	});
-
-	private getRangeOfModifiedBaseRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): LineRange {
+	private getRangeOfModifiedBaseRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): MergeEditorLineRange {
 		if (editor === this.resultCodeEditorView) {
 			return this.model.getLineRangeInResult(modifiedBaseRange.baseRange, reader);
 		} else if (editor === this.baseCodeEditorView.get()) {
@@ -154,32 +211,7 @@ export class MergeEditorViewModel extends Disposable {
 		}
 	}
 
-	public readonly activeModifiedBaseRange = derived(this,
-		(reader) => {
-			/** @description activeModifiedBaseRange */
-			const focusedEditor = this.lastFocusedEditor.read(reader);
-			const manualRange = this.manuallySetActiveModifiedBaseRange.read(reader);
-			if (manualRange.counter > focusedEditor.counter) {
-				return manualRange.range;
-			}
-
-			if (!focusedEditor.view) {
-				return;
-			}
-			const cursorLineNumber = focusedEditor.view.cursorLineNumber.read(reader);
-			if (!cursorLineNumber) {
-				return undefined;
-			}
-
-			const modifiedBaseRanges = this.model.modifiedBaseRanges.read(reader);
-			return modifiedBaseRanges.find((r) => {
-				const range = this.getRangeOfModifiedBaseRange(focusedEditor.view!, r, reader);
-				return range.isEmpty
-					? range.startLineNumber === cursorLineNumber
-					: range.contains(cursorLineNumber);
-			});
-		}
-	);
+	public readonly activeModifiedBaseRange;
 
 	public setActiveModifiedBaseRange(range: ModifiedBaseRange | undefined, tx: ITransaction): void {
 		this.manuallySetActiveModifiedBaseRange.set({ range, counter: this.counter++ }, tx);
@@ -292,11 +324,13 @@ export class MergeEditorViewModel extends Disposable {
 }
 
 class AttachedHistory extends Disposable {
-	private readonly attachedHistory: { element: IAttachedHistoryElement; altId: number }[] = [];
-	private previousAltId: number = this.model.getAlternativeVersionId();
+	private readonly attachedHistory: { element: IAttachedHistoryElement; altId: number }[];
+	private previousAltId: number;
 
 	constructor(private readonly model: ITextModel) {
 		super();
+		this.attachedHistory = [];
+		this.previousAltId = this.model.getAlternativeVersionId();
 
 		this._register(model.onDidChangeContent((e) => {
 			const currentAltId = model.getAlternativeVersionId();
@@ -343,3 +377,5 @@ interface IAttachedHistoryElement {
 	undo(): void;
 	redo(): void;
 }
+
+export type MergeEditorType = 'input1' | 'input2' | 'result' | 'base';

@@ -14,7 +14,7 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
-import { IDimension } from '../../../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../../../editor/common/model.js';
@@ -201,7 +201,7 @@ export class CodeCell extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
-			if (this._isDisposed) {
+			if (this._isDisposed || model?.isDisposed()) {
 				return;
 			}
 
@@ -352,7 +352,6 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
-			CodeActionController.get(this.templateData.editor)?.hideCodeActions();
 			CodeActionController.get(this.templateData.editor)?.hideLightBulbWidget();
 		}));
 	}

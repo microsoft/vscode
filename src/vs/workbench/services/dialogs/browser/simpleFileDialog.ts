@@ -36,6 +36,9 @@ import { SaveReason } from '../../../common/editor.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -130,6 +133,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private readonly onBusyChangeEmitter = this._register(new Emitter<boolean>());
 	private updatingPromise: CancelablePromise<boolean> | undefined;
 
+	private _showDotFiles: boolean = true;
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -144,12 +149,33 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		@IPathService protected readonly pathService: IPathService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this.remoteAuthority = this.environmentService.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 		this.scheme = this.pathService.defaultUriScheme;
+
+		this.getShowDotFiles();
+		const disposableStore = this._register(new DisposableStore());
+		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'remoteFileDialog.showDotFiles', disposableStore)(async _ => {
+			this.getShowDotFiles();
+			this.setButtons();
+			const startingValue = this.filePickBox.value;
+			const folderValue = this.pathFromUri(this.currentFolder, true);
+			this.filePickBox.value = folderValue;
+			await this.tryUpdateItems(folderValue, this.currentFolder, true);
+			this.filePickBox.value = startingValue;
+		});
+	}
+
+	private setShowDotFiles(showDotFiles: boolean) {
+		this.storageService.store('remoteFileDialog.showDotFiles', showDotFiles, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private getShowDotFiles() {
+		this._showDotFiles = this.storageService.getBoolean('remoteFileDialog.showDotFiles', StorageScope.WORKSPACE, true);
 	}
 
 	set busy(busy: boolean) {
@@ -283,6 +309,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.sortByLabel = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
+			this.filePickBox.okLabel = typeof this.options.openLabel === 'string' ? this.options.openLabel : this.options.openLabel?.withoutMnemonic;
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
@@ -300,6 +327,11 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					}
 				}
 			}
+
+			this.setButtons();
+			this._register(this.filePickBox.onDidTriggerButton(e => {
+				this.setShowDotFiles(!this._showDotFiles);
+			}));
 
 			let isResolving: number = 0;
 			let isAcceptHandled = false;
@@ -422,7 +454,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
 			if (this.isValueChangeFromUser()) {
 				// If the user has just entered more bad path, don't change anything
-				if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
+				if (!equalsIgnoreCase(value, this.constructFullUserPath()) && (!this.isBadSubpath(value) || this.canTildaEscapeHatch(value))) {
 					this.filePickBox.validationMessage = undefined;
 					const filePickBoxUri = this.filePickBoxValue();
 					let updated: UpdateResult = UpdateResult.NotUpdated;
@@ -440,6 +472,14 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		} catch {
 			// Since any text can be entered in the input box, there is potential for error causing input. If this happens, do nothing.
 		}
+	}
+
+	private setButtons() {
+		this.filePickBox.buttons = [{
+			iconClass: this._showDotFiles ? ThemeIcon.asClassName(Codicon.eye) : ThemeIcon.asClassName(Codicon.eyeClosed),
+			tooltip: this._showDotFiles ? nls.localize('remoteFileDialog.hideDotFiles', "Hide dot files") : nls.localize('remoteFileDialog.showDotFiles', "Show dot files"),
+			alwaysVisible: true
+		}];
 	}
 
 	private isBadSubpath(value: string) {
@@ -497,7 +537,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	private async onDidAccept(): Promise<URI | undefined> {
 		this.busy = true;
-		if (this.filePickBox.activeItems.length === 1) {
+		if (!this.updatingPromise && this.filePickBox.activeItems.length === 1) {
 			const item = this.filePickBox.selectedItems[0];
 			if (item.isFolder) {
 				if (this.trailing) {
@@ -519,7 +559,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				this.filePickBox.busy = false;
 				return;
 			}
-		} else {
+		} else if (!this.updatingPromise) {
 			// If the items have updated, don't try to resolve
 			if ((await this.tryUpdateItems(this.filePickBox.value, this.filePickBoxValue())) !== UpdateResult.NotUpdated) {
 				this.filePickBox.busy = false;
@@ -555,10 +595,16 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return dir;
 	}
 
+	private canTildaEscapeHatch(value: string): boolean {
+		return !!(value.endsWith('~') && this.isBadSubpath(value));
+	}
+
 	private tildaReplace(value: string): URI {
 		const home = this.trueHome;
 		if ((value.length > 0) && (value[0] === '~')) {
 			return resources.joinPath(home, value.substring(1));
+		} else if (this.canTildaEscapeHatch(value)) {
+			return home;
 		}
 		return this.remoteUriFrom(value);
 	}
@@ -573,8 +619,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return uri;
 	}
 
-	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
-		if ((value.length > 0) && (value[0] === '~')) {
+	private async tryUpdateItems(value: string, valueUri: URI, reset: boolean = false): Promise<UpdateResult> {
+		if ((value.length > 0) && ((value[0] === '~') || this.canTildaEscapeHatch(value))) {
 			const newDir = this.tildaReplace(value);
 			return await this.updateItems(newDir, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (value === '\\') {
@@ -586,7 +632,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			const newFolderIsSubFolder = resources.extUriIgnorePathCase.isEqual(this.currentFolder, resources.dirname(valueUri));
 			const newFolderIsParent = resources.extUriIgnorePathCase.isEqualOrParent(this.currentFolder, resources.dirname(valueUri));
 			const newFolderIsUnrelated = !newFolderIsParent && !newFolderIsSubFolder;
-			if (!newFolderIsOldFolder && (this.endsWithSlash(value) || newFolderIsParent || newFolderIsUnrelated)) {
+			if ((!newFolderIsOldFolder && (this.endsWithSlash(value) || newFolderIsParent || newFolderIsUnrelated)) || reset) {
 				let stat: IFileStatWithPartialMetadata | undefined;
 				try {
 					stat = await this.fileService.stat(valueUri);
@@ -598,7 +644,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					return await this.updateItems(valueUri) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 				} else if (this.endsWithSlash(value)) {
 					// The input box contains a path that doesn't exist on the system.
-					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist.');
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist. Use ~ to go to your home directory.');
 					// Save this bad path. It can take too long to a stat on every user entered character, but once a user enters a bad path they are likely
 					// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
 					this.badPath = value;
@@ -862,6 +908,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private async updateItems(newFolder: URI, force: boolean = false, trailing?: string): Promise<boolean> {
 		this.busy = true;
 		this.autoCompletePathSegment = '';
+		const wasDotDot = trailing === '..';
+		trailing = wasDotDot ? undefined : trailing;
 		const isSave = !!trailing;
 		let result = false;
 
@@ -892,7 +940,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				this.filePickBox.items = items;
 
 				// the user might have continued typing while we were updating. Only update the input box if it doesn't match the directory.
-				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && force) {
+				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && (force || wasDotDot)) {
 					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 					this.insertText(newValue, newValue);
 				}
@@ -978,7 +1026,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			if (!folder) {
 				folder = await this.fileService.resolve(currentFolder);
 			}
-			const items = folder.children ? await Promise.all(folder.children.map(child => this.createItem(child, currentFolder, token))) : [];
+			const filteredChildren = this._showDotFiles ? folder.children : folder.children?.filter(child => !child.name.startsWith('.'));
+			const items = filteredChildren ? await Promise.all(filteredChildren.map(child => this.createItem(child, currentFolder, token))) : [];
 			for (const item of items) {
 				if (item) {
 					result.push(item);

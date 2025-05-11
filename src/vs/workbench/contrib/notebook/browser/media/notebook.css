@@ -33,9 +33,6 @@
 	z-index: 600 !important;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .overlayWidgets {
-	z-index: 638 !important;
-}
 
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div.parameter-hints-widget {
 	z-index: 639 !important;
@@ -337,10 +334,6 @@
 	flex-direction: row-reverse;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row .codicon:not(.suggest-icon) {
-	color: inherit;
-}
-
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-overview-ruler-container {
 	position: absolute;
 	top: 0;
@@ -450,6 +443,18 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-symbolHighlight .cell-focus-indicator,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-symbolHighlight {
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
+}
+
+/** Cell execution inline vars */
+.nb-inline-value {
+	background-color: var(--vscode-editorInlayHint-background);
+	color: var(--vscode-editorInlayHint-foreground) !important;
+	font-size: 90%;
+}
+
+/** Notebook Textual Selection Highlight */
+.nb-selection-highlight {
+	background-color: var(--vscode-editor-selectionHighlightBackground);
 }
 
 /** Cell Multi-Cursor Cursor highlight */
@@ -645,10 +650,4 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-chatGenerationHighlight .cell-focus-indicator,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-chatGenerationHighlight {
 	background-color: var(--vscode-notebook-selectedCellBackground) !important;
-}
-
-/** Avoid Zone Widget hide cell editor focus indicator partially **/
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget {
-	margin-left: 1px;
-	margin-right: 1px;
 }

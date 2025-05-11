@@ -21,8 +21,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument.none',
-			label: nls.localize('formatDocument.label.multiple', "Format Document"),
-			alias: 'Format Document',
+			label: nls.localize2('formatDocument.label.multiple', "Format Document"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

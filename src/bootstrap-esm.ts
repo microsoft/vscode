@@ -38,7 +38,7 @@ if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 globalThis._VSCODE_PRODUCT_JSON = { ...product };
 if (process.env['VSCODE_DEV']) {
 	try {
-		const overrides = require('../product.overrides.json');
+		const overrides: unknown = require('../product.overrides.json');
 		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
 	} catch (error) { /* ignore */ }
 }

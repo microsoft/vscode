@@ -11,10 +11,9 @@ import * as Json from '../../../../base/common/json.js';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme, ThemeSettingDefaults } from '../common/workbenchThemeService.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from '../common/productIconThemeSchema.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from '../../../../platform/theme/common/iconRegistry.js';
+import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource, fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 
@@ -200,8 +199,8 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 
 		const sanitizedFonts: Map<string, IconFontDefinition> = new Map();
 		for (const font of contentValue.fonts) {
-			if (isString(font.id) && font.id.match(fontIdRegex)) {
-				const fontId = font.id;
+			const fontId = font.id;
+			if (isString(fontId) && fontId.match(fontIdRegex)) {
 
 				let fontWeight = undefined;
 				if (isString(font.weight) && font.weight.match(fontWeightRegex)) {
@@ -256,7 +255,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 					warnings.push(nls.localize('error.icon.font', 'Skipping icon definition \'{0}\'. Unknown font.', iconId));
 				}
 			} else {
-				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\'. Unknown fontCharacter.', iconId));
+				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\': Needs to be defined', iconId));
 			}
 		}
 		return { iconDefinitions };

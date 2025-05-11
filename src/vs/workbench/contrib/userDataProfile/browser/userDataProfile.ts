@@ -190,6 +190,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
+					metadata: {
+						description: localize2('change profile', "Switch to {0} profile", profile.name),
+					},
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{
@@ -251,6 +254,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: localize2('openShort', "{0}", profile.name),
+					metadata: {
+						description: localize2('open profile', "Open New Window with {0} Profile", profile.name),
+					},
 					menu: {
 						id: OpenProfileMenu,
 						group: '0_profiles',

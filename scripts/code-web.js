@@ -14,7 +14,7 @@ const cp = require('child_process');
 const minimist = require('minimist');
 const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
-const opn = require('opn');
+const open = require('open');
 const https = require('https');
 
 const APP_ROOT = path.join(__dirname, '..');
@@ -80,7 +80,7 @@ async function main() {
 
 	startServer(serverArgs);
 	if (openSystemBrowser) {
-		opn(`http://${HOST}:${PORT}/`);
+		open(`http://${HOST}:${PORT}/`);
 	}
 }
 

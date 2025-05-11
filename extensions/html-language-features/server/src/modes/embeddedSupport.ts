@@ -56,9 +56,10 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					}
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(scanner.getTokenText())) {
+					const token = scanner.getTokenText();
+					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(token) || token === 'module') {
 						languageIdFromType = 'javascript';
-					} else if (/["']text\/typescript["']/.test(scanner.getTokenText())) {
+					} else if (/["']text\/typescript["']/.test(token)) {
 						languageIdFromType = 'typescript';
 					} else {
 						languageIdFromType = undefined;
@@ -197,6 +198,17 @@ function getSuffix(c: EmbeddedRegion) {
 function updateContent(c: EmbeddedRegion, content: string): string {
 	if (!c.attributeValue && c.languageId === 'javascript') {
 		return content.replace(`<!--`, `/* `).replace(`-->`, ` */`);
+	}
+	if (c.languageId === 'css') {
+		const quoteEscape = /(&quot;|&#34;)/g;
+		return content.replace(quoteEscape, (match, _, offset) => {
+			const spaces = ' '.repeat(match.length - 1);
+			const afterChar = content[offset + match.length];
+			if (!afterChar || afterChar.includes(' ')) {
+				return `${spaces}"`;
+			}
+			return `"${spaces}`;
+		});
 	}
 	return content;
 }

@@ -18,7 +18,7 @@ export function hash<T>(obj: T extends NotSyncHashable ? never : T): number {
 	return doHash(obj, 0);
 }
 
-export function doHash(obj: any, hashVal: number): number {
+export function doHash(obj: unknown, hashVal: number): number {
 	switch (typeof obj) {
 		case 'object':
 			if (obj === null) {
@@ -68,6 +68,8 @@ function objectHash(obj: any, initialHashVal: number): number {
 		return doHash(obj[key], hashVal);
 	}, initialHashVal);
 }
+
+
 
 /** Hashes the input as SHA-1, returning a hex-encoded string. */
 export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {

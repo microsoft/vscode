@@ -198,9 +198,16 @@ class CodeMain {
 		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesMainService, uriIdentityService, logService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(logService, productService.win32RegValueName))
-			: environmentMainService.policyFile ? disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService))
-				: new NullPolicyService();
+		let policyService: IPolicyService | undefined;
+		if (isWindows && productService.win32RegValueName) {
+			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
+		} else if (isMacintosh && productService.darwinBundleIdentifier) {
+			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (environmentMainService.policyFile) {
+			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
+		} else {
+			policyService = new NullPolicyService();
+		}
 		services.set(IPolicyService, policyService);
 
 		// Configuration

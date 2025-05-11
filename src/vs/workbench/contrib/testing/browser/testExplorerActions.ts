@@ -494,8 +494,15 @@ class StartContinuousRunAction extends Action2 {
 			menu: continuousMenus(false),
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const crs = accessor.get(ITestingContinuousRunService);
+		const profileService = accessor.get(ITestProfileService);
+
+		const lastRunProfiles = [...profileService.all()].flatMap(p => p.profiles.filter(p => crs.lastRunProfileIds.has(p.profileId)));
+		if (lastRunProfiles.length) {
+			return crs.start(lastRunProfiles);
+		}
+
 		const selected = await selectContinuousRunProfiles(crs, accessor.get(INotificationService), accessor.get(IQuickInputService), accessor.get(ITestProfileService).all());
 		if (selected.length) {
 			crs.start(selected);
@@ -953,7 +960,12 @@ export class GoToTest extends Action2 {
 			id: TestCommandId.GoToTest,
 			title: localize2('testing.editFocusedTest', 'Go to Test'),
 			icon: Codicon.goToFile,
-			menu: testItemInlineAndInContext(ActionOrder.GoToTest, TestingContextKeys.testItemHasUri.isEqualTo(true)),
+			menu: {
+				id: MenuId.TestItem,
+				group: 'builtin@1',
+				order: ActionOrder.GoToTest,
+				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
+			},
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
 				when: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),
@@ -1234,10 +1246,33 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		});
 	}
 
+	private async _runByUris(accessor: ServicesAccessor, files: URI[]): Promise<{ completedAt: number | undefined }> {
+		const uriIdentity = accessor.get(IUriIdentityService);
+		const testService = accessor.get(ITestService);
+		const discovered: InternalTestItem[] = [];
+		for (const uri of files) {
+			for await (const file of testsInFile(testService, uriIdentity, uri, undefined, true)) {
+				discovered.push(file);
+			}
+		}
+
+		if (discovered.length) {
+			const r = await testService.runTests({ tests: discovered, group: this.group });
+			return { completedAt: r.completedAt };
+		}
+
+		return { completedAt: undefined };
+	}
+
 	/**
 	 * @override
 	 */
-	public run(accessor: ServicesAccessor) {
+	public run(accessor: ServicesAccessor, files?: URI[]) {
+		if (files?.length) {
+			return this._runByUris(accessor, files);
+		}
+
+		const uriIdentity = accessor.get(IUriIdentityService);
 		let editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (!editor) {
 			return;
@@ -1252,7 +1287,6 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		const demandedUri = model.uri.toString();
 
 		// Iterate through the entire collection and run any tests that are in the
 		// uri. See #138007.
@@ -1261,7 +1295,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		while (queue.length) {
 			for (const id of queue.pop()!) {
 				const node = testService.collection.getNodeById(id)!;
-				if (node.item.uri?.toString() === demandedUri) {
+				if (uriIdentity.extUri.isEqual(node.item.uri, model.uri)) {
 					discovered.push(node);
 				} else {
 					queue.push(node.children);
