@@ -13,10 +13,6 @@ declare module 'vscode' {
 		message: MarkdownString;
 	}
 
-	export interface ChatWelcomeMessageProvider {
-		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
-	}
-
 	export interface ChatRequesterInformation {
 		name: string;
 
@@ -49,7 +45,6 @@ declare module 'vscode' {
 		 */
 		helpTextPostfix?: string | MarkdownString;
 
-		welcomeMessageProvider?: ChatWelcomeMessageProvider;
 		additionalWelcomeMessage?: string | MarkdownString;
 		titleProvider?: ChatTitleProvider;
 		requester?: ChatRequesterInformation;

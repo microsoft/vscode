@@ -15,7 +15,7 @@ import { IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } fro
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatMode, modeToString } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode, modeToString } from '../../common/constants.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
 
@@ -40,6 +40,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			class: undefined,
 			enabled: true,
 			checked: delegate.getMode() === mode,
+			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode)?.description ?? action.tooltip,
 			run: async () => {
 				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
@@ -63,7 +64,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider,
-			showItemKeybindings: false
+			showItemKeybindings: true
 		};
 
 		super(action, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);

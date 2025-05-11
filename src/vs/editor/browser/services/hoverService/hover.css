@@ -108,6 +108,11 @@
 	outline-color: var(--vscode-focusBorder);
 }
 
+.monaco-workbench .workbench-hover a.codicon:focus,
+.monaco-workbench .workbench-hover a.monaco-button:focus {
+	text-decoration: none;
+}
+
 .monaco-workbench .workbench-hover a:hover,
 .monaco-workbench .workbench-hover a:active {
 	color: var(--vscode-textLink-activeForeground);

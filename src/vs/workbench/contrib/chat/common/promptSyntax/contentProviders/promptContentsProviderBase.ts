@@ -90,9 +90,6 @@ export abstract class PromptContentsProviderBase<
 			...DEFAULT_OPTIONS,
 			...options,
 		};
-
-		// ensure that the `onChangeEmitter` always fires with the correct context
-		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
 	}
 
 	/**
@@ -128,7 +125,7 @@ export abstract class PromptContentsProviderBase<
 
 		promise
 			.then((stream) => {
-				if (cancellationToken?.isCancellationRequested || this.disposed) {
+				if (cancellationToken?.isCancellationRequested || this.isDisposed) {
 					stream.destroy();
 					throw new CancellationError();
 				}
@@ -155,7 +152,7 @@ export abstract class PromptContentsProviderBase<
 	 */
 	public start(): this {
 		assert(
-			!this.disposed,
+			!this.isDisposed,
 			'Cannot start contents provider that was already disposed.',
 		);
 

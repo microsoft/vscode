@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, UseUnpkgResourceApiConfigKey, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { areApiProposalsCompatible, isEngineValid } from '../../extensions/common/extensionValidator.js';
@@ -592,7 +592,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const options = CancellationToken.isCancellationToken(arg1) ? {} : arg1 as IExtensionQueryOptions;
 		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
 
-		const resourceApi = (options.preferResourceApi && (this.configurationService.getValue(UseUnpkgResourceApiConfigKey) ?? false)) ? await this.getResourceApi(extensionGalleryManifest) : undefined;
+		const resourceApi = await this.getResourceApi(extensionGalleryManifest, !!options.updateCheck);
 		const result = resourceApi
 			? await this.getExtensionsUsingResourceApi(extensionInfos, options, resourceApi, extensionGalleryManifest, token)
 			: await this.getExtensionsUsingQueryApi(extensionInfos, options, extensionGalleryManifest, token);
@@ -624,7 +624,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return result;
 	}
 
-	private async getResourceApi(extensionGalleryManifest: IExtensionGalleryManifest): Promise<{ uri: string; fallback?: string } | undefined> {
+	private async getResourceApi(extensionGalleryManifest: IExtensionGalleryManifest, updateCheck: boolean): Promise<{ uri: string; fallback?: string } | undefined> {
 		const latestVersionResource = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionLatestVersionUri);
 		if (!latestVersionResource) {
 			return undefined;
@@ -637,7 +637,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			};
 		}
 
-		const value = await this.assignmentService?.getTreatment<'unpkg' | 'marketplace' | 'none'>('extensions.gallery.useResourceApi') ?? 'unpkg';
+		const value = updateCheck
+			? await this.assignmentService?.getTreatment<'unpkg' | 'marketplace' | 'none'>('extensions.gallery.useResourceApi') ?? 'marketplace'
+			: await this.assignmentService?.getTreatment<'unpkg' | 'marketplace' | 'none'>('extensions.gallery.useLatestApi') ?? 'unpkg';
 
 		if (value === 'marketplace') {
 			return {
@@ -828,7 +830,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					version: this.productService.version,
 					date: this.productService.date
 				},
-				version: extensionInfo.preRelease ? VersionKind.Prerelease : VersionKind.Release
+				version: extensionInfo.preRelease ? VersionKind.Latest : VersionKind.Release
 			}, allTargetPlatforms);
 
 		if (rawGalleryExtensionVersion) {
@@ -1476,13 +1478,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		catch (error) {
 			if (isCancellationError(error)) {
 				errorCode = ExtensionGalleryErrorCode.Cancelled;
-			} else {
-				const errorMessage = getErrorMessage(error);
-				errorCode = isOfflineError(error)
-					? ExtensionGalleryErrorCode.Offline
-					: errorMessage.startsWith('XHR timeout')
-						? ExtensionGalleryErrorCode.Timeout
-						: ExtensionGalleryErrorCode.Failed;
+			} else if (isOfflineError(error)) {
+				errorCode = ExtensionGalleryErrorCode.Offline;
+			} else if (getErrorMessage(error).startsWith('XHR timeout')) {
+				errorCode = ExtensionGalleryErrorCode.Timeout;
+			} else if (!errorCode) {
+				errorCode = ExtensionGalleryErrorCode.Failed;
 			}
 			throw error;
 		}
