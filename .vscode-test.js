@@ -19,7 +19,7 @@ const { defineConfig } = require('@vscode/test-cli');
  * A list of extension folders who have opted into tests, or configuration objects.
  * Edit me to add more!
  *
- * @type {Array<string | (Partial<import("@vscode/test-cli").TestConfiguration> & { label: string })>}
+ * @type {Array<Partial<import("@vscode/test-cli").TestConfiguration> & { label: string }>}
  */
 const extensions = [
 	{
@@ -65,6 +65,20 @@ const extensions = [
 	{
 		label: 'microsoft-authentication',
 		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'vscode-api-tests-folder',
+		extensionDevelopmentPath: `extensions/vscode-api-tests`,
+		workspaceFolder: `extensions/vscode-api-tests/testWorkspace`,
+		mocha: { timeout: 60_000 },
+		files: 'extensions/vscode-api-tests/out/singlefolder-tests/**/*.test.js',
+	},
+	{
+		label: 'vscode-api-tests-workspace',
+		extensionDevelopmentPath: `extensions/vscode-api-tests`,
+		workspaceFolder: `extensions/vscode-api-tests/testworkspace.code-workspace`,
+		mocha: { timeout: 60_000 },
+		files: 'extensions/vscode-api-tests/out/workspace-tests/**/*.test.js',
 	}
 ];
 
@@ -75,9 +89,12 @@ const defaultLaunchArgs = process.env.API_TESTS_EXTRA_ARGS?.split(' ') || [
 
 const config = defineConfig(extensions.map(extension => {
 	/** @type {import('@vscode/test-cli').TestConfiguration} */
-	const config = typeof extension === 'object'
-		? { files: `extensions/${extension.label}/out/**/*.test.js`, ...extension }
-		: { files: `extensions/${extension}/out/**/*.test.js`, label: extension };
+	const config = {
+		platform: 'desktop',
+		files: `extensions/${extension.label}/out/**/*.test.js`,
+		extensionDevelopmentPath: `extensions/${extension.label}`,
+		...extension,
+	};
 
 	config.mocha ??= {};
 	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {

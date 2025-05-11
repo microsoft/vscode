@@ -30,8 +30,9 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseCodeblockUriPart {
+		isEdit?: boolean;
 		value: Uri;
-		constructor(value: Uri);
+		constructor(value: Uri, isEdit?: boolean);
 	}
 
 	/**
@@ -78,7 +79,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -158,6 +159,13 @@ declare module 'vscode' {
 		resolve?(token: CancellationToken): Thenable<void>;
 	}
 
+	export class ChatResponseExtensionsPart {
+
+		readonly extensions: string[];
+
+		constructor(extensions: string[]);
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -179,7 +187,7 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, isDone: true): void;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
-		codeblockUri(uri: Uri): void;
+		codeblockUri(uri: Uri, isEdit?: boolean): void;
 		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
 		/**
@@ -218,6 +226,7 @@ declare module 'vscode' {
 		Omitted = 3
 	}
 
+
 	/**
 	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
 	 * Does it show up in history?
@@ -234,6 +243,14 @@ declare module 'vscode' {
 		rejectedConfirmationData?: any[];
 	}
 
+	export interface ChatRequest {
+
+		/**
+		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
+		 */
+		readonly tools: Map<string, boolean>;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -247,7 +264,7 @@ declare module 'vscode' {
 
 		/**
 		 * Event that fires when a request is paused or unpaused.
-		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
 		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
@@ -390,7 +407,7 @@ declare module 'vscode' {
 	}
 
 	export namespace lm {
-		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
+		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
 
 	export interface ChatVariableValue {
@@ -417,5 +434,9 @@ declare module 'vscode' {
 		Short = 1,
 		Medium = 2,
 		Full = 3
+	}
+
+	export interface LanguageModelToolInvocationOptions<T> {
+		model?: LanguageModelChat;
 	}
 }

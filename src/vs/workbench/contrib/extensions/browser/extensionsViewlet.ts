@@ -34,7 +34,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, IPromptChoice, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -62,11 +62,13 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -503,6 +505,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private searchBox: SuggestEnabledInput | undefined;
 	private notificationContainer: HTMLElement | undefined;
 	private readonly searchViewletState: MementoObject;
+	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -510,6 +513,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IProgressService private readonly progressService: IProgressService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -551,6 +555,15 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => { if (e.viewContainerLocation === ViewContainerLocation.Sidebar) { this.onViewletOpen(e.composite); } }, this));
 		this._register(extensionsWorkbenchService.onReset(() => this.refresh()));
 		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		extensionGalleryManifestService.getExtensionGalleryManifest()
+			.then(galleryManifest => {
+				this.extensionGalleryManifest = galleryManifest;
+				this._register(extensionGalleryManifestService.onDidChangeExtensionGalleryManifest(galleryManifest => {
+					this.extensionGalleryManifest = galleryManifest;
+					this.refresh();
+				}));
+			});
 	}
 
 	get searchValue(): string | undefined {
@@ -581,7 +594,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				else if (/sort:/.test(item)) { return 'c'; }
 				else { return 'd'; }
 			},
-			provideResults: (query: string) => Query.suggestions(query)
+			provideResults: (query: string) => Query.suggestions(query, this.extensionGalleryManifest)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue }));
 
 		this.notificationContainer = append(this.header, $('.notification-container.hidden', { 'tabindex': '0' }));
@@ -974,6 +987,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		this.loopCheckForMaliciousExtensions();
 	}
@@ -986,30 +1000,42 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 	private async checkForMaliciousExtensions(): Promise<void> {
 		try {
-			const maliciousExtensions: ILocalExtension[] = [];
+			const maliciousExtensions: [ILocalExtension, string | undefined][] = [];
 			let shouldRestartExtensions = false;
 			let shouldReloadWindow = false;
 			for (const extension of this.extensionsWorkbenchService.installed) {
 				if (extension.isMalicious && extension.local) {
-					maliciousExtensions.push(extension.local);
+					maliciousExtensions.push([extension.local, extension.maliciousInfoLink]);
 					shouldRestartExtensions = shouldRestartExtensions || extension.runtimeState?.action === ExtensionRuntimeActionType.RestartExtensions;
 					shouldReloadWindow = shouldReloadWindow || extension.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow;
 				}
 			}
 			if (maliciousExtensions.length) {
-				await this.extensionsManagementService.uninstallExtensions(maliciousExtensions.map(e => ({ extension: e, options: { remove: true } })));
-				this.notificationService.prompt(
-					Severity.Warning,
-					localize('malicious warning', "The following extensions were found to be problematic and have been uninstalled: {0}", maliciousExtensions.map(e => e.identifier.id).join(', ')),
-					shouldRestartExtensions || shouldReloadWindow ? [{
-						label: shouldRestartExtensions ? localize('restartNow', "Restart Extensions") : localize('reloadNow', "Reload Now"),
-						run: () => shouldRestartExtensions ? this.extensionsWorkbenchService.updateRunningExtensions() : this.hostService.reload()
-					}] : [],
-					{
-						sticky: true,
-						priority: NotificationPriority.URGENT
+				await this.extensionsManagementService.uninstallExtensions(maliciousExtensions.map(e => ({ extension: e[0], options: { remove: true } })));
+				for (const [extension, link] of maliciousExtensions) {
+					const buttons: IPromptChoice[] = [];
+					if (shouldRestartExtensions || shouldReloadWindow) {
+						buttons.push({
+							label: shouldRestartExtensions ? localize('restartNow', "Restart Extensions") : localize('reloadNow', "Reload Now"),
+							run: () => shouldRestartExtensions ? this.extensionsWorkbenchService.updateRunningExtensions() : this.hostService.reload()
+						});
 					}
-				);
+					if (link) {
+						buttons.push({
+							label: localize('learnMore', "Learn More"),
+							run: () => this.commandService.executeCommand('vscode.open', URI.parse(link))
+						});
+					}
+					this.notificationService.prompt(
+						Severity.Warning,
+						localize('malicious warning', "The extension '{0}' was found to be problematic and has been uninstalled", extension.manifest.displayName || extension.identifier.id),
+						buttons,
+						{
+							sticky: true,
+							priority: NotificationPriority.URGENT
+						}
+					);
+				}
 			}
 
 		} catch (err) {

@@ -102,13 +102,6 @@ steps:
   - powershell: npm run compile
     displayName: Compile
 
-  - powershell: |
-      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.exe"
-      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.dll"
-      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.node"
-      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.pdb"
-    displayName: List files
-
   - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -119,16 +112,7 @@ steps:
       Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.dll"
       Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.node"
       Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.pdb"
-    displayName: List files again
-
-  - task: BinSkim@4
-    inputs:
-      InputType: "Basic"
-      Function: "analyze"
-      TargetPattern: "guardianGlob"
-      AnalyzeIgnorePdbLoadError: true
-      AnalyzeTargetGlob: '$(Agent.BuildDirectory)\scanbin\**.dll;$(Agent.BuildDirectory)\scanbin\**.exe;$(Agent.BuildDirectory)\scanbin\**.node'
-      AnalyzeLocalSymbolDirectories: '$(Agent.BuildDirectory)\scanbin\VSCode-win32-${{ parameters.VSCODE_ARCH }}\pdb'
+    displayName: List files
 
   - task: CopyFiles@2
     displayName: 'Collect Symbols for API Scan'
@@ -137,19 +121,6 @@ steps:
       Contents: 'scanbin\**\*.pdb'
       TargetFolder: '$(Agent.BuildDirectory)\symbols'
       flattenFolders: true
-    condition: succeeded()
-
-  - task: PublishSymbols@2
-    inputs:
-      IndexSources: false
-      SymbolsFolder: '$(Agent.BuildDirectory)\symbols'
-      SearchPattern: '**\*.pdb'
-      SymbolServerType: TeamServices
-      SymbolsProduct: 'code'
-      ArtifactServices.Symbol.AccountName: microsoft
-      ArtifactServices.Symbol.PAT: $(System.AccessToken)
-      ArtifactServices.Symbol.UseAAD: false
-    displayName: Publish Symbols
     condition: succeeded()
 
   - task: APIScan@2

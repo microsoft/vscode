@@ -37,6 +37,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
@@ -500,13 +501,14 @@ export class EditPreferenceWidget<T> extends Disposable {
 	private _line: number = -1;
 	private _preferences: T[] = [];
 
-	private readonly _editPreferenceDecoration = this.editor.createDecorationsCollection();
+	private readonly _editPreferenceDecoration: IEditorDecorationsCollection;
 
 	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
 	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor) {
 		super();
+		this._editPreferenceDecoration = this.editor.createDecorationsCollection();
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
 			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.isVisible()) {
 				return;

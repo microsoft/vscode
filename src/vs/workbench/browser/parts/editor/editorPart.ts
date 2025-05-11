@@ -170,6 +170,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
+		this._partOptions = getEditorPartOptions(this.configurationService, this.themeService);
+
 		this.registerListeners();
 	}
 
@@ -200,7 +202,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private enforcedPartOptions: DeepPartial<IEditorPartOptions>[] = [];
 
-	private _partOptions = getEditorPartOptions(this.configurationService, this.themeService);
+	private _partOptions: IEditorPartOptions;
 	get partOptions(): IEditorPartOptions { return this._partOptions; }
 
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {

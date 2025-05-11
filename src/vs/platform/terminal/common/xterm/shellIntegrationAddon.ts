@@ -131,8 +131,10 @@ const enum VSCodeOscPt {
 	CommandExecuted = 'C',
 
 	/**
-	 * Sent just after a command has finished. The exit code is optional, when not specified it
-	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 * Sent just after a command has finished. This should generally be used on the new line
+	 * following the end of a command's output, just before {@link PromptStart}. The exit code is
+	 * optional, when not specified it means no command was run (ie. enter on empty prompt or
+	 * ctrl+c).
 	 *
 	 * Format: `OSC 633 ; D [; <ExitCode>] ST`
 	 *
@@ -579,6 +581,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						// Remove escape sequences from the user's prompt
 						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
 						this._updatePromptTerminator(sanitizedValue);
+						return true;
+					}
+					case 'PromptType': {
+						this._createOrGetCommandDetection(this._terminal).setPromptType(value);
 						return true;
 					}
 					case 'Task': {

@@ -49,6 +49,7 @@
           "settings.json",
           "launch.json",
           "tasks.json",
+          "mcp.json",
           "keybindings.json",
           "extensions.json",
           "argv.json",
@@ -118,6 +119,10 @@
         "url": "vscode://schemas/tasks"
       },
       {
+        "fileMatch": "/.vscode/mcp.json",
+        "url": "vscode://schemas/mcp"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
         "url": "vscode://schemas/tasks"
       },
@@ -164,7 +169,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

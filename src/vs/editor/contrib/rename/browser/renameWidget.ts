@@ -24,7 +24,7 @@ import * as domFontInfo from '../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ScrollType } from '../../../common/editorCommon.js';
@@ -181,7 +181,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			}
 		}));
 
-		this._disposables.add(_themeService.onDidColorThemeChange(e => this._updateStyles(e.theme)));
+		this._disposables.add(_themeService.onDidColorThemeChange(this._updateStyles, this));
 	}
 
 	dispose(): void {

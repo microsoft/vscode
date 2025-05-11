@@ -27,6 +27,7 @@ async function main(buildDir) {
     const filesToSkip = [
         '**/CodeResources',
         '**/Credits.rtf',
+        '**/policies/{*.mobileconfig,**/*.plist}',
         // TODO: Should we consider expanding this to other files in this area?
         '**/node_modules/@parcel/node-addon-api/nothing.target.mk'
     ];

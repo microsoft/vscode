@@ -26,7 +26,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from '../common/issue.js';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 
@@ -148,7 +148,6 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.handleExtensionData(data.enabledExtensions);
 		this.setUpTypes();
-		this.applyStyles(data.styles);
 
 		// Handle case where extension is pre-selected through the command
 		if ((data.data || data.uri) && targetExtension) {
@@ -169,85 +168,6 @@ export class BaseIssueReporterService extends Disposable {
 			const issueType = this.window.document.getElementById('issue-type');
 			issueType?.focus();
 		}
-	}
-
-	// TODO @justschen: After migration to Aux Window, switch to dedicated css.
-	private applyStyles(styles: IssueReporterStyles) {
-		const styleTag = document.createElement('style');
-		const content: string[] = [];
-
-		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground} !important; }`);
-		}
-
-		if (styles.backgroundColor) {
-			content.push(`.monaco-workbench { background-color: ${styles.backgroundColor} !important; }`);
-			content.push(`.issue-reporter-body::-webkit-scrollbar-track { background-color: ${styles.backgroundColor}; }`);
-		}
-
-		if (styles.inputBorder) {
-			content.push(`input[type="text"], textarea, select { border: 1px solid ${styles.inputBorder}; }`);
-		} else {
-			content.push(`input[type="text"], textarea, select { border: 1px solid transparent; }`);
-		}
-
-		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground} !important; }`);
-		}
-
-		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
-		}
-
-		if (styles.inputErrorBackground) {
-			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
-		}
-
-		if (styles.inputErrorForeground) {
-			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
-		}
-
-		if (styles.inputActiveBorder) {
-			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus, button:focus, a:focus, .workbenchCommand:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
-		}
-
-		if (styles.textLinkColor) {
-			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
-		}
-
-		if (styles.textLinkColor) {
-			content.push(`a { color: ${styles.textLinkColor}; }`);
-		}
-
-		if (styles.textLinkActiveForeground) {
-			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
-		}
-
-		if (styles.sliderActiveColor) {
-			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
-		}
-
-		if (styles.sliderHoverColor) {
-			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb { background-color: ${styles.sliderHoverColor}; }`);
-			content.push(`.issue-reporter-body::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
-		}
-
-		if (styles.buttonBackground) {
-			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
-		}
-
-		if (styles.buttonForeground) {
-			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
-		}
-
-		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
-		}
-
-		styleTag.textContent = content.join('\n');
-		this.window.document.head.appendChild(styleTag);
-		this.window.document.body.style.color = styles.color || '';
 	}
 
 	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
@@ -454,14 +374,16 @@ export class BaseIssueReporterService extends Disposable {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			let fileOnExtension, fileOnMarketplace = false;
+			let fileOnExtension, fileOnMarketplace, fileOnProduct = false;
 			if (value === IssueSource.Extension) {
 				fileOnExtension = true;
 			} else if (value === IssueSource.Marketplace) {
 				fileOnMarketplace = true;
+			} else if (value === IssueSource.VSCode) {
+				fileOnProduct = true;
 			}
 
-			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace, fileOnProduct });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -729,21 +651,6 @@ export class BaseIssueReporterService extends Disposable {
 				similarIssues.innerText = '';
 				if (result && result.items) {
 					this.displaySearchResults(result.items);
-				} else {
-					// If the items property isn't present, the rate limit has been hit
-					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-					similarIssues.appendChild(message);
-
-					const resetTime = response.headers.get('X-RateLimit-Reset');
-					const timeToWait = resetTime ? parseInt(resetTime) - Math.floor(Date.now() / 1000) : 1;
-					if (this.shouldQueueSearch) {
-						this.shouldQueueSearch = false;
-						setTimeout(() => {
-							this.searchGitHub(repo, title);
-							this.shouldQueueSearch = true;
-						}, timeToWait * 1000);
-					}
 				}
 			}).catch(_ => {
 				console.warn('Timeout or query limit exceeded');
@@ -825,10 +732,6 @@ export class BaseIssueReporterService extends Disposable {
 
 			similarIssues.appendChild(issuesText);
 			similarIssues.appendChild(issues);
-		} else {
-			const message = $('div.list-title');
-			message.textContent = localize('noSimilarIssues', "No similar issues found");
-			similarIssues.appendChild(message);
 		}
 	}
 
@@ -1153,9 +1056,11 @@ export class BaseIssueReporterService extends Disposable {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
+		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
+
 		if (url.length > MAX_URL_LENGTH) {
 			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = await this.writeToClipboard(baseUrl, issueBody) + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
@@ -1174,6 +1079,26 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+	}
+
+	public addTemplateToUrl(owner?: string, repositoryName?: string): string {
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isCopilot = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-copilot-release';
+		const isPython = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-python';
+
+		if (isVscode) {
+			return `&template=bug_report.md`;
+		}
+
+		if (isCopilot) {
+			return `&template=bug_report_chat.md`;
+		}
+
+		if (isPython) {
+			return `&template=bug_report.md`;
+		}
+
+		return '';
 	}
 
 	public getIssueUrl(): string {

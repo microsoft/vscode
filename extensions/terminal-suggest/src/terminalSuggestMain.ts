@@ -13,7 +13,7 @@ import codeInsidersCompletionSpec from './completions/code-insiders';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
-import { PathExecutableCache } from './env/pathExecutableCache';
+import { ITerminalEnvironment, PathExecutableCache, watchPathDirectories } from './env/pathExecutableCache';
 import { osIsWindows } from './helpers/os';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { getBashGlobals } from './shell/bash';
@@ -25,22 +25,17 @@ import type { ICompletionResource } from './types';
 import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
+import { createTimeoutPromise } from './helpers/promise';
+import codeTunnelCompletionSpec from './completions/code-tunnel';
+import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders';
 
-// TODO: remove once API is finalized
 export const enum TerminalShellType {
-	Sh = 1,
-	Bash = 2,
-	Fish = 3,
-	Csh = 4,
-	Ksh = 5,
-	Zsh = 6,
-	CommandPrompt = 7,
-	GitBash = 8,
-	PowerShell = 9,
-	Python = 10,
-	Julia = 11,
-	NuShell = 12,
-	Node = 13
+	Bash = 'bash',
+	Fish = 'fish',
+	Zsh = 'zsh',
+	PowerShell = 'pwsh',
+	Python = 'python',
+	GitBash = 'gitbash',
 }
 
 const isWindows = osIsWindows();
@@ -51,6 +46,8 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	codeTunnelCompletionSpec,
+	codeTunnelInsidersCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
 ];
@@ -72,11 +69,10 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 		if (cachedCommands) {
 			return cachedCommands;
 		}
-		const shell = getShell(shellType);
-		if (!shell) {
+		if (!shellType) {
 			return;
 		}
-		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
+		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: shellType };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
 		cachedGlobals.set(shellType, normalizedCommands);
@@ -88,26 +84,29 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 	}
 }
 
+
 export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
-
+	let currentTerminalEnv: ITerminalEnvironment = process.env;
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
+			currentTerminalEnv = terminal.shellIntegration?.env?.value ?? process.env;
 			if (token.isCancellationRequested) {
 				console.debug('#terminalCompletions token cancellation requested');
 				return;
 			}
 
-			const shellType: TerminalShellType | undefined = 'shellType' in terminal.state ? terminal.state.shellType as TerminalShellType : undefined;
-			if (!shellType) {
+			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
+			const terminalShellType = getTerminalShellType(shellType);
+			if (!terminalShellType) {
 				console.debug('#terminalCompletions No shell type found for terminal');
 				return;
 			}
 
-			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value);
-			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
@@ -116,8 +115,25 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
-			const tokenType = getTokenType(terminalContext, shellType);
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, getEnvAsRecord(terminal.shellIntegration?.env?.value), terminal.name, token);
+			const tokenType = getTokenType(terminalContext, terminalShellType);
+			const result = await Promise.race([
+				getCompletionItemsFromSpecs(
+					availableSpecs,
+					terminalContext,
+					commands,
+					prefix,
+					tokenType,
+					terminal.shellIntegration?.cwd,
+					getEnvAsRecord(currentTerminalEnv),
+					terminal.name,
+					token
+				),
+				createTimeoutPromise(300, undefined)
+			]);
+			if (!result) {
+				return;
+			}
+
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env?.value?.HOME) {
@@ -126,12 +142,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd, env: terminal.shellIntegration?.env?.value });
+			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd ?? terminal.shellIntegration.cwd, env: terminal.shellIntegration?.env?.value, });
 			}
 			return result.items;
 		}
 	}, '/', '\\'));
+	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
 }
 
 /**
@@ -255,18 +272,19 @@ export async function getCompletionItemsFromSpecs(
 					prefix,
 					command,
 					command.detail,
-					command.documentation
+					command.documentation,
+					vscode.TerminalCompletionItemKind.Method
 				));
 				labels.add(commandTextLabel);
-			} else {
+			}
+			else {
 				const existingItem = items.find(i => (typeof i.label === 'string' ? i.label : i.label.label) === commandTextLabel);
 				if (!existingItem) {
 					continue;
 				}
-				const preferredItem = compareItems(existingItem, command);
-				if (preferredItem) {
-					items.splice(items.indexOf(existingItem), 1, preferredItem);
-				}
+
+				existingItem.documentation ??= command.documentation;
+				existingItem.detail ??= command.detail;
 			}
 		}
 		filesRequested = true;
@@ -288,44 +306,58 @@ export async function getCompletionItemsFromSpecs(
 	return { items, filesRequested, foldersRequested, fileExtensions, cwd };
 }
 
-function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICompletionResource): vscode.TerminalCompletionItem | undefined {
-	let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 1 : 0) : 0;
-	score += typeof command.label === 'object' ? (command.label.description !== undefined ? 2 : 0) : 0;
-	score += command.documentation ? typeof command.documentation === 'string' ? 2 : 3 : 0;
-	if (score > 0) {
-		score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 1 : 0) : 0;
-		score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 2 : 0) : 0;
-		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 2 : 3 : 0;
-		if (score >= 0) {
-			return { ...command, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength };
-		}
-	}
-}
-
-function getShell(shellType: TerminalShellType): string | undefined {
-	switch (shellType) {
-		case TerminalShellType.Bash:
-			return 'bash';
-		case TerminalShellType.Fish:
-			return 'fish';
-		case TerminalShellType.Zsh:
-			return 'zsh';
-		case TerminalShellType.PowerShell:
-			return 'pwsh';
-		default: {
-			return undefined;
-		}
-	}
-}
-
-function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
+function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {
 	const env: Record<string, string> = {};
-	if (shellIntegrationEnv) {
-		for (const [key, value] of Object.entries(shellIntegrationEnv)) {
-			if (typeof value === 'string') {
-				env[key] = value;
-			}
+	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
+		if (typeof value === 'string') {
+			env[key] = value;
 		}
+	}
+	if (!shellIntegrationEnv) {
+		sanitizeProcessEnvironment(env);
 	}
 	return env;
+}
+
+function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
+	switch (shellType) {
+		case 'bash':
+			return TerminalShellType.Bash;
+		case 'gitbash':
+			return TerminalShellType.GitBash;
+		case 'zsh':
+			return TerminalShellType.Zsh;
+		case 'pwsh':
+			return TerminalShellType.PowerShell;
+		case 'fish':
+			return TerminalShellType.Fish;
+		case 'python':
+			return TerminalShellType.Python;
+		default:
+			return undefined;
+	}
+}
+
+export function sanitizeProcessEnvironment(env: Record<string, string>, ...preserve: string[]): void {
+	const set = preserve.reduce<Record<string, boolean>>((set, key) => {
+		set[key] = true;
+		return set;
+	}, {});
+	const keysToRemove = [
+		/^ELECTRON_.$/,
+		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).$/,
+		/^SNAP(|_.*)$/,
+		/^GDK_PIXBUF_.$/,
+	];
+	const envKeys = Object.keys(env);
+	envKeys
+		.filter(key => !set[key])
+		.forEach(envKey => {
+			for (let i = 0; i < keysToRemove.length; i++) {
+				if (envKey.search(keysToRemove[i]) !== -1) {
+					delete env[envKey];
+					break;
+				}
+			}
+		});
 }

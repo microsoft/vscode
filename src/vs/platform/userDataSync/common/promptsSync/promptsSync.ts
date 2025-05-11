@@ -7,13 +7,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { isPromptFile } from '../../../prompts/common/constants.js';
 import { IStorageService } from '../../../storage/common/storage.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { isPromptOrInstructionsFile } from '../../../prompts/common/constants.js';
 import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { areSame, IMergeResult as IPromptsMergeResult, merge } from './promptsMerge.js';
@@ -517,7 +517,7 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
 
-			if (!isPromptFile(resource)) {
+			if (isPromptOrInstructionsFile(resource) === false) {
 				continue;
 			}
 

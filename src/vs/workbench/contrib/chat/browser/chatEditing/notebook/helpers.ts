@@ -153,15 +153,28 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 			internalMetadata: cell.internalMetadata
 		} satisfies ICellDto2;
 	});
-	const wasInsertedAsFirstCell = change[0] === 0;
-	const wasInsertedAsLastCell = change[0] === modifiedModelCellCount - 1;
-	const diffEntryIndex = wasInsertedAsFirstCell ? 0 : (wasInsertedAsLastCell ? cellDiffInfo.length - 1 : (cellDiffInfo.findIndex(d => d.modifiedCellIndex === change[0])));
-	const indexToInsertInOriginalModel = (wasInsertedAsFirstCell || diffEntryIndex === -1) ? 0 : (wasInsertedAsLastCell ? originalModelCellCount : (((cellDiffInfo.slice(0, diffEntryIndex).reverse().find(c => typeof c.originalCellIndex === 'number')?.originalCellIndex ?? -1) + 1)));
+	let diffEntryIndex = -1;
+	let indexToInsertInOriginalModel: number | undefined = undefined;
 	if (cells.length) {
+		for (let i = 0; i < cellDiffInfo.length; i++) {
+			const diff = cellDiffInfo[i];
+			if (typeof diff.modifiedCellIndex === 'number' && diff.modifiedCellIndex === change[0]) {
+				diffEntryIndex = i;
+
+				if (typeof diff.originalCellIndex === 'number') {
+					indexToInsertInOriginalModel = diff.originalCellIndex;
+				}
+				break;
+			}
+			if (typeof diff.originalCellIndex === 'number') {
+				indexToInsertInOriginalModel = diff.originalCellIndex + 1;
+			}
+		}
+
 		const edit: ICellEditOperation = {
 			editType: CellEditType.Replace,
 			cells,
-			index: indexToInsertInOriginalModel,
+			index: indexToInsertInOriginalModel ?? 0,
 			count: change[1]
 		};
 		applyEdits([edit], true, undefined, () => undefined, undefined, true);
@@ -220,7 +233,7 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 		cellDiffInfo = cellDiffInfo.filter(d => !itemsToRemove.has(d));
 	}
 
-	if (numberOfCellsInserted) {
+	if (numberOfCellsInserted && diffEntryIndex >= 0) {
 		for (let i = 0; i < cellDiffInfo.length; i++) {
 			const diff = cellDiffInfo[i];
 			if (i < diffEntryIndex) {
@@ -244,10 +257,10 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 	// For inserted cells, we need to ensure that we create a corresponding CellEntry.
 	// So that any edits to the inserted cell is handled and mirrored over to the corresponding cell in original model.
 	cells.forEach((_, i) => {
-		const originalCellIndex = i + indexToInsertInOriginalModel;
+		const originalCellIndex = i + (indexToInsertInOriginalModel ?? 0);
 		const modifiedCellIndex = change[0] + i;
 		const unchangedCell = createModifiedCellDiffInfo(modifiedCellIndex, originalCellIndex);
-		cellDiffInfo.splice((diffEntryIndex === -1 ? 0 : diffEntryIndex) + i, 0, unchangedCell);
+		cellDiffInfo.splice((diffEntryIndex === -1 ? cellDiffInfo.length : diffEntryIndex) + i, 0, unchangedCell);
 	});
 	return cellDiffInfo;
 }

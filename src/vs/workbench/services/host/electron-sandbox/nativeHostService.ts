@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHostService } from '../browser/host.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { FocusMode, INativeHostService } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -39,17 +39,21 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
+
+		this.onDidChangeFocus = Event.latch(
+			Event.any(
+				Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
+			), undefined, this._store
+		);
+
+		this.onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
 	}
 
 	//#region Focus
 
-	readonly onDidChangeFocus = Event.latch(
-		Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
-		), undefined, this._store
-	);
+	readonly onDidChangeFocus: Event<boolean>;
 
 	get hasFocus(): boolean {
 		return getActiveDocument().hasFocus();
@@ -94,7 +98,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return Event.latch(emitter.event, undefined, this._store);
 	}
 
-	readonly onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
+	readonly onDidChangeFullScreen: Event<{ readonly windowId: number; readonly fullscreen: boolean }>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -162,9 +166,9 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Lifecycle
 
-	focus(targetWindow: Window, options?: { force: boolean }): Promise<void> {
+	focus(targetWindow: Window, options?: { mode?: FocusMode }): Promise<void> {
 		return this.nativeHostService.focusWindow({
-			force: options?.force,
+			mode: options?.mode,
 			targetWindowId: getWindowId(targetWindow)
 		});
 	}
@@ -189,8 +193,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Screenshots
 
-	getScreenshot(): Promise<ArrayBufferLike | undefined> {
-		return this.nativeHostService.getScreenshot();
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> {
+		return this.nativeHostService.getScreenshot(rect);
 	}
 
 	//#endregion

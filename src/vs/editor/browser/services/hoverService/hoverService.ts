@@ -29,6 +29,7 @@ import { isNumber } from '../../../../base/common/types.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -68,7 +69,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}));
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
+	showInstantHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
 		const hover = this._createHover(options, skipLastFocusedUpdate);
 		if (!hover) {
 			return undefined;
@@ -81,6 +82,11 @@ export class HoverService extends Disposable implements IHoverService {
 		options: IHoverOptions,
 		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
 	): IHoverWidget | undefined {
+		// Set `id` to default if it's undefined
+		if (options.id === undefined) {
+			options.id = getHoverIdFromContent(options.content);
+		}
+
 		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
 			// Current hover is locked, reject
 			if (this._currentHover?.isLocked) {
@@ -94,7 +100,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 			// Check group identity, if it's the same skip the delay and show the hover immediately
 			if (this._currentHover && !this._currentHover.isDisposed && this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === lifecycleOptions?.groupId) {
-				return this.showHover({
+				return this.showInstantHover({
 					...options,
 					appearance: {
 						...options.appearance,
@@ -102,6 +108,9 @@ export class HoverService extends Disposable implements IHoverService {
 					}
 				});
 			}
+		} else if (this._currentDelayedHover && getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
+			// If the hover is the same but timeout is not finished yet, return the current hover
+			return this._currentDelayedHover;
 		}
 
 		const hover = this._createHover(options, undefined);
@@ -118,7 +127,6 @@ export class HoverService extends Disposable implements IHoverService {
 
 		timeout(this._configurationService.getValue<number>('workbench.hover.delay')).then(() => {
 			if (hover && !hover.isDisposed) {
-				this._currentDelayedHoverWasShown = true;
 				this._currentDelayedHoverWasShown = true;
 				this._showHover(hover, options);
 			}
@@ -169,12 +177,12 @@ export class HoverService extends Disposable implements IHoverService {
 			store.add(addDisposableListener(target, EventType.KEY_DOWN, e => {
 				const evt = new StandardKeyboardEvent(e);
 				if (evt.equals(KeyCode.Space) || evt.equals(KeyCode.Enter)) {
-					this.showHover(resolveHoverOptions(), true);
+					this.showInstantHover(resolveHoverOptions(), true);
 				}
 			}));
 		}
 
-		this._delayedHovers.set(target, { show: (focus: boolean) => { this.showHover(resolveHoverOptions(), focus); } });
+		this._delayedHovers.set(target, { show: (focus: boolean) => { this.showInstantHover(resolveHoverOptions(), focus); } });
 		store.add(toDisposable(() => this._delayedHovers.delete(target)));
 
 		return store;
@@ -186,6 +194,12 @@ export class HoverService extends Disposable implements IHoverService {
 		if (this._currentHover?.isLocked) {
 			return undefined;
 		}
+
+		// Set `id` to default if it's undefined
+		if (options.id === undefined) {
+			options.id = getHoverIdFromContent(options.content);
+		}
+
 		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
@@ -202,15 +216,6 @@ export class HoverService extends Disposable implements IHoverService {
 			} else {
 				this._lastFocusedElementBeforeOpen = undefined;
 			}
-		}
-
-		// Set `id` to default if it's undefined
-		if (options.id === undefined) {
-			options.id = isHTMLElement(options.content)
-				? undefined
-				: typeof options.content === 'string'
-					? options.content.toString()
-					: options.content.value;
 		}
 
 		const hoverDisposables = new DisposableStore();
@@ -315,7 +320,7 @@ export class HoverService extends Disposable implements IHoverService {
 		if (!this._lastHoverOptions) {
 			return;
 		}
-		this.showHover(this._lastHoverOptions, true, true);
+		this.showInstantHover(this._lastHoverOptions, true, true);
 	}
 
 	private _showAndFocusHoverForActiveElement(): void {
@@ -503,6 +508,16 @@ function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOpti
 		return undefined;
 	}
 	return options?.id ?? options;
+}
+
+function getHoverIdFromContent(content: string | HTMLElement | IMarkdownString): string | undefined {
+	if (isHTMLElement(content)) {
+		return undefined;
+	}
+	if (typeof content === 'string') {
+		return content.toString();
+	}
+	return content.value;
 }
 
 class HoverContextViewDelegate implements IDelegate {

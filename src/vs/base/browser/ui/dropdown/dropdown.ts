@@ -22,12 +22,12 @@ export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
 }
 
-interface IBaseDropdownOptions {
+export interface IBaseDropdownOptions {
 	label?: string;
 	labelRenderer?: ILabelRenderer;
 }
 
-class BaseDropdown extends ActionRunner {
+export class BaseDropdown extends ActionRunner {
 	private _element: HTMLElement;
 	private boxContainer?: HTMLElement;
 	private _label?: HTMLElement;
@@ -159,6 +159,12 @@ class BaseDropdown extends ActionRunner {
 
 export interface IActionProvider {
 	getActions(): readonly IAction[];
+}
+
+export function isActionProvider(obj: unknown): obj is IActionProvider {
+	const candidate = obj as IActionProvider | undefined;
+
+	return typeof candidate?.getActions === 'function';
 }
 
 export interface IDropdownMenuOptions extends IBaseDropdownOptions {

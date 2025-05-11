@@ -24,7 +24,10 @@ const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 export default tseslint.config(
 	// Global ignores
 	{
-		ignores,
+		ignores: [
+			...ignores,
+			'!**/.eslint-plugin-local/**/*'
+		],
 	},
 	// All files (JS and TS)
 	{
@@ -85,6 +88,7 @@ export default tseslint.config(
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
+			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
 				{
@@ -430,6 +434,10 @@ export default tseslint.config(
 			'local/code-no-global-document-listener': 'warn',
 			'no-restricted-syntax': [
 				'warn',
+				{
+					'selector': `NewExpression[callee.object.name='Intl']`,
+					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
 				{
 					'selector': `BinaryExpression[operator='instanceof'][right.name='MouseEvent']`,
 					'message': 'Use DOM.isMouseEvent() to support multi-window scenarios.'
@@ -956,7 +964,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/editor/editor.worker.ts',
+					'target': 'src/vs/editor/editor.worker.start.ts',
 					'layer': 'worker',
 					'restrictions': [
 						'vs/base/~',
@@ -1238,10 +1246,6 @@ export default tseslint.config(
 					'restrictions': []
 				},
 				{
-					'target': 'src/bootstrap-window.ts',
-					'restrictions': []
-				},
-				{
 					'target': 'src/vs/nls.ts',
 					'restrictions': [
 						'vs/*'
@@ -1426,5 +1430,80 @@ export default tseslint.config(
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
 		}
-	}
+	},
+	// Prompt files related code
+	{
+		files: [
+			'src/vs/platform/prompts/**/*.ts',
+			'src/vs/editor/common/codecs/**/*.ts',
+			'src/vs/workbench/contrib/chat/common/promptSyntax/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+			parserOptions: {
+				project: 'src/vs/platform/prompts/tsconfig.strict.json',
+			}
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+			'@stylistic/ts': stylisticTs,
+		},
+		rules: {
+			'@typescript-eslint/prefer-readonly': 'warn',
+			'@typescript-eslint/await-thenable': 'error',
+			'@typescript-eslint/consistent-type-assertions': ['error', { 'assertionStyle': 'never' }],
+			'@typescript-eslint/explicit-function-return-type': [
+				'error',
+				{
+					allowDirectConstAssertionInArrowFunctions: false,
+				},
+			],
+			'@typescript-eslint/explicit-member-accessibility': [
+				'error',
+				{
+					accessibility: 'explicit',
+					ignoredMethodNames: ['constructor'],
+				},
+			],
+			'no-shadow': 'off', '@typescript-eslint/no-shadow': 'error',
+			'@typescript-eslint/ban-ts-comment': 'error',
+			'default-param-last': 'off', '@typescript-eslint/default-param-last': 'error',
+			'no-array-constructor': 'off', '@typescript-eslint/no-array-constructor': 'error',
+			'@typescript-eslint/explicit-module-boundary-types': 'error',
+			'@typescript-eslint/no-array-delete': 'error',
+			'@typescript-eslint/no-base-to-string': 'error',
+			'@typescript-eslint/no-confusing-non-null-assertion': 'error',
+			'@typescript-eslint/no-confusing-void-expression': 'error',
+			'@typescript-eslint/no-duplicate-enum-values': 'error',
+			'@typescript-eslint/no-dynamic-delete': 'error',
+			'no-empty-function': 'off', '@typescript-eslint/no-empty-function': [
+				'error', { 'allow': ['private-constructors'] }
+			],
+			'@typescript-eslint/no-empty-object-type': 'error',
+			'@typescript-eslint/no-explicit-any': ['error', { 'ignoreRestArgs': true }],
+			'@typescript-eslint/no-extra-non-null-assertion': 'error',
+			'@typescript-eslint/no-extraneous-class': 'error',
+			'@typescript-eslint/no-for-in-array': 'error',
+			'no-implied-eval': 'off', '@typescript-eslint/no-implied-eval': 'error',
+			'@typescript-eslint/no-invalid-void-type': 'error',
+			'no-loop-func': 'off', '@typescript-eslint/no-loop-func': 'error',
+			'@typescript-eslint/no-misused-new': 'warn',
+			'@typescript-eslint/no-mixed-enums': 'error',
+			'@typescript-eslint/no-floating-promises': 'error',
+			'@typescript-eslint/no-misused-promises': 'error',
+			'@typescript-eslint/no-non-null-asserted-nullish-coalescing': 'error',
+			'@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
+			'@typescript-eslint/no-non-null-assertion': 'error',
+			'@typescript-eslint/no-redundant-type-constituents': 'error',
+			'@typescript-eslint/naming-convention': [
+				'warn',
+				{ 'selector': 'variable', 'format': ['camelCase', 'UPPER_CASE', 'PascalCase'] },
+				{ 'selector': 'variable', 'filter': '^I.+Service$', 'format': ['PascalCase'], 'prefix': ['I'] },
+				{ 'selector': 'enumMember', 'format': ['PascalCase'] },
+				{ 'selector': 'typeAlias', 'format': ['PascalCase'], 'prefix': ['T'] },
+				{ 'selector': 'interface', 'format': ['PascalCase'], 'prefix': ['I'] }
+			],
+			'comma-dangle': ['warn', 'only-multiline'],
+		}
+	},
 );

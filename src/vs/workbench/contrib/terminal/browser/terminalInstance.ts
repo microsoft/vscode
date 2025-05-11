@@ -46,7 +46,7 @@ import { IMarkProperties, TerminalCapability } from '../../../../platform/termin
 import { TerminalCapabilityStoreMultiplexer } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
-import { GeneralShellType, IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalLogService, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalLogService, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -193,6 +193,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasScrollBar?: boolean;
 	private _usedShellIntegrationInjection: boolean = false;
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
+	private _shellIntegrationInjectionInfo: ShellIntegrationInjectionFailureReason | undefined;
+	get shellIntegrationInjectionFailureReason(): ShellIntegrationInjectionFailureReason | undefined { return this._shellIntegrationInjectionInfo; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
@@ -470,11 +472,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (capability === TerminalCapability.CommandDetection) {
 				const commandDetection = this.capabilities.get(capability);
 				if (commandDetection) {
+					commandDetection.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(capability, Event.any(
+						commandDetection.onPromptTypeChanged,
 						commandDetection.promptInputModel.onDidStartInput,
 						commandDetection.promptInputModel.onDidChangeInput,
 						commandDetection.promptInputModel.onDidFinishInput
-					)(() => this._labelComputer?.refreshLabel(this)));
+					)(() => {
+						this._labelComputer?.refreshLabel(this);
+						refreshShellIntegrationInfoStatus(this);
+					}));
 				}
 			}
 		}));
@@ -847,6 +854,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._register(this._processManager.onProcessReady(async (processTraits) => {
+			// Respond to DA1 with basic conformance. Note that including this is required to avoid
+			// a long delay in conpty 1.22+ where it waits for the response.
+			// Reference: https://github.com/microsoft/terminal/blob/3760caed97fa9140a40777a8fbc1c95785e6d2ab/src/terminal/adapter/adaptDispatch.cpp#L1471-L1495
+			if (processTraits?.windowsPty?.backend === 'conpty') {
+				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
+					if (params.length === 0 || params.length === 1 && params[0] === 0) {
+						this._processManager.write('\x1b[?61;4c');
+						return true;
+					}
+					return false;
+				}));
+			}
 			if (this._processManager.os) {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
@@ -1440,6 +1459,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.UsedShellIntegrationInjection:
 					this._usedShellIntegrationInjection = true;
+					break;
+				case ProcessPropertyType.ShellIntegrationInjectionFailureReason:
+					this._shellIntegrationInjectionInfo = value;
 					break;
 			}
 		}));
