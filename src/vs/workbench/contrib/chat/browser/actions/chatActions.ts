@@ -113,7 +113,10 @@ abstract class OpenChatGlobalAction extends Action2 {
 			icon: Codicon.copilot,
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.disabled.negate()
+			)
 		});
 	}
 
@@ -763,6 +766,22 @@ export function registerChatActions() {
 			});
 		}
 	});
+
+	registerAction2(class ResetTrustedToolsAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.resetTrustedTools',
+				title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+		override run(accessor: ServicesAccessor): void {
+			accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
+			accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
+		}
+	});
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
@@ -834,21 +853,6 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 				ChatContextKeys.supported
 			)
 		);
-	}
-});
-
-registerAction2(class ResetTrustedToolsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.resetTrustedTools',
-			title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
-			category: CHAT_CATEGORY,
-			f1: true,
-		});
-	}
-	override run(accessor: ServicesAccessor): void {
-		accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
-		accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 	}
 });
 
