@@ -11,7 +11,7 @@ import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
-import { TokenStream } from '../../../../../../../editor/common/codecs/utils/tokenStream.js';
+import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
@@ -94,7 +94,7 @@ export class PromptHeader extends Disposable {
 
 		this.stream = this._register(
 			new FrontMatterDecoder(
-				new TokenStream(contentsToken.tokens),
+				ObjectStream.fromArray([...contentsToken.tokens]),
 			),
 		);
 		this.stream.onData(this.onData.bind(this));
@@ -170,7 +170,8 @@ export class PromptHeader extends Disposable {
 			this.meta.tools = toolsMetadata;
 			this.recordNames.add(recordName);
 
-			return this.validateToolsAndModeCompatibility();
+			this.validateToolsAndModeCompatibility();
+			return;
 		}
 
 		// if the record might be a "mode" metadata
@@ -183,7 +184,8 @@ export class PromptHeader extends Disposable {
 			this.meta.mode = modeMetadata;
 			this.recordNames.add(recordName);
 
-			return this.validateToolsAndModeCompatibility();
+			this.validateToolsAndModeCompatibility();
+			return;
 		}
 
 		// if the record might be a "applyTo" metadata

@@ -3,48 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from '../assert.js';
 import { assertDefined } from '../types.js';
 
 /**
- * Interface for an object that provides logging methods.
+ * Type for a function that logs a message.
  */
-export interface ILogger {
-	trace(message: string, ...args: any[]): void;
-	debug(message: string, ...args: any[]): void;
-	info(message: string, ...args: any[]): void;
-	warn(message: string, ...args: any[]): void;
-	error(message: string | Error, ...args: any[]): void;
-}
+export type TLogFunction = (message: string, ...args: any[]) => void;
 
 /**
  * Type for an object that contains a `logger` property
  * with the logging methods.
  */
-type TObjectWithLogger<T extends object> = T & { logger: ILogger };
+type TObjectWithLogFunction<T extends object> = T & { logTime: TLogFunction };
 
 /**
  * Decorator allows to log execution time of any method of a class.
- * The class must have the `logger` property that provides
- * logging methods that the decorator can call.
+ * The class must have the `logTime` method that provides logs
+ * a provided message.
  *
  * The decorated method can be asynchronous or synchronous, but
  * the timing message is logged only if it finishes *successfully*.
- *
- * @param logLevel Log level to use for the time message.
  *
  * ## Examples
  *
  * ```typescript
  * class MyClass {
+ *     public readonly logTime: TLogFunction;
+
  *     constructor(
  *         // because we have the interface restrictions on the class
  *         // which does not support 'private'/'protected' fields, we are
  *         // forced to use the 'public' modifier here
  *         \@ILogService public readonly logService: ILogService,
- *     ) {}
+ *     ) {
+ *           this.logTime = logService.info.bind(logService);
+ *     }
  *
- *     @logTime('info')
+ *     @logTime()
  *     public async myMethod(): Promise<string> {
  *         // some artificial delay
  *         await new Promise((resolve) => setTimeout(resolve, 10));
@@ -66,11 +61,9 @@ type TObjectWithLogger<T extends object> = T & { logger: ILogger };
  * );
  * ```
  */
-export function logTime(
-	logLevel: keyof ILogger = 'trace',
-) {
+export function logTime<TObject extends object>() {
 	return function logExecutionTimeDecorator<
-		TObject extends TObjectWithLogger<object>,
+		TObject extends TObjectWithLogFunction<object>,
 	>(
 		_proto: TObject,
 		methodName: string,
@@ -92,14 +85,13 @@ export function logTime(
 			return logExecutionTime(
 				`${this.constructor.name}.${methodName}`,
 				originalMethod.bind(this, ...args),
-				getLogFunction(logLevel, this.logger),
+				this.logTime.bind(this),
 			);
 		};
 
 		return descriptor;
 	};
 }
-
 
 /**
  * Helper allows to log execution time of code block or function.
@@ -133,7 +125,7 @@ export function logTime(
 export const logExecutionTime = <T>(
 	blockName: string,
 	callback: () => T | Promise<T>,
-	logger: ILogger[keyof ILogger],
+	logger: TLogFunction,
 ): ReturnType<typeof callback> => {
 	const startTime = performance.now();
 	const result = callback();
@@ -164,46 +156,13 @@ export const logExecutionTime = <T>(
 };
 
 /**
- * Gets method of {@link logger} by the provided {@link logLevel}.
- */
-const getLogFunction = <T extends keyof ILogger>(
-	logLevel: T,
-	logger: ILogger,
-): ILogger[T] => {
-	if (logLevel === 'trace') {
-		return logger.trace.bind(logger);
-	}
-
-	if (logLevel === 'debug') {
-		return logger.debug.bind(logger);
-	}
-
-	if (logLevel === 'info') {
-		return logger.info.bind(logger);
-	}
-
-	if (logLevel === 'warn') {
-		return logger.warn.bind(logger);
-	}
-
-	if (logLevel === 'error') {
-		return logger.error.bind(logger);
-	}
-
-	assertNever(
-		logLevel,
-		`Unknown log level '${logLevel}'.`,
-	);
-};
-
-/**
  * Internal helper to log the timing message with
  * provided details and logger.
  */
 const log = (
 	methodName: string,
 	timeMs: number,
-	logger: ILogger[keyof ILogger],
+	logger: TLogFunction,
 ): void => {
 	return logger(
 		// allow-any-unicode-next-line

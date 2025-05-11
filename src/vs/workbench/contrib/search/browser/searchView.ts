@@ -167,6 +167,7 @@ export class SearchView extends ViewPane {
 	private _refreshResultsScheduler: RunOnceScheduler;
 
 	private _onSearchResultChangedDisposable: IDisposable | undefined;
+	private _onAIResultChangedDisposable: IDisposable | undefined;
 
 	private searchDataSource: SearchViewDataSource | undefined;
 
@@ -530,6 +531,17 @@ export class SearchView extends ViewPane {
 		}
 
 		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged(async (event) => await this.onSearchResultsChanged(event)));
+
+		// Subscribe to AI search result changes and update the tree when new AI results are reported
+		this._onAIResultChangedDisposable?.dispose();
+		this._onAIResultChangedDisposable = this._register(
+			this.viewModel.searchResult.aiTextSearchResult.onChange(() => {
+				// Only refresh the AI node, not the whole tree
+				if (this.tree && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+					this.tree.updateChildren(this.searchResult.aiTextSearchResult);
+				}
+			})
+		);
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
@@ -1796,7 +1808,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	public async addAIResults() {
+	public async addAIResults(element: ITextSearchHeading, createIterator: (e: ITextSearchHeading) => Iterable<RenderableMatch>) {
 		const excludePatternText = this._getExcludePattern();
 		const includePatternText = this._getIncludePattern();
 		let progressComplete: () => void;
@@ -1819,8 +1831,8 @@ export class SearchView extends ViewPane {
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		this.viewModel.searchResult.setAIQueryUsingTextQuery();
-		const result = this.viewModel.addAIResults();
-		return result.then((complete) => {
+		const result = this.viewModel.aiSearch();
+		result.then((complete) => {
 			clearTimeout(slowTimer);
 			if (complete.aiKeywords && complete.aiKeywords.length > 0) {
 				this.updateKeywordSuggestion(complete.aiKeywords);
@@ -1831,6 +1843,12 @@ export class SearchView extends ViewPane {
 		}, (e) => {
 			clearTimeout(slowTimer);
 			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText, undefined, false);
+		});
+		return new Promise<Iterable<RenderableMatch>>(resolve => {
+			const disposable = element.onChange(() => {
+				disposable.dispose(); // Clean up listener after first result
+				resolve(createIterator(element));
+			});
 		});
 	}
 
@@ -2492,7 +2510,7 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			return this.createSearchResultIterator(element);
 		} else if (isTextSearchHeading(element)) {
 			if (element.isAIContributed && !this.searchView.model.hasAIResults) {
-				return this.searchView.addAIResults().then(() => this.createTextSearchResultIterator(element));
+				return this.searchView.addAIResults(element, (e: ITextSearchHeading) => this.createTextSearchResultIterator(e));
 			}
 			return this.createTextSearchResultIterator(element);
 		} else if (isSearchTreeFolderMatch(element)) {

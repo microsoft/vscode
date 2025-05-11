@@ -66,7 +66,7 @@ export namespace SocketDiagnostics {
 	const socketIds = new WeakMap<any, string>();
 	let lastUsedSocketId = 0;
 
-	function getSocketId(nativeObject: any, label: string): string {
+	function getSocketId(nativeObject: unknown, label: string): string {
 		if (!socketIds.has(nativeObject)) {
 			const id = String(++lastUsedSocketId);
 			socketIds.set(nativeObject, id);
@@ -74,7 +74,7 @@ export namespace SocketDiagnostics {
 		return socketIds.get(nativeObject)!;
 	}
 
-	export function traceSocketEvent(nativeObject: any, socketDebugLabel: string, type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+	export function traceSocketEvent(nativeObject: unknown, socketDebugLabel: string, type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		if (!enableDiagnostics) {
 			return;
 		}

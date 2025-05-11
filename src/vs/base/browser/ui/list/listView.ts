@@ -194,8 +194,8 @@ function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined):
 
 class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilityProvider<T>> {
 
-	readonly getSetSize: (element: any, index: number, listLength: number) => number;
-	readonly getPosInSet: (element: any, index: number) => number;
+	readonly getSetSize: (element: T, index: number, listLength: number) => number;
+	readonly getPosInSet: (element: T, index: number) => number;
 	readonly getRole: (element: T) => AriaRole | undefined;
 	readonly isChecked: (element: T) => boolean | IValueWithChangeEvent<boolean> | undefined;
 

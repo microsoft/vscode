@@ -49,7 +49,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -278,24 +278,10 @@
             ],
             "scope": "window"
           },
-          "javascript.implicitProjectConfig.checkJs": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
-            "markdownDeprecationMessage": "%configuration.javascript.checkJs.checkJs.deprecation%",
-            "scope": "window"
-          },
           "js/ts.implicitProjectConfig.checkJs": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
-            "scope": "window"
-          },
-          "javascript.implicitProjectConfig.experimentalDecorators": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
-            "markdownDeprecationMessage": "%configuration.javascript.checkJs.experimentalDecorators.deprecation%",
             "scope": "window"
           },
           "js/ts.implicitProjectConfig.experimentalDecorators": {
@@ -816,20 +802,6 @@
             "default": false,
             "markdownDescription": "%typescript.preferences.preferTypeOnlyAutoImports%",
             "scope": "resource"
-          },
-          "javascript.preferences.renameShorthandProperties": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typescript.preferences.useAliasesForRenames%",
-            "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
-            "scope": "language-overridable"
-          },
-          "typescript.preferences.renameShorthandProperties": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typescript.preferences.useAliasesForRenames%",
-            "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
-            "scope": "language-overridable"
           },
           "javascript.preferences.useAliasesForRenames": {
             "type": "boolean",
@@ -1418,13 +1390,6 @@
             "description": "%configuration.tsserver.web.typeAcquisition.enabled%",
             "scope": "window"
           },
-          "typescript.tsserver.useSeparateSyntaxServer": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.tsserver.useSeparateSyntaxServer%",
-            "markdownDeprecationMessage": "%configuration.tsserver.useSeparateSyntaxServer.deprecation%",
-            "scope": "window"
-          },
           "typescript.tsserver.useSyntaxServer": {
             "type": "string",
             "scope": "window",
@@ -1455,12 +1420,6 @@
             "tags": [
               "experimental"
             ]
-          },
-          "typescript.tsserver.experimental.useVsCodeWatcher": {
-            "type": "boolean",
-            "description": "%configuration.tsserver.useVsCodeWatcher%",
-            "deprecationMessage": "%configuration.tsserver.useVsCodeWatcher.deprecation%",
-            "default": true
           },
           "typescript.tsserver.watchOptions": {
             "description": "%configuration.tsserver.watchOptions%",

@@ -16,7 +16,7 @@ import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/c
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MarkersViewMode, Markers, MarkersContextKeys } from '../common/markers.js';
 import Messages from './messages.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IMarkersView } from './markers.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -36,6 +36,7 @@ import { IActivityService, NumberBadge } from '../../../services/activity/common
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { problemsConfigurationNodeBase } from '../../../common/configuration.js';
+import { MarkerChatContextContribution } from './markersChatContext.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -342,7 +343,28 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+abstract class MarkersViewAction extends ViewAction<IMarkersView> {
+
+	protected getSelectedMarkers(markersView: IMarkersView): Marker[] {
+		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
+		const markers: Marker[] = [];
+		const addMarker = (marker: Marker) => {
+			if (!markers.includes(marker)) {
+				markers.push(marker);
+			}
+		};
+		for (const selected of selection) {
+			if (selected instanceof ResourceMarkers) {
+				selected.markers.forEach(addMarker);
+			} else if (selected instanceof Marker) {
+				addMarker(selected);
+			}
+		}
+		return markers;
+	}
+}
+
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
@@ -363,27 +385,14 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
-		const markers: Marker[] = [];
-		const addMarker = (marker: Marker) => {
-			if (!markers.includes(marker)) {
-				markers.push(marker);
-			}
-		};
-		for (const selected of selection) {
-			if (selected instanceof ResourceMarkers) {
-				selected.markers.forEach(addMarker);
-			} else if (selected instanceof Marker) {
-				addMarker(selected);
-			}
-		}
+		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
 			await clipboardService.writeText(`[${markers}]`);
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
@@ -398,9 +407,10 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message);
+
+		const markers = this.getSelectedMarkers(markersView);
+		if (markers.length) {
+			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
 		}
 	}
 });
@@ -676,6 +686,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 }
 
 workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
+
+registerWorkbenchContribution2(MarkerChatContextContribution.ID, MarkerChatContextContribution, WorkbenchPhase.AfterRestored);
 
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
