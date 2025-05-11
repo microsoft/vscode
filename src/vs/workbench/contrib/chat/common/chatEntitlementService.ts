@@ -544,8 +544,8 @@ export class ChatEntitlementRequests extends Disposable {
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IEntitlements | undefined> {
 		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
-			this.logService.trace('[chat entitlement]: enterprise provider, assuming Pro');
-			return { entitlement: ChatEntitlement.Pro };
+			this.logService.trace('[chat entitlement]: enterprise provider, assuming Enterprise plan');
+			return { entitlement: ChatEntitlement.Enterprise };
 		}
 
 		if (token.isCancellationRequested) {
