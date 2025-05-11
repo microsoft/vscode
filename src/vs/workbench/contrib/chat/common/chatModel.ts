@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -13,13 +12,13 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, ObservablePromise, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -1073,7 +1072,6 @@ export interface IChatModel {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
-	readonly initState: ChatModelInitState;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
 	readonly requestInProgress: boolean;
@@ -1318,12 +1316,6 @@ export interface IChatInitEvent {
 	kind: 'initialize';
 }
 
-export enum ChatModelInitState {
-	Created,
-	Initializing,
-	Initialized
-}
-
 export class ChatModel extends Disposable implements IChatModel {
 	static getDefaultTitle(requests: (ISerializableChatRequestData | IChatRequestModel)[]): string {
 		const firstRequestMessage = requests.at(0)?.message ?? '';
@@ -1340,8 +1332,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly onDidChange = this._onDidChange.event;
 
 	private _requests: ChatRequestModel[];
-	private _initState: ChatModelInitState = ChatModelInitState.Created;
-	private _isInitializedDeferred = new DeferredPromise<void>();
 
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
@@ -1407,10 +1397,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	get responderAvatarIcon(): ThemeIcon | URI | undefined {
 		return this._defaultAgent?.metadata.themeIcon ??
 			this._initialResponderAvatarIconUri;
-	}
-
-	get initState(): ChatModelInitState {
-		return this._initState;
 	}
 
 	private _isImported = false;
@@ -1601,44 +1587,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.chatAgentService.setRequestPaused(this.lastRequest.response.agent.id, this.lastRequest.id, pausedValue);
 			this._onDidChange.fire({ kind: 'changedRequest', request: this.lastRequest });
 		}
-	}
-
-	startInitialize(): void {
-		if (this.initState !== ChatModelInitState.Created) {
-			throw new Error(`ChatModel is in the wrong state for startInitialize: ${ChatModelInitState[this.initState]}`);
-		}
-		this._initState = ChatModelInitState.Initializing;
-	}
-
-	deinitialize(): void {
-		this._initState = ChatModelInitState.Created;
-		this._isInitializedDeferred = new DeferredPromise<void>();
-	}
-
-	initialize(): void {
-		if (this.initState !== ChatModelInitState.Initializing) {
-			// Must call startInitialize before initialize, and only call it once
-			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
-		}
-
-		this._initState = ChatModelInitState.Initialized;
-
-		this._isInitializedDeferred.complete();
-		this._onDidChange.fire({ kind: 'initialize' });
-	}
-
-	setInitializationError(error: Error): void {
-		if (this.initState !== ChatModelInitState.Initializing) {
-			throw new Error(`ChatModel is in the wrong state for setInitializationError: ${ChatModelInitState[this.initState]}`);
-		}
-
-		if (!this._isInitializedDeferred.isSettled) {
-			this._isInitializedDeferred.error(error);
-		}
-	}
-
-	waitForInitialization(): Promise<void> {
-		return this._isInitializedDeferred.p;
 	}
 
 	getRequests(): ChatRequestModel[] {

@@ -434,8 +434,6 @@ export class InlineChatController1 implements IEditorContribution {
 			return State.CANCEL;
 		}
 
-		await session.chatModel.waitForInitialization();
-
 		// create a new strategy
 		this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value, session.headless);
 
