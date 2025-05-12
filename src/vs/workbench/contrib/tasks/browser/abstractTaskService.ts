@@ -85,6 +85,8 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { TroubleshootTaskConfigError } from './task.contribution.js';
+import { IChatService } from '../../chat/common/chatService.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -283,6 +285,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
@@ -670,19 +673,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (userRequested) {
 				this._outputService.showChannel(this._outputChannel.id, true);
 			} else {
-				this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
-					[{
-						label: nls.localize('showOutput', "Show output"),
-						run: () => {
-							this._outputService.showChannel(this._outputChannel.id, true);
-						}
-					},
-					{
+				const chatEnabled = this._chatService.isEnabled(ChatAgentLocation.Panel);
+				const actions = [];
+				if (chatEnabled) {
+					actions.push({
 						label: nls.localize('troubleshootWithChat', "Troubleshoot with chat"),
 						run: async () => {
 							this._commandService.executeCommand(TroubleshootTaskConfigError, errorMessage);
 						}
-					}]);
+					});
+				}
+				actions.push({
+					label: nls.localize('showOutput', "Show output"),
+					run: () => {
+						this._outputService.showChannel(this._outputChannel.id, true);
+					}
+				});
+				this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'), actions);
 			}
 		}
 	}
