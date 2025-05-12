@@ -805,7 +805,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		creatorModeButton.style.borderRadius = "8px";
 		creatorModeButton.style.border = "none";
 		creatorModeButton.style.cursor = "pointer";
-		creatorModeButton.style.fontSize = "1.5em";
+		creatorModeButton.style.fontSize = isWindows ? "1.5em" : "1.2em";
 		creatorModeButton.style.display = "inline-flex";
 		creatorModeButton.style.alignItems = "center";
 		creatorModeButton.style.justifyContent = "center";
