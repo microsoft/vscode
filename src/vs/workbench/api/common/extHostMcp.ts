@@ -89,9 +89,9 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	public registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable {
 		const store = new DisposableStore();
 
-		const metadata = extension.contributes?.modelContextServerCollections?.find(m => m.id === id);
+		const metadata = extension.contributes?.mcpServerDefinitionProviders?.find(m => m.id === id);
 		if (!metadata) {
-			throw new Error(`MCP configuration providers must be registered in the contributes.modelContextServerCollections array within your package.json, but "${id}" was not`);
+			throw new Error(`MCP configuration providers must be registered in the contributes.mcpServerDefinitionProviders array within your package.json, but "${id}" was not`);
 		}
 
 		const mcp: McpCollectionDefinition.FromExtHost = {
@@ -109,8 +109,15 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 			const servers: McpServerDefinition.Serialized[] = [];
 			for (const item of list ?? []) {
+				let id = ExtensionIdentifier.toKey(extension.identifier) + '/' + item.label;
+				if (servers.some(s => s.id === id)) {
+					let i = 2;
+					while (servers.some(s => s.id === id + i)) { i++; }
+					id = id + i;
+				}
+
 				servers.push({
-					id: ExtensionIdentifier.toKey(extension.identifier),
+					id,
 					label: item.label,
 					cacheNonce: item.version,
 					launch: Convert.McpServerDefinition.from(item)
@@ -125,10 +132,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			this._proxy.$deleteMcpCollection(mcp.id);
 		}));
 
-		if (provider.onDidChangeServerDefinitions) {
-			store.add(provider.onDidChangeServerDefinitions(update));
+		if (provider.onDidChangeMcpServerDefinitions) {
+			store.add(provider.onDidChangeMcpServerDefinitions(update));
 		}
 		// todo@connor4312: proposed API back-compat
+		if ((provider as any).onDidChangeServerDefinitions) {
+			store.add((provider as any).onDidChangeServerDefinitions(update));
+		}
 		if ((provider as any).onDidChange) {
 			store.add((provider as any).onDidChange(update));
 		}
@@ -244,7 +254,16 @@ class McpHTTPHandle extends Disposable {
 		}
 
 		if (res.status >= 300) {
-			this._log(LogLevel.Warning, `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}`);
+			// "When a client receives HTTP 404 in response to a request containing an Mcp-Session-Id, it MUST start a new session by sending a new InitializeRequest without a session ID attached"
+			// Though this says only 404, some servers send 400s as well, including their example
+			// https://github.com/modelcontextprotocol/typescript-sdk/issues/389
+			const retryWithSessionId = this._mode.value === HttpMode.Http && !!this._mode.sessionId;
+
+			this._proxy.$onDidChangeState(this._id, {
+				state: McpConnectionState.Kind.Error,
+				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + retryWithSessionId ? `; will retry with new session ID` : '',
+				shouldRetry: retryWithSessionId,
+			});
 			return;
 		}
 

@@ -43,7 +43,8 @@ import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, searchFilesAndFolders } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
+import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -656,11 +657,10 @@ class BuiltinDynamicCompletions extends Disposable {
 			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
 			for (const relatedFileGroup of relatedFiles) {
 				for (const relatedFile of relatedFileGroup.files) {
-					if (seen.has(relatedFile.uri)) {
-						continue;
+					if (!seen.has(relatedFile.uri)) {
+						seen.add(relatedFile.uri);
+						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
 					}
-					seen.add(relatedFile.uri);
-					result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
 				}
 			}
 		}
@@ -668,7 +668,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		// HISTORY
 		// always take the last N items
 		for (const item of this.historyService.getHistory()) {
-			if (!item.resource) {
+			if (!item.resource || seen.has(item.resource)) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -698,10 +698,16 @@ class BuiltinDynamicCompletions extends Disposable {
 			for (const workspace of workspaces) {
 				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
 				for (const file of files) {
-					result.suggestions.push(makeCompletionItem(file, FileKind.FILE));
+					if (!seen.has(file)) {
+						result.suggestions.push(makeCompletionItem(file, FileKind.FILE));
+						seen.add(file);
+					}
 				}
 				for (const folder of folders) {
-					result.suggestions.push(makeCompletionItem(folder, FileKind.FOLDER));
+					if (!seen.has(folder)) {
+						result.suggestions.push(makeCompletionItem(folder, FileKind.FOLDER));
+						seen.add(folder);
+					}
 				}
 			}
 		}
@@ -873,7 +879,7 @@ class ToolCompletions extends Disposable {
 							range,
 							detail,
 							insertText: withLeader + ' ',
-							documentation: t.userDescription,
+							documentation: t.userDescription ?? t.modelDescription,
 							kind: CompletionItemKind.Text,
 							sortText: 'z'
 						};

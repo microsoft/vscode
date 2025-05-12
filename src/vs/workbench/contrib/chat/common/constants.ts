@@ -16,6 +16,18 @@ export enum ChatMode {
 	Agent = 'agent'
 }
 
+export function modeToString(mode: ChatMode) {
+	switch (mode) {
+		case ChatMode.Agent:
+			return 'Agent';
+		case ChatMode.Edit:
+			return 'Edit';
+		case ChatMode.Ask:
+		default:
+			return 'Ask';
+	}
+}
+
 export function validateChatMode(mode: unknown): ChatMode | undefined {
 	switch (mode) {
 		case ChatMode.Ask:
@@ -25,6 +37,10 @@ export function validateChatMode(mode: unknown): ChatMode | undefined {
 		default:
 			return undefined;
 	}
+}
+
+export function isChatMode(mode: unknown): mode is ChatMode {
+	return !!validateChatMode(mode);
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

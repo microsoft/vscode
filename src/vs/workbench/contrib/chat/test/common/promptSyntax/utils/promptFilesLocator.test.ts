@@ -9,12 +9,13 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../../base/common/platform.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { mockObject } from '../../../../../../../base/test/common/testUtils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { mockObject, mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
 import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -62,16 +63,16 @@ suite('PromptFilesLocator', () => {
 		return;
 	}
 
-	let initService: TestInstantiationService;
+	let instantiationService: TestInstantiationService;
 	setup(async () => {
-		initService = disposables.add(new TestInstantiationService());
-		initService.stub(ILogService, new NullLogService());
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 
-		const fileService = disposables.add(initService.createInstance(FileService));
+		const fileService = disposables.add(instantiationService.createInstance(FileService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
-		initService.stub(IFileService, fileService);
+		instantiationService.stub(IFileService, fileService);
 	});
 
 	/**
@@ -83,9 +84,9 @@ suite('PromptFilesLocator', () => {
 		workspaceFolderPaths: string[],
 		filesystem: IMockFolder[],
 	): Promise<PromptFilesLocator> => {
-		await (initService.createInstance(MockFilesystem, filesystem)).mock();
+		await (instantiationService.createInstance(MockFilesystem, filesystem)).mock();
 
-		initService.stub(IConfigurationService, mockConfigService(configValue));
+		instantiationService.stub(IConfigurationService, mockConfigService(configValue));
 
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 			const uri = createURI(path);
@@ -96,9 +97,9 @@ suite('PromptFilesLocator', () => {
 				index,
 			});
 		});
-		initService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
+		instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 
-		return initService.createInstance(PromptFilesLocator);
+		return instantiationService.createInstance(PromptFilesLocator);
 	};
 
 	suite('• empty workspace', () => {

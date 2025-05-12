@@ -5,12 +5,13 @@
 
 import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
+import { PromptApplyToMetadata } from './metadata/applyTo.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
-import { TokenStream } from '../../../../../../../editor/common/codecs/utils/tokenStream.js';
+import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
@@ -34,6 +35,11 @@ export interface IHeaderMetadata {
 	 * Chat mode metadata in the prompt header.
 	 */
 	mode?: PromptModeMetadata;
+
+	/**
+	 * Chat 'applyTo' metadata in the prompt header.
+	 */
+	applyTo?: PromptApplyToMetadata;
 }
 
 /**
@@ -78,6 +84,7 @@ export class PromptHeader extends Disposable {
 
 	constructor(
 		public readonly contentsToken: Text,
+		public readonly languageId: string,
 	) {
 		super();
 
@@ -87,7 +94,7 @@ export class PromptHeader extends Disposable {
 
 		this.stream = this._register(
 			new FrontMatterDecoder(
-				new TokenStream(contentsToken.tokens),
+				ObjectStream.fromArray([...contentsToken.tokens]),
 			),
 		);
 		this.stream.onData(this.onData.bind(this));
@@ -144,7 +151,7 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "description" metadata
 		// add it to the list of parsed metadata records
 		if (PromptDescriptionMetadata.isDescriptionRecord(token)) {
-			const descriptionMetadata = new PromptDescriptionMetadata(token);
+			const descriptionMetadata = new PromptDescriptionMetadata(token, this.languageId);
 			const { diagnostics } = descriptionMetadata;
 
 			this.issues.push(...diagnostics);
@@ -156,27 +163,42 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
-			const toolsMetadata = new PromptToolsMetadata(token);
+			const toolsMetadata = new PromptToolsMetadata(token, this.languageId);
 			const { diagnostics } = toolsMetadata;
 
 			this.issues.push(...diagnostics);
 			this.meta.tools = toolsMetadata;
 			this.recordNames.add(recordName);
 
-			return this.validateToolsAndModeCompatibility();
+			this.validateToolsAndModeCompatibility();
+			return;
 		}
 
 		// if the record might be a "mode" metadata
 		// add it to the list of parsed metadata records
 		if (PromptModeMetadata.isModeRecord(token)) {
-			const modeMetadata = new PromptModeMetadata(token);
+			const modeMetadata = new PromptModeMetadata(token, this.languageId);
 			const { diagnostics } = modeMetadata;
 
 			this.issues.push(...diagnostics);
 			this.meta.mode = modeMetadata;
 			this.recordNames.add(recordName);
 
-			return this.validateToolsAndModeCompatibility();
+			this.validateToolsAndModeCompatibility();
+			return;
+		}
+
+		// if the record might be a "applyTo" metadata
+		// add it to the list of parsed metadata records
+		if (PromptApplyToMetadata.isApplyToRecord(token)) {
+			const applyToMetadata = new PromptApplyToMetadata(token, this.languageId);
+			const { diagnostics } = applyToMetadata;
+
+			this.issues.push(...diagnostics);
+			this.meta.applyTo = applyToMetadata;
+			this.recordNames.add(recordName);
+
+			return;
 		}
 
 		// all other records are currently not supported
@@ -199,15 +221,15 @@ export class PromptHeader extends Disposable {
 	private get toolsAndModeCompatible(): boolean {
 		const { tools, mode } = this.meta;
 
-		// if `mode` is not set or equal to `agent` mode,
-		// then the tools metadata can have any value so noop
-		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
-			return true;
-		}
-
 		// if `tools` is not set, then the mode metadata
 		// can have any value so skip the validation
 		if (tools === undefined) {
+			return true;
+		}
+
+		// if `mode` is not set or equal to `agent` mode,
+		// then the tools metadata can have any value so noop
+		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
 			return true;
 		}
 

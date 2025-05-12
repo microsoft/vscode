@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import themePickerContent from './media/theme_picker.js';
+import themePickerSmallContent from './media/theme_picker_small.js';
 import notebookProfileContent from './media/notebookProfile.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -17,6 +18,8 @@ import product from '../../../../platform/product/common/product.js';
 interface IGettingStartedContentProvider {
 	(): string;
 }
+
+export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
 
 class GettingStartedContentProviderRegistry {
 
@@ -51,12 +54,14 @@ export async function moduleToContent(resource: URI): Promise<string> {
 }
 
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker', themePickerContent);
+gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker_small', themePickerSmallContent);
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile', notebookProfileContent);
 // Register empty media for accessibility walkthrough
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/empty', () => '');
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of welcome page"));
+export const NEW_WELCOME_EXPERIENCE = 'NewWelcomeExperience';
 
 export type BuiltinGettingStartedStep = {
 	id: string;
@@ -236,7 +241,7 @@ function createCopilotSetupStep(id: string, button: string, when: string, includ
 export const walkthroughs: GettingStartedWalkthroughContent = [
 	{
 		id: 'Setup',
-		title: localize('gettingStarted.setup.title', "Get Started with VS Code"),
+		title: localize('gettingStarted.setup.title', "Get started with VS Code"),
 		description: localize('gettingStarted.setup.description', "Customize your editor, learn the basics, and start coding"),
 		isFeatured: true,
 		icon: setupIcon,
@@ -246,9 +251,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatSetupSignedOut', true),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && (chatPlanPro || chatPlanLimited)', false),
-				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatSetupSignedOut && (!chatSetupInstalled || chatPlanCanSignUp)', true),
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut', true),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanLimited)', false),
+				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp)', true),
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
@@ -666,19 +671,46 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		}
 	},
 	{
-		id: 'NewWelcomeExperience',
-		title: localize('gettingStarted.setup.title', "Get Started with VS Code"),
-		description: localize('gettingStarted.setup.description', "Customize your editor, learn the basics, and start coding"),
+		id: `${NEW_WELCOME_EXPERIENCE}`,
+		title: localize('gettingStarted.new.title', "Get started with VS Code"),
+		description: localize('gettingStarted.new.description', "Supercharge coding with AI"),
 		isFeatured: false,
 		icon: setupIcon,
 		when: '!isWeb',
-		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),
+		walkthroughPageTitle: localize('gettingStarted.new.walkthroughPageTitle', 'Set up VS Code'),
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('NewCopilotSetupSignedOut', CopilotSignedOutButton, 'chatSetupSignedOut', true),
-				createCopilotSetupStep('NewCopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && (chatPlanPro || chatPlanLimited)', false),
-				createCopilotSetupStep('NewCopilotSetupSignedIn', CopilotSignedInButton, '!chatSetupSignedOut && (!chatSetupInstalled || chatPlanCanSignUp)', true),
+				{
+					id: 'copilotSetup.chat',
+					title: localize('gettingStarted.agentMode.title', "Agent mode"),
+					description: localize('gettingStarted.agentMode.description', "Analyzes the problem, plans next steps, and makes changes for you."),
+					media: {
+						type: 'svg', altText: 'VS Code Copilot multi file edits', path: 'multi-file-edits.svg'
+					},
+				},
+				{
+					id: 'copilotSetup.inline',
+					title: localize('gettingStarted.nes.title', "Next Edit Suggestions"),
+					description: localize('gettingStarted.nes.description', "Get code suggestions that predict your next edit."),
+					media: {
+						type: 'svg', altText: 'Next Edit Suggestions', path: 'ai-powered-suggestions.svg'
+					},
+				},
+				{
+					id: 'copilotSetup.customize',
+					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
+					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
+					media: {
+						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
+					},
+				},
+				{
+					id: 'newCommandPaletteTask',
+					title: localize('newgettingStarted.commandPalette.title', "All commands within reach"),
+					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
+					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
+				},
 				{
 					id: 'newPickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
@@ -687,12 +719,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					media: { type: 'markdown', path: 'theme_picker', }
+					media: { type: 'markdown', path: 'theme_picker_small', }
 				},
 				{
 					id: 'newFindLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
+					title: localize('newgettingStarted.findLanguageExts.title', "Support for all languages"),
+					description: localize('newgettingStarted.findLanguageExts.description.interpolated', "Install the language extensions you need in your toolkit.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
 					when: 'workspacePlatform != \'webworker\'',
 					media: {
 						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
@@ -700,20 +732,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'newSettingsAndSync',
-					title: localize('gettingStarted.settings.title', "Tune your settings"),
-					description: localize('gettingStarted.settingsAndSync.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. [Back up and sync](command:workbench.userDataSync.actions.turnOn) your essential customizations across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
+					title: localize('newgettingStarted.settings.title', "Customize every aspect of VS Code"),
+					description: localize('newgettingStarted.settingsAndSync.description.interpolated', "[Back up and sync](command:workbench.userDataSync.actions.turnOn) settings across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
 					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
 						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
 					},
 				},
-				{
-					id: 'newCommandPaletteTask',
-					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
-				}
 			]
 		}
 	}

@@ -52,14 +52,18 @@ export namespace ChatContextKeys {
 
 	export const Setup = {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
-		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true)  	// True when the chat extension is installed.
+		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed and enabled.
+		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true)  	// True when the chat extension is disabled.
 	};
 
 	export const Entitlement = {
-		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
-		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),		// True when user is a chat limited user.
-		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
+		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat limited user.
+		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),			// True when user is a chat limited user.
+		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
+		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
+		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.
+		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true) 		// True when user is a chat enterprise user.
 	};
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);

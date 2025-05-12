@@ -7,9 +7,11 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -21,7 +23,6 @@ import { BaseIssueContribution } from '../common/issue.contribution.js';
 import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
-import './processMainService.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
@@ -93,5 +94,9 @@ class ReportPerformanceIssueUsingReporterAction extends Action2 {
 		return issueService.openReporter({ issueType: IssueType.PerformanceIssue });
 	}
 }
+
+CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
+	return accessor.get(IProcessService).getSystemStatus();
+});
 
 // #endregion

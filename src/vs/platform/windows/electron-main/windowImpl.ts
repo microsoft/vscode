@@ -45,6 +45,7 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
+import { FocusMode } from '../../native/common/native.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -287,11 +288,32 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return !!this.documentEdited;
 	}
 
-	focus(options?: { force: boolean }): void {
-		if (isMacintosh && options?.force) {
-			electron.app.focus({ steal: true });
-		}
+	focus(options?: { mode: FocusMode }): void {
+		switch (options?.mode ?? FocusMode.Transfer) {
+			case FocusMode.Transfer:
+				this.doFocusWindow();
+				break;
 
+			case FocusMode.Notify:
+				if (isMacintosh) {
+					electron.app.dock?.bounce('informational');
+				} else if (isWindows) {
+					// On Windows, this just flashes the taskbar icon, which is desired
+					// https://github.com/electron/electron/issues/2867
+					this.win?.focus();
+				}
+				break;
+
+			case FocusMode.Force:
+				if (isMacintosh) {
+					electron.app.focus({ steal: true });
+				}
+				this.doFocusWindow();
+				break;
+		}
+	}
+
+	private doFocusWindow() {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -601,7 +623,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		this.jsCallStackMap = new Map<string, number>();
-		this.jsCallStackEffectiveSampleCount = Math.round(sampleInterval / samplePeriod);
+		this.jsCallStackEffectiveSampleCount = Math.round(samplePeriod / sampleInterval);
 		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
 		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
 			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
@@ -720,7 +742,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
 
 		// Inject headers when requests are incoming
-		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+		const urls = ['https://*.vsassets.io/*'];
+		if (this.productService.extensionsGallery?.serviceUrl) {
+			const serviceUrl = URI.parse(this.productService.extensionsGallery.serviceUrl);
+			urls.push(`${serviceUrl.scheme}://${serviceUrl.authority}/*`);
+		}
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
 			const headers = await this.getMarketplaceHeaders();
 
@@ -1050,7 +1076,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
-					this.focus({ force: true });
+					this.focus({ mode: FocusMode.Force });
 					this._win.webContents.openDevTools();
 				}
 			}, 10000)).schedule();

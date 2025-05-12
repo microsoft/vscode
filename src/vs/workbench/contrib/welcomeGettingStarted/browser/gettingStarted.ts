@@ -18,7 +18,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { splitRecentLabel } from '../../../../base/common/labels.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
+import { ILink, LinkedText, parseLinkedText } from '../../../../base/common/linkedText.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
 import { isMacintosh, OS } from '../../../../base/common/platform.js';
@@ -63,7 +63,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from './
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
-import { startEntries } from '../common/gettingStartedContent.js';
+import { copilotSettingsMessage, NEW_WELCOME_EXPERIENCE, startEntries } from '../common/gettingStartedContent.js';
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -73,6 +73,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { IGettingStartedExperimentService } from './gettingStartedExpService.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -190,7 +191,8 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IGettingStartedExperimentService private readonly gettingStartedExperimentService: IGettingStartedExperimentService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -253,7 +255,8 @@ export class GettingStartedPage extends EditorPane {
 		}));
 
 		this._register(this.gettingStartedService.onDidProgressStep(step => {
-			const category = this.gettingStartedCategories.find(category => category.id === step.category);
+			const category = step.category === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(step.category) :
+				this.gettingStartedCategories.find(c => c.id === step.category);
 			if (!category) { throw Error('Could not find category with ID: ' + step.category); }
 			const ourStep = category.steps.find(_step => _step.id === step.id);
 			if (!ourStep) {
@@ -343,7 +346,7 @@ export class GettingStartedPage extends EditorPane {
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
-		this.editorInput.showNewExperience = (options as GettingStartedEditorOptions)?.showNewExperience ?? false;
+		this.editorInput.showTelemetryNotice = (options as GettingStartedEditorOptions)?.showTelemetryNotice ?? true;
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
@@ -920,13 +923,14 @@ export class GettingStartedPage extends EditorPane {
 		this.registerDispatchListeners();
 
 		if (this.editorInput.selectedCategory) {
+			const showNewExperience = this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE;
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-				this.currentWalkthrough = this.editorInput.showNewExperience ? this.gettingStartedService.getWalkthrough(this.editorInput.selectedCategory) : this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
+				this.currentWalkthrough = showNewExperience ? this.gettingStartedService.getWalkthrough(this.editorInput.selectedCategory) : this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 				if (this.currentWalkthrough) {
-					if (this.editorInput.showNewExperience === true) {
+					if (showNewExperience) {
 						this.buildNewCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
 					} else {
 						this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
@@ -936,7 +940,7 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}
 			else {
-				if (this.editorInput.showNewExperience === true) {
+				if (showNewExperience) {
 					this.buildNewCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
 				} else {
 					this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
@@ -957,13 +961,18 @@ export class GettingStartedPage extends EditorPane {
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+				const exp = this.gettingStartedExperimentService.getCurrentExperiment();
+				const first = exp?.walkthroughId ? this.gettingStartedService.getWalkthrough(exp.walkthroughId) : this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
 				if (first) {
 					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					if (first.id === NEW_WELCOME_EXPERIENCE) {
+						this.buildNewCategorySlide(this.editorInput.selectedCategory, undefined);
+					} else {
+						this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					}
 					this.setSlide('details', true /* firstLaunch */);
 					return;
 				}
@@ -1190,6 +1199,7 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.toggle('height-constrained', size.height <= 600);
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 950);
+		this.container.classList.toggle('new-layout-width-constrained', size.width <= 800);
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -1199,7 +1209,8 @@ export class GettingStartedPage extends EditorPane {
 	private updateCategoryProgress() {
 		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
-			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+			const category = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+				this.gettingStartedCategories.find(c => c.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
 
 			const stats = this.getWalkthroughCompletionStats(category);
@@ -1228,7 +1239,8 @@ export class GettingStartedPage extends EditorPane {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 		}
 
-		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
+		const ourCategory = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+			this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
 			throw Error('Could not find category with ID: ' + categoryID);
 		}
@@ -1365,7 +1377,7 @@ export class GettingStartedPage extends EditorPane {
 
 				if (isCommand) {
 					const keybinding = this.getKeyBinding(command);
-					if (keybinding) {
+					if (keybinding && this.editorInput.selectedCategory !== NEW_WELCOME_EXPERIENCE) {
 						const shortcutMessage = $('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '));
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
@@ -1404,23 +1416,39 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 
-	// Helper method to navigate between steps
-	private navigateStep(direction: number, steps: IResolvedWalkthroughStep[]) {
-		if (!this.editorInput.selectedStep) { return; }
-
-		const currentIndex = steps.findIndex(step => step.id === this.editorInput.selectedStep);
-		if (currentIndex === -1) { return; }
-
-		const newIndex = Math.max(0, Math.min(steps.length - 1, currentIndex + direction));
-		if (newIndex !== currentIndex) {
-			this.selectStepByIndex(newIndex, steps, direction);
-		}
-	}
-
 	private selectStepByIndex(newIndex: number, steps: IResolvedWalkthroughStep[], direction: number) {
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectTask', argument: steps[newIndex].id, walkthroughId: this.currentWalkthrough?.id });
 		const currentIndex = steps.findIndex(step => step.id === this.editorInput.selectedStep);
-		const slidesContainer = this.stepsContent.querySelector('.step-slides-container') as HTMLElement;
 
+		// Update the selected step and build its media
+		this.selectSlide(steps[newIndex].id);
+
+		// update footer visibility
+		const footer = this.stepsContent.querySelector('.getting-started-footer') as HTMLElement;
+		if (footer && newIndex !== 0) {
+			footer.style.display = 'none';
+		} else if (footer) {
+			footer.style.display = 'block';
+		}
+
+		this.updateNavButtons(newIndex, steps);
+
+		// Update the active dot
+		const dots = this.stepsContent.querySelectorAll('.step-dot');
+		dots.forEach((dot, index) => {
+			if (index === newIndex) {
+				dot.classList.add('active');
+			} else {
+				dot.classList.remove('active');
+			}
+		});
+
+
+		if (currentIndex === newIndex) {
+			return; // No change
+		}
+
+		const slidesContainer = this.stepsContent.querySelector('.step-slides-container') as HTMLElement;
 		if (slidesContainer) {
 			// Apply the transform to move the slides
 			const slides = slidesContainer.querySelectorAll('.step-slide');
@@ -1457,19 +1485,24 @@ export class GettingStartedPage extends EditorPane {
 					}
 				});
 			}, 20);
+		}
+	}
 
-			// Update the active dot
-			const dots = this.stepsContent.querySelectorAll('.step-dot');
-			dots.forEach((dot, index) => {
-				if (index === newIndex) {
-					dot.classList.add('active');
-				} else {
-					dot.classList.remove('active');
-				}
-			});
-
-			// Update the selected step and build its media
-			this.selectSlide(steps[newIndex].id);
+	private updateNavButtons(newIndex: number, steps: IResolvedWalkthroughStep[]) {
+		const prevButton = this.stepsContent.querySelector('.button-link.navigation.back') as HTMLButtonElement;
+		if (newIndex === 0) {
+			if (prevButton) {
+				prevButton.classList.add('inactive');
+				prevButton.setAttribute('aria-hidden', 'true');
+				prevButton.setAttribute('tabindex', '-1');
+			}
+		}
+		else {
+			if (prevButton) {
+				prevButton.classList.remove('inactive');
+				prevButton.removeAttribute('aria-hidden');
+				prevButton.removeAttribute('tabindex');
+			}
 		}
 	}
 
@@ -1488,16 +1521,44 @@ export class GettingStartedPage extends EditorPane {
 		// Filter steps based on when context
 		const steps = category.steps.filter(step => this.contextService.contextMatchesRules(step.when));
 
+		const groupedSteps = new Map<string, IResolvedWalkthroughStep[]>();
+		steps.forEach(step => {
+			const prefixMatch = step.id.match(/^([^.]+)\./);
+			const prefix = prefixMatch ? prefixMatch[1] : step.id;
+			if (!groupedSteps.has(prefix)) {
+				groupedSteps.set(prefix, []);
+			}
+			groupedSteps.get(prefix)?.push(step);
+		});
+
 		// Create the slide container that will hold all step slides
 		const slidesContainer = $('.step-slides-container');
 
-		// Create the dots navigation
-		const dotsContainer = $('.step-dots-container');
+		const navigationContainer = $('.step-dots-container');
 
-		// For each step, create a slide
-		steps.forEach((step, index) => {
-			// Create the slide
-			const slideElement = $('.step-slide', { 'data-step': step.id });
+		// Add back button
+		const prevButton = $('button.button-link.navigation.back', {
+			'aria-label': localize('previousStep', "Previous Step"),
+			'tabindex': '0'
+		}, $('span.codicon.codicon-arrow-left'), localize('back', "Back"));
+
+		const dotsContainer = $('.dots-centered');
+		navigationContainer.appendChild(prevButton);
+		navigationContainer.appendChild(dotsContainer);
+
+		const allSlides: { id: string; steps: IResolvedWalkthroughStep[] }[] = [];
+		groupedSteps.forEach((stepsInGroup, prefix) => {
+			if (stepsInGroup.length === 1) {
+				allSlides.push({ id: stepsInGroup[0].id, steps: [stepsInGroup[0]] });
+			} else {
+				// For multi-steps, group them into a single slide
+				allSlides.push({ id: prefix, steps: stepsInGroup });
+			}
+		});
+
+		allSlides.forEach((slide, index) => {
+			// Create the slide element
+			const slideElement = $('.step-slide', { 'data-step': slide.id });
 
 			// Create the content container with flex layout
 			const slideContent = $('.step-slide-content');
@@ -1505,70 +1566,118 @@ export class GettingStartedPage extends EditorPane {
 			// Text content column
 			const textContent = $('.step-text-content');
 
-			// Create step title
-			const titleElement = $('h3.step-title', { 'x-step-title-for': step.id });
-			reset(titleElement, ...renderLabelWithIcons(step.title));
-			textContent.appendChild(titleElement);
+			if (slide.steps.length === 1) {
+				// Single step case
+				const step = slide.steps[0];
 
-			// Create step description container
-			const descriptionContainer = $('.step-description', { 'x-step-description-for': step.id });
-			this.buildMarkdownDescription(descriptionContainer, step.description);
-			textContent.appendChild(descriptionContainer);
+				// Create step title
+				const titleElement = $('h3.step-title', { 'x-step-title-for': step.id });
+				reset(titleElement, ...renderLabelWithIcons(step.title));
+				textContent.appendChild(titleElement);
 
-			// Add buttons container if needed
-			const actionsContainer = $('.step-actions');
-			textContent.appendChild(actionsContainer);
+				// Create step description container
+				const descriptionContainer = $('.step-description', { 'x-step-description-for': step.id });
+				this.buildMarkdownDescription(descriptionContainer, step.description);
+				textContent.appendChild(descriptionContainer);
+			} else {
+				// Multi-step case - group steps with same prefix into a single slide
+				const multiStepContainer = $('.multi-step-container');
+
+				slide.steps.forEach((step, i) => {
+					const subStep = $('.sub-step', { 'data-sub-step-id': step.id });
+
+					this.detailsPageDisposables.add(addDisposableListener(subStep, 'click', () => {
+						this.selectSubStep(step.id);
+					}));
+					this.detailsPageDisposables.add(addDisposableListener(subStep, 'mouseenter', () => {
+						this.selectSubStep(step.id);
+					}));
+
+					const subStepTitleEl = $('.sub-step-title', {}, ...renderLabelWithIcons(step.title));
+					subStep.appendChild(subStepTitleEl);
+
+					const subStepDesc = $('.sub-step-description');
+					this.buildMarkdownDescription(subStepDesc, [step.description[0]]);
+					subStep.appendChild(subStepDesc);
+
+					if (i === 0 || step.id === this.editorInput.selectedStep) {
+						subStep.classList.add('active');
+					} else {
+						subStep.classList.remove('active');
+					}
+
+					multiStepContainer.appendChild(subStep);
+				});
+
+				// Get the linkedText of the lastStep
+				const lastStep = slide.steps[slide.steps.length - 1];
+				const linkedText = lastStep.description.length > 1 ? lastStep.description[1] : undefined;
+				if (linkedText) {
+					const descElement = $('.multi-step-action');
+					this.buildMarkdownDescription(descElement, [linkedText]);
+					multiStepContainer.appendChild(descElement);
+					const actionMessage = $('span.action-message');
+					const updatedText = parseLinkedText(copilotSettingsMessage);
+					this.buildMarkdownDescription(actionMessage, [updatedText]);
+					multiStepContainer.appendChild(actionMessage);
+				}
+
+				textContent.appendChild(multiStepContainer);
+			}
 
 			// Append text content to the slide
 			slideContent.appendChild(textContent);
-
-			// Add completed slide to the slides container
 			slideElement.appendChild(slideContent);
 			slidesContainer.appendChild(slideElement);
 
-			// Create a dot for this slide in the navigation - now with click handlers
+			// Create dot for this slide
 			const dot = $('button.step-dot', {
 				'data-step-dot-index': `${index}`,
-				'aria-label': localize('goToStep', "Go to step {0}", step.title),
 				'role': 'button'
 			});
 
-			if ((!selectedStep && index === 0) || (selectedStep === step.id)) {
+			// Set the initial active dot
+			if (index === 0) {
 				dot.classList.add('active');
 			}
 
-			// Add event listeners directly to the dots
-			this.detailsPageDisposables.add(addDisposableListener(dot, 'click', () => {
-				const currentIndex = steps.findIndex(step => step.id === this.editorInput.selectedStep);
-				if (currentIndex !== index) {
-					const direction = index > currentIndex ? 1 : -1;
-					this.selectStepByIndex(index, steps, direction);
-				}
-			}));
-
 			dotsContainer.appendChild(dot);
+
+			this.detailsPageDisposables.add(addDisposableListener(dot, 'click', () => {
+				const currentIndex = this.getCurrentSlideIndex(allSlides);
+				if (currentIndex === index) {
+					return;
+				}
+				this.selectStepByIndex(index, allSlides.map(s => s.steps[0]), index > currentIndex ? 1 : -1);
+			}));
 		});
 
-		// Handle initial selected step
-		let initialStepIndex = 0;
-		if (selectedStep) {
-			initialStepIndex = steps.findIndex(step => step.id === selectedStep);
-			if (initialStepIndex === -1) { initialStepIndex = 0; }
-		}
+		// Add next button
+		const nextButton = $('button.button-link.navigation.next', {
+			'aria-label': localize('nextStep', "Next"),
+		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
+
+		navigationContainer.appendChild(nextButton);
+		this.detailsPageDisposables.add(addDisposableListener(prevButton, 'click', () => {
+			const currentIndex = this.getCurrentSlideIndex(allSlides);
+			if (currentIndex > 0) {
+				this.selectStepByIndex(currentIndex - 1, allSlides.map(s => s.steps[0]), -1);
+			}
+		}));
+
+		this.detailsPageDisposables.add(addDisposableListener(nextButton, 'click', () => {
+			const currentIndex = this.getCurrentSlideIndex(allSlides);
+			if (currentIndex < allSlides.length - 1) {
+				this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
+			} else {
+				this.scrollPrev();
+			}
+		}));
 
 		// Set the current walkthrough and step
 		this.currentWalkthrough = category;
 		this.editorInput.selectedCategory = categoryID;
-		this.editorInput.selectedStep = steps[initialStepIndex].id;
-
-		// Search through slidesContainer for slideElement with data-step attribute matching selectedStep.id
-		// then fetch the slideContent and append mediaComponent to it
-		const selectedSlide = slidesContainer.querySelector(`.step-slide[data-step="${steps[initialStepIndex].id}"]`);
-		if (selectedSlide) {
-			const selectedSlideContent = selectedSlide.querySelector('.step-slide-content');
-			this.buildMediaComponent(steps[initialStepIndex].id);
-			selectedSlideContent?.appendChild(this.stepMediaComponent);
-		}
+		this.editorInput.selectedStep = this.currentWalkthrough.steps[0].id;
 
 		// Category title and description
 		const categoryHeader = $('.category-header');
@@ -1576,11 +1685,22 @@ export class GettingStartedPage extends EditorPane {
 		reset(categoryTitle, ...renderLabelWithIcons(category.title));
 		categoryHeader.appendChild(categoryTitle);
 
+		const descriptionContainer = $('.category-description.description.max-lines-3', { 'x-category-description-for': category.id });
+		this.buildMarkdownDescription(descriptionContainer, parseDescription(category.description));
+		reset(descriptionContainer, ...renderLabelWithIcons(category.description));
+		categoryHeader.appendChild(descriptionContainer);
+
+		const categoryFooter = $('.getting-started-footer');
+		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && this.productService.enableTelemetry) {
+			this.buildTelemetryFooter(categoryFooter);
+		}
+
 		// Build the container for the whole slide deck
 		const stepsContainer = $('.getting-started-steps-container', {},
 			categoryHeader,
 			slidesContainer,
-			dotsContainer
+			navigationContainer,
+			categoryFooter,
 		);
 
 		// Set up the scroll container
@@ -1589,14 +1709,33 @@ export class GettingStartedPage extends EditorPane {
 
 		// Append to the content area
 		reset(this.stepsContent, stepListComponent);
+		stepListComponent.tabIndex = 0;
+		stepListComponent.focus();
+
+		this.selectStepByIndex(0, this.currentWalkthrough.steps, 1);
 
 		// Add keyboard navigation
-		this.detailsPageDisposables.add(addDisposableListener(dotsContainer, 'keydown', (e) => {
+		this.detailsPageDisposables.add(addDisposableListener(stepListComponent, 'keydown', (e) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.RightArrow) {
-				this.navigateStep(1, steps);
+				const currentIndex = this.getCurrentSlideIndex(allSlides);
+				if (currentIndex < allSlides.length - 1) {
+					this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
+				}
+				else {
+					this.scrollPrev();
+				}
 			} else if (event.keyCode === KeyCode.LeftArrow) {
-				this.navigateStep(-1, steps);
+				const currentIndex = this.getCurrentSlideIndex(allSlides);
+				if (currentIndex > 0) {
+					this.selectStepByIndex(currentIndex - 1, allSlides.map(s => s.steps[0]), -1);
+				}
+			} else if (event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.DownArrow) {
+				const currentIndex = this.getCurrentSlideIndex(allSlides);
+				if (currentIndex > 0) {
+					return;
+				}
+				this.navigateWithinMultiStepContainer(event.keyCode);
 			}
 		}));
 
@@ -1607,13 +1746,61 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageScrollbar?.scanDomNode();
 	}
 
-	private selectSlide(stepId: string) {
+	private navigateWithinMultiStepContainer(keyCode: KeyCode) {
+		const currentElement = this.container.querySelector(`.multi-step-container`) as HTMLElement;
+		if (!currentElement) { return; }
+		const currentSubStep = currentElement.querySelector('.sub-step.active');
+		const allElements = Array.from(this.container.querySelectorAll('.sub-step'));
+		const currentIndex = currentSubStep ? allElements.indexOf(currentSubStep as HTMLElement) : -1;
+
+		let targetElement: HTMLElement | undefined;
+		if (keyCode === KeyCode.UpArrow && currentIndex > 0) {
+			targetElement = allElements[currentIndex - 1] as HTMLElement;
+		} else if (keyCode === KeyCode.DownArrow && currentIndex < allElements.length - 1) {
+			targetElement = allElements[currentIndex + 1] as HTMLElement;
+		}
+
+		if (targetElement) {
+			const stepId = targetElement.getAttribute('data-sub-step-id');
+			this.selectSubStep(stepId!);
+			targetElement.focus();
+		}
+	}
+
+	private selectSubStep(selectedStepId: string) {
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectTask', argument: selectedStepId, walkthroughId: this.currentWalkthrough?.id });
+		if (this.editorInput.selectedStep === selectedStepId) {
+			return;
+		}
+		this.editorInput.selectedStep = selectedStepId;
+
+		const multiStepContainer = this.container.querySelector('.multi-step-container');
+		if (!multiStepContainer) { return; }
+
+		const subSteps = multiStepContainer.querySelectorAll('.sub-step');
+		subSteps.forEach(subStepEl => {
+			const stepId = subStepEl.getAttribute('data-sub-step-id');
+			if (stepId === selectedStepId) {
+				subStepEl.classList.add('active');
+			} else {
+				subStepEl.classList.remove('active');
+			}
+		});
+
+		const prefixMatch = selectedStepId.match(/^([^.]+)\./);
+		const prefix = prefixMatch ? prefixMatch[1] : selectedStepId;
+		this.selectSlideWithPrefix(selectedStepId, prefix);
+
+		this.gettingStartedService.progressByEvent('stepSelected:' + selectedStepId);
+	}
+
+	private selectSlideWithPrefix(stepId: string, prefix: string) {
 		this.editorInput.selectedStep = stepId;
 
 		const step = this.currentWalkthrough?.steps.find(step => step.id === stepId);
 		if (!step) { return; }
 
-		const selectedSlide = this.stepsContent.querySelector(`.step-slide[data-step="${stepId}"]`);
+		const selectedSlide = this.stepsContent.querySelector(`.step-slide[data-step="${prefix}"]`);
 		if (selectedSlide) {
 			const selectedSlideContent = selectedSlide.querySelector('.step-slide-content');
 			this.mediaDisposables.clear();
@@ -1621,7 +1808,47 @@ export class GettingStartedPage extends EditorPane {
 			this.buildMediaComponent(this.editorInput.selectedStep);
 			selectedSlideContent?.appendChild(this.stepMediaComponent);
 			setTimeout(() => (selectedSlideContent as HTMLElement).focus(), 0);
+		}
 
+		this.gettingStartedService.progressByEvent('stepSelected:' + stepId);
+		this.detailsPageScrollbar?.scanDomNode();
+		this.detailsScrollbar?.scanDomNode();
+	}
+
+	private getCurrentSlideIndex(allSlides: { id: string; steps: IResolvedWalkthroughStep[] }[]): number {
+		if (!this.editorInput.selectedStep) {
+			return 0;
+		}
+
+		// Check if the selected step is directly a slide ID
+		const directMatch = allSlides.findIndex(slide => slide.id === this.editorInput.selectedStep);
+		if (directMatch !== -1) {
+			return directMatch;
+		}
+
+		// Otherwise, find which slide contains the step as a sub-step
+		return allSlides.findIndex(slide =>
+			slide.steps.some(step => step.id === this.editorInput.selectedStep)
+		);
+	}
+
+	private selectSlide(stepId: string) {
+		this.editorInput.selectedStep = stepId;
+
+		const step = this.currentWalkthrough?.steps.find(step => step.id === stepId);
+		if (!step) { return; }
+
+
+		const effectiveStepId = stepId.match(/^([^.]+)\./)?.[1] ?? stepId;
+		const selectedSlide = this.stepsContent.querySelector(`.step-slide[data-step="${effectiveStepId}"]`);
+
+		if (selectedSlide) {
+			const selectedSlideContent = selectedSlide.querySelector('.step-slide-content');
+			this.mediaDisposables.clear();
+			this.stepDisposables.clear();
+			this.buildMediaComponent(this.editorInput.selectedStep);
+			selectedSlideContent?.appendChild(this.stepMediaComponent);
+			setTimeout(() => (selectedSlideContent as HTMLElement).focus(), 0);
 		}
 
 		this.gettingStartedService.progressByEvent('stepSelected:' + stepId);
@@ -1642,7 +1869,8 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageDisposables.clear();
 		this.mediaDisposables.clear();
 
-		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+		const category = categoryID === NEW_WELCOME_EXPERIENCE ? this.gettingStartedService.getWalkthrough(categoryID) :
+			this.gettingStartedCategories.find(category => category.id === categoryID);
 		if (!category) {
 			throw Error('could not find category with ID ' + categoryID);
 		}
@@ -1794,7 +2022,8 @@ export class GettingStartedPage extends EditorPane {
 		const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
 			"{0} collects usage data. Read our {1} and learn how to {2}.", this.productService.nameShort, privacyStatementButton, optOutButton);
 
-		parent.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+		const renderedContents = this.detailsPageDisposables.add(mdRenderer.render({ value: text, isTrusted: true }));
+		parent.append(renderedContents.element);
 	}
 
 	private getKeybindingLabel(command: string) {
@@ -1864,7 +2093,7 @@ export class GettingStartedPage extends EditorPane {
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
 			prevButton!.style.display = this.editorInput.showWelcome || this.prevWalkthrough ? 'block' : 'none';
 
-			if (this.editorInput.showNewExperience) {
+			if (this.editorInput.selectedCategory === NEW_WELCOME_EXPERIENCE) {
 				prevButton!.style.display = 'none';
 			} else {
 				const moreTextElement = prevButton!.querySelector('.moreText');

@@ -79,7 +79,12 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
+	export class ChatPrepareToolInvocationPart {
+		toolName: string;
+		constructor(toolName: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -217,6 +222,8 @@ declare module 'vscode' {
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
+		prepareToolInvocation(toolName: string): void;
+
 		push(part: ExtendedChatResponsePart): void;
 	}
 
@@ -241,6 +248,14 @@ declare module 'vscode' {
 		 * The `data` for any confirmations that were rejected
 		 */
 		rejectedConfirmationData?: any[];
+	}
+
+	export interface ChatRequest {
+
+		/**
+		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
+		 */
+		readonly tools: Map<string, boolean>;
 	}
 
 	// TODO@API fit this into the stream

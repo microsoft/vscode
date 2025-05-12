@@ -25,6 +25,7 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { ILanguageSupport, ITextFileSaveOptions, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { MergeEditorType } from './view/viewModel.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class MergeEditorInputData {
 	constructor(
@@ -40,16 +41,9 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 	private _inputModel?: IMergeEditorInputModel;
 
-	private _focusedEditor: MergeEditorType = 'result';
+	private _focusedEditor: MergeEditorType;
 
-	override closeHandler: IEditorCloseHandler = {
-		showConfirm: () => this._inputModel?.shouldConfirmClose() ?? false,
-		confirm: async (editors) => {
-			assertFn(() => editors.every(e => e.editor instanceof MergeEditorInput));
-			const inputModels = editors.map(e => (e.editor as MergeEditorInput)._inputModel).filter(isDefined);
-			return await this._inputModel!.confirmClose(inputModels);
-		},
-	};
+	override closeHandler: IEditorCloseHandler;
 
 	private get useWorkingCopy() {
 		return this.configurationService.getValue('mergeEditor.useWorkingCopy') ?? false;
@@ -69,8 +63,24 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
+		this._focusedEditor = 'result';
+		this.closeHandler = {
+			showConfirm: () => this._inputModel?.shouldConfirmClose() ?? false,
+			confirm: async (editors) => {
+				assertFn(() => editors.every(e => e.editor instanceof MergeEditorInput));
+				const inputModels = editors.map(e => (e.editor as MergeEditorInput)._inputModel).filter(isDefined);
+				return await this._inputModel!.confirmClose(inputModels);
+			},
+		};
+		this.mergeEditorModeFactory = this._instaService.createInstance(
+			this.useWorkingCopy
+				? TempFileMergeEditorModeFactory
+				: WorkspaceMergeEditorModeFactory,
+			this._instaService.createInstance(MergeEditorTelemetry),
+		);
 	}
 
 	override dispose(): void {
@@ -97,12 +107,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return localize('name', "Merging: {0}", super.getName());
 	}
 
-	private readonly mergeEditorModeFactory = this._instaService.createInstance(
-		this.useWorkingCopy
-			? TempFileMergeEditorModeFactory
-			: WorkspaceMergeEditorModeFactory,
-		this._instaService.createInstance(MergeEditorTelemetry),
-	);
+	private readonly mergeEditorModeFactory;
 
 	override async resolve(): Promise<IMergeEditorInputModel> {
 		if (!this._inputModel) {
@@ -188,6 +193,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	public updateFocusedEditor(editor: MergeEditorType): void {
 		if (this._focusedEditor !== editor) {
 			this._focusedEditor = editor;
+			this.logService.trace('alertFocusedEditor', editor);
 			alertFocusedEditor(editor);
 		}
 	}

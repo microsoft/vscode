@@ -18,6 +18,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export interface IToolData {
 	id: string;
@@ -36,7 +37,6 @@ export interface IToolData {
 	 * on the host, undefined if known.
 	 */
 	runsInWorkspace?: boolean;
-	requiresConfirmation?: boolean;
 	alwaysDisplayInputOutput?: boolean;
 	supportsToolPicker?: boolean;
 }
@@ -100,17 +100,23 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: string;
+	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
+	readonly isError?: boolean;
 }
 
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
-	return typeof obj === 'object' && typeof obj?.input === 'string' && typeof obj?.output === 'string';
+	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
 export interface IToolResult {
-	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+	toolResultError?: string;
+}
+
+export function toolResultHasBuffers(result: IToolResult): boolean {
+	return result.content.some(part => part.kind === 'data');
 }
 
 export interface IToolResultPromptTsxPart {
@@ -127,6 +133,14 @@ export interface IToolResultTextPart {
 	value: string;
 }
 
+export interface IToolResultDataPart {
+	kind: 'data';
+	value: {
+		mimeType: string;
+		data: VSBuffer;
+	};
+}
+
 export interface IToolConfirmationMessages {
 	title: string;
 	message: string | IMarkdownString;
@@ -136,6 +150,7 @@ export interface IToolConfirmationMessages {
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
+	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
 	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.
