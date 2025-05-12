@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getFocusedWindow } from '../../../../base/browser/dom.js';
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -16,6 +17,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -74,7 +76,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
 
@@ -265,7 +268,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 				model.acceptResponseProgress(request, toolInvocation);
+
 				if (prepared?.confirmationMessages) {
+					const hasFocusedWindow = getFocusedWindow();
+					console.log('has focused window:', hasFocusedWindow);
+					const setting: { sound: 'auto' | 'on' | 'off'; announcement: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.terminalBell.settingsKey);
+					if (setting.sound === 'auto' || setting.sound === 'on' && this._accessibilityService.isScreenReaderOptimized() || hasFocusedWindow) {
+						console.log('playing sound');
+						this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalBell);
+					}
 					this._accessibilityService.alert(this._instantiationService.invokeFunction(getToolConfirmationAlert, prepared.confirmationMessages.title));
 					const userConfirmed = await toolInvocation.confirmed.p;
 					if (!userConfirmed) {
