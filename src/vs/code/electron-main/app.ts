@@ -523,28 +523,51 @@ export class CodeApplication extends Disposable {
 
 		//#endregion
 
-		// Handles the display-added event on Windows RDP multi-monitor scenarios.
-		// This helps restore maximized windows to their correct monitor after RDP reconnection.
-		// Refs https://github.com/electron/electron/issues/47016
-		this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
-			if (!isWindows || !this.environmentMainService.enableRDPDisplayTracking) {
-				return;
-			}
+		if (isWindows && this.environmentMainService.enableRDPDisplayTracking) {
+			// Handles the display-added event on Windows RDP multi-monitor scenarios.
+			// This helps restore maximized windows to their correct monitor after RDP reconnection.
+			// Refs https://github.com/electron/electron/issues/47016
+			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
+				const displayWorkingArea = WindowStateValidator.getWorkingArea(e.display);
 
-			const displayWorkingArea = WindowStateValidator.getWorkingArea(e.display);
-
-			if (this.windowsMainService) {
-				for (const window of this.windowsMainService.getWindows()) {
-					this.handleDisplayAdded(window, displayWorkingArea);
+				for (const window of this.windowsMainService?.getWindows() ?? []) {
+					this.onDisplayAdded(window, displayWorkingArea);
 				}
-			}
 
-			if (this.auxiliaryWindowsMainService) {
-				for (const window of this.auxiliaryWindowsMainService.getWindows()) {
-					this.handleDisplayAdded(window, displayWorkingArea);
+				for (const window of this.auxiliaryWindowsMainService?.getWindows() ?? []) {
+					this.onDisplayAdded(window, displayWorkingArea);
 				}
-			}
-		}));
+			}));
+		}
+	}
+
+	private onDisplayAdded(window: ICodeWindow | IAuxiliaryWindow, displayWorkingArea: Electron.Rectangle | undefined): void {
+		const state = window.maximizedWindowState;
+		if (
+			!window.win ||
+			!state ||
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number'
+		) {
+			return;
+		}
+
+		if (displayWorkingArea &&											// we have valid working area bounds
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
+		) {
+			this.logService.debug(`Setting maximized window ${window.id} bounds to match newly added display`, state);
+			window.win.setBounds({
+				x: state.x,
+				y: state.y,
+				width: state.width,
+				height: state.height
+			});
+		}
 	}
 
 	async startup(): Promise<void> {
@@ -1494,34 +1517,5 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validatedevDeviceId(this.stateService, this.logService);
-	}
-
-	private handleDisplayAdded(window: ICodeWindow | IAuxiliaryWindow, displayWorkingArea: Electron.Rectangle | undefined): void {
-		const state = window.maximizedWindowState;
-		if (
-			!window.win ||
-			!state ||
-			typeof state.x !== 'number' ||
-			typeof state.y !== 'number' ||
-			typeof state.width !== 'number' ||
-			typeof state.height !== 'number'
-		) {
-			return;
-		}
-
-		if (displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
-			this.logService.debug(`Setting maximized window ${window.id} bounds to match newly added display`, state);
-			window.win.setBounds({
-				x: state.x,
-				y: state.y,
-				width: state.width,
-				height: state.height
-			});
-		}
 	}
 }
