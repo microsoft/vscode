@@ -116,7 +116,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected _lastFocusTime = Date.now(); // window is shown on creation so take current time
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
-	private _maximizedWindowState: IWindowState | undefined; // Stores the bounds of maximized windows to restore them when a display is added
+	private _maximizedWindowState: IWindowState | undefined;
 	get maximizedWindowState(): IWindowState | undefined { return this._maximizedWindowState; }
 
 	protected _win: electron.BrowserWindow | null = null;
