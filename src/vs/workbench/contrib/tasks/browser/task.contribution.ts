@@ -46,6 +46,10 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
+import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ChatMode } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -593,5 +597,21 @@ registerAction2(class extends Action2 {
 		if (instance) {
 			await taskSystem.rerun(instance.instanceId);
 		}
+	}
+});
+
+export const TroubleshootTaskConfigError = 'workbench.action.tasks.chatTroubleshootTaskConfigError';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TroubleshootTaskConfigError,
+			precondition: ChatContextKeys.enabled,
+			title: nls.localize2('workbench.action.tasks.chatTroubleshootTaskConfigError', 'Troubleshoot Task Config Error'),
+		});
+	}
+	async run(accessor: ServicesAccessor, args: string): Promise<void> {
+		console.log('args ', args);
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this error ' + args });
 	}
 });
