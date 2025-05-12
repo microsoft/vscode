@@ -7,7 +7,7 @@ import { ILanguageIdCodec } from '../languages.js';
 import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from '../encodedTokenAttributes.js';
 import { IPosition } from '../core/position.js';
 import { ITextModel } from '../model.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { TokenArray, TokenArrayBuilder } from './tokenArray.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 

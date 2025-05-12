@@ -43,7 +43,9 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		super(options);
 
 		this._register(this.model.onWillDispose(this.dispose.bind(this)));
-		this._register(this.model.onDidChangeContent(this.onChangeEmitter.fire));
+		this._register(
+			this.model.onDidChangeContent(this.onChangeEmitter.fire.bind(this.onChangeEmitter)),
+		);
 	}
 
 	/**

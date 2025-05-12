@@ -162,19 +162,15 @@ suite('ChatService', () => {
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const session1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session1.waitForInitialization();
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
 		const session2 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session2.waitForInitialization();
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		const retrieved1 = testDisposables.add((await testService2.getOrRestoreSession(session1.sessionId))!);
-		await retrieved1.waitForInitialization();
 		const retrieved2 = testDisposables.add((await testService2.getOrRestoreSession(session2.sessionId))!);
-		await retrieved2.waitForInitialization();
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});

@@ -26,7 +26,7 @@ export function mockObject<TObject extends object>(
 		}
 	}
 
-	const service: object = new Proxy(
+	const mocked: object = new Proxy(
 		{},
 		{
 			get: <T extends keyof TObject>(
@@ -50,7 +50,7 @@ export function mockObject<TObject extends object>(
 	// note! it's ok to type assert here, because of the runtime checks in
 	//       the `Proxy` getter
 	// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-	return service as TObject;
+	return mocked as TObject;
 }
 
 /**

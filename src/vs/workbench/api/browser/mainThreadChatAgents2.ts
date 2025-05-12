@@ -180,9 +180,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			provideChatTitle: (history, token) => {
 				return this._proxy.$provideChatTitle(handle, history, token);
 			},
-			provideSampleQuestions: (location: ChatAgentLocation, token: CancellationToken) => {
-				return this._proxy.$provideSampleQuestions(handle, location, token);
-			}
 		};
 
 		let disposable: IDisposable;

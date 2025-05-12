@@ -102,7 +102,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public getSyntaxParserFor(
 		model: ITextModel,
-	): TextModelPromptParser & { disposed: false } {
+	): TextModelPromptParser & { isDisposed: false } {
 		assert(
 			model.isDisposed() === false,
 			'Cannot create a prompt syntax parser for a disposed model.',
@@ -183,17 +183,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
-		const result: URI[] = [];
-
 		const instructionFiles = await this.listPromptFiles('instructions');
 		if (instructionFiles.length === 0) {
-			return result;
+			return [];
 		}
 
 		const instructions = await this.getAllMetadata(
 			instructionFiles.map(pick('uri')),
 		);
 
+		const foundFiles = new ResourceSet();
 		for (const instruction of instructions.flatMap(flatten)) {
 			const { metadata, uri } = instruction;
 			const { applyTo } = metadata;
@@ -205,7 +204,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// if glob pattern is one of the special wildcard values,
 			// add the instructions file event if no files are attached
 			if ((applyTo === '**') || (applyTo === '**/*')) {
-				result.push(uri);
+				foundFiles.add(uri);
 
 				continue;
 			}
@@ -214,12 +213,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// add the instructions file if its rule matches the file
 			for (const file of files) {
 				if (match(applyTo, file.fsPath)) {
-					result.push(uri);
+					foundFiles.add(uri);
 				}
 			}
 		}
 
-		return [...new ResourceSet(result)];
+		return [...foundFiles];
 	}
 
 	@logTime()
