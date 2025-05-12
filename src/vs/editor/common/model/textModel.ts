@@ -2388,7 +2388,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
 		this.lineNumberHoverMessage = options.lineNumberHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
-		this.lineHeight = options.lineHeight && options.lineHeight > LINE_HEIGHT_CEILING ? LINE_HEIGHT_CEILING : (options.lineHeight || null);
+		this.lineHeight = options.lineHeight && options.lineHeight > LINE_HEIGHT_CEILING ? LINE_HEIGHT_CEILING : (options.lineHeight ?? null);
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
 		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;
