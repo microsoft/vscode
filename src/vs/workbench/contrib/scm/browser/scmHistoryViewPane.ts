@@ -828,7 +828,7 @@ class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
 			const provider = element.repository.provider;
 			const historyItem = element.historyItemViewModel.historyItem;
-			return `historyItem:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}/${element.historyItemChange.uri.fsPath}`;
+			return `historyItemChange:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}/${element.historyItemChange.uri.fsPath}`;
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			const provider = element.repository.provider;
 			return `historyItemLoadMore:${provider.id}}`;

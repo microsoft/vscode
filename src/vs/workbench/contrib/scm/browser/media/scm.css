@@ -252,7 +252,7 @@
 }
 
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
-.scm-view .monaco-list-row .history-item-change .monaco-icon-label::after {
+.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after {
 	margin-right: 3px;
 }
 
@@ -651,23 +651,24 @@
 	border-left-width: 3px;
 	border-left-style: solid;
 }
-.scm-view .monaco-list-row .history-item-change .graph-placeholder {
+.scm-view .monaco-list-row .history-item-change > .graph-placeholder {
 	height: 22px;
 }
 
-.scm-view .monaco-list-row .history-item-change .label-container {
+.scm-view .monaco-list-row .history-item-change > .label-container {
 	display: flex;
 	flex: 1;
 	overflow: hidden;
 }
 
-.scm-view .monaco-list-row .history-item-change .label-container > .monaco-icon-label {
+.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label {
 	flex-grow: 1;
 }
 
 .scm-history-view .history-item-load-more {
 	display: flex;
 	height: 22px;
+	padding-left: 3px;
 }
 
 .scm-history-view .history-item-load-more .graph-placeholder {
