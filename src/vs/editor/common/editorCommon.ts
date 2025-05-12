@@ -245,12 +245,6 @@ export interface IEditor {
 	getEditorType(): string;
 
 	/**
-	 * Get the editor number.
-	 * @internal
-	 */
-	getEditorNumber(): number;
-
-	/**
 	 * Update the editor's options after the editor has been created.
 	 */
 	updateOptions(newOptions: IEditorOptions): void;

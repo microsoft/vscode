@@ -41,14 +41,12 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
-import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
-import { CodeEditorId } from '../../browser/widget/codeEditor/codeEditorWidget.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
 export class ViewModel extends Disposable implements IViewModel {
 
-	private readonly _editorId: CodeEditorId;
+	private readonly _editorId: number;
 	private readonly _configuration: IEditorConfiguration;
 	public readonly model: ITextModel;
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
@@ -65,13 +63,12 @@ export class ViewModel extends Disposable implements IViewModel {
 	public readonly glyphLanes: IGlyphMarginLanesModel;
 
 	constructor(
-		editorId: CodeEditorId,
+		editorId: number,
 		configuration: IEditorConfiguration,
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
-		private readonly codeEditorService: ICodeEditorService,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
@@ -79,8 +76,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	) {
 		super();
 
-		console.log('ViewModel editorId : ', editorId.editorNumber);
-		console.log('model : ', model);
 		this._editorId = editorId;
 		this._configuration = configuration;
 		this.model = model;
@@ -105,7 +100,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wordBreak = options.get(EditorOption.wordBreak);
 
 			this._lines = new ViewModelLinesFromProjectedModel(
-				this._editorId.editorNumber,
+				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
@@ -142,7 +137,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitOutgoingEvent(e);
 		}));
 
-		this._decorations = new ViewModelDecorations(this._editorId.editorNumber, this.model, this._configuration, this._lines, this.coordinatesConverter);
+		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
 
 		this._registerModelEvents();
 
@@ -168,7 +163,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public override dispose(): void {
-		console.log('dispose this._editorId.editorNumber : ', this._editorId.editorNumber);
 		// First remove listeners, as disposing the lines might end up sending
 		// model decoration changed events ... and we no longer care about them ...
 		super.dispose();
@@ -191,35 +185,14 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getCustomLineHeights(): ICustomLineHeightData[] {
-		const diffEditorId = this.codeEditorService.getDiffEditorIdForCodeEditorId(this._editorId.id);
-		if (!diffEditorId) {
-			return this._getCustomLineHeightsFromModel(this, this._editorId.editorNumber);
-		}
-		const diffEditor = this.codeEditorService.getDiffEditor(diffEditorId);
-		if (!diffEditor) {
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (!allowVariableLineHeights) {
 			return [];
 		}
-		const originalEditor = diffEditor.getOriginalEditor();
-		const modifiedEditor = diffEditor.getModifiedEditor();
-		if (this._editorId.id === originalEditor.getId()) {
-			const viewModel = modifiedEditor._getViewModel();
-			if (!viewModel) {
-				return [];
-			}
-			return this._getCustomLineHeightsFromModel(viewModel, modifiedEditor.getEditorNumber());
-		}
-		if (this._editorId.id === modifiedEditor.getId()) {
-			return this._getCustomLineHeightsFromModel(this, this._editorId.editorNumber);
-		}
-		return [];
-	}
-
-	private _getCustomLineHeightsFromModel(viewModel: IViewModel, ownerId: number): ICustomLineHeightData[] {
-		const model = viewModel.model;
-		const decorations = model.getCustomLineHeightsDecorations(ownerId);
+		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
 		return decorations.map((d) => {
 			const lineNumber = d.range.startLineNumber;
-			const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 			return {
 				decorationId: d.id,
 				startLineNumber: viewRange.startLineNumber,
@@ -348,7 +321,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								const line = change.detail[lineIdx];
 								let injectedText = change.injectedTexts[lineIdx];
 								if (injectedText) {
-									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId.editorNumber));
+									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
 								lineBreaksComputer.addRequest(line, injectedText, null);
 							}
@@ -357,7 +330,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						case textModelEvents.RawContentChangedType.LineChanged: {
 							let injectedText: textModelEvents.LineInjectedText[] | null = null;
 							if (change.injectedText) {
-								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId.editorNumber));
+								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
 							lineBreaksComputer.addRequest(change.detail, injectedText, null);
 							break;
@@ -465,46 +438,30 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
-		let codeEditorType: 'simple' | 'originalDiff' | 'modifiedDiff';
-		const diffEditorId = this.codeEditorService.getDiffEditorIdForCodeEditorId(this._editorId.id);
-		if (!diffEditorId) {
-			codeEditorType = 'simple';
-		} else {
-			const diffEditor = this.codeEditorService.getDiffEditor(diffEditorId);
-			if (!diffEditor) {
-				codeEditorType = 'simple';
-			} else {
-				const editorNumber = this._editorId.editorNumber;
-				if (editorNumber === diffEditor.getOriginalEditor().getEditorNumber()) {
-					codeEditorType = 'originalDiff';
-				}
-				if (editorNumber === diffEditor.getModifiedEditor().getEditorNumber()) {
-					codeEditorType = 'modifiedDiff';
-				}
-			}
-		}
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (allowVariableLineHeights) {
+			this._register(this.model.onDidChangeLineHeight((e) => {
+				const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
 
-		this._register(this.model.onDidChangeLineHeight((e) => {
-			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId.editorNumber || change.ownerId === 0);
-
-			this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
-				for (const change of filteredChanges) {
-					const { decorationId, lineNumber, lineHeight } = change;
-					const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-					if (lineHeight !== null) {
-						accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
-					} else {
-						accessor.removeCustomLineHeight(decorationId);
+				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+					for (const change of filteredChanges) {
+						const { decorationId, lineNumber, lineHeight } = change;
+						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+						if (lineHeight !== null) {
+							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+						} else {
+							accessor.removeCustomLineHeight(decorationId);
+						}
 					}
-				}
-			});
+				});
 
-			// recreate the model event using the filtered changes
-			if (filteredChanges.length > 0) {
-				const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
-				this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
-			}
-		}));
+				// recreate the model event using the filtered changes
+				if (filteredChanges.length > 0) {
+					const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
+					this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
+				}
+			}));
+		}
 
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
@@ -863,7 +820,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
-		const decorations = this.model.getOverviewRulerDecorations(this._editorId.editorNumber, filterValidationDecorations(this._configuration.options));
+		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
 		for (const decoration of decorations) {
 			const decorationOptions = <ModelDecorationOptions>decoration.options;

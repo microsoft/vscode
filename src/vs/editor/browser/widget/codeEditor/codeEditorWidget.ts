@@ -61,27 +61,6 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 
-export class CodeEditorId {
-
-	constructor(private readonly _id: number) { }
-
-	public get id(): string {
-		return this.editorType + ':' + this.editorNumber;
-	}
-
-	public get editorType(): string {
-		return editorCommon.EditorType.ICodeEditor;
-	}
-
-	public get editorNumber(): number {
-		return this._id;
-	}
-
-	public equals(other: CodeEditorId): boolean {
-		return other.id === this.id;
-	}
-}
-
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
 	private static readonly dropIntoEditorDecorationOptions = ModelDecorationOptions.register({
@@ -238,7 +217,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _domElement: HTMLElement;
 	private readonly _overflowWidgetsDomNode: HTMLElement | undefined;
-	private readonly _id: CodeEditorId;
+	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 	private _contributionsDisposable: IDisposable | undefined;
 
@@ -286,7 +265,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
-		console.log('CodeEditorWidget constructor');
 		codeEditorService.willCreateCodeEditor();
 
 		const options = { ..._options };
@@ -294,7 +272,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._domElement = domElement;
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 		delete options.overflowWidgetsDomNode;
-		this._id = new CodeEditorId(++EDITOR_ID);
+		this._id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 		this._telemetryData = codeEditorWidgetOptions.telemetryData;
@@ -414,15 +392,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getId(): string {
-		return this._id.id;
+		return this.getEditorType() + ':' + this._id;
 	}
 
 	public getEditorType(): string {
-		return this._id.editorType;
-	}
-
-	public getEditorNumber(): number {
-		return this._id.editorNumber;
+		return editorCommon.EditorType.ICodeEditor;
 	}
 
 	public override dispose(): void {
@@ -1309,21 +1283,21 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// callback will not be called
 			return null;
 		}
-		return this._modelData.model.changeDecorations(callback, this._id.editorNumber);
+		return this._modelData.model.changeDecorations(callback, this._id);
 	}
 
 	public getLineDecorations(lineNumber: number): IModelDecoration[] | null {
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getLineDecorations(lineNumber, this._id.editorNumber, filterValidationDecorations(this._configuration.options));
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(this._configuration.options));
 	}
 
 	public getDecorationsInRange(range: Range): IModelDecoration[] | null {
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getDecorationsInRange(range, this._id.editorNumber, filterValidationDecorations(this._configuration.options));
+		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(this._configuration.options));
 	}
 
 	/**
@@ -1338,7 +1312,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return oldDecorations;
 		}
 
-		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id.editorNumber);
+		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
 	}
 
 	public removeDecorations(decorationIds: string[]): void {
@@ -1704,7 +1678,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
-			this._codeEditorService,
 			this.languageConfigurationService,
 			this._themeService,
 			attachedView,
@@ -1935,7 +1908,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
-		detachedModel?.removeAllDecorationsWithOwnerId(this._id.editorNumber);
+		detachedModel?.removeAllDecorationsWithOwnerId(this._id);
 	}
 
 	private _detachModel(): ITextModel | null {

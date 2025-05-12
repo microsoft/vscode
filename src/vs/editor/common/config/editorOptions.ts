@@ -55,6 +55,10 @@ export interface IEditorOptions {
 	 */
 	inDiffEditor?: boolean;
 	/**
+	 * Allow variable line heights.
+	 */
+	allowVariableLineHeights?: boolean;
+	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
@@ -5450,6 +5454,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	allowVariableLineHeights,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5974,6 +5979,9 @@ export const EditorOptions = {
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
 		EditorOption.inDiffEditor, 'inDiffEditor', false
+	)),
+	allowVariableLineHeights: register(new EditorBooleanOption(
+		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',

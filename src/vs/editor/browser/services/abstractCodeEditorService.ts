@@ -49,7 +49,6 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	private readonly _codeEditors: { [editorId: string]: ICodeEditor };
 	private readonly _diffEditors: { [editorId: string]: IDiffEditor };
-	private readonly _codeEditorToDiffEditorIds: { [editorId: string]: string };
 	protected _globalStyleSheet: GlobalStyleSheet | null;
 	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
@@ -61,7 +60,6 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		super();
 		this._codeEditors = Object.create(null);
 		this._diffEditors = Object.create(null);
-		this._codeEditorToDiffEditorIds = Object.create(null);
 		this._globalStyleSheet = null;
 	}
 
@@ -89,25 +87,12 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	addDiffEditor(editor: IDiffEditor): void {
-		const diffEditorId = editor.getId();
-		this._diffEditors[diffEditorId] = editor;
-		this._codeEditorToDiffEditorIds[editor.getOriginalEditor().getId()] = diffEditorId;
-		this._codeEditorToDiffEditorIds[editor.getModifiedEditor().getId()] = diffEditorId;
+		this._diffEditors[editor.getId()] = editor;
 		this._onDiffEditorAdd.fire(editor);
-	}
-
-	getDiffEditorIdForCodeEditorId(editorId: string): string | undefined {
-		return this._codeEditorToDiffEditorIds[editorId];
-	}
-
-	getDiffEditor(editorId: string): IDiffEditor | undefined {
-		return this._diffEditors[editorId];
 	}
 
 	removeDiffEditor(editor: IDiffEditor): void {
 		if (delete this._diffEditors[editor.getId()]) {
-			delete this._codeEditorToDiffEditorIds[editor.getOriginalEditor().getId()];
-			delete this._codeEditorToDiffEditorIds[editor.getModifiedEditor().getId()];
 			this._onDiffEditorRemove.fire(editor);
 		}
 	}
