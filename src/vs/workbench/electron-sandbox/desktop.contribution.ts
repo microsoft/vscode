@@ -413,10 +413,6 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			'use-inmemory-secretstorage': {
 				type: 'boolean',
 				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
-			},
-			'enable-rdp-display-tracking': {
-				type: 'boolean',
-				description: localize('argv.enableRDPDisplayTracking', "Ensures that maximized windows gets restored to correct display during RDP reconnection.")
 			}
 		}
 	};
@@ -428,6 +424,12 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 		schema.properties!['password-store'] = {
 			type: 'string',
 			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
+		};
+	}
+	if (isWindows) {
+		schema.properties!['enable-rdp-display-tracking'] = {
+			type: 'boolean',
+			description: localize('argv.enableRDPDisplayTracking', "Ensures that maximized windows gets restored to correct display during RDP reconnection.")
 		};
 	}
 
