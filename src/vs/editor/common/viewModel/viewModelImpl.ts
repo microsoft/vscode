@@ -185,6 +185,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getCustomLineHeights(): ICustomLineHeightData[] {
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (!allowVariableLineHeights) {
+			return [];
+		}
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
 		return decorations.map((d) => {
 			const lineNumber = d.range.startLineNumber;
@@ -434,27 +438,30 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
-		this._register(this.model.onDidChangeLineHeight((e) => {
-			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (allowVariableLineHeights) {
+			this._register(this.model.onDidChangeLineHeight((e) => {
+				const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
 
-			this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
-				for (const change of filteredChanges) {
-					const { decorationId, lineNumber, lineHeight } = change;
-					const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-					if (lineHeight !== null) {
-						accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
-					} else {
-						accessor.removeCustomLineHeight(decorationId);
+				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+					for (const change of filteredChanges) {
+						const { decorationId, lineNumber, lineHeight } = change;
+						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+						if (lineHeight !== null) {
+							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+						} else {
+							accessor.removeCustomLineHeight(decorationId);
+						}
 					}
-				}
-			});
+				});
 
-			// recreate the model event using the filtered changes
-			if (filteredChanges.length > 0) {
-				const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
-				this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
-			}
-		}));
+				// recreate the model event using the filtered changes
+				if (filteredChanges.length > 0) {
+					const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
+					this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
+				}
+			}));
+		}
 
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];

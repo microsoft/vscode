@@ -159,7 +159,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 		this.getShowDotFiles();
 		const disposableStore = this._register(new DisposableStore());
-		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'remoteFileDialog.showDotFiles', disposableStore)(async _ => {
+		disposableStore.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'remoteFileDialog.showDotFiles', disposableStore)(async _ => {
 			this.getShowDotFiles();
 			this.setButtons();
 			const startingValue = this.filePickBox.value;
@@ -167,7 +167,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.value = folderValue;
 			await this.tryUpdateItems(folderValue, this.currentFolder, true);
 			this.filePickBox.value = startingValue;
-		});
+		}));
 	}
 
 	private setShowDotFiles(showDotFiles: boolean) {

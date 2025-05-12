@@ -133,6 +133,9 @@ export interface IChatReferences {
 	kind: 'references';
 }
 
+/**
+ * Content type for the "Working" progress message
+ */
 export interface IChatWorkingProgress {
 	kind: 'working';
 	isPaused: boolean;
@@ -148,7 +151,7 @@ export interface IChatCodeCitations {
 }
 
 /**
- * Type for content parts rendered by IChatListRenderer
+ * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
 export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress;
 

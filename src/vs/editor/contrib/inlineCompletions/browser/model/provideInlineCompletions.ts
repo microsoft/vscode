@@ -12,7 +12,7 @@ import { SetMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
-import { SingleOffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
+import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -452,7 +452,7 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 
 function closeBrackets(text: string, position: Position, model: ITextModel, languageConfigurationService: ILanguageConfigurationService): string {
 	const currentLine = model.getLineContent(position.lineNumber);
-	const edit = SingleOffsetEdit.replace(new OffsetRange(position.column - 1, currentLine.length), text);
+	const edit = StringReplacement.replace(new OffsetRange(position.column - 1, currentLine.length), text);
 
 	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.replace(currentLine)]);
 	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterReplace());

@@ -10,7 +10,7 @@ import { booleanComparator, compareBy, numberComparator, tieBreakComparators } f
 import { findMaxIdx } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../editorBrowser.js';
 import { DiffEditorEditors } from '../components/diffEditorEditors.js';
@@ -46,7 +46,7 @@ export class MovedBlocksLinesFeature extends Disposable {
 		this.width = observableValue(this, 0);
 		this._modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 		this._originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
-		this._state = derivedWithStore(this, (reader, store) => {
+		this._state = derived(this, (reader) => {
 			/** @description state */
 
 			this._element.replaceChildren();
@@ -132,7 +132,7 @@ export class MovedBlocksLinesFeature extends Disposable {
 				const arrowRight = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
 				arrowRight.classList.add('arrow');
 
-				store.add(autorun(reader => {
+				reader.store.add(autorun(reader => {
 					path.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
 					arrowRight.classList.toggle('currentMove', line.move === model.activeMovedText.read(reader));
 				}));

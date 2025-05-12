@@ -77,7 +77,7 @@ class TestPromptFileReference extends Disposable {
 		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
 		@IFileService private readonly fileService: IFileService,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -93,7 +93,7 @@ class TestPromptFileReference extends Disposable {
 		options: Partial<IPromptParserOptions> = {},
 	): Promise<FilePromptParser> {
 		// create the files structure on the disk
-		await (this.initService.createInstance(MockFilesystem, this.fileStructure)).mock();
+		await (this.instantiationService.createInstance(MockFilesystem, this.fileStructure)).mock();
 
 		// randomly test with and without delay to ensure that the file
 		// reference resolution is not susceptible to race conditions
@@ -103,7 +103,7 @@ class TestPromptFileReference extends Disposable {
 
 		// start resolving references for the specified root file
 		const rootReference = this._register(
-			this.initService.createInstance(
+			this.instantiationService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
 				options,

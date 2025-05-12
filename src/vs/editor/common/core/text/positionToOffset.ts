@@ -5,7 +5,7 @@
 
 import { findLastIdxMonotonous } from '../../../../base/common/arraysFind.js';
 import { ITextModel } from '../../model.js';
-import { OffsetEdit, SingleOffsetEdit } from '../edits/offsetEdit.js';
+import { StringEdit, StringReplacement } from '../edits/stringEdit.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
@@ -31,21 +31,21 @@ export abstract class PositionOffsetTransformerBase {
 		);
 	}
 
-	getOffsetEdit(edit: TextEdit): OffsetEdit {
-		const edits = edit.replacements.map(e => this.getSingleOffsetEdit(e));
-		return new OffsetEdit(edits);
+	getStringEdit(edit: TextEdit): StringEdit {
+		const edits = edit.replacements.map(e => this.getStringReplacement(e));
+		return new StringEdit(edits);
 	}
 
-	getSingleOffsetEdit(edit: TextReplacement): SingleOffsetEdit {
-		return new SingleOffsetEdit(this.getOffsetRange(edit.range), edit.text);
+	getStringReplacement(edit: TextReplacement): StringReplacement {
+		return new StringReplacement(this.getOffsetRange(edit.range), edit.text);
 	}
 
-	getSingleTextEdit(edit: SingleOffsetEdit): TextReplacement {
+	getSingleTextEdit(edit: StringReplacement): TextReplacement {
 		return new TextReplacement(this.getRange(edit.replaceRange), edit.newText);
 	}
 
-	getTextEdit(edit: OffsetEdit): TextEdit {
-		const edits = edit.edits.map(e => this.getSingleTextEdit(e));
+	getTextEdit(edit: StringEdit): TextEdit {
+		const edits = edit.replacements.map(e => this.getSingleTextEdit(e));
 		return new TextEdit(edits);
 	}
 }

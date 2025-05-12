@@ -29,7 +29,7 @@ import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IC
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
-import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -71,6 +71,14 @@ export class MainThreadChatTask implements IChatTask {
 	add(progress: IChatWarningMessage | IChatContentReference): void {
 		this.progress.push(progress);
 		this._onDidAddProgress.fire(progress);
+	}
+
+	toJSON(): IChatTaskSerialized {
+		return {
+			kind: 'progressTaskSerialized',
+			content: this.content,
+			progress: this.progress
+		};
 	}
 }
 

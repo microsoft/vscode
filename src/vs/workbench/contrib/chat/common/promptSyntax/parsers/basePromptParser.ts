@@ -782,11 +782,11 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
 		options: Partial<IPromptParserOptions>,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.parser = this._register(initService.createInstance(
+		this.parser = this._register(instantiationService.createInstance(
 			BasePromptParser,
 			this.promptContentsProvider,
 			options,

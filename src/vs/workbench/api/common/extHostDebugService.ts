@@ -63,7 +63,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 
 export abstract class ExtHostDebugServiceBase extends DisposableCls implements IExtHostDebugService, ExtHostDebugServiceShape {
 
-	readonly _serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _configProviderHandleCounter: number;
 	private _configProviders: ConfigProviderTuple[];
