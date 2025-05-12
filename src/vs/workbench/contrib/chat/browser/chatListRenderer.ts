@@ -48,7 +48,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -905,7 +905,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderTreeData(content, templateData, context);
 		} else if (content.kind === 'progressMessage') {
 			return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context, undefined, undefined, undefined);
-		} else if (content.kind === 'progressTask') {
+		} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
 			return this.renderProgressTask(content, templateData, context);
 		} else if (content.kind === 'command') {
 			return this.instantiationService.createInstance(ChatCommandButtonContentPart, content, context);
@@ -1051,7 +1051,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return part;
 	}
 
-	private renderProgressTask(task: IChatTask, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
+	private renderProgressTask(task: IChatTask | IChatTaskSerialized, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		if (!isResponseVM(context.element)) {
 			return;
 		}
