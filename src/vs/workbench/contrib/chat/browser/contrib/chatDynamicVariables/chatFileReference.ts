@@ -23,7 +23,7 @@ export class ChatFileReference extends FilePromptParser implements IDynamicVaria
 	 */
 	constructor(
 		public readonly reference: IDynamicVariable,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
@@ -34,7 +34,7 @@ export class ChatFileReference extends FilePromptParser implements IDynamicVaria
 			`Variable data must be an URI, got '${data}'.`,
 		);
 
-		super(data, {}, initService, workspaceService, logService);
+		super(data, {}, instantiationService, workspaceService, logService);
 	}
 
 	/**
