@@ -5,7 +5,7 @@
 
 import { BugIndicatingError } from '../../common/errors.js';
 import { DisposableStore, IDisposable } from '../../common/lifecycle.js';
-import { derived, derivedOpts, derivedWithStore, IObservable, IReader, observableValue } from '../../common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, observableValue } from '../../common/observable.js';
 import { isSVGElement } from '../dom.js';
 
 export namespace n {
@@ -127,9 +127,9 @@ export abstract class ObserverNode<T extends Element = Element> {
 			ref(this._element);
 		}
 		if (obsRef) {
-			this._deriveds.push(derivedWithStore((_reader, store) => {
+			this._deriveds.push(derived((_reader) => {
 				obsRef(this as unknown as ObserverNodeWithElement<T>);
-				store.add({
+				_reader.store.add({
 					dispose: () => {
 						obsRef(null);
 					}

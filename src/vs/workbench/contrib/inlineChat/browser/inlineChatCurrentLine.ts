@@ -20,7 +20,7 @@ import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
-import { autorun, derivedWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import './media/inlineChat.css';
@@ -224,7 +224,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		const configHintEmpty = observableConfigValue(InlineChatConfigKeys.LineEmptyHint, false, this._configurationService);
 		const configHintNL = observableConfigValue(InlineChatConfigKeys.LineNLHint, false, this._configurationService);
 
-		const showDataObs = derivedWithStore((r, store) => {
+		const showDataObs = derived((r) => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
 
 			const textFocus = editorObs.isTextFocused.read(r);
@@ -244,8 +244,8 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 
 			// DEBT - I cannot use `model.onDidChangeContent` directly here
 			// https://github.com/microsoft/vscode/issues/242059
-			const emitter = store.add(new Emitter<void>());
-			store.add(model.onDidChangeContent(() => emitter.fire()));
+			const emitter = r.store.add(new Emitter<void>());
+			r.store.add(model.onDidChangeContent(() => emitter.fire()));
 			observableFromEvent(emitter.event, () => model.getVersionId()).read(r);
 
 			// position can be wrong

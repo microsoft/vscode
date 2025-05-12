@@ -101,45 +101,6 @@ export function derivedHandleChanges<T, TChangeSummary>(
 	);
 }
 
-/**
- * @deprecated Use `derived(reader => { reader.store.add(...) })` instead!
-*/
-export function derivedWithStore<T>(computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T>;
-/**
- * @deprecated Use `derived(reader => { reader.store.add(...) })` instead!
-*/
-export function derivedWithStore<T>(owner: DebugOwner, computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T>;
-export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: DisposableStore) => T) | DebugOwner, computeFnOrUndefined?: ((reader: IReader, store: DisposableStore) => T)): IObservable<T> {
-	let computeFn: (reader: IReader, store: DisposableStore) => T;
-	let owner: DebugOwner;
-	if (computeFnOrUndefined === undefined) {
-		computeFn = computeFnOrOwner as any;
-		owner = undefined;
-	} else {
-		owner = computeFnOrOwner;
-		computeFn = computeFnOrUndefined as any;
-	}
-
-	// Intentionally re-assigned in case an inactive observable is re-used later
-	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
-	let store = new DisposableStore();
-
-	return new Derived(
-		new DebugNameData(owner, undefined, computeFn),
-		r => {
-			if (store.isDisposed) {
-				store = new DisposableStore();
-			} else {
-				store.clear();
-			}
-			return computeFn(r, store);
-		},
-		undefined,
-		() => store.dispose(),
-		strictEquals,
-	);
-}
-
 export function derivedDisposable<T extends IDisposable | undefined>(computeFn: (reader: IReader) => T): IObservable<T>;
 export function derivedDisposable<T extends IDisposable | undefined>(owner: DebugOwner, computeFn: (reader: IReader) => T): IObservable<T>;
 export function derivedDisposable<T extends IDisposable | undefined>(computeFnOrOwner: ((reader: IReader) => T) | DebugOwner, computeFnOrUndefined?: ((reader: IReader) => T)): IObservable<T> {
