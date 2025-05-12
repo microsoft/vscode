@@ -46,7 +46,7 @@ class TextModelPromptParserTest extends Disposable {
 		initialContents: string[],
 		languageId: string = PROMPT_LANGUAGE_ID,
 		@IFileService fileService: IFileService,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -69,7 +69,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			initService.createInstance(TextModelPromptParser, this.model, {}),
+			instantiationService.createInstance(TextModelPromptParser, this.model, {}),
 		).start();
 	}
 
