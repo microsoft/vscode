@@ -22,7 +22,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatWidgetService, showChatView } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -34,6 +34,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -57,6 +59,7 @@ class SimpleBrowserOverlayWidget {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
@@ -81,13 +84,59 @@ class SimpleBrowserOverlayWidget {
 		this._domNode.appendChild(message);
 
 		let cts: CancellationTokenSource;
-		const selectButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('selectAnElement', 'Click to select an element.') }));
-		selectButton.element.className = 'element-selection-start';
-		selectButton.label = localize('startSelection', 'Start');
+		const actions: IAction[] = [];
+		actions.push(
+			toAction({
+				id: 'singleSelection',
+				label: localize('selectElementDropdown', 'Select an Element'),
+				enabled: true,
+				run: async () => { await startElementSelection(); }
+			}),
+			toAction({
+				id: 'continuousSelection',
+				label: localize('continuousSelectionDropdown', 'Continuous Selection'),
+				enabled: true,
+				run: async () => {
+					this._editor.focus();
+					cts = new CancellationTokenSource();
+					// start selection
+					message.textContent = localize('elementSelectionInProgress', 'Selecting element...');
+					this.hideElement(startButton.element);
+					this.showElement(cancelButton.element);
+					cancelButton.label = localize('finishSelectionLabel', 'Done');
+					while (!cts.token.isCancellationRequested) {
+						try {
+							await this.addElementToChat(cts);
+						} catch (err) {
+							this.logService.error('Failed to select this element.', err);
+							cts.cancel();
+							break;
+						}
+					}
+
+					// stop selection
+					message.textContent = localize('elementSelectionComplete', 'Element added to chat');
+					finishedSelecting();
+				}
+			}));
+
+		const startButton = this._showStore.add(new ButtonWithDropdown(this._domNode, {
+			actions: actions,
+			addPrimaryActionToDropdown: false,
+			contextMenuProvider: this.contextMenuService,
+			supportShortLabel: true,
+			title: localize('selectAnElement', 'Click to select an element.'),
+			supportIcons: true,
+			...defaultButtonStyles
+		}));
+
+		startButton.primaryButton.label = localize('startSelection', 'Start');
+		startButton.element.classList.add('element-selection-start');
 
 		const cancelButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
 		cancelButton.element.className = 'element-selection-cancel hidden';
-		cancelButton.label = localize('cancel', 'Cancel');
+		const cancelButtonLabel = localize('cancelSelectionLabel', 'Cancel');
+		cancelButton.label = cancelButtonLabel;
 
 		const configure = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
 		configure.icon = Codicon.gear;
@@ -109,13 +158,14 @@ class SimpleBrowserOverlayWidget {
 
 		const resetButtons = () => {
 			this.hideElement(nextSelection.element);
-			this.showElement(selectButton.element);
+			this.showElement(startButton.element);
 			this.showElement(collapseOverlay.element);
 		};
 
 		const finishedSelecting = () => {
 			// stop selection
 			this.hideElement(cancelButton.element);
+			cancelButton.label = cancelButtonLabel;
 			this.hideElement(collapseOverlay.element);
 			this.showElement(nextSelection.element);
 
@@ -126,19 +176,23 @@ class SimpleBrowserOverlayWidget {
 			}, 3000);
 		};
 
-		this._showStore.add(addDisposableListener(selectButton.element, 'click', async () => {
+		const startElementSelection = async () => {
 			cts = new CancellationTokenSource();
 			this._editor.focus();
 
 			// start selection
 			message.textContent = localize('elementSelectionInProgress', 'Selecting element...');
-			this.hideElement(selectButton.element);
+			this.hideElement(startButton.element);
 			this.showElement(cancelButton.element);
 			await this.addElementToChat(cts);
 
 			// stop selection
 			message.textContent = localize('elementSelectionComplete', 'Element added to chat');
 			finishedSelecting();
+		};
+
+		this._showStore.add(addDisposableListener(startButton.primaryButton.element, 'click', async () => {
+			await startElementSelection();
 		}));
 
 		this._showStore.add(addDisposableListener(cancelButton.element, 'click', () => {
