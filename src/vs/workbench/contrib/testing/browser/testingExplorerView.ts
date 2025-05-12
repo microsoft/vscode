@@ -212,7 +212,7 @@ export class TestingExplorerView extends ViewPane {
 				!alreadyIncluded
 				// And it can be run using the current profile (if any)
 				&& isRunnableWithProfileOrBitset(element.test)
-				// And either it's a leaf node or most children are included, the  include it.
+				// And either it's a leaf node or most children are included, then include it.
 				&& (visibleRunnableChildren === 0 || visibleRunnableChildren * 2 >= inTree.children.length)
 				// And not if we're only showing a single of its children, since it
 				// probably fans out later. (Worse case we'll directly include its single child)
@@ -261,22 +261,8 @@ export class TestingExplorerView extends ViewPane {
 				continue;
 			}
 
-			// single controllers won't have visible root ID nodes, handle that  case specially
-			if (!this.viewModel.tree.hasElement(element)) {
-				const visibleChildren = [...element.children].reduce((acc, c) =>
-					this.viewModel.tree.hasElement(c) && this.viewModel.tree.getNode(c).visible ? acc + 1 : acc, 0);
-
-				// note we intentionally check children > 0 here, unlike above, since
-				// we don't want to bother dispatching to controllers who have no discovered tests
-				if (element.children.size > 0 && visibleChildren * 2 >= element.children.size) {
-					include.add(element.test);
-					element.children.forEach(c => attempt(c, true));
-				} else {
-					element.children.forEach(c => attempt(c, false));
-				}
-			} else {
-				attempt(element, false);
-			}
+			include.add(element.test);
+			element.children.forEach(c => attempt(c, true));
 		}
 
 		return { include: [...include], exclude };
