@@ -54,6 +54,10 @@ export interface IEditorOptions {
 	 */
 	inDiffEditor?: boolean;
 	/**
+	 * This editor is allowed to use variable line heights.
+	 */
+	allowVariableLineHeights?: boolean;
+	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
@@ -5449,6 +5453,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	allowVariableLineHeights,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5629,6 +5634,9 @@ export const EditorOptions = {
 			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
 			tags: ['accessibility']
 		})),
+	allowVariableLineHeights: register(new EditorBooleanOption(
+		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
