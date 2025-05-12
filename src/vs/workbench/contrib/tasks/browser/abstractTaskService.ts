@@ -677,14 +677,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const actions = [];
 				if (chatEnabled) {
 					actions.push({
-						label: nls.localize('troubleshootWithChat', "Troubleshoot with chat"),
+						label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
 						run: async () => {
 							this._commandService.executeCommand(TroubleshootTaskConfigError, errorMessage);
 						}
 					});
 				}
 				actions.push({
-					label: nls.localize('showOutput', "Show output"),
+					label: nls.localize('showOutput', "Show Output"),
 					run: () => {
 						this._outputService.showChannel(this._outputChannel.id, true);
 					}
