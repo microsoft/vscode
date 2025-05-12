@@ -84,9 +84,9 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { TroubleshootTaskConfigError } from './task.contribution.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
+import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -675,11 +675,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else {
 				const chatEnabled = this._chatService.isEnabled(ChatAgentLocation.Panel);
 				const actions = [];
-				if (chatEnabled) {
+				if (chatEnabled && errorMessage) {
 					actions.push({
 						label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
 						run: async () => {
-							this._commandService.executeCommand(TroubleshootTaskConfigError, errorMessage);
+							this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this: ' + errorMessage });
 						}
 					});
 				}
