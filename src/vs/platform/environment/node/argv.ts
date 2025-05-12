@@ -237,7 +237,8 @@ const ignoringReporter = {
 };
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
-	const firstArg = args.find(a => a.length > 0 && a[0] !== '-');
+	// Find the first non-option arg, which also isn't the value for a previous `--flag`
+	const firstPossibleCommand = args.find((a, i) => a.length > 0 && a[0] !== '-' && options.hasOwnProperty(a) && options[a as T].type === 'subcommand');
 
 	const alias: { [key: string]: string } = {};
 	const stringOptions: string[] = ['_'];
@@ -247,7 +248,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.type === 'subcommand') {
-			if (optionId === firstArg) {
+			if (optionId === firstPossibleCommand) {
 				command = o;
 			}
 		} else {
@@ -271,17 +272,17 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			}
 		}
 	}
-	if (command && firstArg) {
+	if (command && firstPossibleCommand) {
 		const options = globalOptions;
 		for (const optionId in command.options) {
 			options[optionId] = command.options[optionId];
 		}
-		const newArgs = args.filter(a => a !== firstArg);
-		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
+		const newArgs = args.filter(a => a !== firstPossibleCommand);
+		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstPossibleCommand) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
-			[firstArg]: subcommandOptions,
+			[firstPossibleCommand]: subcommandOptions,
 			_: []
 		};
 	}
