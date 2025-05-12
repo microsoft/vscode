@@ -767,7 +767,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 						break;
 					case StateType.Updating:
 						updateButton.style.display = 'flex';
-						span.innerText = "Installing..."
+						span.innerText = "Installing...";
 						break;
 					case StateType.Ready:
 						updateButton.style.display = 'flex';
@@ -805,7 +805,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		creatorModeButton.style.borderRadius = "8px";
 		creatorModeButton.style.border = "none";
 		creatorModeButton.style.cursor = "pointer";
-		creatorModeButton.style.fontSize = "14px";
+		creatorModeButton.style.fontSize = isWindows ? "1.5em" : "14px";
 		creatorModeButton.style.display = "inline-flex";
 		creatorModeButton.style.alignItems = "center";
 		creatorModeButton.style.justifyContent = "center";
@@ -843,7 +843,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		creatorModeButton.style.opacity = "0";
 		visibleCreatorModeButton.style.position = "fixed";
 		visibleCreatorModeButton.style.top = "0";
-		visibleCreatorModeButton.style.right = "0";
+		visibleCreatorModeButton.style.right = isWindows ? "12vw" : "0";
 		visibleCreatorModeButton.style.zIndex = "999";
 		visibleCreatorModeButton.style.cursor = "pointer";
 
