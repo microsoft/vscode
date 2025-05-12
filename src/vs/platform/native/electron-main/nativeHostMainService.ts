@@ -32,9 +32,9 @@ import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties,
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { defaultWindowState, ICodeWindow, IWindowState, WindowMode } from '../../window/electron-main/window.js';
+import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from '../../windows/electron-main/windows.js';
+import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -56,9 +56,6 @@ export const INativeHostMainService = createDecorator<INativeHostMainService>('n
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
-
-	// Stores the bounds of maximized windows to restore them when a display is added
-	private readonly maximizedWindowState: Map<number, IWindowState> = new Map();
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -94,36 +91,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id),
 				Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id)
 			);
-
-			// Windows-specific RDP multi-monitor workaround:
-			// Refs https://github.com/electron/electron/issues/47016
-			if (isWindows && this.environmentMainService.enableRDPDisplayTracking) {
-				this._register(this.onDidMaximizeWindow(windowId => {
-					const window = this.windowById(windowId);
-					if (window?.win) {
-						try {
-							const bounds = window.win.getBounds();
-							const display = screen.getDisplayMatching(bounds);
-							const state: IWindowState = {
-								mode: WindowMode.Maximized,
-								width: bounds.width,
-								height: bounds.height,
-								x: bounds.x,
-								y: bounds.y
-							};
-							this.maximizedWindowState.set(windowId, state);
-							this.logService.debug(`Saved maximized window ${windowId} display bounds:`, display.bounds);
-						} catch (err) { }
-					}
-				}));
-
-				this._register(this.onDidUnmaximizeWindow(windowId => {
-					if (this.maximizedWindowState.has(windowId)) {
-						this.maximizedWindowState.delete(windowId);
-						this.logService.debug(`Cleared maximized window ${windowId} bounds`);
-					}
-				}));
-			}
 
 			this.onDidChangeWindowFullScreen = Event.any(
 				Event.map(this.windowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen })),
@@ -161,13 +128,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					// react on this event as there is no change in display bounds.
 					return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
 				}),
-				isWindows ? Event.map(
-					Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => display),
-					display => {
-						this.handleDisplayAdded(display);
-						return display;
-					}
-				) : Event.fromNodeEventEmitter(screen, 'display-added'),
+				Event.fromNodeEventEmitter(screen, 'display-added'),
 				Event.fromNodeEventEmitter(screen, 'display-removed')
 			), () => { }, 100);
 		}
@@ -1104,44 +1065,5 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
-	}
-
-	// Handles the display-added event on Windows RDP multi-monitor scenarios.
-	// This helps restore maximized windows to their correct monitor after RDP reconnection.
-	// Refs https://github.com/electron/electron/issues/47016
-	private handleDisplayAdded(display: Display): void {
-		if (!isWindows || !this.environmentMainService.enableRDPDisplayTracking ||
-			!this.maximizedWindowState.size) {
-			return;
-		}
-
-		const displayWorkingArea = WindowStateValidator.getWorkingArea(display);
-
-		for (const [windowId, state] of this.maximizedWindowState.entries()) {
-			const window = this.windowById(windowId);
-			if (
-				typeof state.x !== 'number' ||
-				typeof state.y !== 'number' ||
-				typeof state.width !== 'number' ||
-				typeof state.height !== 'number'
-			) {
-				continue;
-			}
-
-			if (displayWorkingArea &&											// we have valid working area bounds
-				state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-				state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-				state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-				state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-			) {
-				this.logService.debug(`Setting maximized window ${windowId} bounds to match newly added display`, state);
-				window?.win?.setBounds({
-					x: state.x,
-					y: state.y,
-					width: state.width,
-					height: state.height
-				});
-			}
-		}
 	}
 }

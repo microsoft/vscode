@@ -41,6 +41,8 @@ export interface IBaseWindow extends IDisposable {
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 
 	matches(webContents: electron.WebContents): boolean;
+
+	readonly maximizedWindowState: IWindowState | undefined;
 }
 
 export interface ICodeWindow extends IBaseWindow {
