@@ -114,4 +114,12 @@ suite('FrontMatterDecoder', () => {
 				new Space(new Range(3, 27, 3, 28)),
 			]);
 	});
+
+	test('• empty', async () => {
+		const test = disposables.add(
+			new TestFrontMatterDecoder(),
+		);
+
+		await test.run('', []);
+	});
 });

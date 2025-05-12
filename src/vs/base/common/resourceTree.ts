@@ -91,7 +91,7 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		return collect(node, []);
 	}
 
-	static isResourceNode<T, C>(obj: any): obj is IResourceNode<T, C> {
+	static isResourceNode<T, C>(obj: unknown): obj is IResourceNode<T, C> {
 		return obj instanceof Node;
 	}
 

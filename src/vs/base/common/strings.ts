@@ -102,7 +102,7 @@ export function count(value: string, substr: string): number {
 	return result;
 }
 
-export function truncate(value: string, maxLength: number, suffix = '…'): string {
+export function truncate(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -110,7 +110,7 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	return `${value.substr(0, maxLength)}${suffix}`;
 }
 
-export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -1359,3 +1359,5 @@ export class InvisibleCharacters {
 		return InvisibleCharacters.getData();
 	}
 }
+
+export const Ellipsis = '\u2026';

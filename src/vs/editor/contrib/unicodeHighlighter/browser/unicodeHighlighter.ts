@@ -214,9 +214,9 @@ function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptio
 }
 
 class DocumentUnicodeHighlighter extends Disposable {
-	private readonly _model: ITextModel = this._editor.getModel();
+	private readonly _model: ITextModel;
 	private readonly _updateSoon: RunOnceScheduler;
-	private _decorations = this._editor.createDecorationsCollection();
+	private _decorations;
 
 	constructor(
 		private readonly _editor: IActiveCodeEditor,
@@ -225,6 +225,8 @@ class DocumentUnicodeHighlighter extends Disposable {
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super();
+		this._model = this._editor.getModel();
+		this._decorations = this._editor.createDecorationsCollection();
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._update(), 250));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
@@ -298,9 +300,9 @@ class DocumentUnicodeHighlighter extends Disposable {
 
 class ViewportUnicodeHighlighter extends Disposable {
 
-	private readonly _model: ITextModel = this._editor.getModel();
+	private readonly _model: ITextModel;
 	private readonly _updateSoon: RunOnceScheduler;
-	private readonly _decorations = this._editor.createDecorationsCollection();
+	private readonly _decorations;
 
 	constructor(
 		private readonly _editor: IActiveCodeEditor,
@@ -308,6 +310,8 @@ class ViewportUnicodeHighlighter extends Disposable {
 		private readonly _updateState: (state: IUnicodeHighlightsResult | null) => void,
 	) {
 		super();
+		this._model = this._editor.getModel();
+		this._decorations = this._editor.createDecorationsCollection();
 
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._update(), 250));
 
