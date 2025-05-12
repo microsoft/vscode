@@ -52,6 +52,7 @@ export class PearOverlayPart extends Part {
 	private popupAreaOverlay: HTMLElement | undefined;
 	private webviewView: WebviewView | undefined;
 	private _webviewService: WebviewService | undefined;
+	private _readyForMessage: boolean = false;
 
 	private state: "loading" | "open" | "closed" = "loading";
 	private _isLocked: boolean = false;
@@ -151,7 +152,9 @@ export class PearOverlayPart extends Part {
 			get title(): string | undefined {
 				return PEAR_OVERLAY_TITLE;
 			},
-			set title(value: string | undefined) {},
+			set title(value: string | undefined) {
+				if(value)webview.setTitle(value);
+			},
 
 			get description(): string | undefined {
 				return undefined;
@@ -304,7 +307,7 @@ export class PearOverlayPart extends Part {
 		}
 	}
 
-	private open() {
+	private async open() {
 		if (this.state === "open") {
 			return;
 		}
@@ -330,11 +333,29 @@ export class PearOverlayPart extends Part {
 		});
 
 		this.webviewView!.webview.layoutWebviewOverElement(this.popupAreaOverlay!);
-		// handle queued messages
 
-		Promise.all(this.queuedMessagesOnReady.map(x => this.webviewView!.webview.postMessage(x))).catch(e => {
-			console.error("Failed to send queued messages to the webview :(", e);
-		})
+		let messageReceived = false;
+
+		this.webviewView!.webview.onMessage((e) => {
+				console.log("Received message from webview:", e.message);
+				if (e.message.messageType === "loaded" || e.message.messageType === "pong") {
+						messageReceived = true;
+				}
+		});
+
+		this.webviewView!.webview.postMessage({ messageType: "ping" });
+
+		// Wait briefly for a response + send another ping if it was lost
+		for (let i = 0; i < 100; i++) {
+			if (messageReceived) break;
+			this.webviewView!.webview.postMessage({ messageType: "ping" });
+			await new Promise(resolve => setTimeout(resolve, 5));
+		}
+		this._readyForMessage = true;
+
+		// handle queued messages
+		await Promise.all(this.queuedMessagesOnReady.map(x => this.webviewView!.webview.postMessage(x)));
+
 		this.focus();
 	}
 
@@ -342,6 +363,8 @@ export class PearOverlayPart extends Part {
 		if (this.isLocked) {
 			return; // Prevent closing when locked
 		}
+
+		this._readyForMessage = false;
 
 		if (this.state === "closed") {
 			return;
@@ -372,6 +395,7 @@ export class PearOverlayPart extends Part {
 		}
 	}
 
+	show(tab?: string): void
 	show(): void {
 		if (this.state === "loading") {
 			console.warn("Can't open PearAI while loading");
@@ -448,9 +472,9 @@ export class PearOverlayPart extends Part {
 		}
 	}
 
-	public async postMessageToWebview(msg: any): Promise<boolean> {
-		if(this.webviewView?.webview) {
-			return this.webviewView.webview.postMessage(msg);
+	public async postMessageToWebview(msg: { messageType: string, payload: any, messageId?: string}): Promise<boolean> {
+		if(this._readyForMessage) {
+			return this.webviewView!.webview.postMessage(msg);
 		} else {
 			this.queuedMessagesOnReady.push(msg);
 			return false;

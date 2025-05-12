@@ -120,7 +120,14 @@ export class PearOverlayService
 		CommandsRegistry.registerCommand("pearai.showOverlay.feedback", (accessor) => {
 			const overlayService = accessor.get(IPearOverlayService);
 			overlayService.show();
-			overlayService.postMessageToWebview("openFeedback");
+			overlayService.postMessageToWebview({
+				destination: "settings",
+				messageType: "tab",
+				messageId: "1",
+				payload: {
+					tab: "creator-feedback"
+				}
+			});
 		});
 
 		CommandsRegistry.registerCommand("pearai.hideOverlay", (accessor) => {
@@ -195,7 +202,7 @@ export class PearOverlayService
 		return this._pearOverlayPart.isVisible();
 	}
 
-	postMessageToWebview(msg: any): Promise<boolean> {
+	postMessageToWebview(msg: { messageType: string, payload: any, messageId?: string}): Promise<boolean> {
 		return this._pearOverlayPart.postMessageToWebview(msg);
 	}
 }
