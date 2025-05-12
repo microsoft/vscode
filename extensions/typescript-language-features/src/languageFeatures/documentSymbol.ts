@@ -124,14 +124,11 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	}
 }
 
-export let typeScriptDocumentSymbolProvider: TypeScriptDocumentSymbolProvider | undefined = undefined;
-
 export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	typeScriptDocumentSymbolProvider = new TypeScriptDocumentSymbolProvider(client, cachedResponse);
 	return vscode.languages.registerDocumentSymbolProvider(selector.syntax,
-		typeScriptDocumentSymbolProvider, { label: 'TypeScript' });
+		new TypeScriptDocumentSymbolProvider(client, cachedResponse), { label: 'TypeScript' });
 }

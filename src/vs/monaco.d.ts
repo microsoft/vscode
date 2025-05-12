@@ -3116,7 +3116,7 @@ declare namespace monaco.editor {
 		 */
 		inDiffEditor?: boolean;
 		/**
-		 * Allow variable line heights.
+		 * This editor is allowed to use variable line heights.
 		 */
 		allowVariableLineHeights?: boolean;
 		/**

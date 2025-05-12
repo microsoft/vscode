@@ -55,7 +55,7 @@ export interface IEditorOptions {
 	 */
 	inDiffEditor?: boolean;
 	/**
-	 * Allow variable line heights.
+	 * This editor is allowed to use variable line heights.
 	 */
 	allowVariableLineHeights?: boolean;
 	/**

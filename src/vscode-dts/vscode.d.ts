@@ -1062,11 +1062,6 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
-		lineHeight?: number;
-
-		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 */
 		textDecoration?: string;
 
 		/**
