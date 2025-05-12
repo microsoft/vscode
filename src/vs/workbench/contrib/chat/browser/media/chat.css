@@ -906,7 +906,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: auto;
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+.interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	min-width: 0px;
 
 	.chat-modelPicker-item {

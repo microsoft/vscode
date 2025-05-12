@@ -1052,29 +1052,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			hoverDelegate
-		}));
-		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
-		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
-			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
-				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
-			}
-		}));
-		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
-			telemetrySource: this.options.menus.telemetrySource,
-			menuOptions: {
-				shouldForwardArgs: true
-			},
 			hoverDelegate,
-			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
-				if (this.location === ChatAgentLocation.Panel || this.location === ChatAgentLocation.Editor) {
-					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
-						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
-						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, { ...options, menuAsChild: false });
-					}
-				}
-
 				if (action.id === ChatOpenModelPickerActionId && action instanceof MenuItemAction) {
 					if (!this._currentLanguageModel) {
 						this.setCurrentLanguageModelToDefault();
@@ -1100,6 +1079,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						onDidChangeMode: this._onDidChangeCurrentChatMode.event
 					};
 					return this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
+				}
+
+				return undefined;
+			}
+		}));
+		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
+		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
+				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+			}
+		}));
+		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
+			telemetrySource: this.options.menus.telemetrySource,
+			menuOptions: {
+				shouldForwardArgs: true
+			},
+			hoverDelegate,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
+			actionViewItemProvider: (action, options) => {
+				if (this.location === ChatAgentLocation.Panel || this.location === ChatAgentLocation.Editor) {
+					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
+						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
+						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, { ...options, menuAsChild: false });
+					}
 				}
 
 				return undefined;

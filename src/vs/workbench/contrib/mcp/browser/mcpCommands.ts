@@ -56,9 +56,9 @@ export class ListMcpServerCommand extends Action2 {
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
-				id: MenuId.ChatInput,
+				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 101
+				order: 2,
 			},
 		});
 	}
