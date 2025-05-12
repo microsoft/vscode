@@ -678,7 +678,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					},
 					{
-						label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
+						label: nls.localize('troubleshootWithChat', "Troubleshoot with chat"),
 						run: async () => {
 							this._commandService.executeCommand(TroubleshootTaskConfigError, errorMessage);
 						}

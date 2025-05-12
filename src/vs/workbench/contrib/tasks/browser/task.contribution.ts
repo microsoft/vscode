@@ -610,8 +610,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, args: string): Promise<void> {
-		console.log('args ', args);
 		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this error ' + args });
+		commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this: ' + args });
 	}
 });
