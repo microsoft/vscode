@@ -407,6 +407,10 @@ export interface IEditorOptions {
 	 */
 	scrollPredominantAxis?: boolean;
 	/**
+	 * Make scrolling inertial - mostly useful with touchpad on linux.
+	 */
+	inertialScroll?: boolean;
+	/**
 	 * Enable that the selection with the mouse and keys is doing column selection.
 	 * Defaults to false.
 	 */
@@ -5591,6 +5595,7 @@ export const enum EditorOption {
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
+	inertialScroll,
 	inlayHints,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
@@ -5973,6 +5978,10 @@ export const EditorOptions = {
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
 		EditorOption.inDiffEditor, 'inDiffEditor', false
+	)),
+	inertialScroll: register(new EditorBooleanOption(
+		EditorOption.inertialScroll, 'inertialScroll', false,
+		{ description: nls.localize('inertialScroll', "Make scrolling inertial - mostly useful with touchpad on linux.") }
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',
