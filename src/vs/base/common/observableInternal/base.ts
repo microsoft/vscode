@@ -570,3 +570,19 @@ export class DisposableObservableValue<T extends IDisposable | undefined, TChang
 		this._value?.dispose();
 	}
 }
+
+export interface IReaderWithStore extends IReader {
+	/**
+	 * Items in this store get disposed just before the observable recomputes/reruns or when it becomes unobserved.
+	*/
+	get store(): DisposableStore;
+
+	/**
+	 * Items in this store get disposed just after the observable recomputes/reruns or when it becomes unobserved.
+	 * This is important if the current run needs the undisposed result from the last run.
+	 *
+	 * Warning: Items in this store might still get disposed before dependents (that read the now disposed value in the past) are recomputed with the new (undisposed) value!
+	 * A clean solution for this is ref counting.
+	*/
+	get delayedStore(): DisposableStore;
+}
