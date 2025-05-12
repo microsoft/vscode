@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatProgressMessage, IChatTask } from '../../common/chatService.js';
+import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
 import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
@@ -27,7 +27,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly isHidden: boolean;
 
 	constructor(
-		progress: IChatProgressMessage | IChatTask,
+		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner: boolean | undefined,
