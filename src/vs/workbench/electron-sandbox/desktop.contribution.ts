@@ -283,6 +283,35 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'scope': ConfigurationScope.APPLICATION,
 				'included': isMacintosh
 			},
+			'window.workspacesOverlay': {
+				'type': 'object',
+				'description': localize('window.workspacesOverlay', "macOS-specific feature to keep the main window on top of all workspaces."),
+				'scope': ConfigurationScope.APPLICATION,
+				'included': isMacintosh,
+				'properties': {
+					'enabled': {
+						'type': 'boolean',
+						'default': false,
+						'description': localize('window.workspacesOverlay.enabled', "Enables a macOS-specific feature that keeps the main window on top of all workspaces, visible across fullscreen apps, dynamically sized to the primary display, and toggleable via a keyboard shortcut when set to true."),
+					},
+					'hotKey': {
+						'type': 'string',
+						'default': 'CommandOrControl+Enter',
+						'description': localize('window.workspacesOverlay.hotKey', "Specifies the keyboard shortcut used to toggle the workspaces overlay on and off, following the Electron accelerator format (see https://www.electronjs.org/docs/latest/api/accelerator). Only applicable when the overlay is enabled."),
+					},
+					'alwaysOnTop': {
+						'type': 'boolean',
+						'default': true,
+						'description': localize('window.workspacesOverlay.alwaysOnTop', "When true, ensures the overlay remains above all other windows and fullscreen applications on macOS, enhancing accessibility across workspaces."),
+					},
+					'snapMode': {
+						'type': 'string',
+						'enum': ['bottom', 'top', 'left', 'right'],
+						'default': 'bottom',
+						'description': localize('window.workspacesOverlay.snapMode', "Defines the edge of the screen where the overlay docks when active. Options include 'bottom', 'top', 'left', or 'right', adapting to user preference and display layout."),
+					},
+				}
+			},
 			'window.clickThroughInactive': {
 				'type': 'boolean',
 				'default': true,
