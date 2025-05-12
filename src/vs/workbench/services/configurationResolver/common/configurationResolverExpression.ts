@@ -65,7 +65,7 @@ interface IReplacementLocation {
 export class ConfigurationResolverExpression<T> implements IConfigurationResolverExpression<T> {
 	public static readonly VARIABLE_LHS = '${';
 
-	private locations = new Map<string, IReplacementLocation>();
+	private readonly locations = new Map<string, IReplacementLocation>();
 	private root: T;
 	private stringRoot: boolean;
 	/**
@@ -173,16 +173,13 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		}
 
 		for (const [key, value] of Object.entries(obj)) {
+			this.parseString(obj, key, key, true); // parse key
+
 			if (typeof value === 'string') {
 				this.parseString(obj, key, value);
 			} else {
 				this.parseObject(value);
 			}
-		}
-
-		// only after all values are marked for replacement, we can collect keys that have to be replaced
-		for (const [key] of Object.entries(obj)) {
-			this.parseString(obj, key, key, true);
 		}
 	}
 
@@ -281,6 +278,7 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			const newKey = propertyName.replaceAll(replacement.id, data.value);
 			delete object[propertyName];
 			object[newKey] = value;
+			this._renameKeyInLocations(object, propertyName, newKey);
 			this.parseString(object, newKey, data.value, true, path);
 		} else {
 			object[propertyName] = object[propertyName].replaceAll(replacement.id, data.value);
@@ -288,6 +286,16 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		}
 
 		path.pop();
+	}
+
+	private _renameKeyInLocations(obj: object, oldKey: string, newKey: string) {
+		for (const location of this.locations.values()) {
+			for (const loc of location.locations) {
+				if (loc.object === obj && loc.propertyName === oldKey) {
+					loc.propertyName = newKey;
+				}
+			}
+		}
 	}
 
 	public toObject(): T {
