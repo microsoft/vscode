@@ -689,7 +689,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this._outputService.showChannel(this._outputChannel.id, true);
 					}
 				});
-				this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'), actions);
+				if (chatEnabled) {
+					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPromptChat', 'There are task errors. Use chat to resolve them or view the output for details.'), actions);
+				} else {
+					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'), actions);
+				}
 			}
 		}
 	}
