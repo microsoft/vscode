@@ -7,7 +7,7 @@ import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equal
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, derivedOpts, derivedWithStore, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -125,7 +125,7 @@ export class InlineEditsView extends Disposable {
 			null
 		));
 		this._indicatorCyclicDependencyCircuitBreaker = observableValue(this, false);
-		this._indicator = derivedWithStore<InlineEditsGutterIndicator | undefined>(this, (reader, store) => {
+		this._indicator = derived<InlineEditsGutterIndicator | undefined>(this, (reader) => {
 			if (!this._indicatorCyclicDependencyCircuitBreaker.read(reader)) {
 				return undefined;
 			}
@@ -168,7 +168,7 @@ export class InlineEditsView extends Disposable {
 				return model;
 			});
 
-			return store.add(this._instantiationService.createInstance(
+			return reader.store.add(this._instantiationService.createInstance(
 				InlineEditsGutterIndicator,
 				this._editorObs,
 				indicatorDisplayRange,

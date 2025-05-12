@@ -13,7 +13,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -76,8 +76,8 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				return;
 			}
 
-			const contentWidgetValue = derivedWithStore((reader, store) => {
-				const contentWidget = store.add(this.instantiationService.createInstance(
+			const contentWidgetValue = derived((reader) => {
+				const contentWidget = reader.store.add(this.instantiationService.createInstance(
 					InlineSuggestionHintsContentWidget.hot.read(reader),
 					this.editor,
 					true,
@@ -89,9 +89,9 @@ export class InlineCompletionsHintsWidget extends Disposable {
 					() => { },
 				));
 				editor.addContentWidget(contentWidget);
-				store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
+				reader.store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
 
-				store.add(autorun(reader => {
+				reader.store.add(autorun(reader => {
 					/** @description request explicit */
 					const position = this.position.read(reader);
 					if (!position) {
@@ -184,7 +184,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this.id = `InlineSuggestionHintsContentWidget${InlineSuggestionHintsContentWidget.id++}`;
 		this.allowEditorOverflow = true;
 		this.suppressMouseDown = false;
-		this._warningMessageContentNode = derivedWithStore((reader, store) => {
+		this._warningMessageContentNode = derived((reader) => {
 			const warning = this._warning.read(reader);
 			if (!warning) {
 				return undefined;
@@ -192,7 +192,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			if (typeof warning.message === 'string') {
 				return warning.message;
 			}
-			const markdownElement = store.add(renderMarkdown(warning.message));
+			const markdownElement = reader.store.add(renderMarkdown(warning.message));
 			return markdownElement.element;
 		});
 		this._warningMessageNode = n.div({
