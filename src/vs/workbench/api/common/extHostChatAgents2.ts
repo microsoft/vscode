@@ -13,7 +13,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { assertType } from '../../../base/common/types.js';
+import { assertType, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { Location } from '../../../editor/common/languages.js';
@@ -424,7 +424,15 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(detector.extension), this.getToolsForRequest(detector.extension, request), this.getTools2ForRequest(detector.extension, request), detector.extension);
+		const extRequest = typeConvert.ChatAgentRequest.to(
+			request,
+			location,
+			model,
+			this.getDiagnosticsWhenEnabled(detector.extension),
+			this.getToolsForRequest(detector.extension, request),
+			this.getTools2ForRequest(detector.extension, request),
+			detector.extension,
+			this._logService);
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -515,7 +523,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				this.getDiagnosticsWhenEnabled(agent.extension),
 				this.getToolsForRequest(agent.extension, request),
 				this.getTools2ForRequest(agent.extension, request),
-				agent.extension
+				agent.extension,
+				this._logService
 			);
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
 			this._inFlightRequests.add(inFlightRequest);
@@ -612,7 +621,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// REQUEST turn
 			const varsWithoutTools = h.request.variables.variables
 				.filter(v => v.kind !== 'tool')
-				.map(v => typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension)));
+				.map(v => typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension), this._logService))
+				.filter(isDefined);
 			const toolReferences = h.request.variables.variables
 				.filter(v => v.kind === 'tool')
 				.map(typeConvert.ChatLanguageModelToolReference.to);
