@@ -69,6 +69,7 @@ import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.j
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { basename } from '../../../../base/common/path.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -317,40 +318,17 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItemChange: ISCMHistoryItemChange) {
-		// const commandService = accessor.get(ICommandService);
+	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange) {
+		const editorService = accessor.get(IEditorService);
 
-		// if (!provider || historyItems.length === 0) {
-		// 	return;
-		// }
+		if (!historyItem || !historyItemChange.modifiedUri) {
+			return;
+		}
 
-		// const historyItem = historyItems[0];
-		// const historyItemLast = historyItems[historyItems.length - 1];
-		// const historyProvider = provider.historyProvider.get();
-
-		// if (historyItems.length > 1) {
-		// 	const ancestor = await historyProvider?.resolveHistoryItemRefsCommonAncestor([historyItem.id, historyItemLast.id]);
-		// 	if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
-		// 		return;
-		// 	}
-		// }
-
-		// const historyItemParentId = historyItemLast.parentIds.length > 0 ? historyItemLast.parentIds[0] : undefined;
-		// const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
-
-		// if (!historyItemChanges?.length) {
-		// 	return;
-		// }
-
-		// const title = historyItems.length === 1 ?
-		// 	getHistoryItemEditorTitle(historyItem) :
-		// 	localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItemLast.displayId ?? historyItemLast.id, historyItem.displayId ?? historyItem.id);
-
-		// const rootUri = provider.rootUri;
-		// const path = rootUri ? rootUri.path : provider.label;
-		// const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
-
-		// commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+		await editorService.openEditor({
+			resource: historyItemChange.modifiedUri,
+			label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItem.displayId ?? historyItem.id})`,
+		});
 	}
 });
 
@@ -694,11 +672,10 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeVie
 	}
 
 	renderElement(element: ITreeNode<SCMHistoryItemChangeViewModelTreeElement, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
-		const provider = element.element.repository.provider;
-		const historyItem = element.element.historyItemViewModel;
+		const historyItemViewModel = element.element.historyItemViewModel;
 		const historyItemChange = element.element.historyItemChange;
 
-		const color = historyItem.inputSwimlanes.find(s => s.id === historyItem.historyItem.id)?.color;
+		const color = historyItemViewModel.inputSwimlanes.find(s => s.id === historyItemViewModel.historyItem.id)?.color;
 		templateData.margin.style.borderLeftColor = asCssVariable(color ?? historyItemRefColor);
 
 		templateData.graphPlaceholder.textContent = '';
@@ -711,7 +688,7 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeVie
 		const actions = this._menuService.getMenuActions(
 			MenuId.SCMHistoryItemChangeContext,
 			this._contextKeyService,
-			{ arg: provider, shouldForwardArgs: true });
+			{ arg: historyItemViewModel.historyItem, shouldForwardArgs: true });
 		templateData.actionBar.context = historyItemChange;
 		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
 	}
