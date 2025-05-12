@@ -1735,24 +1735,32 @@ export class SCMHistoryViewPane extends ViewPane {
 				? historyItemParentId.substring(0, historyItem.displayId.length)
 				: historyItemParentId;
 
-			const originalUriTitle = historyItemChange.originalUri
-				? `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`
-				: undefined;
+			if (historyItemChange.originalUri && historyItemChange.modifiedUri) {
+				// Diff Editor
+				const originalUriTitle = `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`;
+				const modifiedUriTitle = `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`;
 
-			const modifiedUriTitle = historyItemChange.modifiedUri
-				? `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`
-				: undefined;
-
-			const title = originalUriTitle && modifiedUriTitle
-				? `${originalUriTitle} ↔ ${modifiedUriTitle}`
-				: originalUriTitle ?? modifiedUriTitle;
-
-			await this._editorService.openEditor({
-				label: title,
-				original: { resource: historyItemChange.originalUri },
-				modified: { resource: historyItemChange.modifiedUri },
-				options: e.editorOptions,
-			});
+				const title = `${originalUriTitle} ↔ ${modifiedUriTitle}`;
+				await this._editorService.openEditor({
+					label: title,
+					original: { resource: historyItemChange.originalUri },
+					modified: { resource: historyItemChange.modifiedUri },
+					options: e.editorOptions
+				});
+			} else if (historyItemChange.modifiedUri) {
+				await this._editorService.openEditor({
+					label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`,
+					resource: historyItemChange.modifiedUri,
+					options: e.editorOptions
+				});
+			} else if (historyItemChange.originalUri) {
+				// Editor (Deleted)
+				await this._editorService.openEditor({
+					label: `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`,
+					resource: historyItemChange.originalUri,
+					options: e.editorOptions
+				});
+			}
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
 			if (!pageOnScroll) {
