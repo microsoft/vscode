@@ -78,7 +78,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 }
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
-	declare readonly view: NotebookCellListView<CellViewModel>;
+	declare protected readonly view: NotebookCellListView<CellViewModel>;
 	private viewZones!: NotebookViewZones;
 	private cellOverlays!: NotebookCellOverlays;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
