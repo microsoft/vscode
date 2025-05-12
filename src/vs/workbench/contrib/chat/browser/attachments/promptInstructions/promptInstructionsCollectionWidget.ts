@@ -93,8 +93,6 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	) {
 		super();
 
-		this.render = this.render.bind(this);
-
 		// when a new attachment model is added, create a new child widget for it
 		this._register(this.model.onAdd((attachment) => {
 			const widget = this.instantiationService.createInstance(
