@@ -47,7 +47,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind } from '../common/tasks.js';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy } from '../common/tasks.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
@@ -1942,29 +1942,49 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return executeResult.promise;
 			}
 			if (active && active.same) {
-				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
-					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
-					const lastInstance = this._getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
-					this._notificationService.prompt(Severity.Warning, message,
-						[{
-							label: nls.localize('terminateTask', "Terminate Task"),
-							run: () => this.terminate(lastInstance)
-						},
-						{
-							label: nls.localize('restartTask', "Restart Task"),
-							run: () => this._restart(lastInstance)
-						}],
-						{ sticky: true }
-					);
-				} else {
-					this._taskSystem?.revealTask(executeResult.task);
-				}
+				this._handleInstancePolicy(executeResult.task, executeResult.task.runOptions!.instancePolicy);
 			} else {
 				throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
 		return executeResult.promise;
+	}
+
+	private _handleInstancePolicy(task: Task, policy?: InstancePolicy): void {
+		if (!this._taskSystem?.isTaskVisible(task)) {
+			this._taskSystem?.revealTask(task);
+		}
+		switch (policy) {
+			case InstancePolicy.terminateNewest:
+				this._restart(this._getTaskSystem().getLastInstance(task) ?? task);
+				break;
+			case InstancePolicy.terminateOldest:
+				this._restart(this._getTaskSystem().getFirstInstance(task) ?? task);
+				break;
+			case InstancePolicy.silent:
+				break;
+			case InstancePolicy.warn:
+				this._notificationService.warn(nls.localize('TaskSystem.InstancePolicy.warn', 'The instance limit for this task has been reached.'));
+				break;
+			case InstancePolicy.prompt:
+			default:
+				this._showQuickPick(this._taskSystem!.getActiveTasks().filter(t => task._id === t._id),
+					nls.localize('TaskService.instanceToTerminate', 'Select an instance to terminate'),
+					{
+						label: nls.localize('TaskService.noInstanceRunning', 'No instance is currently running'),
+						task: undefined
+					},
+					false, true,
+					undefined
+				).then(entry => {
+					const task: Task | undefined | null = entry ? entry.task : undefined;
+					if (task === undefined || task === null) {
+						return;
+					}
+					this._restart(task);
+				});
+		}
 	}
 
 	private async _restart(task: Task): Promise<void> {
