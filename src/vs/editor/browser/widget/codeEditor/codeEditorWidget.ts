@@ -63,7 +63,6 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
-
 	private static readonly dropIntoEditorDecorationOptions = ModelDecorationOptions.register({
 		description: 'workbench-dnd-target',
 		className: 'dnd-target'
