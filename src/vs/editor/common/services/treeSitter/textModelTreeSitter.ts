@@ -123,16 +123,19 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		});
 	}
 
-	private async _handleTreeUpdate(e: TreeParseUpdateEvent, parentTreeResult?: ITreeSitterParseResult, parentLanguage?: string) {
+	private async _handleTreeUpdate(e: TreeParseUpdateEvent, parentTree?: Parser.Tree, parentLanguage?: string) {
 		if (e.ranges && (e.versionId >= this._versionId)) {
 			this._versionId = e.versionId;
-			const tree = parentTreeResult ?? this._rootTreeSitterTree!;
+			const tree = (parentTree ?? this._rootTreeSitterTree!.tree)?.copy();
 			let injections: Map<string, Parser.Range[]> | undefined;
-			if (tree.tree) {
-				injections = await this._collectInjections(tree.tree);
+			if (tree) {
+				injections = await this._collectInjections(tree);
 				// kick off check for injected languages
 				if (injections) {
-					this._processInjections(injections, tree, parentLanguage ?? this.textModel.getLanguageId(), e.includedModelChanges);
+					this._processInjections(injections, tree, parentLanguage ?? this.textModel.getLanguageId(), e.includedModelChanges).then(() => {
+						// Clean up tree copy
+						tree.delete();
+					});
 				}
 			}
 
@@ -173,18 +176,18 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		return this._query;
 	}
 
-	private async _collectInjections(tree: Parser.Tree): Promise<Map<string, Parser.Range[]> | undefined> {
+	private async _collectInjections(copyOfTree: Parser.Tree): Promise<Map<string, Parser.Range[]> | undefined> {
 		const query = await this._getQuery();
 		if (!query) {
 			return;
 		}
 
-		if (!tree?.rootNode) {
+		if (!copyOfTree?.rootNode) {
 			// need to check the root node here as `walk` will throw if not defined.
 			return;
 		}
 
-		const cursor = tree.walk();
+		const cursor = copyOfTree.walk();
 		const injections: Map<string, Parser.Range[]> = new Map();
 		let hasNext = true;
 
@@ -193,6 +196,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 			// Yield periodically
 			await new Promise<void>(resolve => setTimeout0(resolve));
 		}
+		cursor.delete();
 
 		return this._mergeAdjacentRanges(injections);
 	}
@@ -274,7 +278,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 	private async _processInjections(
 		injections: Map<string, Parser.Range[]>,
-		parentTree: ITreeSitterParseResult,
+		copyOfParentTree: Parser.Tree,
 		parentLanguage: string,
 		modelChanges: IModelContentChangedEvent[] | undefined
 	): Promise<void> {
@@ -290,7 +294,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 				continue;
 			}
 
-			const treeSitterTree = await this._getOrCreateInjectedTree(languageId, language, parentTree, parentLanguage);
+			const treeSitterTree = await this._getOrCreateInjectedTree(languageId, language, copyOfParentTree, parentLanguage);
 			if (treeSitterTree) {
 				unseenInjections.delete(languageId);
 				this._onDidChangeContent(treeSitterTree, modelChanges, ranges);
@@ -304,14 +308,14 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	private async _getOrCreateInjectedTree(
 		languageId: string,
 		language: Parser.Language,
-		parentTree: ITreeSitterParseResult,
+		copyOfParentTree: Parser.Tree,
 		parentLanguage: string
 	): Promise<TreeSitterParseResult | undefined> {
 		let treeSitterTree = this._injectionTreeSitterTrees.get(languageId);
 		if (!treeSitterTree) {
 			const Parser = await this._treeSitterImporter.getParserClass();
 			treeSitterTree = new TreeSitterParseResult(new Parser(), languageId, language, this._logService, this._telemetryService);
-			this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => this._handleTreeUpdate(e, parentTree, parentLanguage)));
+			this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => this._handleTreeUpdate(e, copyOfParentTree, parentLanguage)));
 			this._injectionTreeSitterTrees.set(languageId, treeSitterTree);
 		}
 		return treeSitterTree;
@@ -426,6 +430,8 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			}
 		} while (next);
 
+		newCursor.delete();
+		oldCursor.delete();
 		return nodes;
 	}
 
@@ -499,6 +505,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				cursor.gotoPreviousSibling();
 			}
 			const previousNode = getClosestPreviousNodes(cursor, newTree);
+			cursor.delete();
 			const startPosition = previousNode ? previousNode.endPosition : nodesInRange[0].startPosition;
 			const startIndex = previousNode ? previousNode.endIndex : nodesInRange[0].startIndex;
 			const endPosition = nodesInRange[nodesInRange.length - 1].endPosition;
