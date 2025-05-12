@@ -427,7 +427,7 @@ export class GlyphMarginWidgets extends ViewPart {
 				this._managedDomNodes.push(domNode);
 				this.domNode.appendChild(domNode);
 			}
-			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(decLineNumber);
+			const lineHeight = this._context.viewLayout.getLineHeightForPosition(new Position(decLineNumber, 1));
 
 			domNode.setClassName(`cgmr codicon ` + dec.combinedClassName);
 			domNode.setPosition(`absolute`);

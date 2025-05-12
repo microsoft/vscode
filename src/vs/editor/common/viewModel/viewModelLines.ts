@@ -26,6 +26,7 @@ export interface IViewModelLines extends IDisposable {
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
+	isHiddenPosition(position: IPosition): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;
@@ -167,6 +168,16 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this.hiddenAreasDecorationIds.map(
 			(decId) => this.model.getDecorationRange(decId)!
 		);
+	}
+
+	public isHiddenPosition(position: IPosition): boolean {
+		for (const hiddenDecorationId of this.hiddenAreasDecorationIds) {
+			const hiddenRange = this.model.getDecorationRange(hiddenDecorationId)!;
+			if (hiddenRange.containsPosition(position)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {
@@ -1128,6 +1139,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {
+		return false;
+	}
+
+	public isHiddenPosition(position: IPosition): boolean {
 		return false;
 	}
 

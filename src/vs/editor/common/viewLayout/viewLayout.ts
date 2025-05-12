@@ -13,6 +13,7 @@ import { LinesLayout } from './linesLayout.js';
 import { IEditorWhitespace, IPartialViewLinesViewportData, ILineHeightChangeAccessor, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
 import { ICustomLineHeightData } from './lineHeights.js';
+import { IPosition } from '../core/position.js';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
@@ -396,8 +397,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
 		return this._linesLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
-	public getLineHeightForLineNumber(lineNumber: number): number {
-		return this._linesLayout.getLineHeightForLineNumber(lineNumber);
+	public getLineHeightForPosition(position: IPosition): number {
+		return this._linesLayout.getLineHeightForLineNumber(position.lineNumber);
 	}
 	public isAfterLines(verticalOffset: number): boolean {
 		return this._linesLayout.isAfterLines(verticalOffset);
@@ -405,7 +406,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public isInTopPadding(verticalOffset: number): boolean {
 		return this._linesLayout.isInTopPadding(verticalOffset);
 	}
-	isInBottomPadding(verticalOffset: number): boolean {
+	public isInBottomPadding(verticalOffset: number): boolean {
 		return this._linesLayout.isInBottomPadding(verticalOffset);
 	}
 

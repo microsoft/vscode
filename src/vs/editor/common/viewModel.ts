@@ -57,6 +57,7 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLineHeightForPosition(position: IPosition): number;
 	getLineLength(lineNumber: number): number;
 	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
@@ -133,7 +134,7 @@ export interface IViewLayout {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
-	getLineHeightForLineNumber(lineNumber: number): number;
+	getLineHeightForPosition(lineNumber: IPosition): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**

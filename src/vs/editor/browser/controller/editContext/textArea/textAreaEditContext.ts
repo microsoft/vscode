@@ -743,7 +743,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 				// Try to render the textarea with the color/font style to match the text under it
 				const viewPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(startPosition.lineNumber, 1));
-				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
+				const lineHeight = this._context.viewLayout.getLineHeightForPosition(viewPosition);
 				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
@@ -797,8 +797,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// For the popup emoji input, we will make the text area as high as the line height
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
-			const lineNumber = this._primaryCursorPosition.lineNumber;
-			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
+			const lineHeight = this._context.viewLayout.getLineHeightForPosition(this._primaryCursorPosition);
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from '../../common/core/position.js';
+import { IPosition, Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
@@ -61,8 +61,8 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
 
-	public getLineHeightForLineNumber(lineNumber: number): number {
-		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
+	public getLineHeightForPosition(position: IPosition): number {
+		return this._viewLayout.getLineHeightForPosition(position);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {

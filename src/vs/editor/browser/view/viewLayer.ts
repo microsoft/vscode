@@ -625,6 +625,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _lineHeightForLineNumber(lineNumber: number): number {
-		return this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
+		return this._viewContext.viewLayout.getLineHeightForPosition(lineNumber);
 	}
 }
