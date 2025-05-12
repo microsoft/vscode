@@ -32,7 +32,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { IColorTheme, IThemeChangeEvent, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel.js';
 import { ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { DataTransfers, IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -276,7 +276,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
 
 		this._applyTheme(themeService.getColorTheme());
-		this._callOnDispose.add(themeService.onDidColorThemeChange(this._onDidColorThemeChange.bind(this)));
+		this._callOnDispose.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
 	}
@@ -296,10 +296,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		dispose(this._previewModelReference);
 		this._splitView.dispose();
 		super.dispose();
-	}
-
-	private _onDidColorThemeChange(e: IThemeChangeEvent): void {
-		this._applyTheme(e.theme);
 	}
 
 	private _applyTheme(theme: IColorTheme) {

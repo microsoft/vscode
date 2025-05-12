@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mockObject } from './mock.js';
+import { mockObject, mockService } from './mock.js';
 import { typeCheck } from '../../../../../base/common/types.js';
 import { randomInt } from '../../../../../base/common/numbers.js';
 import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
-suite('mock', () => {
+suite('mockService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('• mockObject', () => {
@@ -85,7 +85,7 @@ suite('mock', () => {
 			assert.strictEqual(
 				mock.baz,
 				4,
-				'baz should be overriden',
+				'baz should be overridden',
 			);
 
 			// overrides object must be immutable
@@ -94,7 +94,7 @@ suite('mock', () => {
 			});
 
 			assert.throws(() => {
-				overrides.someMethod = (arg: boolean) => {
+				overrides.someMethod = (arg: boolean): string => {
 					return `${arg}__${arg}`;
 				};
 			});
@@ -112,7 +112,7 @@ suite('mock', () => {
 				testMethod2(arg: number): boolean;
 			}
 
-			const mock = mockObject<ITestService>({
+			const mock = mockService<ITestService>({
 				id: 'ciao!',
 				counter: 74,
 				testMethod2(arg: number): boolean {
@@ -125,39 +125,40 @@ suite('mock', () => {
 			assert.strictEqual(
 				mock.id,
 				'ciao!',
-				'id should be overriden',
+				'id should be overridden',
 			);
 
 			assert.strictEqual(
 				mock.counter,
 				74,
-				'counter should be overriden',
+				'counter should be overridden',
 			);
 
 			assert(
 				mock.testMethod2(randomInt(100)),
-				'Must execute overriden method correctly 1.',
+				'Must execute overridden method correctly 1.',
 			);
 
 			assert(
 				!(mock.testMethod2(NaN)),
-				'Must execute overriden method correctly 2.',
+				'Must execute overridden method correctly 2.',
 			);
 
 			assert.throws(() => {
-				// property is not overriden so must throw
+				// property is not overridden so must throw
 				// eslint-disable-next-line local/code-no-unused-expressions
 				mock.prop1;
 			});
 
 			assert.throws(() => {
-				// function is not overriden so must throw
+				// function is not overridden so must throw
 				mock.method1(randomBoolean());
 			});
 		});
 
 		test('• immutability of the overrides object', () => {
 			interface ITestService {
+				readonly _serviceBrand: undefined;
 				foo: string;
 				bar: string;
 				readonly baz: boolean;
@@ -168,13 +169,13 @@ suite('mock', () => {
 			const overrides: Partial<ITestService> = {
 				baz: false,
 			};
-			const mock = mockObject<ITestService>(overrides);
+			const mock = mockService<ITestService>(overrides);
 			typeCheck<ITestService>(mock);
 
 			assert.strictEqual(
 				mock.baz,
 				false,
-				'baz should be overriden',
+				'baz should be overridden',
 			);
 
 			// overrides object must be immutable
@@ -183,7 +184,7 @@ suite('mock', () => {
 			});
 
 			assert.throws(() => {
-				overrides.someMethod = (arg: boolean) => {
+				overrides.someMethod = (arg: boolean): string => {
 					return `${arg}__${arg}`;
 				};
 			});

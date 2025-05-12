@@ -37,8 +37,8 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		return this._getValue(resource, null, typeof arg2 === 'string' ? arg2 : undefined);
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
-		const language = this.getLanguage(resource, null);
+	updateValue(resource: URI | undefined, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+		const language = resource ? this.getLanguage(resource, null) : null;
 		const configurationValue = this.configurationService.inspect(key, { resource, overrideIdentifier: language });
 		if (configurationTarget === undefined) {
 			configurationTarget = this.deriveConfigurationTarget(configurationValue, language);
@@ -110,7 +110,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 					return true;
 				}
 				if (overrideIdentifier) {
-					//TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/240410
+					//TODO@sandy081 workaround for https://github.com/microsoft/vscode/issues/240410
 					return configurationChangeEvent.affectedKeys.has(`[${overrideIdentifier}]`);
 				}
 				return false;

@@ -185,6 +185,7 @@
 	margin: 0;
 	overflow-y: auto;
 	height: 100%;
+	background-color: var(--vscode-editor-background)
 }
 
 .issue-reporter .hidden {
@@ -455,3 +456,68 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+.issue-reporter-body input[type="text"],
+.issue-reporter-body textarea,
+.issue-reporter-body select,
+.issue-reporter-body .issues-container > .issue > .issue-state,
+.issue-reporter-body .block-info {
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+}
+
+.issue-reporter-body .monaco-workbench,
+.issue-reporter-body::-webkit-scrollbar-track {
+	background-color: var(--vscode-editor-background) !important;
+}
+
+.issue-reporter-body input[type="text"],
+.issue-reporter-body textarea,
+.issue-reporter-body select {
+	border: 1px solid var(--vscode-input-border)
+}
+
+.issue-reporter-body input[type='text']:focus,
+.issue-reporter-body textarea:focus,
+.issue-reporter-body select:focus,
+.issue-reporter-body summary:focus,
+.issue-reporter-body button:focus,
+.issue-reporter-body a:focus,
+.issue-reporter-body .workbenchCommand:focus {
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	outline-style: none;
+}
+
+.issue-reporter-body .invalid-input,
+.issue-reporter-body .invalid-input:focus,
+.issue-reporter-body .validation-error {
+	border: 1px solid var(--vscode-inputValidation-errorBorder) !important
+}
+
+.issue-reporter .required-input {
+	color: var(--vscode-inputValidation-errorBorder)
+}
+
+.issue-reporter-body .validation-error {
+	background: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground)
+}
+
+.issue-reporter-body a,
+.issue-reporter-body .workbenchCommand {
+	color: var(--vscode-textLink-foreground)
+}
+
+.issue-reporter-body a:hover,
+.issue-reporter-body .workbenchCommand:hover {
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.issue-reporter-body::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground)
+}
+
+
+.issue-reporter-body::-webkit-scrollbar-thumb,
+.issue-reporter-body::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground)
+}

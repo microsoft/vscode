@@ -12,7 +12,7 @@ import * as process from '../common/process.js';
 import { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from '../common/processes.js';
 import * as Types from '../common/types.js';
 import * as pfs from './pfs.js';
-export { type CommandOptions, type ForkOptions, type SuccessData, Source, type TerminateResponse, TerminateResponseCode };
+export { Source, TerminateResponseCode, type CommandOptions, type ForkOptions, type SuccessData, type TerminateResponse };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;
@@ -116,18 +116,22 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 		} else {
 			fullPath = path.join(cwd, pathEntry, command);
 		}
+		if (Platform.isWindows) {
+			const pathExt = getCaseInsensitive(env, 'PATHEXT') as string || '.COM;.EXE;.BAT;.CMD';
+			const pathExtsFound = pathExt.split(';').map(async ext => {
+				const withExtension = fullPath + ext;
+				return await fileExists(withExtension) ? withExtension : undefined;
+			});
+			for (const foundPromise of pathExtsFound) {
+				const found = await foundPromise;
+				if (found) {
+					return found;
+				}
+			}
+		}
+
 		if (await fileExists(fullPath)) {
 			return fullPath;
-		}
-		if (Platform.isWindows) {
-			let withExtension = fullPath + '.com';
-			if (await fileExists(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (await fileExists(withExtension)) {
-				return withExtension;
-			}
 		}
 	}
 	const fullPath = path.join(cwd, command);

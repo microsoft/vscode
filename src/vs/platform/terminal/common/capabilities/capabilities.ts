@@ -214,12 +214,16 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandConfidence: 'low' | 'medium' | 'high' | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
+	readonly hasRichCommandDetection: boolean;
+	readonly promptType: string | undefined;
 	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
+	readonly onPromptTypeChanged: Event<string | undefined>;
+	readonly onSetRichCommandDetection: Event<boolean>;
 	setContinuationPrompt(value: string): void;
 	setPromptTerminator(value: string, lastPromptLine: string): void;
 	setCwd(value: string): void;
@@ -239,6 +243,8 @@ export interface ICommandDetectionCapability {
 	handleCommandStart(options?: IHandleCommandOptions): void;
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
+	setHasRichCommandDetection(value: boolean): void;
+	setPromptType(value: string): void;
 	/**
 	 * Set the command line explicitly.
 	 * @param commandLine The command line being set.
@@ -345,6 +351,7 @@ export interface IMarkProperties {
 }
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
+	hasRichCommandDetection: boolean;
 	commands: ISerializedTerminalCommand[];
 	promptInputModel: ISerializedPromptInputModel | undefined;
 }

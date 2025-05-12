@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePromptParser } from './basePromptParser.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { BasePromptParser, IPromptParserOptions } from './basePromptParser.js';
 import { TextModelContentsProvider } from '../contentProviders/textModelContentsProvider.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -16,20 +17,26 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 export class TextModelPromptParser extends BasePromptParser<TextModelContentsProvider> {
 	constructor(
 		model: ITextModel,
-		seenReferences: string[] = [],
+		options: Partial<IPromptParserOptions>,
 		@IInstantiationService initService: IInstantiationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
-		const contentsProvider = initService.createInstance(TextModelContentsProvider, model)
-			.onDispose(() => this.dispose());
+		const contentsProvider = initService.createInstance(
+			TextModelContentsProvider,
+			model,
+			options,
+		);
 
-		super(contentsProvider, seenReferences, initService, logService);
+		super(contentsProvider, options, initService, workspaceService, logService);
+
+		this._register(contentsProvider);
 	}
 
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `text-model-prompt:${this.uri.path}`;
 	}
 }

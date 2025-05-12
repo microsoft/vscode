@@ -7,8 +7,8 @@ import { isIterable } from './types.js';
 
 export namespace Iterable {
 
-	export function is<T = any>(thing: any): thing is Iterable<T> {
-		return thing && typeof thing === 'object' && typeof thing[Symbol.iterator] === 'function';
+	export function is<T = any>(thing: unknown): thing is Iterable<T> {
+		return !!thing && typeof thing === 'object' && typeof (thing as Iterable<T>)[Symbol.iterator] === 'function';
 	}
 
 	const _empty: Iterable<any> = Object.freeze([]);
@@ -108,6 +108,14 @@ export namespace Iterable {
 			value = reducer(value, element);
 		}
 		return value;
+	}
+
+	export function length<T>(iterable: Iterable<T>): number {
+		let count = 0;
+		for (const _ of iterable) {
+			count++;
+		}
+		return count;
 	}
 
 	/**

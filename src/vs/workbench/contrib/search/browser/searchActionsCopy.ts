@@ -99,6 +99,35 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 	}
 });
 
+registerAction2(class GetSearchResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.GetSearchResultsActionId,
+			title: nls.localize2('getSearchResultsLabel', "Get Search Results"),
+			category,
+			f1: false
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<any> {
+		const viewsService = accessor.get(IViewsService);
+		const labelService = accessor.get(ILabelService);
+
+		const searchView = getSearchView(viewsService);
+		if (searchView) {
+			const root = searchView.searchResult;
+			const textSearchResult = allFolderMatchesToString(root.folderMatches(), labelService);
+			const aiSearchResult = allFolderMatchesToString(root.folderMatches(true), labelService);
+
+			const text = `${textSearchResult}${lineDelimiter}${lineDelimiter}${aiSearchResult}`;
+
+			return text;
+		}
+
+		return undefined;
+	}
+});
+
 //#endregion
 
 //#region Helpers

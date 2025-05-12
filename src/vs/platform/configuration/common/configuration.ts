@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../base/common/assert.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import * as types from '../../../base/common/types.js';
@@ -101,6 +102,29 @@ export interface IConfigurationValue<T> {
 	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
+}
+
+export function getConfigValueInTarget<T>(configValue: IConfigurationValue<T>, scope: ConfigurationTarget): T | undefined {
+	switch (scope) {
+		case ConfigurationTarget.APPLICATION:
+			return configValue.applicationValue;
+		case ConfigurationTarget.USER:
+			return configValue.userValue;
+		case ConfigurationTarget.USER_LOCAL:
+			return configValue.userLocalValue;
+		case ConfigurationTarget.USER_REMOTE:
+			return configValue.userRemoteValue;
+		case ConfigurationTarget.WORKSPACE:
+			return configValue.workspaceValue;
+		case ConfigurationTarget.WORKSPACE_FOLDER:
+			return configValue.workspaceFolderValue;
+		case ConfigurationTarget.DEFAULT:
+			return configValue.defaultValue;
+		case ConfigurationTarget.MEMORY:
+			return configValue.memoryValue;
+		default:
+			assertNever(scope);
+	}
 }
 
 export function isConfigured<T>(configValue: IConfigurationValue<T>): configValue is IConfigurationValue<T> & { value: T } {

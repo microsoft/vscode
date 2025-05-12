@@ -15,15 +15,16 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../../common/core/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../../../../common/core/edits/textEdit.js';
 import { RangeMapping } from '../../../../../../common/diff/rangeMapping.js';
+import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';
 
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
@@ -83,16 +84,24 @@ export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange
 	if (startLineIndent >= prefixTrim + 1) {
 		// We can use the editor to get the offset
 		prefixLeftOffset = editor.getOffsetForColumn(originalLinesRange.startLineNumber, prefixTrim + 1);
-	} else if (startLineIndent !== 1) {
-		// We need to approximate the offset as the editor does not contain the modified lines yet
-		const startLineIndentOffset = editor.getOffsetForColumn(originalLinesRange.startLineNumber, startLineIndent);
-		prefixLeftOffset = startLineIndentOffset / (startLineIndent - 1) * prefixTrim;
+	} else if (modifiedLines.length > 0) {
+		// Content is not in the editor, we can use the content width to calculate the offset
+		prefixLeftOffset = getContentRenderWidth(modifiedLines[0].slice(0, prefixTrim), editor, textModel);
 	} else {
 		// unable to approximate the offset
 		return { prefixTrim: 0, prefixLeftOffset: 0 };
 	}
 
 	return { prefixTrim, prefixLeftOffset };
+}
+
+export function getContentRenderWidth(content: string, editor: ICodeEditor, textModel: ITextModel) {
+	const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+	const tabSize = textModel.getOptions().tabSize * w;
+
+	const numTabs = content.split('\t').length - 1;
+	const numNoneTabs = content.length - numTabs;
+	return numNoneTabs * w + numTabs * tabSize;
 }
 
 export class StatusBarViewItem extends MenuEntryActionViewItem {
@@ -156,10 +165,10 @@ function offsetRangeToRange(columnOffsetRange: OffsetRange, startPos: Position):
 
 export function createReindentEdit(text: string, range: LineRange): TextEdit {
 	const newLines = splitLines(text);
-	const edits: SingleTextEdit[] = [];
+	const edits: TextReplacement[] = [];
 	const minIndent = findFirstMin(range.mapToLineArray(l => getIndentationLength(newLines[l - 1])), numberComparator)!;
 	range.forEach(lineNumber => {
-		edits.push(new SingleTextEdit(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
+		edits.push(new TextReplacement(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
 	});
 	return new TextEdit(edits);
 }

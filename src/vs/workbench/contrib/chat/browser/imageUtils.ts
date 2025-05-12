@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 /**
  * Resizes an image provided as a UInt8Array string. Resizing is based on Open AI's algorithm for tokenzing images.
@@ -11,23 +16,24 @@
  * @returns A promise that resolves to the UInt8Array string of the resized image.
  */
 
-export async function resizeImage(data: Uint8Array | string): Promise<Uint8Array> {
+export async function resizeImage(data: Uint8Array | string, mimeType?: string): Promise<Uint8Array> {
+	const isGif = mimeType === 'image/gif';
 
 	if (typeof data === 'string') {
 		data = convertStringToUInt8Array(data);
 	}
 
-	const blob = new Blob([data]);
-	const img = new Image();
-	const url = URL.createObjectURL(blob);
-	img.src = url;
-
 	return new Promise((resolve, reject) => {
+		const blob = new Blob([data], { type: mimeType });
+		const img = new Image();
+		const url = URL.createObjectURL(blob);
+		img.src = url;
+
 		img.onload = () => {
 			URL.revokeObjectURL(url);
 			let { width, height } = img;
 
-			if (width <= 768 || height <= 768) {
+			if ((width <= 768 || height <= 768) && !isGif) {
 				resolve(data);
 				return;
 			}
@@ -101,4 +107,52 @@ function isValidBase64(str: string): boolean {
 			return false;
 		}
 	})();
+}
+
+export async function createFileForMedia(fileService: IFileService, imagesFolder: URI, dataTransfer: Uint8Array, mimeType: string): Promise<URI | undefined> {
+	const exists = await fileService.exists(imagesFolder);
+	if (!exists) {
+		await fileService.createFolder(imagesFolder);
+	}
+
+	const ext = mimeType.split('/')[1] || 'png';
+	const filename = `image-${Date.now()}.${ext}`;
+	const fileUri = joinPath(imagesFolder, filename);
+
+	const buffer = VSBuffer.wrap(dataTransfer);
+	await fileService.writeFile(fileUri, buffer);
+
+	return fileUri;
+}
+
+export async function cleanupOldImages(fileService: IFileService, logService: ILogService, imagesFolder: URI): Promise<void> {
+	const exists = await fileService.exists(imagesFolder);
+	if (!exists) {
+		return;
+	}
+
+	const duration = 7 * 24 * 60 * 60 * 1000; // 7 days
+	const files = await fileService.resolve(imagesFolder);
+	if (!files.children) {
+		return;
+	}
+
+	await Promise.all(files.children.map(async (file) => {
+		try {
+			const timestamp = getTimestampFromFilename(file.name);
+			if (timestamp && (Date.now() - timestamp > duration)) {
+				await fileService.del(file.resource);
+			}
+		} catch (err) {
+			logService.error('Failed to clean up old images', err);
+		}
+	}));
+}
+
+function getTimestampFromFilename(filename: string): number | undefined {
+	const match = filename.match(/image-(\d+)\./);
+	if (match) {
+		return parseInt(match[1], 10);
+	}
+	return undefined;
 }

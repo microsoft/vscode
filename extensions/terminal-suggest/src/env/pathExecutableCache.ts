@@ -10,6 +10,9 @@ import { osIsWindows } from '../helpers/os';
 import type { ICompletionResource } from '../types';
 import { getFriendlyResourcePath } from '../helpers/uri';
 import { SettingsIds } from '../constants';
+import * as filesystem from 'fs';
+import * as path from 'path';
+import { TerminalShellType } from '../terminalSuggestMain';
 
 const isWindows = osIsWindows();
 
@@ -38,10 +41,19 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 	}
 
-	async getExecutablesInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
+	refresh(): void {
+		this._cachedExes = undefined;
+		this._cachedPathValue = undefined;
+	}
+
+	async getExecutablesInPath(env: ITerminalEnvironment = process.env, shellType?: TerminalShellType): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 		// Create cache key
 		let pathValue: string | undefined;
-		if (isWindows) {
+		if (shellType === TerminalShellType.GitBash) {
+			// TODO: figure out why shellIntegration.env.PATH
+			// regressed from using \ to / (correct)
+			pathValue = process.env.PATH;
+		} else if (isWindows) {
 			const caseSensitivePathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
 			if (caseSensitivePathKey) {
 				pathValue = env[caseSensitivePathKey];
@@ -96,7 +108,7 @@ export class PathExecutableCache implements vscode.Disposable {
 			for (const [file, fileType] of files) {
 				const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
 				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, this._cachedWindowsExeExtensions)) {
-					result.add({ label: file, detail: formattedPath });
+					result.add({ label: file, documentation: formattedPath, kind: vscode.TerminalCompletionItemKind.Method });
 					labels.add(file);
 				}
 			}
@@ -107,3 +119,47 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 	}
 }
+
+export async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment, pathExecutableCache: PathExecutableCache | undefined): Promise<void> {
+	const pathDirectories = new Set<string>();
+
+	const envPath = env.PATH;
+	if (envPath) {
+		envPath.split(path.delimiter).forEach(p => pathDirectories.add(p));
+	}
+
+	const activeWatchers = new Set<string>();
+
+	// Watch each directory
+	for (const dir of pathDirectories) {
+		try {
+			if (activeWatchers.has(dir)) {
+				// Skip if already watching or directory doesn't exist
+				continue;
+			}
+
+			const stat = await fs.stat(dir);
+			if (!stat.isDirectory()) {
+				continue;
+			}
+
+			const watcher = filesystem.watch(dir, { persistent: false }, () => {
+				if (pathExecutableCache) {
+					// Refresh cache when directory contents change
+					pathExecutableCache.refresh();
+				}
+			});
+
+			activeWatchers.add(dir);
+
+			context.subscriptions.push(new vscode.Disposable(() => {
+				try {
+					watcher.close();
+					activeWatchers.delete(dir);
+				} catch { } { }
+			}));
+		} catch { }
+	}
+}
+
+export type ITerminalEnvironment = { [key: string]: string | undefined };

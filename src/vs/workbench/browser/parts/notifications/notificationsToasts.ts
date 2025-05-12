@@ -7,7 +7,7 @@ import './media/notificationsToasts.css';
 import { localize } from '../../../../nls.js';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $, isElementInBottomRightQuarter, isHTMLElement, isEditableElement, getActiveElement } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { NotificationsList } from './notificationsList.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
@@ -17,7 +17,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -71,7 +71,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
 
-	private readonly notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(this.contextKeyService);
+	private readonly notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
 	private readonly addedToastsIntervalCounter = new IntervalCounter(NotificationsToasts.SPAM_PROTECTION.interval);
 
@@ -82,11 +82,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
+
+		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
 		this.registerListeners();
 	}
@@ -137,6 +139,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		if (item.priority === NotificationPriority.SILENT) {
 			return; // do not show toasts for silenced notifications
+		}
+
+		if (item.priority === NotificationPriority.OPTIONAL) {
+			const activeElement = getActiveElement();
+			if (isHTMLElement(activeElement) && isEditableElement(activeElement) && isElementInBottomRightQuarter(activeElement, this.layoutService.mainContainer)) {
+				return; // skip showing optional toast that potentially covers input fields
+			}
 		}
 
 		// Optimization: it is possible that a lot of notifications are being
@@ -551,11 +560,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		availableHeight = typeof availableHeight === 'number'
-			? Math.round(availableHeight * 0.618) // try to not cover the full height for stacked toasts
-			: 0;
-
-		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
+		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight ?? 0);
 	}
 
 	private layoutLists(width: number): void {
@@ -563,6 +568,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private layoutContainer(heightToGive: number): void {
+
+		// Allow the full height for 1 toast but adjust for multiple toasts
+		// so that a stack of notifications does not exceed all the way up
+
+		let singleToastHeightToGive = heightToGive;
+		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
+
 		let visibleToasts = 0;
 		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
 
@@ -570,12 +582,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
 
-			heightToGive -= toast.container.offsetHeight;
+			singleToastHeightToGive -= toast.container.offsetHeight;
+			multipleToastsHeightToGive -= toast.container.offsetHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {
 				makeVisible = false; // never show more than MAX_NOTIFICATIONS
-			} else if (heightToGive >= 0) {
+			} else if ((visibleToasts === 0 && singleToastHeightToGive >= 0) || (visibleToasts > 0 && multipleToastsHeightToGive >= 0)) {
 				makeVisible = true; // hide toast if available height is too little
 			}
 

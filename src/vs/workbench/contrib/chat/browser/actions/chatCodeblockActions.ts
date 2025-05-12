@@ -29,10 +29,10 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -538,7 +538,8 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		codeBlockIndex: codeBlockInfo.codeBlockIndex,
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
-		codemapperUri: codeBlockInfo.codemapperUri
+		codemapperUri: codeBlockInfo.codemapperUri,
+		chatSessionId: codeBlockInfo.chatSessionId,
 	};
 }
 

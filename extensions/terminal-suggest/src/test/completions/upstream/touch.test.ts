@@ -8,14 +8,14 @@ import { testPaths, type ISuiteSpec } from '../../helpers';
 import touchSpec from '../../../completions/upstream/touch';
 
 const allOptions = [
-	'-A',
+	'-A <time>',
 	'-a',
 	'-c',
 	'-f',
 	'-h',
 	'-m',
-	'-r',
-	'-t',
+	'-r <file>',
+	'-t <timestamp>',
 ];
 const expectedCompletions = [{ label: 'touch', description: (touchSpec as any).description }];
 
