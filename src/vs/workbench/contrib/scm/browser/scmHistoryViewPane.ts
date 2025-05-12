@@ -10,7 +10,7 @@ import { IHoverAction, IHoverOptions, IManagedHoverTooltipMarkdownString } from 
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { LabelFuzzyScore, RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
@@ -31,9 +31,9 @@ import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground } from './scmHistory.js';
-import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
-import { ISCMHistoryItem, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground, historyItemRefColor } from './scmHistory.js';
+import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -62,13 +62,18 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
-import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { basename } from '../../../../base/common/path.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
 
-type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
+type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement | SCMHistoryItemChangeViewModelTreeElement;
 
 class SCMRepositoryActionViewItem extends ActionViewItem {
 	constructor(private readonly _repository: ISCMRepository, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
@@ -239,8 +244,15 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.scm.action.graph.viewChanges',
 			title: localize('openChanges', "Open Changes"),
+			icon: Codicon.diffMultiple,
 			f1: false,
 			menu: [
+				{
+					id: MenuId.SCMHistoryItemContext,
+					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
+					group: 'inline',
+					order: 1
+				},
 				{
 					id: MenuId.SCMHistoryItemContext,
 					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
@@ -288,6 +300,38 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.openFile',
+			title: localize('openFile', "Open File"),
+			icon: Codicon.goToFile,
+			f1: false,
+			menu: [
+				{
+					id: MenuId.SCMHistoryItemChangeContext,
+					group: 'inline',
+					order: 1
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange) {
+		const editorService = accessor.get(IEditorService);
+
+		if (!historyItem || !historyItemChange.modifiedUri) {
+			return;
+		}
+
+		await editorService.openEditor({
+			resource: historyItemChange.modifiedUri,
+			label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItem.displayId ?? historyItem.id})`,
+		});
+	}
+});
+
+
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight(): number {
@@ -297,6 +341,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 	getTemplateId(element: TreeElement): string {
 		if (isSCMHistoryItemViewModelTreeElement(element)) {
 			return HistoryItemRenderer.TEMPLATE_ID;
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
+			return HistoryItemChangeRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			return HistoryItemLoadMoreRenderer.TEMPLATE_ID;
 		} else {
@@ -307,8 +353,10 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 interface HistoryItemTemplate {
 	readonly element: HTMLElement;
+	readonly margin: HTMLElement;
 	readonly label: IconLabel;
 	readonly graphContainer: HTMLElement;
+	readonly actionBar: WorkbenchToolBar;
 	readonly labelContainer: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
@@ -324,10 +372,14 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
@@ -338,13 +390,19 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = append(container, $('.history-item'));
+		const margin = append(element, $('.margin'));
 		const graphContainer = append(element, $('.graph-container'));
 		const iconLabel = new IconLabel(element, { supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true });
 
 		const labelContainer = append(element, $('.label-container'));
 		element.appendChild(labelContainer);
 
-		return { element, graphContainer, label: iconLabel, labelContainer, elementDisposables: new DisposableStore(), disposables: new DisposableStore() };
+		const disposables = new DisposableStore();
+		const actionsContainer = append(element, $('.actions'));
+		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
+		disposables.add(actionBar);
+
+		return { element, margin, graphContainer, label: iconLabel, labelContainer, actionBar, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -357,6 +415,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		});
 		templateData.elementDisposables.add(historyItemHover);
 
+		const color = historyItemViewModel.inputSwimlanes.find(s => s.id === historyItem.id)?.color;
+		templateData.margin.style.borderLeftColor = asCssVariable(color ?? historyItemRefColor);
+
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
@@ -367,6 +428,13 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
 		this._renderBadges(historyItem, templateData);
+
+		const actions = this._menuService.getMenuActions(
+			MenuId.SCMHistoryItemContext,
+			this._contextKeyService,
+			{ arg: provider, shouldForwardArgs: true });
+		templateData.actionBar.context = historyItem;
+		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
 	}
 
 	private _renderBadges(historyItem: ISCMHistoryItem, templateData: HistoryItemTemplate): void {
@@ -557,6 +625,78 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	}
 }
 
+interface HistoryItemChangeTemplate {
+	readonly element: HTMLElement;
+	readonly margin: HTMLElement;
+	readonly graphPlaceholder: HTMLElement;
+	readonly labelContainer: HTMLElement;
+	readonly resourceLabel: IResourceLabel;
+	readonly actionBar: WorkbenchToolBar;
+	readonly disposables: IDisposable;
+}
+
+class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeViewModelTreeElement, void, HistoryItemChangeTemplate> {
+	static readonly TEMPLATE_ID = 'history-item-change';
+	get templateId(): string { return HistoryItemChangeRenderer.TEMPLATE_ID; }
+
+	constructor(
+		private readonly resourceLabels: ResourceLabels,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	) { }
+
+	renderTemplate(container: HTMLElement): HistoryItemChangeTemplate {
+		// hack
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
+		const element = append(container, $('.history-item-change'));
+		const margin = append(element, $('.margin'));
+		const graphPlaceholder = append(element, $('.graph-placeholder'));
+
+		const labelContainer = append(element, $('.label-container'));
+		element.appendChild(labelContainer);
+
+		const resourceLabel = this.resourceLabels.create(labelContainer, { supportDescriptionHighlights: true, supportHighlights: true });
+
+		const disposables = new DisposableStore();
+		const actionsContainer = append(resourceLabel.element, $('.actions'));
+		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
+		disposables.add(actionBar);
+
+		return { element, margin, graphPlaceholder, labelContainer, resourceLabel, actionBar, disposables };
+	}
+
+	renderElement(element: ITreeNode<SCMHistoryItemChangeViewModelTreeElement, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
+		const historyItemViewModel = element.element.historyItemViewModel;
+		const historyItemChange = element.element.historyItemChange;
+
+		const color = historyItemViewModel.inputSwimlanes.find(s => s.id === historyItemViewModel.historyItem.id)?.color;
+		templateData.margin.style.borderLeftColor = asCssVariable(color ?? historyItemRefColor);
+
+		templateData.graphPlaceholder.textContent = '';
+		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (element.element.graphColumns.length + 1)}px`;
+		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(element.element.graphColumns));
+
+		const uri = historyItemChange.uri;
+		templateData.resourceLabel.setFile(uri, { fileDecorations: { colors: false, badges: true }, fileKind: FileKind.FILE, hidePath: false });
+
+		const actions = this._menuService.getMenuActions(
+			MenuId.SCMHistoryItemChangeContext,
+			this._contextKeyService,
+			{ arg: historyItemViewModel.historyItem, shouldForwardArgs: true });
+		templateData.actionBar.context = historyItemChange;
+		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
+	}
+
+	disposeTemplate(templateData: HistoryItemChangeTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
 interface LoadMoreTemplate {
 	readonly element: HTMLElement;
 	readonly graphPlaceholder: HTMLElement;
@@ -685,6 +825,10 @@ class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 			const provider = element.repository.provider;
 			const historyItem = element.historyItemViewModel.historyItem;
 			return `historyItem:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}`;
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
+			const provider = element.repository.provider;
+			const historyItem = element.historyItemViewModel.historyItem;
+			return `historyItemChange:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}/${element.historyItemChange.uri.fsPath}`;
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			const provider = element.repository.provider;
 			return `historyItemLoadMore:${provider.id}}`;
@@ -715,31 +859,45 @@ class SCMHistoryTreeKeyboardNavigationLabelProvider implements IKeyboardNavigati
 class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SCMHistoryViewModel, TreeElement> {
 
 	async getChildren(inputOrElement: SCMHistoryViewModel | TreeElement): Promise<Iterable<TreeElement>> {
-		if (!(inputOrElement instanceof SCMHistoryViewModel)) {
-			return [];
-		}
-
-		// History items
 		const children: TreeElement[] = [];
-		const historyItems = await inputOrElement.getHistoryItems();
-		children.push(...historyItems);
 
-		// Load More element
-		const repository = inputOrElement.repository.get();
-		const lastHistoryItem = historyItems.at(-1);
-		if (repository && lastHistoryItem && lastHistoryItem.historyItemViewModel.outputSwimlanes.length > 0) {
-			children.push({
-				repository,
-				graphColumns: lastHistoryItem.historyItemViewModel.outputSwimlanes,
-				type: 'historyItemLoadMore'
-			} satisfies SCMHistoryItemLoadMoreTreeElement);
+		if (inputOrElement instanceof SCMHistoryViewModel) {
+			// History items
+			const historyItems = await inputOrElement.getHistoryItems();
+			children.push(...historyItems);
+
+			// Load More element
+			const repository = inputOrElement.repository.get();
+			const lastHistoryItem = historyItems.at(-1);
+			if (repository && lastHistoryItem && lastHistoryItem.historyItemViewModel.outputSwimlanes.length > 0) {
+				children.push({
+					repository,
+					graphColumns: lastHistoryItem.historyItemViewModel.outputSwimlanes,
+					type: 'historyItemLoadMore'
+				} satisfies SCMHistoryItemLoadMoreTreeElement);
+			}
+		} else if (inputOrElement.type === 'historyItemViewModel') {
+			// History item changes
+			const historyItem = inputOrElement.historyItemViewModel.historyItem;
+			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+
+			const historyProvider = inputOrElement.repository.provider.historyProvider.get();
+			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId) ?? [];
+
+			children.push(...historyItemChanges.map(change => ({
+				repository: inputOrElement.repository,
+				historyItemViewModel: inputOrElement.historyItemViewModel,
+				historyItemChange: change,
+				graphColumns: inputOrElement.historyItemViewModel.outputSwimlanes,
+				type: 'historyItemChangeViewModel'
+			} satisfies SCMHistoryItemChangeViewModelTreeElement)));
 		}
 
 		return children;
 	}
 
 	hasChildren(inputOrElement: SCMHistoryViewModel | TreeElement): boolean {
-		return inputOrElement instanceof SCMHistoryViewModel;
+		return inputOrElement instanceof SCMHistoryViewModel || inputOrElement.type === 'historyItemViewModel';
 	}
 }
 
@@ -1293,7 +1451,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this._treeContainer = append(container, $('.scm-view.scm-history-view'));
+		this._treeContainer = append(container, $('.scm-view.scm-history-view.show-file-icons'));
 		this._treeContainer.classList.add('file-icon-themable-tree');
 
 		this._createTree(this._treeContainer);
@@ -1518,6 +1676,9 @@ export class SCMHistoryViewPane extends ViewPane {
 		const historyItemHoverDelegate = this.instantiationService.createInstance(HistoryItemHoverDelegate, this.viewDescriptorService.getViewLocationById(this.id));
 		this._register(historyItemHoverDelegate);
 
+		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
+		this._register(resourceLabels);
+
 		this._treeDataSource = this.instantiationService.createInstance(SCMHistoryTreeDataSource);
 		this._register(this._treeDataSource);
 
@@ -1528,19 +1689,18 @@ export class SCMHistoryViewPane extends ViewPane {
 			new ListDelegate(),
 			[
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
-				this.instantiationService.createInstance(
-					HistoryItemLoadMoreRenderer,
-					this._repositoryIsLoadingMore,
-					() => this._loadMore()),
+				this.instantiationService.createInstance(HistoryItemChangeRenderer, resourceLabels),
+				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, this._repositoryIsLoadingMore, () => this._loadMore()),
 			],
 			this._treeDataSource,
 			{
 				accessibilityProvider: new SCMHistoryTreeAccessibilityProvider(),
 				identityProvider: this._treeIdentityProvider,
-				collapseByDefault: (e: unknown) => false,
+				collapseByDefault: (e: unknown) => true,
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
+				renderIndentGuides: RenderIndentGuides.None
 			}
 		) as WorkbenchAsyncDataTree<SCMHistoryViewModel, TreeElement, FuzzyScore>;
 		this._register(this._tree);
@@ -1565,28 +1725,34 @@ export class SCMHistoryViewPane extends ViewPane {
 	private async _onDidOpen(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
 			return;
-		} else if (isSCMHistoryItemViewModelTreeElement(e.element)) {
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(e.element)) {
+			const historyItemChange = e.element.historyItemChange;
 			const historyItem = e.element.historyItemViewModel.historyItem;
+			const historyItemDisplayId = historyItem.displayId ?? historyItem.id;
+
 			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+			const historyItemParentDisplayId = historyItemParentId && historyItem.displayId
+				? historyItemParentId.substring(0, historyItem.displayId.length)
+				: historyItemParentId;
 
-			const historyProvider = e.element.repository.provider.historyProvider.get();
-			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
-			if (historyItemChanges) {
-				const title = getHistoryItemEditorTitle(historyItem);
-				const rootUri = e.element.repository.provider.rootUri;
-				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
-				const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
+			const originalUriTitle = historyItemChange.originalUri
+				? `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`
+				: undefined;
 
-				await this._editorService.openEditor({
-					label: title,
-					multiDiffSource: multiDiffSourceUri,
-					resources: historyItemChanges.map(c => ({
-						original: { resource: c.originalUri },
-						modified: { resource: c.modifiedUri }
-					})),
-					options: e.editorOptions
-				});
-			}
+			const modifiedUriTitle = historyItemChange.modifiedUri
+				? `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`
+				: undefined;
+
+			const title = originalUriTitle && modifiedUriTitle
+				? `${originalUriTitle} ↔ ${modifiedUriTitle}`
+				: originalUriTitle ?? modifiedUriTitle;
+
+			await this._editorService.openEditor({
+				label: title,
+				original: { resource: historyItemChange.originalUri },
+				modified: { resource: historyItemChange.modifiedUri },
+				options: e.editorOptions,
+			});
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
 			if (!pageOnScroll) {
