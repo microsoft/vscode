@@ -67,7 +67,6 @@ import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { basename } from '../../../../base/common/path.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
@@ -1395,7 +1394,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
@@ -1748,8 +1747,12 @@ export class SCMHistoryViewPane extends ViewPane {
 				? `${originalUriTitle} ↔ ${modifiedUriTitle}`
 				: originalUriTitle ?? modifiedUriTitle;
 
-			await this._commandService.executeCommand(
-				API_OPEN_DIFF_EDITOR_COMMAND_ID, historyItemChange.originalUri, historyItemChange.modifiedUri, title, undefined, e.editorOptions);
+			await this._editorService.openEditor({
+				label: title,
+				original: { resource: historyItemChange.originalUri },
+				modified: { resource: historyItemChange.modifiedUri },
+				options: e.editorOptions,
+			});
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
 			if (!pageOnScroll) {
