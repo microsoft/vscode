@@ -16,7 +16,7 @@ import { IPromptsService } from './promptSyntax/service/types.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /\/([\w_\-\.:]+)(?=(\s|$|\b))/i; // A / command
+const slashReg = /^\/([\w_\-\.:]+)(?=(\s|$|\b))/i; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -169,8 +169,16 @@ export class ChatRequestParser {
 			return;
 		}
 
-		if (parts.some(p => p instanceof ChatRequestSlashCommandPart)) {
-			// Only one slash command allowed
+		if (parts.some(p => !(p instanceof ChatRequestAgentPart) && !(p instanceof ChatRequestTextPart && p.text.trim() === ''))) {
+			// no other part than agent or non-whitespace text allowed: that also means no other slash command
+			return;
+		}
+
+		// only whitespace after the last part
+		const previousPart = parts.at(-1);
+		const previousPartEnd = previousPart?.range.endExclusive ?? 0;
+		const textSincePreviousPart = fullMessage.slice(previousPartEnd, offset);
+		if (textSincePreviousPart.trim() !== '') {
 			return;
 		}
 
@@ -180,18 +188,6 @@ export class ChatRequestParser {
 
 		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		if (usedAgent) {
-			// The slash command must come immediately after the agent
-			if (parts.some(p => (p instanceof ChatRequestTextPart && p.text.trim() !== '') || !(p instanceof ChatRequestAgentPart) && !(p instanceof ChatRequestTextPart))) {
-				return;
-			}
-
-			const previousPart = parts.at(-1);
-			const previousPartEnd = previousPart?.range.endExclusive ?? 0;
-			const textSincePreviousPart = fullMessage.slice(previousPartEnd, offset);
-			if (textSincePreviousPart.trim() !== '') {
-				return;
-			}
-
 			const subCommand = usedAgent.agent.slashCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
