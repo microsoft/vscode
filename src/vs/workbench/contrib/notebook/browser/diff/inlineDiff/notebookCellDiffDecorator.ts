@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 import { ThrottledDelayer } from '../../../../../../base/common/async.js';
 import { ICodeEditor, IViewZone } from '../../../../../../editor/browser/editorBrowser.js';
@@ -55,18 +55,18 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			return editor;
 		});
 
-		this.add(autorunWithStore((r, store) => {
+		this.add(autorun((r) => {
 			const editor = editorObs.read(r);
 			this.perEditorDisposables.clear();
 
 			if (editor) {
-				store.add(editor.onDidChangeModel(() => {
+				r.store.add(editor.onDidChangeModel(() => {
 					this.perEditorDisposables.clear();
 				}));
-				store.add(editor.onDidChangeModelContent(() => {
+				r.store.add(editor.onDidChangeModelContent(() => {
 					this.update(editor);
 				}));
-				store.add(editor.onDidChangeConfiguration((e) => {
+				r.store.add(editor.onDidChangeConfiguration((e) => {
 					if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
 						this.update(editor);
 					}

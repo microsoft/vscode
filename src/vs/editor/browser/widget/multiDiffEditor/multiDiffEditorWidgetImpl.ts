@@ -9,7 +9,7 @@ import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, disposableObservableValue, globalTransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, autorun, derived, disposableObservableValue, globalTransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -144,13 +144,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		));
 		this._lastDocStates = {};
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			const viewModel = this._viewModel.read(reader);
 			if (viewModel && viewModel.contextKeys) {
 				for (const [key, value] of Object.entries(viewModel.contextKeys)) {
 					const contextKey = this._contextKeyService.createKey<ContextKeyValue>(key, undefined);
 					contextKey.set(value);
-					store.add(toDisposable(() => contextKey.reset()));
+					reader.store.add(toDisposable(() => contextKey.reset()));
 				}
 			}
 		}));

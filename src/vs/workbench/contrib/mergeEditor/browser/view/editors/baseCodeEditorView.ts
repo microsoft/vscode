@@ -6,7 +6,7 @@
 import { h, reset } from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
-import { IObservable, autorun, autorunWithStore, derived } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, derived } from '../../../../../../base/common/observable.js';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -35,10 +35,10 @@ export class BaseCodeEditorView extends CodeEditorView {
 		);
 
 		this._register(
-			autorunWithStore((reader, store) => {
+			autorun((reader) => {
 				/** @description update checkboxes */
 				if (this.checkboxesVisible.read(reader)) {
-					store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+					reader.store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
 						getIntersectingGutterItems: (range, reader) => [],
 						createView: (item, target) => { throw new BugIndicatingError(); },
 					}));

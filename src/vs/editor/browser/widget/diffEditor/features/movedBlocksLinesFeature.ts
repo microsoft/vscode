@@ -10,7 +10,7 @@ import { booleanComparator, compareBy, numberComparator, tieBreakComparators } f
 import { findMaxIdx } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, autorunHandleChanges, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../editorBrowser.js';
 import { DiffEditorEditors } from '../components/diffEditorEditors.js';
@@ -191,11 +191,11 @@ export class MovedBlocksLinesFeature extends Disposable {
 		this._register(applyViewZones(this._editors.original, movedBlockViewZones.map(zones => /** @description movedBlockViewZones.original */ zones.map(z => z.original))));
 		this._register(applyViewZones(this._editors.modified, movedBlockViewZones.map(zones => /** @description movedBlockViewZones.modified */ zones.map(z => z.modified))));
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			const blocks = movedBlockViewZones.read(reader);
 			for (const b of blocks) {
-				store.add(new MovedBlockOverlayWidget(this._editors.original, b.original, b.move, 'original', this._diffModel.get()!));
-				store.add(new MovedBlockOverlayWidget(this._editors.modified, b.modified, b.move, 'modified', this._diffModel.get()!));
+				reader.store.add(new MovedBlockOverlayWidget(this._editors.original, b.original, b.move, 'original', this._diffModel.get()!));
+				reader.store.add(new MovedBlockOverlayWidget(this._editors.modified, b.modified, b.move, 'modified', this._diffModel.get()!));
 			}
 		}));
 

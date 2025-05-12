@@ -7,7 +7,7 @@ import { IDimension } from '../../../../base/browser/dom.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ElementSizeObserver } from '../../config/elementSizeObserver.js';
 import { ICodeEditor, IOverlayWidget, IViewZone } from '../../editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
@@ -312,7 +312,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 	const store = new DisposableStore();
 	const lastViewZoneIds: string[] = [];
 
-	store.add(autorunWithStore((reader, store) => {
+	store.add(autorun((reader) => {
 		/** @description applyViewZones */
 		const curViewZones = viewZones.read(reader);
 
@@ -338,7 +338,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 		if (setIsUpdating) { setIsUpdating(false); }
 
 		// Layout zone on change
-		store.add(autorunHandleChanges({
+		reader.store.add(autorunHandleChanges({
 			changeTracker: {
 				createChangeSummary() {
 					return { zoneIds: [] as string[] };

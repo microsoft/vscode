@@ -90,7 +90,7 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
  *
  * @deprecated Use `autorun(reader => { reader.store.add(...) })` instead!
  */
-export function autorunWithStore(fn: (reader: IReader, store: DisposableStore) => void): IDisposable {
+export function autorunWithStore(fn: (reader: IReaderWithStore, store: DisposableStore) => void): IDisposable {
 	const store = new DisposableStore();
 	const disposable = autorunOpts(
 		{

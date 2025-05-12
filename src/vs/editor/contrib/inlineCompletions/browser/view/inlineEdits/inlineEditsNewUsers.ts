@@ -6,7 +6,7 @@
 import { timeout } from '../../../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue, runOnChange, runOnChangeWithCancellationToken } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue, runOnChange, runOnChangeWithCancellationToken } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
@@ -115,10 +115,10 @@ export class InlineEditsOnboardingExperience extends Disposable {
 		}));
 
 		// Remember when the user has hovered over the icon
-		disposableStore.add(autorunWithStore((reader, store) => {
+		disposableStore.add(autorun((reader) => {
 			const indicator = this._indicator.read(reader);
 			if (!indicator) { return; }
-			store.add(runOnChange(indicator.isHoveredOverIcon, async (isHovered) => {
+			reader.store.add(runOnChange(indicator.isHoveredOverIcon, async (isHovered) => {
 				if (isHovered) {
 					userHasHoveredOverIcon = true;
 				}
@@ -126,10 +126,10 @@ export class InlineEditsOnboardingExperience extends Disposable {
 		}));
 
 		// Remember when the user has accepted an inline edit
-		disposableStore.add(autorunWithStore((reader, store) => {
+		disposableStore.add(autorun((reader) => {
 			const host = this._host.read(reader);
 			if (!host) { return; }
-			store.add(host.onDidAccept(() => {
+			reader.store.add(host.onDidAccept(() => {
 				inlineEditHasBeenAccepted = true;
 			}));
 		}));

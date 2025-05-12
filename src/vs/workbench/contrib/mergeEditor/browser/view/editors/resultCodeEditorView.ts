@@ -9,7 +9,7 @@ import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabe
 import { CompareResult } from '../../../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable } from '../../../../../../base/common/observable.js';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -45,10 +45,10 @@ export class ResultCodeEditorView extends CodeEditorView {
 		this.htmlElements.root.classList.add(`result`);
 
 		this._register(
-			autorunWithStore((reader, store) => {
+			autorun((reader) => {
 				/** @description update checkboxes */
 				if (this.checkboxesVisible.read(reader)) {
-					store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+					reader.store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
 						getIntersectingGutterItems: (range, reader) => [],
 						createView: (item, target) => { throw new BugIndicatingError(); },
 					}));

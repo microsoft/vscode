@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
 import { filterWithPrevious } from './utils.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
@@ -261,7 +261,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			debouncer.schedule();
 		}));
 
-		this._register(autorunWithStore(async (reader, store) => {
+		this._register(autorun(async (reader) => {
 			/** @description compute diff */
 
 			// So that they get recomputed when these settings change
@@ -279,13 +279,13 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			this._isDiffUpToDate.set(false, undefined);
 
 			let originalTextEditInfos: TextEditInfo[] = [];
-			store.add(model.original.onDidChangeContent((e) => {
+			reader.store.add(model.original.onDidChangeContent((e) => {
 				const edits = TextEditInfo.fromModelContentChanges(e.changes);
 				originalTextEditInfos = combineTextEditInfos(originalTextEditInfos, edits);
 			}));
 
 			let modifiedTextEditInfos: TextEditInfo[] = [];
-			store.add(model.modified.onDidChangeContent((e) => {
+			reader.store.add(model.modified.onDidChangeContent((e) => {
 				const edits = TextEditInfo.fromModelContentChanges(e.changes);
 				modifiedTextEditInfos = combineTextEditInfos(modifiedTextEditInfos, edits);
 			}));

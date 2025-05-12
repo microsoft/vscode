@@ -5,7 +5,7 @@
 
 import { createHotClass } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorunWithStore, debouncedObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, debouncedObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
@@ -49,7 +49,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable im
 			};
 		});
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			const state = this._state.read(reader);
 			if (!state) {
 				return;
@@ -64,7 +64,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable im
 				noSuggestion: { shortLabel: '$(circle-slash)', label: '$(copilot) ' + localize('noInlineSuggestionAvailable', "No inline suggestion available"), loading: false, },
 			};
 
-			store.add(this._languageStatusService.addStatus({
+			reader.store.add(this._languageStatusService.addStatus({
 				accessibilityInfo: undefined,
 				busy: statusMap[status].loading,
 				command: undefined,

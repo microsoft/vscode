@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { autorun, autorunWithStore, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -244,7 +244,7 @@ export class McpServer extends Disposable implements IMcpServer {
 				() => workspacesService.getWorkspace().folders,
 			);
 
-		this._register(autorunWithStore(reader => {
+		this._register(autorun(reader => {
 			const cnx = this._connection.read(reader)?.handler.read(reader);
 			if (!cnx) {
 				return;
@@ -257,11 +257,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		// 2. Populate this.tools when we connect to a server.
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			const cnx = this._connection.read(reader);
 			const handler = cnx?.handler.read(reader);
 			if (handler) {
-				this.populateLiveData(handler, cnx?.definition.cacheNonce, store);
+				this.populateLiveData(handler, cnx?.definition.cacheNonce, reader.store);
 			} else {
 				this.resetLiveData();
 			}

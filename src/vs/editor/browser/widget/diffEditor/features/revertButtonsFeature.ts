@@ -7,7 +7,7 @@ import { addDisposableListener, h, EventType } from '../../../../../base/browser
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorunWithStore, derived } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, derived } from '../../../../../base/common/observable.js';
 import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from '../../../editorBrowser.js';
 import { DiffEditorEditors } from '../components/diffEditorEditors.js';
 import { DiffEditorOptions } from '../diffEditorOptions.js';
@@ -30,7 +30,7 @@ export class RevertButtonsFeature extends Disposable {
 	) {
 		super();
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			if (!this._options.shouldRenderOldRevertArrows.read(reader)) { return; }
 			const model = this._diffModel.read(reader);
 			const diff = model?.diff.read(reader);
@@ -46,7 +46,7 @@ export class RevertButtonsFeature extends Disposable {
 				// The button to revert the selection
 				const selections = this._editors.modifiedSelections.read(reader);
 
-				const btn = store.add(new RevertButton(
+				const btn = reader.store.add(new RevertButton(
 					selections[selections.length - 1].positionLineNumber,
 					this._widget,
 					selectedDiffs.flatMap(d => d.rangeMappings),
@@ -59,7 +59,7 @@ export class RevertButtonsFeature extends Disposable {
 			for (const m of diff.mappings) {
 				if (selectedDiffsSet.has(m)) { continue; }
 				if (!m.lineRangeMapping.modified.isEmpty && m.lineRangeMapping.innerChanges) {
-					const btn = store.add(new RevertButton(
+					const btn = reader.store.add(new RevertButton(
 						m.lineRangeMapping.modified.startLineNumber,
 						this._widget,
 						m.lineRangeMapping,
@@ -70,7 +70,7 @@ export class RevertButtonsFeature extends Disposable {
 				}
 			}
 
-			store.add(toDisposable(() => {
+			reader.store.add(toDisposable(() => {
 				for (const w of glyphWidgetsModified) {
 					this._editors.modified.removeGlyphMarginWidget(w);
 				}

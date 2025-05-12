@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorunWithStore } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
@@ -53,19 +53,19 @@ export class TextModelChangeRecorder extends Disposable {
 		this._structuredLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<IRecordableEditorLogEntry & IDocumentEventDataSetChangeReason>(),
 			'editor.inlineSuggest.logChangeReason.commandId'
 		));
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			if (!(this._editor instanceof CodeEditorWidget)) { return; }
 			if (!this._structuredLogger.isEnabled.read(reader)) { return; }
 
 			const sources: string[] = [];
 
-			store.add(this._editor.onBeforeExecuteEdit(({ source }) => {
+			reader.store.add(this._editor.onBeforeExecuteEdit(({ source }) => {
 				if (source) {
 					sources.push(source);
 				}
 			}));
 
-			store.add(this._editor.onDidChangeModelContent(e => {
+			reader.store.add(this._editor.onDidChangeModelContent(e => {
 				const tm = this._editor.getModel();
 				if (!tm) { return; }
 				const metadata = TextModelChangeRecorder._getCurrentMetadata();

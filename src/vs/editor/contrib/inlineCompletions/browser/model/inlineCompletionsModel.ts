@@ -8,7 +8,7 @@ import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedHandleChanges, derivedOpts, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -529,14 +529,14 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		const inlineCompletionProviders = observableFromEvent(this._languageFeaturesService.inlineCompletionsProvider.onDidChange, () => this._languageFeaturesService.inlineCompletionsProvider.all(textModel));
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			const providers = inlineCompletionProviders.read(reader);
 			for (const provider of providers) {
 				if (!provider.onDidChangeInlineCompletions) {
 					continue;
 				}
 
-				store.add(provider.onDidChangeInlineCompletions(() => {
+				reader.store.add(provider.onDidChangeInlineCompletions(() => {
 					if (!this._enabled.get()) {
 						return;
 					}

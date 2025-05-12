@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, constObservable, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor, MouseTargetType } from '../../../../../browser/editorBrowser.js';
@@ -225,7 +225,7 @@ export class GhostTextView extends Disposable {
 			}));
 		}
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			if (USE_SQUIGGLES_FOR_WARNING) {
 				return;
 			}
@@ -236,7 +236,7 @@ export class GhostTextView extends Disposable {
 			}
 
 			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight);
-			store.add(this._editorObs.createContentWidget({
+			reader.store.add(this._editorObs.createContentWidget({
 				position: constObservable<IContentWidgetPosition>({
 					position: new Position(state.lineNumber, Number.MAX_SAFE_INTEGER),
 					preference: [ContentWidgetPositionPreference.EXACT],
@@ -267,7 +267,7 @@ export class GhostTextView extends Disposable {
 					}, [
 						renderIcon((state.icon && 'id' in state.icon) ? state.icon : Codicon.warning),
 					])
-				]).keepUpdated(store).element,
+				]).keepUpdated(reader.store).element,
 			}));
 		}));
 	}

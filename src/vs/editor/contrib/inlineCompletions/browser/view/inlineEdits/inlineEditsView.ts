@@ -7,7 +7,7 @@ import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equal
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -262,13 +262,13 @@ export class InlineEditsView extends Disposable {
 		this._renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
 		this._useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			const model = this._model.read(reader);
 			if (!model) {
 				return;
 			}
 
-			store.add(
+			reader.store.add(
 				Event.any(
 					this._sideBySide.onDidClick,
 					this._deletion.onDidClick,

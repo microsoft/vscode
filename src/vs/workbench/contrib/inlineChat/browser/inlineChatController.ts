@@ -13,7 +13,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1318,7 +1318,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		const visibleSessionObs = observableValue<IInlineChatSession2 | undefined>(this, undefined);
 
-		this._store.add(autorunWithStore((r, store) => {
+		this._store.add(autorun((r) => {
 
 			const model = editorObs.model.read(r);
 			const session = this._currentSession.read(r);
@@ -1334,12 +1334,12 @@ export class InlineChatController2 implements IEditorContribution {
 			const hasNoRequests = chatModel.getRequests().length === 0;
 			const hideOnRequest = inlineChatService.hideOnRequest.read(r);
 
-			const responseListener = store.add(new MutableDisposable());
+			const responseListener = r.store.add(new MutableDisposable());
 
 			if (hideOnRequest) {
 				// hide the request once the request has been added, reveal it again when no edit was made
 				// or when an error happened
-				store.add(chatModel.onDidChange(e => {
+				r.store.add(chatModel.onDidChange(e => {
 					if (e.kind === 'addRequest') {
 						transaction(tx => {
 							this._showWidgetOverrideObs.set(false, tx);

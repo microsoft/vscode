@@ -11,7 +11,7 @@ import { forEachAdjacent, groupAdjacentBy } from '../../../../../base/common/arr
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { applyStyle } from '../utils.js';
@@ -392,10 +392,10 @@ class View extends Disposable {
 		this._register(applyStyle(this.domNode, { width: this._width, height: this._height }));
 		this._register(applyStyle(this._content, { width: this._width, height: this._height }));
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			/** @description render */
 			this._model.currentGroup.read(reader);
-			this._render(store);
+			this._render(reader.store);
 		}));
 
 		// TODO@hediet use commands

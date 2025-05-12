@@ -6,7 +6,7 @@
 import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
 import { ICodeEditor, MouseTargetType } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
@@ -208,10 +208,10 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		this._register(observableCodeEditor(this._originalEditor).setDecorations(this._decorations.map(d => d?.originalDecorations ?? [])));
 
 		const modifiedCodeEditor = this._state.map(s => s?.modifiedCodeEditor);
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			const e = modifiedCodeEditor.read(reader);
 			if (e) {
-				store.add(observableCodeEditor(e).setDecorations(this._decorations.map(d => d?.modifiedDecorations ?? [])));
+				reader.store.add(observableCodeEditor(e).setDecorations(this._decorations.map(d => d?.modifiedDecorations ?? [])));
 			}
 		}));
 

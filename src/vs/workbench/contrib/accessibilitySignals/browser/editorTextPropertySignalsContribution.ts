@@ -5,7 +5,7 @@
 
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise, observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observable.js';
+import { IReader, autorun, derived, observableFromEvent, observableFromPromise, observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -59,14 +59,14 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 			}
 		);
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			/** @description updateSignalsEnabled */
 			if (!this._someAccessibilitySignalIsEnabled.read(reader)) {
 				return;
 			}
 			const activeEditor = this._activeEditorObservable.read(reader);
 			if (activeEditor) {
-				this._registerAccessibilitySignalsForEditor(activeEditor.editor, activeEditor.model, store);
+				this._registerAccessibilitySignalsForEditor(activeEditor.editor, activeEditor.model, reader.store);
 			}
 		}));
 	}

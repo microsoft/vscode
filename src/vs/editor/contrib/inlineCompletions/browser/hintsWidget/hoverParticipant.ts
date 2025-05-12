@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, constObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
@@ -118,8 +118,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const widgetNode: HTMLElement = document.createElement('div');
 		context.fragment.appendChild(widgetNode);
 
-		disposables.add(autorunWithStore((reader, store) => {
-			const w = store.add(this._instantiationService.createInstance(
+		disposables.add(autorun((reader) => {
+			const w = reader.store.add(this._instantiationService.createInstance(
 				InlineSuggestionHintsContentWidget.hot.read(reader),
 				this._editor,
 				false,

@@ -11,7 +11,7 @@ import { Color } from '../../../../../base/common/color.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -267,7 +267,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._sessionDisposables.add(viewZoneRegistrationStore);
 		// Set the view zones before restoring view state!
 		// Otherwise scrolling will be off
-		this._sessionDisposables.add(autorunWithStore((reader) => {
+		this._sessionDisposables.add(autorun((reader) => {
 			/** @description update alignment view zones */
 			const baseView = this.baseView.read(reader);
 

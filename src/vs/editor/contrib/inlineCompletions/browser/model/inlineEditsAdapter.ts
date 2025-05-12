@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorunWithStore, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
@@ -40,7 +40,7 @@ export class InlineEditsAdapter extends Disposable {
 
 		const didChangeSignal = observableSignalFromEvent('didChangeSignal', this._languageFeaturesService.inlineEditProvider.onDidChange);
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			didChangeSignal.read(reader);
 
 			type InlineCompletionsAndEdits = InlineCompletions<InlineCompletion & { edit: IInlineEdit }> & {
@@ -50,7 +50,7 @@ export class InlineEditsAdapter extends Disposable {
 				}[];
 			};
 
-			store.add(this._languageFeaturesService.inlineCompletionsProvider.register('*', {
+			reader.store.add(this._languageFeaturesService.inlineCompletionsProvider.register('*', {
 				async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletionsAndEdits | undefined> {
 					if (!context.includeInlineEdits) { return undefined; }
 

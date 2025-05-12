@@ -13,7 +13,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -69,7 +69,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 			return position;
 		});
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			/** @description setup content widget */
 			const model = this.model.read(reader);
 			if (!model || !this.alwaysShowToolbar.read(reader)) {
@@ -105,7 +105,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 			});
 
 			const hadPosition = derivedObservableWithCache(this, (reader, lastValue) => !!this.position.read(reader) || !!lastValue);
-			store.add(autorun(reader => {
+			reader.store.add(autorun(reader => {
 				if (hadPosition.read(reader)) {
 					contentWidgetValue.read(reader);
 				}

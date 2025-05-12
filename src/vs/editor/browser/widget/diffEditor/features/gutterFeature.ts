@@ -9,7 +9,7 @@ import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/act
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IBoundarySashes } from '../../../../../base/browser/ui/sash/sash.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, derived, derivedDisposable, derivedWithSetter, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, derived, derivedDisposable, derivedWithSetter, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -249,9 +249,9 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		}));
 
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			this._elements.buttons.replaceChildren();
-			const i = store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.buttons, this._menuId.read(reader), {
+			const i = reader.store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.buttons, this._menuId.read(reader), {
 				orientation: ActionsOrientation.VERTICAL,
 				hoverDelegate,
 				toolbarOptions: {
@@ -259,7 +259,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				},
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				actionRunner: store.add(new ActionRunnerWithContext(() => {
+				actionRunner: reader.store.add(new ActionRunnerWithContext(() => {
 					const item = this._item.get();
 					const mapping = item.mapping;
 					return {
@@ -273,7 +273,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 					shouldForwardArgs: true,
 				},
 			}));
-			store.add(i.onDidChangeMenuItems(() => {
+			reader.store.add(i.onDidChangeMenuItems(() => {
 				if (this._lastItemRange) {
 					this.layout(this._lastItemRange, this._lastViewRange!);
 				}

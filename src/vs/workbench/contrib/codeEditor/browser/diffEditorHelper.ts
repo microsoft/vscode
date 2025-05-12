@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorunWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { registerDiffEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
@@ -36,16 +36,16 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 			const computationResult = observableFromEvent(this, e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
-			this._register(autorunWithStore((reader, store) => {
+			this._register(autorun((reader) => {
 				/** @description update state */
 				if (onlyWhiteSpaceChange.read(reader)) {
-					const helperWidget = store.add(this._instantiationService.createInstance(
+					const helperWidget = reader.store.add(this._instantiationService.createInstance(
 						FloatingEditorClickWidget,
 						this._diffEditor.getModifiedEditor(),
 						localize('hintWhitespace', "Show Whitespace Differences"),
 						null
 					));
-					store.add(helperWidget.onClick(() => {
+					reader.store.add(helperWidget.onClick(() => {
 						this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.ignoreTrimWhitespace', false);
 					}));
 					helperWidget.render();

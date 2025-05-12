@@ -18,7 +18,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, autorunWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -343,7 +343,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(autorunWithStore((r, store) => {
+		this._register(autorun((r) => {
 
 			const viewModel = viewModelObs.read(r);
 			const sessions = chatEditingService.editingSessionsObs.read(r);
@@ -364,14 +364,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this._editingSession.set(session, undefined);
 
-			store.add(session.onDidDispose(() => {
+			r.store.add(session.onDidDispose(() => {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
 			}));
-			store.add(this.onDidChangeParsedInput(() => {
+			r.store.add(this.onDidChangeParsedInput(() => {
 				this.renderChatEditingSessionState();
 			}));
-			store.add(this.inputEditor.onDidChangeModelContent(() => {
+			r.store.add(this.inputEditor.onDidChangeModelContent(() => {
 				if (this.getInput() === '') {
 					this.refreshParsedInput();
 					this.renderChatEditingSessionState();

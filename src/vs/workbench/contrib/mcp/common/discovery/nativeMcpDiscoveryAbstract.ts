@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorunWithStore, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -76,15 +76,15 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 			}
 		};
 
-		store.add(autorunWithStore((reader, store) => {
+		store.add(autorun((reader) => {
 			if (!this._isDiscoveryEnabled(reader, discoverySource)) {
 				collectionRegistration.clear();
 				return;
 			}
 
-			const throttler = store.add(new RunOnceScheduler(updateFile, 500));
-			const watcher = store.add(this._fileService.createWatcher(file, { recursive: false, excludes: [] }));
-			store.add(watcher.onDidChange(() => throttler.schedule()));
+			const throttler = reader.store.add(new RunOnceScheduler(updateFile, 500));
+			const watcher = reader.store.add(this._fileService.createWatcher(file, { recursive: false, excludes: [] }));
+			reader.store.add(watcher.onDidChange(() => throttler.schedule()));
 			updateFile();
 		}));
 

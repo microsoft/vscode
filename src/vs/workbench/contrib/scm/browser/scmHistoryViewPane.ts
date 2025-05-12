@@ -16,7 +16,7 @@ import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -1491,7 +1491,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 			// Repository change
 			let isFirstRun = true;
-			this._visibilityDisposables.add(autorunWithStore((reader, store) => {
+			this._visibilityDisposables.add(autorun((reader) => {
 				const repository = this._treeViewModel.repository.read(reader);
 				const historyProvider = repository?.provider.historyProvider.read(reader);
 				if (!repository || !historyProvider) {
@@ -1502,7 +1502,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				const historyItemRefId = derived(reader => {
 					return historyProvider.historyItemRef.read(reader)?.id;
 				});
-				store.add(runOnChange(historyItemRefId, async historyItemRefIdValue => {
+				reader.store.add(runOnChange(historyItemRefId, async historyItemRefIdValue => {
 					await this.refresh();
 
 					// Update context key (needs to be done after the refresh call)
@@ -1510,7 +1510,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// HistoryItemRefs changed
-				store.add(runOnChange(historyProvider.historyItemRefChanges, changes => {
+				reader.store.add(runOnChange(historyProvider.historyItemRefChanges, changes => {
 					if (changes.silent) {
 						// The history item reference changes occurred in the background (ex: Auto Fetch)
 						// If tree is scrolled to the top, we can safely refresh the tree, otherwise we
@@ -1529,7 +1529,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// HistoryItemRefs filter changed
-				store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, async () => {
+				reader.store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, async () => {
 					await this.refresh();
 
 					// Update context key (needs to be done after the refresh call)
@@ -1537,7 +1537,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// HistoryItemRemoteRef changed
-				store.add(autorun(reader => {
+				reader.store.add(autorun(reader => {
 					this._scmCurrentHistoryItemRefHasRemote.set(!!historyProvider.historyItemRemoteRef.read(reader));
 				}));
 

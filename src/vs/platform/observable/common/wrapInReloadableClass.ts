@@ -5,7 +5,7 @@
 import { isHotReloadEnabled } from '../../../base/common/hotReload.js';
 import { readHotReloadableExport } from '../../../base/common/hotReloadHelpers.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { autorunWithStore } from '../../../base/common/observable.js';
+import { autorun } from '../../../base/common/observable.js';
 import { BrandedService, GetLeadingNonServiceArgs, IInstantiationService } from '../../instantiation/common/instantiation.js';
 
 /**
@@ -32,9 +32,9 @@ function createWrapper<T extends any[]>(getClass: () => any, B: new (...args: T)
 		private _autorun: IDisposable | undefined = undefined;
 
 		override init(...params: any[]) {
-			this._autorun = autorunWithStore((reader, store) => {
+			this._autorun = autorun((reader) => {
 				const clazz = readHotReloadableExport(getClass(), reader);
-				store.add(this.instantiationService.createInstance(clazz as any, ...params) as IDisposable);
+				reader.store.add(this.instantiationService.createInstance(clazz as any, ...params) as IDisposable);
 			});
 		}
 

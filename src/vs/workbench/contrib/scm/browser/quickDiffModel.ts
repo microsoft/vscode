@@ -28,7 +28,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 
 export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('IQuickDiffModelService');
 
@@ -157,9 +157,9 @@ export class QuickDiffModel extends Disposable {
 
 		this._register(this.quickDiffService.onDidChangeQuickDiffProviders(() => this.triggerDiff()));
 
-		this._register(autorunWithStore((r, store) => {
+		this._register(autorun((r) => {
 			for (const session of this._chatEditingService.editingSessionsObs.read(r)) {
-				store.add(autorun(r => {
+				r.store.add(autorun(r => {
 					for (const entry of session.entries.read(r)) {
 						entry.state.read(r); // signal
 					}

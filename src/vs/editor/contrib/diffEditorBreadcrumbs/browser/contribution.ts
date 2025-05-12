@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reverseOrder, compareBy, numberComparator } from '../../../../base/common/arrays.js';
-import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from '../../../../base/common/observable.js';
+import { observableValue, observableSignalFromEvent, autorun, IReader } from '../../../../base/common/observable.js';
 import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
 import { DisposableCancellationTokenSource } from '../../../browser/widget/diffEditor/utils.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
@@ -35,13 +35,13 @@ class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBread
 			Event.debounce<any>(e => this._textModel.onDidChangeContent(e), () => undefined, 100)
 		);
 
-		this._register(autorunWithStore(async (reader, store) => {
+		this._register(autorun(async (reader) => {
 			documentSymbolProviderChanged.read(reader);
 			textModelChanged.read(reader);
 
-			const src = store.add(new DisposableCancellationTokenSource());
+			const src = reader.store.add(new DisposableCancellationTokenSource());
 			const model = await this._outlineModelService.getOrCreate(this._textModel, src.token);
-			if (store.isDisposed) { return; }
+			if (reader.store.isDisposed) { return; }
 
 			this._currentModel.set(model, undefined);
 		}));

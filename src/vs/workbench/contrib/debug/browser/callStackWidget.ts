@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -596,9 +596,9 @@ class CustomRenderer extends AbstractFrameRenderer<IAbstractFrameRendererTemplat
 			template.elements.header.style.display = item.original.showHeader.read(reader) ? '' : 'none';
 		}));
 
-		elementStore.add(autorunWithStore((reader, store) => {
+		elementStore.add(autorun((reader) => {
 			if (!item.collapsed.read(reader)) {
-				store.add(item.original.render(container));
+				reader.store.add(item.original.render(container));
 			}
 		}));
 
