@@ -79,6 +79,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * Note: This is for non-executed command.
 	*/
 	trackPromptInputToVirtualFile(content: string): void {
+		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// TODO: Remove hardcoded banned content, check with shell type
 		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
@@ -108,12 +109,33 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	}
 
 	private _registerTerminalCommandFinishedListener(): void {
+
+		if (this._commandDetection) {
+			this._store.add(this._commandDetection.onCommandFinished((e) => {
+				if (e.exitCode === 0) {
+					// If command was successful, update virtual document
+					this.setContent(e.command);
+				}
+
+			}));
+			this._store.add(this._commandDetection.onCommandExecuted((e) => {
+				// console.log('command executed:', e.command);
+				// this.setContent(e.command);
+				if (e.exitCode === 0) {
+					// If command was successful, update virtual document
+					this.setContent(e.command);
+				}
+			}));
+
+		}
+
 		// Have to listen to onDidAddCapabilityType because command detection is not available until later
 		this._store.add(this._capabilitiesStore.onDidAddCapabilityType(e => {
 			if (e === TerminalCapability.CommandDetection) {
 				this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 				// this._promptInputModel = this._commandDetection?.promptInputModel;
 				if (this._commandDetection) {
+					console.log('command detection is alive \n');
 					this._store.add(this._commandDetection.onCommandFinished((e) => {
 						if (e.exitCode === 0) {
 							// If command was successful, update virtual document
@@ -121,6 +143,18 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 						}
 
 					}));
+					this._store.add(this._commandDetection.onCommandExecuted((e) => {
+						console.log('inside executed listener');
+						// console.log('command executed:', e.command);
+						// this.setContent(e.command);
+						if (e.exitCode === 0) {
+							// If command was successful, update virtual document
+							this.setContent(e.command);
+						}
+					}));
+
+				} else {
+					console.log('command detection is not alive \n');
 				}
 
 			}

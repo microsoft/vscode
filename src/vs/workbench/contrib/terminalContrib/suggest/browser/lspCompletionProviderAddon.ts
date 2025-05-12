@@ -38,6 +38,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
 		this.triggerCharacters = provider.triggerCharacters;
+		this.triggerCharacters?.push(' ');
 	}
 
 	activate(terminal: Terminal): void {
@@ -128,15 +129,28 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 // prefix: commandLine to cursorPosition
 export function createCompletionItemPython(cursorPosition: number, prefix: string, kind: any, label: any, detail?: string): any {
 	const endsWithDot = prefix.endsWith('.');
-	const lastWord = endsWithDot ? '' : prefix.split('.').at(-1) ?? '';
-	return {
-		label,
-		detail: detail ?? detail ?? '',
+	const endsWithSpace = prefix.endsWith(' ');
 
-		replacementIndex: cursorPosition - lastWord.length,
-		replacementLength: lastWord.length,
-		kind: kind ?? kind ?? TerminalCompletionItemKind.Method
-	};
+	if (endsWithSpace) {
+		const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
+		return {
+			label: label,
+			detail: detail ?? detail ?? '',
+			replacementIndex: cursorPosition - lastWord.length,
+			replacementLength: lastWord.length,
+			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
+		};
+	} else {
+		const lastWord = endsWithDot ? '' : prefix.split('.').at(-1) ?? '';
+		return {
+			label,
+			detail: detail ?? detail ?? '',
+
+			replacementIndex: cursorPosition - lastWord.length,
+			replacementLength: lastWord.length,
+			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
+		};
+	}
 }
 
 // # TODO:

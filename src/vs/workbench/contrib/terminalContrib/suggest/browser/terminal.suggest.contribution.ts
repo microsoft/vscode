@@ -38,6 +38,7 @@ import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvid
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { createTerminalLanguageVirtualUri, ILspTerminalDictionaryService } from '../../../../../platform/terminal/common/capabilities/lspTerminalDictionaryService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -73,6 +74,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILspTerminalDictionaryService private readonly _lspTerminalDictionaryService: ILspTerminalDictionaryService,
+		@IExtensionService private readonly _extensionService: IExtensionService // Added dependency
 	) {
 		super();
 		this.add(toDisposable(() => {
@@ -109,7 +111,9 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (!enabled) {
 			return;
 		}
+		console.log('xterm open calling loadaddon' + '\n');
 		this._loadAddons(xterm.raw);
+		this._loadLspCompletionAddon(xterm.raw);
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
 			this._refreshAddons();
 		}));
@@ -170,7 +174,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri);
-
+		// timeout for 3 second
+		await new Promise(resolve => setTimeout(resolve, 3000));
 		if (this._lspTerminalDictionaryService) {
 			// set it up so terminal can access the model and set content
 			// TODO: use actual terminal ID
@@ -198,13 +203,18 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private _loadAddons(xterm: RawXtermTerminal): void {
 		// Don't re-create the addon
 		if (this._addon.value) {
+			console.log('Addon already created');
 			return;
 		}
+		console.log('Creating addon');
 
 		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 		xterm.loadAddon(addon);
 		this._loadPwshCompletionAddon(xterm);
+
 		this._loadLspCompletionAddon(xterm);
+		// this._registerPylanceActivationListener(xterm); // Register the listener for Pylance activation
+
 		if (this._ctx.instance.target === TerminalLocation.Editor) {
 			addon.setContainerWithOverflow(xterm.element!);
 		} else {
@@ -240,6 +250,39 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
+	// private _registerPylanceActivationListener(xterm: RawXtermTerminal): void {
+	// 	const pylanceExtensionId = 'ms-python.vscode-pylance';
+	// 	const activationEvent = 'onLanguage:python';
+	// 	const tempb = this._extensionService.extensions;
+	// 	console.log(tempb);
+	// 	// Listen for activation events
+	// 	this.add(this._extensionService.onWillActivateByEvent(({ event }) => {
+	// 		if (event === activationEvent) {
+	// 			console.log(`Activation event triggered: ${event}`);
+	// 		}
+	// 	}));
+
+	// 	// Listen for extension activation status changes
+	// 	this.add(this._extensionService.onDidChangeExtensionsStatus((changedExtensions) => {
+	// 		if (changedExtensions.some(id => id.value === pylanceExtensionId)) {
+	// 			const status = this._extensionService.getExtensionsStatus();
+	// 			const pylanceStatus = status[pylanceExtensionId];
+	// 			if (pylanceStatus?.activationStarted) {
+	// 				console.log(`Pylance activation started.`);
+	// 			}
+	// 			if (pylanceStatus?.activationTimes) {
+	// 				console.log(`Pylance activation completed in ${pylanceStatus.activationTimes.activateResolvedTime}ms.`);
+	// 			}
+	// 		}
+	// 	}));
+
+	// 	// Trigger the activation event for Pylance
+	// 	this._extensionService.activateByEvent(activationEvent).then(() => {
+	// 		console.log(`Activation event '${activationEvent}' completed.`);
+	// 	});
+	// 	this._loadLspCompletionAddon(xterm);
+	// }
+
 	private _refreshAddons(): void {
 		const addon = this._addon.value;
 		if (!addon) {
@@ -250,7 +293,14 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		// Relies on shell type being set
+		console.log('calling loaddaon rn');
+		// Weird: need both loadaddon and lsp here to have completion show up for lsp stuff..
+		// this._loadAddons(this._ctx.instance.xterm.raw);
+		// this._registerPylanceActivationListener(this._ctx.instance.xterm.raw);
+		this._loadLspCompletionAddon(this._ctx.instance.xterm.raw);
 		this._loadPwshCompletionAddon(this._ctx.instance.xterm.raw);
+		// this._registerPylanceActivationListener(this._ctx.instance.xterm.raw);
+		// this._loadLspCompletionAddon(this._ctx.instance.xterm.raw);
 	}
 }
 
