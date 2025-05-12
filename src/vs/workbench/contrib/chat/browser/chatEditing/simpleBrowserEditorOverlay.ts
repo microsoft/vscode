@@ -105,7 +105,13 @@ class SimpleBrowserOverlayWidget {
 					this.showElement(cancelButton.element);
 					cancelButton.label = localize('finishSelectionLabel', 'Done');
 					while (!cts.token.isCancellationRequested) {
-						await this.addElementToChat(cts);
+						try {
+							await this.addElementToChat(cts);
+						} catch (err) {
+							this.logService.error('Failed to select this element.', err);
+							cts.cancel();
+							break;
+						}
 					}
 
 					// stop selection
