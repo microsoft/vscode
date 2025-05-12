@@ -380,7 +380,10 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	get tree() { return this._lastFullyParsed; }
 	get isDisposed() { return this._isDisposed; }
 
-	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree): Parser.Range[] {
+	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree): Parser.Range[] | undefined {
+		if ((this.ranges && this.ranges.every(range => range.startPosition.row !== newTree.rootNode.startPosition.row)) || newTree.rootNode.startPosition.row !== 0) {
+			return [];
+		}
 		const newCursor = newTree.walk();
 		const oldCursor = oldTree.walk();
 

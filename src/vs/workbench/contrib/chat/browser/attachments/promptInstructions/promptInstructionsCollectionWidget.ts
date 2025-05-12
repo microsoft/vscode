@@ -86,7 +86,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	constructor(
 		private readonly model: ChatPromptAttachmentsCollection,
 		private readonly resourceLabels: ResourceLabels,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@ILogService private readonly logService: ILogService,
@@ -97,7 +97,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 
 		// when a new attachment model is added, create a new child widget for it
 		this._register(this.model.onAdd((attachment) => {
-			const widget = this.initService.createInstance(
+			const widget = this.instantiationService.createInstance(
 				InstructionsAttachmentWidget,
 				attachment,
 				this.resourceLabels,

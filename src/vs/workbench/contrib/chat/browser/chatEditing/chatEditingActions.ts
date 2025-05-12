@@ -608,7 +608,7 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		// how important it is that they make it into the working set as it has limited size
 		const attachments = [];
 		for (const reference of [...definitions, ...implementations, ...references]) {
-			attachments.push(chatWidget.attachmentModel.asVariableEntry(reference.uri));
+			attachments.push(chatWidget.attachmentModel.asFileVariableEntry(reference.uri));
 		}
 
 		chatWidget.attachmentModel.addContext(...attachments);

@@ -45,7 +45,7 @@
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "vscode-dts-compile-check": "tsc -p src/tsconfig.vscode-dts.json && tsc -p src/tsconfig.vscode-proposed-dts.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
-    "property-init-order-check": "node build/lib/propertyInitOrderChecker.js",
+    "define-class-fields-check": "node build/lib/propertyInitOrderChecker.js && tsc -p src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.mjs",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
     "compile-cli": "gulp compile-cli",

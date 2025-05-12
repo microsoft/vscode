@@ -1010,4 +1010,53 @@ suite('ConfigurationResolverExpression', () => {
 			'key that is username: testuser': 'cool!'
 		});
 	});
+
+	test('resolves nested values 2 (#245798)', () => {
+		const expr = ConfigurationResolverExpression.parse({
+			env: {
+				SITE: "${input:site}",
+				TLD: "${input:tld}",
+				HOST: "${input:host}",
+			},
+		});
+
+		for (const r of expr.unresolved()) {
+			if (r.arg === 'site') {
+				expr.resolve(r, 'example');
+			} else if (r.arg === 'tld') {
+				expr.resolve(r, 'com');
+			} else if (r.arg === 'host') {
+				expr.resolve(r, 'local.${input:site}.${input:tld}');
+			}
+		}
+
+		assert.deepStrictEqual(expr.toObject(), {
+			env: {
+				SITE: 'example',
+				TLD: 'com',
+				HOST: 'local.example.com'
+			}
+		});
+	});
+
+	test('out-of-order key resolution (#248550)', () => {
+		const expr = ConfigurationResolverExpression.parse({
+			'${input:key}': "${input:value}",
+		});
+
+		for (const r of expr.unresolved()) {
+			if (r.arg === 'key') {
+				expr.resolve(r, 'the-key');
+			}
+		}
+		for (const r of expr.unresolved()) {
+			if (r.arg === 'value') {
+				expr.resolve(r, 'the-value');
+			}
+		}
+
+		assert.deepStrictEqual(expr.toObject(), {
+			'the-key': 'the-value'
+		});
+	});
 });
