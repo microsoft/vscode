@@ -482,7 +482,7 @@ export function registerChatActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				menu: {
-					id: MenuId.ChatInput,
+					id: MenuId.ChatExecute,
 					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
