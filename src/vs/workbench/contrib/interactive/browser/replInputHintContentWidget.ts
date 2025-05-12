@@ -77,6 +77,8 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			}));
 
 			this.editor.applyFontInfo(this.domNode);
+			const lineHeight = this.editor.getLineHeightForLineNumber(1);
+			this.domNode.style.lineHeight = lineHeight + 'px';
 		}
 
 		return this.domNode;
