@@ -7,6 +7,7 @@ import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNod
 import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
+import { Position } from '../../common/core/position.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -625,6 +626,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _lineHeightForLineNumber(lineNumber: number): number {
-		return this._viewContext.viewLayout.getLineHeightForPosition(lineNumber);
+		return this._viewContext.viewLayout.getLineHeightForPosition(new Position(lineNumber, 1));
 	}
 }
