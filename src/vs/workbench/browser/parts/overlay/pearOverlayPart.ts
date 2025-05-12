@@ -41,6 +41,8 @@ const PEAR_OVERLAY_TITLE = "pearai.overlayView";
 export class PearOverlayPart extends Part {
 	static readonly ID = "workbench.parts.pearoverlay";
 
+	private queuedMessagesOnReady: any[] = [];
+
 	readonly minimumWidth: number = 300;
 	readonly maximumWidth: number = 800;
 	readonly minimumHeight: number = 200;
@@ -328,6 +330,11 @@ export class PearOverlayPart extends Part {
 		});
 
 		this.webviewView!.webview.layoutWebviewOverElement(this.popupAreaOverlay!);
+		// handle queued messages
+
+		Promise.all(this.queuedMessagesOnReady.map(x => this.webviewView!.webview.postMessage(x))).catch(e => {
+			console.error("Failed to send queued messages to the webview :(", e);
+		})
 		this.focus();
 	}
 
@@ -438,6 +445,15 @@ export class PearOverlayPart extends Part {
 					this.isExtensionReady = true;
 				}
 			}, 300);
+		}
+	}
+
+	public async postMessageToWebview(msg: any): Promise<boolean> {
+		if(this.webviewView?.webview) {
+			return this.webviewView.webview.postMessage(msg);
+		} else {
+			this.queuedMessagesOnReady.push(msg);
+			return false;
 		}
 	}
 
