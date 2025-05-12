@@ -92,7 +92,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
 
 	private readonly _trustMemento = new Lazy(() => this._register(createTrustMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, this._storageService)));
-	private readonly _lazyCollectionsToUpdate = new Set</* collection ID*/string>();
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
@@ -148,7 +147,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		// Incoming collections replace the "lazy" versions. See `ExtensionMcpDiscovery` for an example.
 		if (toReplace) {
-			this._lazyCollectionsToUpdate.add(collection.id);
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
 		} else {
 			this._collections.set([...currentCollections, collection], undefined);
@@ -221,6 +219,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		const stored = await storage.getMap();
 		const previous = stored[inputId].value;
 		await this._configurationResolverService.resolveWithInteraction(folderData, expr, configSection, previous ? { [inputId.slice(2, -1)]: previous } : {}, target);
+		await this._updateStorageWithExpressionInputs(storage, expr);
+	}
+
+	public async setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void> {
+		const storage = this._getInputStorageInConfigTarget(target);
+		const expr = ConfigurationResolverExpression.parse(inputId);
+		for (const unresolved of expr.unresolved()) {
+			expr.resolve(unresolved, value);
+			break;
+		}
 		await this._updateStorageWithExpressionInputs(storage, expr);
 	}
 
@@ -326,7 +334,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
-		const collection = this._collections.get().find(c => c.id === collectionRef.id);
+		let collection = this._collections.get().find(c => c.id === collectionRef.id);
+		if (collection?.lazy) {
+			await collection.lazy.load();
+			collection = this._collections.get().find(c => c.id === collectionRef.id);
+		}
+
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
 		if (!collection || !definition) {
 			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
@@ -356,9 +369,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-		let launch: McpServerLaunch | undefined;
+		let launch: McpServerLaunch | undefined = definition.launch;
+		if (collection.resolveServerLanch) {
+			launch = await collection.resolveServerLanch(definition);
+			if (!launch) {
+				return undefined; // interaction cancelled by user
+			}
+		}
+
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, definition.launch);
+			launch = await this._replaceVariablesInLaunch(definition, launch);
 		} catch (e) {
 			this._notificationService.notify({
 				severity: Severity.Error,

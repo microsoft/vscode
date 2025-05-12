@@ -9,8 +9,8 @@ import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/co
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction } from './actions/developerActions.js';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from './actions/windowActions.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, StopTracing } from './actions/developerActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -43,6 +43,9 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
+	registerAction2(ToggleWindowAlwaysOnTopAction);
+	registerAction2(EnableWindowAlwaysOnTopAction);
+	registerAction2(DisableWindowAlwaysOnTopAction);
 
 	if (isMacintosh) {
 		// macOS: behave like other native apps that have documents
@@ -111,6 +114,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
 	registerAction2(ShowGPUInfoAction);
+	registerAction2(StopTracing);
 })();
 
 // Menu

@@ -28,7 +28,7 @@
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
@@ -54,7 +54,8 @@
     "tree-sitter": "^0.22.4",
     "vscode-universal-bundler": "^0.1.3",
     "workerpool": "^6.4.0",
-    "yauzl": "^2.10.0"
+    "yauzl": "^2.10.0",
+    "zx": "8.5.0"
   },
   "type": "commonjs",
   "scripts": {

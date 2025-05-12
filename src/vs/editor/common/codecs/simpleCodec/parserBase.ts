@@ -54,6 +54,13 @@ export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
 	protected isConsumed: boolean = false;
 
 	/**
+	 * Whether the parser object was "consumed" hence must not be used anymore.
+	 */
+	public get consumed(): boolean {
+		return this.isConsumed;
+	}
+
+	/**
 	 * Number of tokens at the initialization of the current parser.
 	 */
 	protected readonly startTokensCount: number;
@@ -104,11 +111,11 @@ export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
  *
  * @throws the resulting decorated method throws if the parser object was already consumed.
  */
-export function assertNotConsumed<T extends ParserBase<any, any>>(
+export function assertNotConsumed<T extends ParserBase<BaseToken, unknown>>(
 	_target: T,
 	propertyKey: 'accept',
 	descriptor: PropertyDescriptor,
-) {
+): PropertyDescriptor {
 	// store the original method reference
 	const originalMethod = descriptor.value;
 

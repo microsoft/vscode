@@ -114,11 +114,12 @@ export class GitHubServer implements IGitHubServer {
 		const supportedClient = isSupportedClient(callbackUri);
 		const supportedTarget = isSupportedTarget(this._type, this._ghesUri);
 
+		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const flows = getFlows({
 			target: this._type === AuthProviderType.github
 				? GitHubTarget.DotCom
 				: supportedTarget ? GitHubTarget.HostedEnterprise : GitHubTarget.Enterprise,
-			extensionHost: typeof navigator === 'undefined'
+			extensionHost: isNodeEnvironment
 				? this._extensionKind === vscode.ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
 			isSupportedClient: supportedClient

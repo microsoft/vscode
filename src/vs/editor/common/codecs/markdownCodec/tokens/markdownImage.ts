@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
 import { MarkdownToken } from './markdownToken.js';
 import { IRange, Range } from '../../../core/range.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -96,21 +95,6 @@ export class MarkdownImage extends MarkdownToken {
 	}
 
 	/**
-	 * Check if this token is equal to another one.
-	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
-			return false;
-		}
-
-		if (!(other instanceof MarkdownImage)) {
-			return false;
-		}
-
-		return this.text === other.text;
-	}
-
-	/**
 	 * Get the range of the `link part` of the token.
 	 */
 	public get linkRange(): IRange | undefined {
@@ -136,6 +120,6 @@ export class MarkdownImage extends MarkdownToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-image("${this.text}")${this.range}`;
+		return `md-image("${this.shortText()}")${this.range}`;
 	}
 }

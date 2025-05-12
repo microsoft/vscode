@@ -30,14 +30,14 @@ import { IExtensionService, nullExtensionDescription } from '../../../../service
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { mock, TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatModel, ISerializableChatData } from '../../common/chatModel.js';
 import { IChatFollowup, IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
 
@@ -50,6 +50,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
+	modes: [ChatMode.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
@@ -83,6 +84,7 @@ const chatAgentWithMarkdown: IChatAgent = {
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
+	modes: [ChatMode.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
@@ -95,7 +97,7 @@ const chatAgentWithMarkdown: IChatAgent = {
 	},
 };
 
-function getAgentData(id: string) {
+function getAgentData(id: string): IChatAgentData {
 	return {
 		name: id,
 		id: id,
@@ -104,6 +106,7 @@ function getAgentData(id: string) {
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		locations: [ChatAgentLocation.Panel],
+		modes: [ChatMode.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],
@@ -159,19 +162,15 @@ suite('ChatService', () => {
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const session1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session1.waitForInitialization();
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
 		const session2 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session2.waitForInitialization();
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		const retrieved1 = testDisposables.add((await testService2.getOrRestoreSession(session1.sessionId))!);
-		await retrieved1.waitForInitialization();
 		const retrieved2 = testDisposables.add((await testService2.getOrRestoreSession(session2.sessionId))!);
-		await retrieved2.waitForInitialization();
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});

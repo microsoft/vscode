@@ -16,6 +16,18 @@ export enum ChatMode {
 	Agent = 'agent'
 }
 
+export function modeToString(mode: ChatMode) {
+	switch (mode) {
+		case ChatMode.Agent:
+			return 'Agent';
+		case ChatMode.Edit:
+			return 'Edit';
+		case ChatMode.Ask:
+		default:
+			return 'Ask';
+	}
+}
+
 export function validateChatMode(mode: unknown): ChatMode | undefined {
 	switch (mode) {
 		case ChatMode.Ask:
@@ -34,8 +46,6 @@ export enum ChatAgentLocation {
 	Terminal = 'terminal',
 	Notebook = 'notebook',
 	Editor = 'editor',
-	// TODO@roblourens Delete
-	EditingSession = 'editing-session',
 }
 
 export namespace ChatAgentLocation {
@@ -45,7 +55,6 @@ export namespace ChatAgentLocation {
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
 			case 'editor': return ChatAgentLocation.Editor;
-			case 'editing-session': return ChatAgentLocation.EditingSession;
 		}
 		return ChatAgentLocation.Panel;
 	}

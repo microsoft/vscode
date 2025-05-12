@@ -23,6 +23,10 @@ or exit
 set --global VSCODE_SHELL_INTEGRATION 1
 set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
 set -e VSCODE_SHELL_ENV_REPORTING
+set -g envVarsToReport
+if test -n "$__vscode_shell_env_reporting"
+	set envVarsToReport (string split "," "$__vscode_shell_env_reporting")
+end
 
 # Apply any explicit path prefix (see #99878)
 # On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
@@ -159,15 +163,20 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
-if test "$__vscode_shell_env_reporting" = "1"
+if test -n "$__vscode_shell_env_reporting"
 	function __vsc_update_env --on-event fish_prompt
-		__vsc_esc EnvSingleStart 1
-		for line in (env)
-			set myVar (echo $line | awk -F= '{print $1}')
-			set myVal (echo $line | awk -F= '{print $2}')
-			__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
+		if test (count $envVarsToReport) -gt 0
+			__vsc_esc EnvSingleStart 1
+
+			for key in $envVarsToReport
+				if set -q $key
+					set -l value $$key
+					__vsc_esc EnvSingleEntry $key (__vsc_escape_value "$value")
+				end
+			end
+
+			__vsc_esc EnvSingleEnd
 		end
-		__vsc_esc EnvSingleEnd
 	end
 end
 

@@ -122,6 +122,7 @@ export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
+	alwaysOnTop?: boolean;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -210,6 +211,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 				};
 			}
 		}
+	}
+
+	if (overrides?.alwaysOnTop) {
+		options.alwaysOnTop = true;
 	}
 
 	return options;

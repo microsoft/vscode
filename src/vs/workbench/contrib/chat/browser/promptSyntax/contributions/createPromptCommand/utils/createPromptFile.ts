@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../../../../../../base/common/buffer.js';
 import { dirname } from '../../../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
+import { isPromptOrInstructionsFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 
 /**
  * Options for the {@link createPromptFile} utility.
@@ -52,7 +52,7 @@ export const createPromptFile = async (
 	const promptUri = URI.joinPath(folder, fileName);
 
 	assert(
-		isPromptFile(promptUri),
+		isPromptOrInstructionsFile(promptUri),
 		new InvalidPromptName(fileName),
 	);
 

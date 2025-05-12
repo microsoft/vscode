@@ -209,7 +209,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return firstError;
 		}
 
-		const injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
+		const injection = await getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
 		if (injection.type === 'injection') {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 			if (injection.envMixin) {

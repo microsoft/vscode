@@ -129,7 +129,8 @@ registerAction2(class RemoveAction extends Action2 {
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
-				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement);
+				// Ignore error if there are no elements left
+				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement).catch(() => { });
 			}
 
 			if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {

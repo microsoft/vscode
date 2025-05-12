@@ -77,6 +77,7 @@ export class TestNativeHostService implements INativeHostService {
 	onDidChangePassword = Event.None;
 	onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
 	onDidChangeWindowFullScreen = Event.None;
+	onDidChangeWindowAlwaysOnTop = Event.None;
 	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
@@ -100,6 +101,9 @@ export class TestNativeHostService implements INativeHostService {
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
 	async moveWindowTop(options?: INativeHostOptions): Promise<void> { }
+	async isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean> { return false; }
+	async toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void> { }
+	async setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> { }
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
@@ -145,6 +149,7 @@ export class TestNativeHostService implements INativeHostService {
 	async exit(code: number): Promise<void> { }
 	async openDevTools(options?: Partial<Electron.OpenDevToolsOptions> & INativeHostOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
+	async stopTracing(): Promise<void> { }
 	async openGPUInfoWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
@@ -156,13 +161,13 @@ export class TestNativeHostService implements INativeHostService {
 	async readClipboardFindText(): Promise<string> { return ''; }
 	async writeClipboardFindText(text: string): Promise<void> { }
 	async writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
-	async triggerPaste(): Promise<void> { }
+	async triggerPaste(options?: INativeHostOptions): Promise<void> { }
 	async readImage(): Promise<Uint8Array> { return Uint8Array.from([]); }
 	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async profileRenderer(): Promise<any> { throw new Error(); }
-	async getScreenshot(): Promise<VSBuffer | undefined> { return undefined; }
+	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
 }
 
 export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {

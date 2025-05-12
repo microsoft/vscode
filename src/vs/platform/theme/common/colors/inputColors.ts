@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 
 // Import the effects we need
 import { Color, RGBA } from '../../../../base/common/color.js';
-import { registerColor, transparent, lighten, darken } from '../colorUtils.js';
+import { registerColor, transparent, lighten, darken, ColorTransformType } from '../colorUtils.js';
 
 // Import the colors we need
 import { foreground, contrastBorder, focusBorder, iconForeground } from './baseColors.js';
@@ -192,6 +192,14 @@ export const checkboxBorder = registerColor('checkbox.border',
 export const checkboxSelectBorder = registerColor('checkbox.selectBorder',
 	iconForeground,
 	nls.localize('checkbox.select.border', "Border color of checkbox widget when the element it's in is selected."));
+
+export const checkboxDisabledBackground = registerColor('checkbox.disabled.background',
+	{ op: ColorTransformType.Mix, color: checkboxBackground, with: checkboxForeground, ratio: 0.33 },
+	nls.localize('checkbox.disabled.background', "Background of a disabled checkbox."));
+
+export const checkboxDisabledForeground = registerColor('checkbox.disabled.foreground',
+	{ op: ColorTransformType.Mix, color: checkboxForeground, with: checkboxBackground, ratio: 0.33 },
+	nls.localize('checkbox.disabled.foreground', "Foreground of a disabled checkbox."));
 
 
 // ------ keybinding label
