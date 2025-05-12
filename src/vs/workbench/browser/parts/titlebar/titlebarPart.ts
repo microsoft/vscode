@@ -843,7 +843,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		creatorModeButton.style.opacity = "0";
 		visibleCreatorModeButton.style.position = "fixed";
 		visibleCreatorModeButton.style.top = "0";
-		visibleCreatorModeButton.style.right = "0";
+		visibleCreatorModeButton.style.right = isWindows ? "100px" : "0";
 		visibleCreatorModeButton.style.zIndex = "999";
 		visibleCreatorModeButton.style.cursor = "pointer";
 
