@@ -1010,4 +1010,32 @@ suite('ConfigurationResolverExpression', () => {
 			'key that is username: testuser': 'cool!'
 		});
 	});
+
+	test('resolves nested values 2 (#245798)', () => {
+		const expr = ConfigurationResolverExpression.parse({
+			env: {
+				SITE: "${input:site}",
+				TLD: "${input:tld}",
+				HOST: "${input:host}",
+			},
+		});
+
+		for (const r of expr.unresolved()) {
+			if (r.arg === 'site') {
+				expr.resolve(r, 'example');
+			} else if (r.arg === 'tld') {
+				expr.resolve(r, 'com');
+			} else if (r.arg === 'host') {
+				expr.resolve(r, 'local.${input:site}.${input:tld}');
+			}
+		}
+
+		assert.deepStrictEqual(expr.toObject(), {
+			env: {
+				SITE: 'example',
+				TLD: 'com',
+				HOST: 'local.example.com'
+			}
+		});
+	});
 });

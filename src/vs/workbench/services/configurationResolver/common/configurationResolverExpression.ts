@@ -283,8 +283,8 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			object[newKey] = value;
 			this.parseString(object, newKey, data.value, true, path);
 		} else {
-			this.parseString(object, propertyName, data.value, false, path);
 			object[propertyName] = object[propertyName].replaceAll(replacement.id, data.value);
+			this.parseString(object, propertyName, data.value, false, path);
 		}
 
 		path.pop();
