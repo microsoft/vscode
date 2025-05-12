@@ -184,7 +184,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.insertOrChangeCustomLineHeight('decA', 1, 1, 40);
 		manager.commit();
 
-		manager.onLinesDeleted(2, 4); // Delete lines 2-4 after the decoration
+		manager.onLinesDeleted(2, 4); // Delete lines 2-4 after the variable line height
 
 		// Check individual line heights
 		assert.strictEqual(manager.heightForLineNumber(1), 40);
