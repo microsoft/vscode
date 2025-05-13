@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Display, protocol, screen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -83,7 +83,7 @@ import { ElectronURLListener } from '../../platform/url/electron-main/electronUr
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
 import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
-import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from '../../platform/windows/electron-main/windows.js';
+import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
 import { ActiveWindowManager } from '../../platform/windows/node/windowTracker.js';
@@ -113,7 +113,6 @@ import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/el
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
-import { IAuxiliaryWindow } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
@@ -522,52 +521,6 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#endregion
-
-		if (isWindows && this.environmentMainService.enableRDPDisplayTracking) {
-			// Handles the display-added event on Windows RDP multi-monitor scenarios.
-			// This helps restore maximized windows to their correct monitor after RDP reconnection.
-			// Refs https://github.com/electron/electron/issues/47016
-			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
-				const displayWorkingArea = WindowStateValidator.getWorkingArea(e.display);
-
-				for (const window of this.windowsMainService?.getWindows() ?? []) {
-					this.onDisplayAdded(window, displayWorkingArea);
-				}
-
-				for (const window of this.auxiliaryWindowsMainService?.getWindows() ?? []) {
-					this.onDisplayAdded(window, displayWorkingArea);
-				}
-			}));
-		}
-	}
-
-	private onDisplayAdded(window: ICodeWindow | IAuxiliaryWindow, displayWorkingArea: Electron.Rectangle | undefined): void {
-		const state = window.maximizedWindowState;
-		if (
-			!window.win ||
-			!state ||
-			typeof state.x !== 'number' ||
-			typeof state.y !== 'number' ||
-			typeof state.width !== 'number' ||
-			typeof state.height !== 'number'
-		) {
-			return;
-		}
-
-		if (displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
-			this.logService.debug(`Setting maximized window ${window.id} bounds to match newly added display`, state);
-			window.win.setBounds({
-				x: state.x,
-				y: state.y,
-				width: state.width,
-				height: state.height
-			});
-		}
 	}
 
 	async startup(): Promise<void> {

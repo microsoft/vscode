@@ -26,8 +26,6 @@ export interface IBaseWindow extends IDisposable {
 	readonly id: number;
 	readonly win: electron.BrowserWindow | null;
 
-	readonly maximizedWindowState: IWindowState | undefined;
-
 	readonly lastFocusTime: number;
 	focus(options?: { mode: FocusMode }): void;
 

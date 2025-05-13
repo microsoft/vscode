@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron, { BrowserWindowConstructorOptions } from 'electron';
+import electron, { BrowserWindowConstructorOptions, Display, screen } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -117,7 +117,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
 	private _maximizedWindowState: IWindowState | undefined;
-	get maximizedWindowState(): IWindowState | undefined { return this._maximizedWindowState; }
 
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
@@ -223,6 +222,16 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			this._register(this.onDidLeaveFullScreen(() => {
 				this.joinNativeFullScreenTransition?.complete(true);
+			}));
+		}
+
+		if (isWindows && this.environmentMainService.enableRDPDisplayTracking) {
+			// Handles the display-added event on Windows RDP multi-monitor scenarios.
+			// This helps restore maximized windows to their correct monitor after RDP reconnection.
+			// Refs https://github.com/electron/electron/issues/47016
+			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
+				const displayWorkingArea = WindowStateValidator.getWorkingArea(e.display);
+				this.onDisplayAdded(displayWorkingArea);
 			}));
 		}
 	}
@@ -500,6 +509,35 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	}
 
 	//#endregion
+
+	private onDisplayAdded(displayWorkingArea: Electron.Rectangle | undefined): void {
+		const state = this._maximizedWindowState;
+		if (
+			!this.win ||
+			!state ||
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number'
+		) {
+			return;
+		}
+
+		if (displayWorkingArea &&											// we have valid working area bounds
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
+		) {
+			this.logService.debug(`Setting maximized window ${this.id} bounds to match newly added display`, state);
+			this.win.setBounds({
+				x: state.x,
+				y: state.y,
+				width: state.width,
+				height: state.height
+			});
+		}
+	}
 
 	abstract matches(webContents: electron.WebContents): boolean;
 
