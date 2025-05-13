@@ -26,9 +26,24 @@ export interface IDialogInputOptions {
 	readonly value?: string;
 }
 
+export enum DialogContentsAlignment {
+	/**
+	 * Dialog contents align from left to right (icon, message, buttons on a separate row).
+	 *
+	 * Note: this is the default alignment for dialogs.
+	 */
+	Horizontal = 0,
+
+	/**
+	 * Dialog contents align from top to bottom (icon, message, buttons stack on top of each other)
+	 */
+	Vertical
+}
+
 export interface IDialogOptions {
 	readonly cancelId?: number;
 	readonly detail?: string;
+	readonly alignment?: DialogContentsAlignment;
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
@@ -45,7 +60,6 @@ export interface IDialogOptions {
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly dialogStyles: IDialogStyles;
-	readonly extraClasses?: string[];
 }
 
 export interface IDialogResult {
@@ -95,8 +109,8 @@ export class Dialog extends Disposable {
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
-		if (options.extraClasses) {
-			this.element.classList.add(...options.extraClasses);
+		if (options.alignment === DialogContentsAlignment.Vertical) {
+			this.element.classList.add('align-vertical');
 		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;

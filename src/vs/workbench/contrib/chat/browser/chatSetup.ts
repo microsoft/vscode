@@ -5,7 +5,7 @@
 
 import './media/chatSetup.css';
 import { $ } from '../../../../base/browser/dom.js';
-import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { Dialog, DialogContentsAlignment } from '../../../../base/browser/ui/dialog/dialog.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -662,23 +662,23 @@ class ChatSetup {
 
 		let result: ChatSetupStrategy | undefined = undefined;
 
-		const buttons = [this.getPrimaryButton(), localize('maybeLater', "Maybe Later")];
-
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
 			this.getDialogTitle(),
-			buttons,
+			[this.getPrimaryButton()],
 			createWorkbenchDialogOptions({
 				type: 'none',
 				icon: Codicon.copilotLarge,
-				cancelId: buttons.length - 1,
-				renderBody: body => body.appendChild(this.createDialog(disposables)),
+				alignment: DialogContentsAlignment.Vertical,
+				cancelId: -1, // not offered as button, but X can cancel
+				renderBody: body => body.appendChild(this.createDialogBody(disposables)),
+				renderFooter: this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ? footer => footer.appendChild(this.createDialogFooter(disposables)) : undefined,
 				primaryButtonDropdown: {
 					contextMenuProvider: this.contextMenuService,
 					addPrimaryActionToDropdown: false,
 					actions: [
-						toAction({ id: 'setupWithProvider', label: localize('setupWithProvider', "Sign in with a {0} Account", defaultChat.providerName), run: () => result = ChatSetupStrategy.SetupWithoutEnterpriseProvider }),
-						toAction({ id: 'setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => result = ChatSetupStrategy.SetupWithEnterpriseProvider }),
+						toAction({ id: 'setupWithProvider', label: localize('setupWithProvider', "Continue with a {0} Account", defaultChat.providerName), run: () => result = ChatSetupStrategy.SetupWithoutEnterpriseProvider }),
+						toAction({ id: 'setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Continue with a {0} Account", defaultChat.enterpriseProviderName), run: () => result = ChatSetupStrategy.SetupWithEnterpriseProvider }),
 					]
 				}
 			}, this.keybindingService, this.layoutService)
@@ -693,10 +693,10 @@ class ChatSetup {
 	private getPrimaryButton(): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
-				return localize('setupWithProviderShort', "Sign in with {0}", defaultChat.enterpriseProviderName);
+				return localize('setupWithProviderShort', "Continue with {0}", defaultChat.enterpriseProviderName);
 			}
 
-			return localize('signInButton', "Sign in");
+			return localize('signInButton', "Continue with {0}", defaultChat.providerName);
 		}
 
 		return localize('useCopilotButton', "Use Copilot");
@@ -714,20 +714,25 @@ class ChatSetup {
 		return this.context.state.registered ? localize('copilotTitle', "Start using Copilot") : localize('copilotFreeTitle', "Start using Copilot for free");
 	}
 
-	private createDialog(disposables: DisposableStore): HTMLElement {
-		const element = $('.chat-setup-dialog');
+	private createDialogBody(disposables: DisposableStore): HTMLElement {
+		const element = $('.chat-setup-dialog-body');
 
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
-		// Header
-		const header = localize({ key: 'headerDialog', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer. Write code faster with completions, fix bugs and build new features across multiple files, and learn about your codebase through chat.", defaultChat.documentationUrl);
+		const header = localize('headerDialog', "Copilot is your AI pair programmer. Write code faster with completions, fix bugs and build new features across multiple files, and learn about your codebase through chat.");
 		element.appendChild($('p.setup-header', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
 
+		return element;
+	}
+
+	private createDialogFooter(disposables: DisposableStore): HTMLElement {
+		const element = $('.chat-setup-dialog-footer');
+
+		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
+
 		// SKU Settings
-		if (this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
-			const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-			element.appendChild($('p.setup-settings', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
-		}
+		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		element.appendChild($('p.setup-settings', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 
 		return element;
 	}
