@@ -388,7 +388,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
-
+		'search.experimental.autoAISearchResults': {
+			type: 'boolean',
+			description: nls.localize('search.experimental.autoAISearchResults', "Automatically request search results from the AI search provider"),
+			default: false
+		},
 	}
 });
 

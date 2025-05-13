@@ -627,7 +627,14 @@ export class SearchView extends ViewPane {
 			this.searchWidget.toggleReplace(true);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
+		this._register(this.searchWidget.onSearchSubmit(options => {
+			const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental?.autoAISearchResults;
+			this.triggerQueryChange({
+				...options,
+				shouldKeepAIResults: false,
+				shouldUpdateAISearch: shouldRenderAIResults,
+			});
+		}));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
 			this.triggerQueryChange({ shouldKeepAIResults: true });
@@ -1581,8 +1588,9 @@ export class SearchView extends ViewPane {
 		}
 
 		this.validateQuery(query).then(() => {
-			// ensure that the node is closed when a new search is triggered
-			if (!shouldKeepAIResults && !shouldUpdateAISearch && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+			if (!shouldKeepAIResults && shouldUpdateAISearch && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+				this.model.cancelAISearch(true);
+				this.model.clearAiSearchResults();
 				this.tree.collapse(this.searchResult.aiTextSearchResult);
 			}
 
@@ -1682,6 +1690,12 @@ export class SearchView extends ViewPane {
 
 		// Special case for when we have an AI provider registered
 		Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(this.shouldShowAIResults() && !!aiResults);
+
+		// Expand AI results if the node is collapsed
+		if (completed && this.tree.hasNode(this.searchResult.aiTextSearchResult) && this.tree.isCollapsed(this.searchResult.aiTextSearchResult)) {
+			this.tree.expand(this.searchResult.aiTextSearchResult);
+			return;
+		}
 
 		if (this.shouldShowAIResults() && !allResults) {
 			const messageEl = this.clearMessage();
@@ -1807,24 +1821,13 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	public async addAIResults(element: ITextSearchHeading, createIterator: (e: ITextSearchHeading) => Iterable<RenderableMatch>) {
+	public async addAIResults() {
 		const excludePatternText = this._getExcludePattern();
 		const includePatternText = this._getIncludePattern();
-		let progressComplete: () => void;
-		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
-			return new Promise<void>(resolve => progressComplete = resolve);
-		});
 
 		this.searchWidget.searchInput?.clearMessage();
-		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
-
-		const slowTimer = setTimeout(() => {
-			this.state = SearchUIState.SlowSearch;
-		}, 2000);
-
 		this._visibleMatches = 0;
-
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
 
@@ -1832,22 +1835,14 @@ export class SearchView extends ViewPane {
 		this.viewModel.searchResult.setAIQueryUsingTextQuery();
 		const result = this.viewModel.aiSearch();
 		result.then((complete) => {
-			clearTimeout(slowTimer);
 			if (complete.aiKeywords && complete.aiKeywords.length > 0) {
 				this.updateKeywordSuggestion(complete.aiKeywords);
 			} else {
 				this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
 			}
-			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
+			return this.onSearchComplete(() => { }, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
-			clearTimeout(slowTimer);
-			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText, undefined, false);
-		});
-		return new Promise<Iterable<RenderableMatch>>(resolve => {
-			const disposable = element.onChange(() => {
-				disposable.dispose(); // Clean up listener after first result
-				resolve(createIterator(element));
-			});
+			return this.onSearchError(e, () => { }, excludePatternText, includePatternText, undefined, false);
 		});
 	}
 
@@ -1880,10 +1875,6 @@ export class SearchView extends ViewPane {
 
 		if (!shouldKeepAIResults || shouldUpdateAISearch) {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
-		}
-
-		if (shouldUpdateAISearch) {
-			this.tree.updateChildren(this.searchResult.aiTextSearchResult);
 		}
 
 		return result.asyncResults.then((complete) => {
@@ -2509,7 +2500,13 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			return this.createSearchResultIterator(element);
 		} else if (isTextSearchHeading(element)) {
 			if (element.isAIContributed && !this.searchView.model.hasAIResults) {
-				return this.searchView.addAIResults(element, (e: ITextSearchHeading) => this.createTextSearchResultIterator(e));
+				this.searchView.addAIResults();
+				return new Promise<Iterable<RenderableMatch>>(resolve => {
+					const disposable = element.onChange(() => {
+						disposable.dispose(); // Clean up listener after first result
+						resolve(this.createTextSearchResultIterator(element));
+					});
+				});
 			}
 			return this.createTextSearchResultIterator(element);
 		} else if (isSearchTreeFolderMatch(element)) {
