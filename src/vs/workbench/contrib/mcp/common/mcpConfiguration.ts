@@ -14,13 +14,12 @@ export type { McpConfigurationServer, IMcpConfigurationStdio, IMcpConfiguration 
 
 const mcpActivationEventPrefix = 'onMcpCollection:';
 
-export const mcpActivationEvent = (collectionId: string) => mcpActivationEventPrefix + collectionId;
-
-const mcpSchemaExampleServer = {
-	command: 'node',
-	args: ['my-mcp-server.js'],
-	env: {},
-};
+/**
+ * note: `contributedCollectionId` is _not_ the collection ID. The collection
+ * ID is formed by passing the contributed ID through `extensionPrefixedIdentifier`
+ */
+export const mcpActivationEvent = (contributedCollectionId: string) =>
+	mcpActivationEventPrefix + contributedCollectionId;
 
 export const enum DiscoverySource {
 	ClaudeDesktop = 'claude-desktop',
@@ -55,15 +54,17 @@ export const mcpSchemaExampleServers = {
 	}
 };
 
-const httpSchemaExample = {
-	url: 'http://localhost:3001/mcp',
-	headers: {},
+const httpSchemaExamples = {
+	'my-mcp-server': {
+		url: 'http://localhost:3001/mcp',
+		headers: {},
+	}
 };
 
 export const mcpStdioServerSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
-	examples: [mcpSchemaExampleServer],
+	examples: [mcpSchemaExampleServers['mcp-server-time']],
 	properties: {
 		type: {
 			type: 'string',
@@ -110,14 +111,14 @@ export const mcpServerSchema: IJSONSchema = {
 		servers: {
 			examples: [
 				mcpSchemaExampleServers,
-				httpSchemaExample,
+				httpSchemaExamples,
 			],
 			additionalProperties: {
 				oneOf: [mcpStdioServerSchema, {
 					type: 'object',
 					additionalProperties: false,
 					required: ['url'],
-					examples: [httpSchemaExample],
+					examples: [httpSchemaExamples['my-mcp-server']],
 					properties: {
 						type: {
 							type: 'string',
@@ -127,6 +128,8 @@ export const mcpServerSchema: IJSONSchema = {
 						url: {
 							type: 'string',
 							format: 'uri',
+							pattern: '^https?:\\/\\/.+',
+							patternErrorMessage: localize('app.mcp.json.url.pattern', "The URL must start with 'http://' or 'https://'."),
 							description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
 						},
 						headers: {
@@ -143,7 +146,7 @@ export const mcpServerSchema: IJSONSchema = {
 };
 
 export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContribution[]> = {
-	extensionPoint: 'modelContextServerCollections',
+	extensionPoint: 'mcpServerDefinitionProviders',
 	activationEventsGenerator(contribs, result) {
 		for (const contrib of contribs) {
 			if (contrib.id) {

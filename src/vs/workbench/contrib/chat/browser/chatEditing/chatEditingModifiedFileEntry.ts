@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, ITransaction, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -56,6 +57,13 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
 
+	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
+	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
+
+	protected readonly _lastModifyingResponseInProgressObs = this._lastModifyingResponseObs.map((value, r) => {
+		return value?.isInProgress.read(r) ?? false;
+	});
+
 	protected readonly _rewriteRatioObs = observableValue<number>(this, 0);
 	readonly rewriteRatio: IObservable<number> = this._rewriteRatioObs;
 
@@ -80,6 +88,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	private _refCounter: number = 1;
 
 	readonly abstract originalURI: URI;
+
+	protected readonly _userEditScheduler = this._register(new RunOnceScheduler(() => this._notifyAction('userModified'), 1000));
 
 	constructor(
 		readonly modifiedURI: URI,
@@ -119,12 +129,45 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			return tempValue ?? configuredValue === 0;
 		});
 
+		this._store.add(toDisposable(() => this._lastModifyingResponseObs.set(undefined, undefined)));
+
 		const autoSaveOff = this._store.add(new MutableDisposable());
 		this._store.add(autorun(r => {
-			if (this.isCurrentlyBeingModifiedBy.read(r)) {
+			if (this._lastModifyingResponseInProgressObs.read(r)) {
 				autoSaveOff.value = _fileConfigService.disableAutoSave(this.modifiedURI);
 			} else {
 				autoSaveOff.clear();
+			}
+		}));
+
+		this._store.add(autorun(r => {
+			const inProgress = this._lastModifyingResponseInProgressObs.read(r);
+			if (inProgress === false && !this.reviewMode.read(r)) {
+				// AUTO accept mode (when request is done)
+
+				const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+				const future = Date.now() + acceptTimeout;
+				const update = () => {
+
+					const reviewMode = this.reviewMode.get();
+					if (reviewMode) {
+						// switched back to review mode
+						this._autoAcceptCtrl.set(undefined, undefined);
+						return;
+					}
+
+					const remain = Math.round(future - Date.now());
+					if (remain <= 0) {
+						this.accept(undefined);
+					} else {
+						const handle = setTimeout(update, 100);
+						this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
+							clearTimeout(handle);
+							this._autoAcceptCtrl.set(undefined, undefined);
+						}), undefined);
+					}
+				};
+				update();
 			}
 		}));
 	}
@@ -181,15 +224,15 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			return;
 		}
 
+		this._notifyAction('rejected');
 		await this._doReject(tx);
 		this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 		this._autoAcceptCtrl.set(undefined, tx);
-		this._notifyAction('rejected');
 	}
 
 	protected abstract _doReject(tx: ITransaction | undefined): Promise<void>;
 
-	private _notifyAction(outcome: 'accepted' | 'rejected') {
+	protected _notifyAction(outcome: 'accepted' | 'rejected' | 'userModified') {
 		this._chatService.notifyUserAction({
 			action: { kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome },
 			agentId: this._telemetryInfo.agentId,
@@ -224,6 +267,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
 		this._resetEditsState(tx);
 		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
+		this._lastModifyingResponseObs.set(responseModel, tx);
 		this._autoAcceptCtrl.get()?.cancel();
 
 		const undoRedoElement = this._createUndoRedoElement(responseModel);
@@ -241,34 +285,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 		if (await this._areOriginalAndModifiedIdentical()) {
 			// ACCEPT if identical
-			this.accept(tx);
-
-		} else if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
-			// AUTO accept mode
-
-			const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
-			const future = Date.now() + acceptTimeout;
-			const update = () => {
-
-				const reviewMode = this.reviewMode.get();
-				if (reviewMode) {
-					// switched back to review mode
-					this._autoAcceptCtrl.set(undefined, undefined);
-					return;
-				}
-
-				const remain = Math.round(future - Date.now());
-				if (remain <= 0) {
-					this.accept(undefined);
-				} else {
-					const handle = setTimeout(update, 100);
-					this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
-						clearTimeout(handle);
-						this._autoAcceptCtrl.set(undefined, undefined);
-					}), undefined);
-				}
-			};
-			update();
+			await this.accept(tx);
 		}
 	}
 
@@ -308,7 +325,7 @@ export interface ISnapshotEntry {
 	readonly snapshotUri: URI;
 	readonly original: string;
 	readonly current: string;
-	readonly originalToCurrentEdit: OffsetEdit;
+	readonly originalToCurrentEdit: StringEdit;
 	readonly state: ModifiedFileEntryState;
 	telemetryInfo: IModifiedEntryTelemetryInfo;
 }

@@ -16,7 +16,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
-import { ITrustedDomainService } from '../../url/browser/trustedDomainService.js';
 
 const allowedHtmlTags = [
 	'b',
@@ -63,7 +62,6 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		options: IMarkdownRendererOptions | undefined,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
-		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -74,7 +72,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
 		options = {
 			...options,
-			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValid(uri),
+			remoteImageIsAllowed: (_uri) => false,
 			sanitizerOptions: {
 				replaceWithPlaintext: true,
 				allowedTags: allowedHtmlTags,

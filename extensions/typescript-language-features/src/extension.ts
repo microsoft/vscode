@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
+import { DisableTsgoCommand } from './commands/useTsgo';
 import { registerBaseCommands } from './commands/index';
 import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
@@ -28,11 +29,25 @@ import * as temp from './utils/temp.electron';
 export function activate(
 	context: vscode.ExtensionContext
 ): Api {
-	const pluginManager = new PluginManager();
-	context.subscriptions.push(pluginManager);
-
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
+
+	// Disable extension if using the experimental TypeScript Go extension
+	const config = vscode.workspace.getConfiguration('typescript');
+	const useTsgo = config.get<boolean>('experimental.useTsgo', false);
+
+	if (useTsgo) {
+		commandManager.register(new DisableTsgoCommand());
+		// Return a no-op API when disabled
+		return {
+			getAPI() {
+				return undefined;
+			}
+		};
+	}
+
+	const pluginManager = new PluginManager();
+	context.subscriptions.push(pluginManager);
 
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);

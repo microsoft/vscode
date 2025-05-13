@@ -8,7 +8,7 @@ import '../media/chatEditorController.css';
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
@@ -17,7 +17,7 @@ import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../..
 import { RenderOptions, LineSource, renderLines } from '../../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffWholeLineAddDecoration, diffDeleteDecoration } from '../../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
@@ -70,6 +70,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
+		renderDiffImmediately: boolean,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
@@ -147,8 +148,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 
 			// done: render diff
-			if (!_entry.isCurrentlyBeingModifiedBy.read(r)) {
-
+			if (!_entry.isCurrentlyBeingModifiedBy.read(r) || renderDiffImmediately) {
 				const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
 				codeEditorObs.getOption(EditorOption.fontInfo).read(r);
@@ -180,7 +180,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}));
 
 		// accessibility: diff view
-		this._store.add(autorunWithStore((r, store) => {
+		this._store.add(autorun(r => {
 
 			const visible = this._accessibleDiffViewVisible.read(r);
 
@@ -190,9 +190,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 			const accessibleDiffWidget = new AccessibleDiffViewContainer();
 			_editor.addOverlayWidget(accessibleDiffWidget);
-			store.add(toDisposable(() => _editor.removeOverlayWidget(accessibleDiffWidget)));
+			r.store.add(toDisposable(() => _editor.removeOverlayWidget(accessibleDiffWidget)));
 
-			store.add(instantiationService.createInstance(
+			r.store.add(instantiationService.createInstance(
 				AccessibleDiffViewer,
 				accessibleDiffWidget.getDomNode(),
 				enabledObs,
@@ -598,7 +598,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}
 	}
 
-	async toggleDiff(widget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(widget: IModifiedFileEntryChangeHunk | undefined, show?: boolean): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -614,18 +614,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
-		if (isDiffEditor) {
-			// normal EDITOR
-			await this._editorService.openEditor({
-				resource: this._entry.modifiedURI,
-				options: {
-					selection,
-					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
-				}
-			});
-
-		} else {
-			// DIFF editor
+		// Use the 'show' argument to control the diff state if provided
+		if (show !== undefined ? show : !isDiffEditor) {
+			// Open DIFF editor
 			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
 				original: { resource: this._entry.originalURI },
@@ -637,16 +628,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			});
 
 			if (diffEditor && diffEditor.input) {
-
-				// this is needed, passing the selection doesn't seem to work
 				diffEditor.getControl()?.setSelection(selection);
-
-				// close diff editor when entry is decided
 				const d = autorun(r => {
 					const state = this._entry.state.read(r);
 					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
 						d.dispose();
-
 						const editorIdents: IEditorIdentifier[] = [];
 						for (const candidate of this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 							if (isDiffEditorInput(candidate.editor)
@@ -661,6 +647,15 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					}
 				});
 			}
+		} else {
+			// Open normal editor
+			await this._editorService.openEditor({
+				resource: this._entry.modifiedURI,
+				options: {
+					selection,
+					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
+				}
+			});
 		}
 	}
 }

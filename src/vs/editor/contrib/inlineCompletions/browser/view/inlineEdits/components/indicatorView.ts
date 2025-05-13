@@ -12,7 +12,7 @@ import { localize } from '../../../../../../../nls.js';
 import { buttonBackground, buttonForeground, buttonSeparator } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { registerColor } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 
 export interface IInlineEditsIndicatorState {

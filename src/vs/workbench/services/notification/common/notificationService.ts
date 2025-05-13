@@ -28,7 +28,15 @@ export class NotificationService extends Disposable implements INotificationServ
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+		this.mapSourceToFilter = (() => {
+			const map = new Map<string, INotificationSourceFilter>();
 
+			for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
+				map.set(sourceFilter.id, sourceFilter);
+			}
+
+			return map;
+		})();
 		this.globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
 
 		this.updateFilters();
@@ -85,15 +93,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	private globalFilterEnabled: boolean;
 
-	private readonly mapSourceToFilter: Map<string /** source id */, INotificationSourceFilter> = (() => {
-		const map = new Map<string, INotificationSourceFilter>();
-
-		for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
-			map.set(sourceFilter.id, sourceFilter);
-		}
-
-		return map;
-	})();
+	private readonly mapSourceToFilter: Map<string /** source id */, INotificationSourceFilter>;
 
 	setFilter(filter: NotificationsFilter | INotificationSourceFilter): void {
 		if (typeof filter === 'number') {

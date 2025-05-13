@@ -13,7 +13,7 @@ import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { equals } from '../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -103,7 +103,7 @@ export interface QuickInputUI {
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	inlineActionBar: ActionBar;
-	checkAll: HTMLInputElement;
+	checkAll: Checkbox;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
@@ -1163,6 +1163,7 @@ export class InputBox extends QuickInput implements IInputBox {
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
+	private _ariaLabel: string | undefined;
 	private _password = false;
 	private _prompt: string | undefined;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
@@ -1199,6 +1200,15 @@ export class InputBox extends QuickInput implements IInputBox {
 
 	set placeholder(placeholder: string | undefined) {
 		this._placeholder = placeholder;
+		this.update();
+	}
+
+	get ariaLabel() {
+		return this._ariaLabel;
+	}
+
+	set ariaLabel(ariaLabel: string | undefined) {
+		this._ariaLabel = ariaLabel;
 		this.update();
 	}
 
@@ -1271,6 +1281,20 @@ export class InputBox extends QuickInput implements IInputBox {
 		}
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
+		}
+		let ariaLabel = this.ariaLabel;
+		// Only set aria label to the input box placeholder if we actually have an input box.
+		if (!ariaLabel && visibilities.inputBox) {
+			ariaLabel = this.placeholder
+				? this.title
+					? `${this.placeholder} - ${this.title}`
+					: this.placeholder
+				: this.title
+					? this.title
+					: 'input';
+		}
+		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+			this.ui.inputBox.ariaLabel = ariaLabel || 'input';
 		}
 	}
 }

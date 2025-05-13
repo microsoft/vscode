@@ -5,9 +5,10 @@
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolResult } from '../languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -38,6 +39,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	public readonly invocationMessage: string | IMarkdownString;
+	public readonly originMessage: string | IMarkdownString | undefined;
 	public pastTenseMessage: string | IMarkdownString | undefined;
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
@@ -45,11 +47,14 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 
+	public readonly progress = observableValue<{ message?: string | IMarkdownString; progress: number }>(this, { progress: 0 });
+
 	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.invocationMessage = invocationMessage;
 		this.pastTenseMessage = preparedInvocation?.pastTenseMessage;
+		this.originMessage = preparedInvocation?.originMessage;
 		this._confirmationMessages = preparedInvocation?.confirmationMessages;
 		this.presentation = preparedInvocation?.presentation;
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
@@ -84,17 +89,27 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._confirmationMessages;
 	}
 
+	public acceptProgress(step: IToolProgressStep) {
+		const prev = this.progress.get();
+		this.progress.set({
+			progress: step.increment ? (prev.progress + step.increment) : prev.progress,
+			message: step.message,
+		}, undefined);
+	}
+
 	public toJSON(): IChatToolInvocationSerialized {
 		return {
 			kind: 'toolInvocationSerialized',
 			presentation: this.presentation,
 			invocationMessage: this.invocationMessage,
 			pastTenseMessage: this.pastTenseMessage,
+			originMessage: this.originMessage,
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
 			resultDetails: this._resultDetails,
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
+			toolId: this.toolId,
 		};
 	}
 }

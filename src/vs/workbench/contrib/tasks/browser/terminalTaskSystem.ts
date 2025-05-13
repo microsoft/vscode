@@ -399,6 +399,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			(value) => recentKey && recentKey === value.task.getKey())?.task;
 	}
 
+	public getFirstInstance(task: Task): Task | undefined {
+		const recentKey = task.getKey();
+		for (const task of this.getActiveTasks()) {
+			if (recentKey && recentKey === task.getKey()) {
+				return task;
+			}
+		}
+		return undefined;
+	}
+
 	public getBusyTasks(): Task[] {
 		return Object.keys(this._busyTasks).map(key => this._busyTasks[key]);
 	}
@@ -431,7 +441,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _fireTaskEvent(event: ITaskEvent) {
-		if (event.kind !== TaskEventKind.Changed) {
+		if (event.kind !== TaskEventKind.Changed && event.kind !== TaskEventKind.ProblemMatcherEnded && event.kind !== TaskEventKind.ProblemMatcherStarted) {
 			const activeTask = this._activeTasks[event.__task.getMapKey()];
 			if (activeTask) {
 				activeTask.state = event.kind;
@@ -881,7 +891,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values));
 			let onData: IDisposable | undefined;
 			if (problemMatchers.length) {
-				this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal.instanceId));
+				// this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal.instanceId));
 				// prevent https://github.com/microsoft/vscode/issues/174511 from happening
 				onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);

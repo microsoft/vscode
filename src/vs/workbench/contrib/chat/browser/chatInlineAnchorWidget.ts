@@ -36,11 +36,13 @@ import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/commo
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { INotebookDocumentService } from '../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
 import { IChatWidgetService } from './chat.js';
-import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
+import { hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
+import { chatAttachmentResourceContextKey } from './chatContentParts/chatAttachmentsContentPart.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 type ContentRefData =
@@ -75,6 +77,7 @@ export class InlineAnchorWidget extends Disposable {
 		@IModelService modelService: IModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 	) {
 		super();
 
@@ -111,7 +114,9 @@ export class InlineAnchorWidget extends Disposable {
 			const label = labelService.getUriBasenameLabel(location.uri);
 			iconText = location.range && this.data.kind !== 'symbol' ?
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-				label;
+				location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol' ?
+					`${label} • cell${this.getCellIndex(location.uri)}` :
+					label;
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
@@ -203,6 +208,12 @@ export class InlineAnchorWidget extends Disposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.element;
+	}
+
+	private getCellIndex(location: URI) {
+		const notebook = this.notebookDocumentService.getNotebook(location);
+		const index = notebook?.getCellIndex(location) ?? -1;
+		return index >= 0 ? ` ${index + 1}` : '';
 	}
 }
 

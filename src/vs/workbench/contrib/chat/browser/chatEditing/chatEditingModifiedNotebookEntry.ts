@@ -14,8 +14,8 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -258,24 +258,28 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// const didResetToOriginalContent = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService) === this.initialContent;
 		let didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
 		const currentState = this._stateObs.get();
-		if (currentState === ModifiedFileEntryState.Rejected) {
-			return;
-		}
 		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
 			this.initializeModelsFromDiff();
+			this._notifyAction('rejected');
 			return;
 		}
 
 		if (!e.rawEvents.length) {
 			return;
 		}
+
+		if (currentState === ModifiedFileEntryState.Rejected) {
+			return;
+		}
+
 		if (isTransientIPyNbExtensionEvent(this.modifiedModel.notebookType, e)) {
 			return;
 		}
 
 		this._allEditsAreFromUs = false;
+		this._userEditScheduler.schedule();
 
 		// Changes to cell text is sync'ed and handled separately.
 		// See ChatEditingNotebookCellEntry._mirrorEdits
@@ -471,7 +475,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	protected override _resetEditsState(tx: ITransaction): void {
 		super._resetEditsState(tx);
-		this.cellEntryMap.forEach(entry => !entry.disposed && entry.clearCurrentEditLineDecoration());
+		this.cellEntryMap.forEach(entry => !entry.isDisposed && entry.clearCurrentEditLineDecoration());
 	}
 
 	protected override _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined {
@@ -504,6 +508,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 				this.updateCellDiffInfo([], undefined);
 				this.initializeModelsFromDiff();
+				this._notifyAction('userModified');
 			},
 			redo: async () => {
 				initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
@@ -517,6 +522,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._stateObs.set(redoState, undefined);
 				this.updateCellDiffInfo([], undefined);
 				this.initializeModelsFromDiff();
+				this._notifyAction('userModified');
 			}
 		};
 	}
@@ -679,6 +685,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (new SnapshotComparer(currentSnapshot).isEqual(this.originalModel)) {
 			const state = accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
 			this._stateObs.set(state, undefined);
+			this._notifyAction(accepted ? 'accepted' : 'rejected');
 		}
 	}
 
@@ -911,7 +918,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			snapshotUri: getNotebookSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
-			originalToCurrentEdit: OffsetEdit.empty,
+			originalToCurrentEdit: StringEdit.empty,
 			state: this.state.get(),
 			telemetryInfo: this.telemetryInfo,
 		};

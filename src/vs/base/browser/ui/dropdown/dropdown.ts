@@ -22,12 +22,12 @@ export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
 }
 
-interface IBaseDropdownOptions {
+export interface IBaseDropdownOptions {
 	label?: string;
 	labelRenderer?: ILabelRenderer;
 }
 
-class BaseDropdown extends ActionRunner {
+export class BaseDropdown extends ActionRunner {
 	private _element: HTMLElement;
 	private boxContainer?: HTMLElement;
 	private _label?: HTMLElement;

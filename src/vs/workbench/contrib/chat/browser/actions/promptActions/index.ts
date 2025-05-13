@@ -15,5 +15,3 @@ export const registerPromptActions = () => {
 	registerAttachPromptActions();
 	registerSaveToPromptActions();
 };
-
-export { runAttachInstructionsAction } from './chatAttachInstructionsAction.js';

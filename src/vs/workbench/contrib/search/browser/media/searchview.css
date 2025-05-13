@@ -169,6 +169,18 @@
 	overflow-wrap: break-word;
 }
 
+.search-view .message.ai-keywords {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: normal;
+	margin: 0 22px 8px;
+	padding: 0px;
+}
+
 .search-view .message p:first-child {
 	margin-top: 0px;
 	margin-bottom: 0px;

@@ -12,11 +12,11 @@ import { SetMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
-import { SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind, PartialAcceptInfo } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
@@ -25,18 +25,20 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 
+export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
+
 export async function provideInlineCompletions(
 	providers: InlineCompletionsProvider[],
 	positionOrRange: Position | Range,
 	model: ITextModel,
-	context: InlineCompletionContext,
+	context: InlineCompletionContextWithoutUuid,
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
 	const requestUuid = generateUuid();
 	const tokenSource = new CancellationTokenSource(baseToken);
 	const token = tokenSource.token;
-	const contextWithUuid = { ...context, requestUuid: requestUuid };
+	const contextWithUuid: InlineCompletionContext = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 
@@ -217,7 +219,7 @@ export class InlineCompletionProviderResult implements IDisposable {
 		private readonly providerResults: readonly InlineSuggestionList[],
 	) { }
 
-	public has(edit: SingleTextEdit): boolean {
+	public has(edit: TextReplacement): boolean {
 		return this.hashs.has(createHashFromSingleTextEdit(edit));
 	}
 
@@ -234,7 +236,7 @@ export class InlineCompletionProviderResult implements IDisposable {
 	}
 }
 
-function createHashFromSingleTextEdit(edit: SingleTextEdit): string {
+function createHashFromSingleTextEdit(edit: TextReplacement): string {
 	return JSON.stringify([edit.text, edit.range.getStartPosition().toString()]);
 }
 
@@ -342,7 +344,7 @@ export class InlineSuggestData {
 	public get showInlineEditMenu() { return this.sourceInlineCompletion.showInlineEditMenu ?? false; }
 
 	public getSingleTextEdit() {
-		return new SingleTextEdit(this.range, this.insertText);
+		return new TextReplacement(this.range, this.insertText);
 	}
 
 	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string): Promise<void> {
@@ -450,10 +452,10 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 
 function closeBrackets(text: string, position: Position, model: ITextModel, languageConfigurationService: ILanguageConfigurationService): string {
 	const currentLine = model.getLineContent(position.lineNumber);
-	const edit = SingleOffsetEdit.replace(new OffsetRange(position.column - 1, currentLine.length), text);
+	const edit = StringReplacement.replace(new OffsetRange(position.column - 1, currentLine.length), text);
 
-	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.apply(currentLine)]);
-	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterApply());
+	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.replace(currentLine)]);
+	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterReplace());
 	if (!textTokens) {
 		return text;
 	}

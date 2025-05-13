@@ -124,7 +124,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
@@ -288,6 +288,12 @@ export class ChatService extends Disposable implements IChatService {
 	notifyUserAction(action: IChatUserActionEvent): void {
 		this._chatServiceTelemetry.notifyUserAction(action);
 		this._onDidPerformUserAction.fire(action);
+		if (action.action.kind === 'chatEditingSessionAction') {
+			const model = this._sessionModels.get(action.sessionId);
+			if (model) {
+				model.notifyEditingAction(action.action);
+			}
+		}
 	}
 
 	async setChatSessionTitle(sessionId: string, title: string): Promise<void> {
@@ -467,23 +473,13 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
-		try {
-			this.trace('initializeSession', `Initialize session ${model.sessionId}`);
-			model.startInitialize();
+	private initializeSession(model: ChatModel, token: CancellationToken): void {
+		this.trace('initializeSession', `Initialize session ${model.sessionId}`);
 
-			// Activate the default extension provided agent but do not wait
-			// for it to be ready so that the session can be used immediately
-			// without having to wait for the agent to be ready.
-			this.activateDefaultAgent(model.initialLocation).catch(e => this.logService.error(e));
-
-			model.initialize();
-		} catch (err) {
-			this.trace('startSession', `initializeSession failed: ${err}`);
-			model.setInitializationError(err);
-			this._sessionModels.deleteAndDispose(model.sessionId);
-			this._onDidDisposeSession.fire({ sessionId: model.sessionId, reason: 'initializationFailed' });
-		}
+		// Activate the default extension provided agent but do not wait
+		// for it to be ready so that the session can be used immediately
+		// without having to wait for the agent to be ready.
+		this.activateDefaultAgent(model.initialLocation).catch(e => this.logService.error(e));
 	}
 
 	async activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
@@ -515,10 +511,10 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let sessionData: ISerializableChatData | undefined;
-		if (this.useFileStorage) {
-			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
-		} else {
+		if (!this.useFileStorage || this.transferredSessionData?.sessionId === sessionId) {
 			sessionData = revive(this._persistedSessions[sessionId]);
+		} else {
+			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
 		}
 
 		if (!sessionData) {
@@ -559,8 +555,6 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${request.session.sessionId}`);
 		}
 
-		await model.waitForInitialization();
-
 		const cts = this._pendingRequests.get(request.session.sessionId);
 		if (cts) {
 			this.trace('resendRequest', `Session ${request.session.sessionId} already has a pending request, cancelling...`);
@@ -578,7 +572,6 @@ export class ChatService extends Disposable implements IChatService {
 			...options,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
-			hasPromptFileAttachments: options?.hasPromptFileAttachments ?? false,
 		};
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
@@ -586,13 +579,8 @@ export class ChatService extends Disposable implements IChatService {
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
-		// if text is not provided, but chat input has `prompt instructions`
-		// attached, use the default prompt text to avoid empty messages
-		if (!request.trim() && options?.hasPromptFileAttachments) {
-			request = 'Follow these instructions.';
-		}
 
-		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.hasPromptFileAttachments) {
+		if (!request.trim() && !options?.slashCommand && !options?.agentId) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return;
 		}
@@ -601,8 +589,6 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
-
-		await model.waitForInitialization();
 
 		if (this._pendingRequests.has(sessionId)) {
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
@@ -734,7 +720,7 @@ export class ChatService extends Disposable implements IChatService {
 				let chatTitlePromise: Promise<string | undefined> | undefined;
 
 				if (agentPart || (defaultAgent && !commandPart)) {
-					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): Promise<IChatAgentRequest> => {
+					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
 						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId);
 
@@ -767,7 +753,10 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
-							userSelectedTools: options?.userSelectedTools
+							userSelectedTools: options?.userSelectedTools,
+							userSelectedTools2: options?.userSelectedTools2,
+							toolSelectionIsExclusive: options?.toolSelectionIsExclusive,
+							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;
 					};
 
@@ -776,7 +765,7 @@ export class ChatService extends Disposable implements IChatService {
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
 						// Prepare the request object that we will send to the participant detection provider
-						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
+						const chatAgentRequest = prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
 
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
 						if (result && this.chatAgentService.getAgent(result.agent.id)?.locations?.includes(location)) {
@@ -794,7 +783,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, model.sessionId, location, agent.id);
-					const requestProps = await prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
+					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
 					const pendingRequest = this._pendingRequests.get(sessionId);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
@@ -1004,7 +993,8 @@ export class ChatService extends Disposable implements IChatService {
 				message: promptTextResult.message,
 				command: request.response.slashCommand?.name,
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-				location: ChatAgentLocation.Panel
+				location: ChatAgentLocation.Panel,
+				editedFileEvents: request.editedFileEvents,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}
@@ -1017,8 +1007,6 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
-
-		await model.waitForInitialization();
 
 		const pendingRequest = this._pendingRequests.get(sessionId);
 		if (pendingRequest?.requestId === requestId) {
@@ -1037,8 +1025,6 @@ export class ChatService extends Disposable implements IChatService {
 		if (!target) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
-
-		await target.waitForInitialization();
 
 		const oldOwner = request.session;
 		target.adoptRequest(request);
@@ -1060,7 +1046,6 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		await model.waitForInitialization();
 		const parsedRequest = typeof message === 'string' ?
 			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
 			message;

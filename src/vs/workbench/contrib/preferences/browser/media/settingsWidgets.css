@@ -227,3 +227,147 @@
 .settings-editor > .settings-body .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
 	width: inherit;
 }
+
+.settings-tabs-widget > .monaco-action-bar .action-item.disabled {
+	display: none;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item {
+	max-width: 300px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	text-transform: uppercase;
+	font-size: 11px;
+	margin-right: 5px;
+	cursor: pointer;
+	display: flex;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	display: block;
+	padding: 0px;
+	border-radius: initial;
+	background: none !important;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.folder-settings {
+	display: flex;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 3px 0px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-title {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-details {
+	text-transform: none;
+	margin-left: 0.5em;
+	font-size: 10px;
+	opacity: 0.7;
+}
+
+.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
+	padding-left: 0.3em;
+	padding-top: 8px;
+	font-size: 12px;
+}
+
+.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon.hide {
+	display: none;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	color: var(--vscode-panelTitle-inactiveForeground);
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked,
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover {
+	color: var(--vscode-panelTitle-activeForeground);
+	border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+	outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid var(--vscode-focusBorder);
+	outline: 1px solid transparent;
+	outline-offset: -1px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
+	outline-style: dashed;
+}
+
+.settings-header-widget > .settings-search-controls > .settings-count-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	float: left;
+}
+
+.settings-header-widget > .settings-search-controls {
+	position: absolute;
+	right: 10px;
+}
+
+.settings-header-widget > .settings-search-controls > .settings-count-widget.hide {
+	display: none;
+}
+
+.settings-header-widget > .settings-search-container {
+	flex: 1;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input {
+	vertical-align: middle;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	height: 30px;
+}
+
+.monaco-workbench.vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	border: 1px solid #ddd;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+	font-size: 14px;
+	padding-left:10px;
+}
+
+.monaco-editor .view-zones > .settings-header-widget {
+	z-index: 1;
+}
+
+.monaco-editor .settings-header-widget .title-container {
+	display: flex;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.monaco-editor .settings-header-widget .title-container .title {
+	font-weight: bold;
+	white-space: nowrap;
+	text-transform: uppercase;
+}
+
+.monaco-editor .settings-header-widget .title-container .message {
+	white-space: nowrap;
+}
+
+.monaco-editor .dim-configuration {
+	color: #b1b1b1;
+}
+
+.codicon-settings-edit:hover {
+	cursor: pointer;
+}

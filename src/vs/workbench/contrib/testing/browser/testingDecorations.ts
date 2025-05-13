@@ -47,7 +47,7 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from '../../codeEditor/browser/editorLineNumberMenu.js';
 import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
-import { Testing, labelForTestInState } from '../common/constants.js';
+import { TestCommandId, Testing, labelForTestInState } from '../common/constants.js';
 import { TestId } from '../common/testId.js';
 import { ITestProfileService } from '../common/testProfileService.js';
 import { ITestResult, LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
@@ -1061,6 +1061,11 @@ abstract class RunTestDecoration {
 		if (resultItem && isFailedState(resultItem.computedState)) {
 			testActions.push(new Action('testing.gutter.peekFailure', localize('peek failure', 'Peek Error'), undefined, undefined,
 				() => this.commandService.executeCommand('vscode.peekTestError', test.item.extId)));
+		}
+
+		if (resultItem?.computedState === TestResultState.Running) {
+			testActions.push(new Action('testing.gutter.cancel', localize('testing.cancelRun', 'Cancel Test Run'), undefined, undefined,
+				() => this.commandService.executeCommand(TestCommandId.CancelTestRunAction)));
 		}
 
 		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,

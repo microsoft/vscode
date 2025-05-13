@@ -198,9 +198,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
-						requiresConfirmation: !isBuiltinTool,
 						alwaysDisplayInputOutput: !isBuiltinTool,
-						supportsToolPicker: rawTool.canBeReferencedInPrompt
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

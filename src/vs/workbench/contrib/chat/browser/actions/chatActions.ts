@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -21,8 +23,9 @@ import { SuggestController } from '../../../../../editor/contrib/suggest/browser
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Action2, ICommandPaletteOptions, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -43,18 +46,18 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatMode, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
-import { ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -63,6 +66,8 @@ import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
+export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
+export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
@@ -101,91 +106,179 @@ export interface IChatViewOpenRequestEntry {
 
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
-export function registerChatActions() {
-	registerAction2(class OpenChatGlobalAction extends Action2 {
+abstract class OpenChatGlobalAction extends Action2 {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatMode) {
+		super({
+			...overrides,
+			icon: Codicon.copilot,
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.disabled.negate()
+			)
+		});
+	}
 
-		constructor() {
-			super({
-				id: CHAT_OPEN_ACTION_ID,
-				title: localize2('openChat', "Open Chat"),
-				icon: Codicon.copilot,
-				f1: true,
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.Setup.hidden.negate(),
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-					}
-				},
-				menu: [{
-					id: MenuId.ChatTitleBarMenu,
-					group: 'a_open',
-					order: 1
-				}, {
-					id: MenuId.ChatEditingEditorContent,
-					when: ContextKeyExpr.and(ctxHasRequestInProgress, ctxIsGlobalEditingSession),
-					group: 'navigate',
-					order: 4,
-				}]
-			});
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+		opts = typeof opts === 'string' ? { query: opts } : opts;
+
+		const chatService = accessor.get(IChatService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		const viewsService = accessor.get(IViewsService);
+		const hostService = accessor.get(IHostService);
+		const chatAgentService = accessor.get(IChatAgentService);
+		const instaService = accessor.get(IInstantiationService);
+		const commandService = accessor.get(ICommandService);
+
+		let chatWidget = widgetService.lastFocusedWidget;
+		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
+		// Otherwise, open the view.
+		if (!this.mode || !chatWidget || !isAncestorOfActiveElement(chatWidget.domNode)) {
+			chatWidget = await showChatView(viewsService);
 		}
 
-		override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
-			opts = typeof opts === 'string' ? { query: opts } : opts;
+		if (!chatWidget) {
+			return;
+		}
 
-			const chatService = accessor.get(IChatService);
-			const toolsService = accessor.get(ILanguageModelToolsService);
-			const viewsService = accessor.get(IViewsService);
-			const hostService = accessor.get(IHostService);
+		let switchToMode = opts?.mode ?? this.mode;
+		if (!switchToMode) {
+			switchToMode = opts?.query.startsWith('@') ? ChatMode.Ask : undefined;
+		}
+		if (switchToMode && validateChatMode(switchToMode)) {
+			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
+		}
 
-			const chatWidget = await showChatView(viewsService);
-			if (!chatWidget) {
+		if (opts?.previousRequests?.length && chatWidget.viewModel) {
+			for (const { request, response } of opts.previousRequests) {
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
+		}
+		if (opts?.attachScreenshot) {
+			const screenshot = await hostService.getScreenshot();
+			if (screenshot) {
+				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
+			}
+		}
+		if (opts?.query) {
+			if (opts.isPartialQuery) {
+				chatWidget.setInput(opts.query);
+			} else {
+				await chatWidget.waitForReady();
+				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentMode);
+				chatWidget.acceptInput(opts.query);
+			}
+		}
+		if (opts?.toolIds && opts.toolIds.length > 0) {
+			for (const toolId of opts.toolIds) {
+				const tool = toolsService.getTool(toolId);
+				if (tool) {
+					chatWidget.attachmentModel.addContext({
+						id: tool.id,
+						name: tool.displayName,
+						fullName: tool.displayName,
+						value: undefined,
+						icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
+						kind: 'tool'
+					});
+				}
+			}
+		}
+
+		chatWidget.focusInput();
+	}
+
+	private async handleSwitchToMode(switchToMode: ChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
+		const currentMode = chatWidget.input.currentMode;
+
+		if (switchToMode) {
+			const editingSession = chatWidget.viewModel?.model.editingSession;
+			const requestCount = chatWidget.viewModel?.model.getRequests().length ?? 0;
+			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode, requestCount, editingSession);
+			if (!chatModeCheck) {
 				return;
 			}
-			if (opts?.mode && validateChatMode(opts.mode)) {
-				chatWidget.input.setChatMode(opts.mode);
-			}
-			if (opts?.previousRequests?.length && chatWidget.viewModel) {
-				for (const { request, response } of opts.previousRequests) {
-					chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
-				}
-			}
-			if (opts?.attachScreenshot) {
-				const screenshot = await hostService.getScreenshot();
-				if (screenshot) {
-					chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
-				}
-			}
-			if (opts?.query) {
-				if (opts.query.startsWith('@') && (chatWidget.input.currentMode === ChatMode.Agent || chatService.edits2Enabled)) {
-					chatWidget.input.setChatMode(ChatMode.Ask);
-				}
-				if (opts.isPartialQuery) {
-					chatWidget.setInput(opts.query);
-				} else {
-					chatWidget.acceptInput(opts.query);
-				}
-			}
-			if (opts?.toolIds && opts.toolIds.length > 0) {
-				for (const toolId of opts.toolIds) {
-					const tool = toolsService.getTool(toolId);
-					if (tool) {
-						chatWidget.attachmentModel.addContext({
-							id: tool.id,
-							name: tool.displayName,
-							fullName: tool.displayName,
-							value: undefined,
-							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
-							kind: 'tool'
-						});
-					}
-				}
-			}
+			chatWidget.input.setChatMode(switchToMode);
 
-			chatWidget.focusInput();
+			if (chatModeCheck.needToClearSession) {
+				await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+			}
 		}
+	}
+}
+
+async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatMode): Promise<void> {
+	const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+	if (defaultAgent) {
+		return;
+	}
+
+	await Promise.race([
+		Event.toPromise(Event.filter(chatAgentService.onDidChangeAgents, () => {
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+			return Boolean(defaultAgent);
+		})),
+		timeout(60_000).then(() => { throw new Error('Timed out waiting for default agent'); })
+	]);
+}
+
+class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
+	constructor() {
+		super({
+			id: CHAT_OPEN_ACTION_ID,
+			title: localize2('openChat', "Open Chat"),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+				}
+			},
+			menu: [{
+				id: MenuId.ChatTitleBarMenu,
+				group: 'a_open',
+				order: 1
+			}]
+		});
+	}
+}
+
+export function getOpenChatActionIdForMode(mode: ChatMode): string {
+	const modeStr = modeToString(mode);
+	return `workbench.action.chat.open${modeStr}`;
+}
+
+abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
+	constructor(mode: ChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
+		super({
+			id: getOpenChatActionIdForMode(mode),
+			title: localize2('openChatMode', "Open Chat ({0})", modeToString(mode)),
+			keybinding
+		}, mode);
+	}
+}
+
+export function registerChatActions() {
+	registerAction2(PrimaryOpenChatGlobalAction);
+	registerAction2(class extends ModeOpenChatGlobalAction {
+		constructor() { super(ChatMode.Ask); }
+	});
+	registerAction2(class extends ModeOpenChatGlobalAction {
+		constructor() {
+			super(ChatMode.Agent, {
+				when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+				}
+			},);
+		}
+	});
+	registerAction2(class extends ModeOpenChatGlobalAction {
+		constructor() { super(ChatMode.Edit); }
 	});
 
 	registerAction2(class ToggleChatAction extends Action2 {
@@ -389,7 +482,7 @@ export function registerChatActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				menu: {
-					id: MenuId.ChatInput,
+					id: MenuId.ChatExecute,
 					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
@@ -549,7 +642,8 @@ export function registerChatActions() {
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
 						ChatContextKeys.Entitlement.limited,
-						ChatContextKeys.Entitlement.pro
+						ChatContextKeys.Entitlement.pro,
+						ChatContextKeys.Entitlement.proPlus
 					),
 					nonEnterpriseCopilotUsers
 				),
@@ -592,7 +686,10 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
 				title: localize2('configureCompletions', "Configure Code Completions..."),
-				precondition: ChatContextKeys.Setup.installed,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.Setup.installed,
+					ChatContextKeys.Setup.disabled.negate()
+				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
@@ -636,11 +733,11 @@ export function registerChatActions() {
 			if (chatEntitlementService.quotas.resetDate) {
 				const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 				const quotaResetDate = new Date(chatEntitlementService.quotas.resetDate);
-				message = [message, localize('quotaResetDate', "The allowance will renew on {0}.", dateFormatter.format(quotaResetDate))].join(' ');
+				message = [message, localize('quotaResetDate', "The allowance will reset on {0}.", dateFormatter.value.format(quotaResetDate))].join(' ');
 			}
 
 			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
-			const upgradeToPro = limited ? localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited basic chat messages\n- Access to premium models") : undefined;
+			const upgradeToPro = limited ? localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to premium models") : undefined;
 
 			await dialogService.prompt({
 				type: 'none',
@@ -667,6 +764,22 @@ export function registerChatActions() {
 					])
 				}
 			});
+		}
+	});
+
+	registerAction2(class ResetTrustedToolsAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.resetTrustedTools',
+				title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+		override run(accessor: ServicesAccessor): void {
+			accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
+			accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 		}
 	});
 }
@@ -698,7 +811,10 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
-		ChatContextKeys.Setup.hidden.negate(),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled')
 	),
 	order: 10001 // to the right of command center
@@ -712,7 +828,10 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
-		ChatContextKeys.Setup.hidden.negate(),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
@@ -726,26 +845,14 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControl', 'Copilot Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 5,
 			ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabled.negate()
+				),
 				IsCompactTitleBarContext.negate(),
 				ChatContextKeys.supported
 			)
 		);
-	}
-});
-
-registerAction2(class ResetTrustedToolsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.resetTrustedTools',
-			title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
-			category: CHAT_CATEGORY,
-			f1: true,
-		});
-	}
-	override run(accessor: ServicesAccessor): void {
-		accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
-		accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 	}
 });
 
@@ -771,7 +878,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				run() { }
 			});
 
-			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
+			const chatSentiment = chatEntitlementService.sentiment;
 			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
@@ -779,7 +886,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
 			let primaryActionIcon = Codicon.copilot;
-			if (chatExtensionInstalled) {
+			if (chatSentiment.installed && !chatSentiment.disabled) {
 				if (signedOut) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
@@ -815,6 +922,53 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
 	}
 
 	return true;
+}
+
+/**
+ * Returns whether we can switch the chat mode, based on whether the user had to agree to clear the session, false to cancel.
+ */
+export async function handleModeSwitch(
+	accessor: ServicesAccessor,
+	fromMode: ChatMode,
+	toMode: ChatMode,
+	requestCount: number,
+	editingSession: IChatEditingSession | undefined,
+): Promise<false | { needToClearSession: boolean }> {
+	if (!editingSession || fromMode === toMode) {
+		return { needToClearSession: false };
+	}
+
+	const configurationService = accessor.get(IConfigurationService);
+	const dialogService = accessor.get(IDialogService);
+	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatMode.Edit || toMode === ChatMode.Edit)) && requestCount > 0;
+	if (needToClearEdits) {
+		// If not using edits2 and switching into or out of edit mode, ask to discard the session
+		const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
+
+		const currentEdits = editingSession.entries.get();
+		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+		if (undecidedEdits.length > 0) {
+			if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
+				return false;
+			}
+
+			return { needToClearSession: true };
+		} else {
+			const confirmation = await dialogService.confirm({
+				title: localize('agent.newSession', "Start new session?"),
+				message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
+				primaryButton: localize('agent.newSession.confirm', "Yes"),
+				type: 'info'
+			});
+			if (!confirmation.confirmed) {
+				return false;
+			}
+
+			return { needToClearSession: true };
+		}
+	}
+
+	return { needToClearSession: false };
 }
 
 export interface IClearEditingSessionConfirmationOptions {

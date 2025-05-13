@@ -626,6 +626,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
+	title: localize('quickDiffDecoration', "Diff Decorations"),
+	submenu: MenuId.SCMQuickDiffDecorations,
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.equals('config.scm.diffDecorations', 'all'),
+		ContextKeyExpr.equals('config.scm.diffDecorations', 'gutter')),
+	group: '9_quickDiffDecorations'
+});
+
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);

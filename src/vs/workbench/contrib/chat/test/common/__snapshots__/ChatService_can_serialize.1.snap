@@ -108,7 +108,8 @@
       contentReferences: [  ],
       codeCitations: [  ],
       timestamp: undefined,
-      confirmation: undefined
+      confirmation: undefined,
+      editedFileEvents: undefined
     },
     {
       requestId: undefined,
@@ -162,7 +163,8 @@
       contentReferences: [  ],
       codeCitations: [  ],
       timestamp: undefined,
-      confirmation: undefined
+      confirmation: undefined,
+      editedFileEvents: undefined
     }
   ]
 }
