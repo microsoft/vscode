@@ -1327,7 +1327,8 @@ registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
 const enum SCMInputWidgetCommandId {
-	CancelAction = 'scm.input.cancelAction'
+	CancelAction = 'scm.input.cancelAction',
+	SetupAction = 'scm.input.triggerSetup'
 }
 
 const enum SCMInputWidgetStorageKey {
@@ -1337,7 +1338,7 @@ const enum SCMInputWidgetStorageKey {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.triggerSetupFromSCMInput',
+			id: SCMInputWidgetCommandId.SetupAction,
 			title: localize('scmInputGenerateCommitMessage', "Generate Commit Message with Copilot"),
 			icon: Codicon.sparkle,
 			f1: false,
@@ -1416,7 +1417,10 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 			// Save last action
 			if (this._runningActions.size === 0) {
-				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, action.id, StorageScope.PROFILE, StorageTarget.USER);
+				const actionId = action.id === SCMInputWidgetCommandId.SetupAction
+					? product.defaultChatAgent?.generateCommitMessageCommand ?? action.id
+					: action.id;
+				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, actionId, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
@@ -1488,7 +1492,9 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 			let primaryAction: IAction | undefined = undefined;
 
-			if (actions.length === 1) {
+			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size !== 0) {
+				primaryAction = this._cancelAction;
+			} else if (actions.length === 1) {
 				primaryAction = actions[0];
 			} else if (actions.length > 1) {
 				const lastActionId = this.storageService.get(SCMInputWidgetStorageKey.LastActionId, StorageScope.PROFILE, '');
