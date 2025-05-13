@@ -89,13 +89,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
-	context.subscriptions.push(vscode.window.onDidEndTerminalShellExecution(() => {
-		console.log('Terminal shell execution ended');
-	}));
-	const testing = await vscode.window.createTerminal('testing');
-
-	await testing.shellIntegration?.executeCommand('echo 1');
-	await testing.shellIntegration?.executeCommand('echo 2');
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
