@@ -297,12 +297,20 @@ function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: numb
 	}
 
 	const mid = low + ((high - low) / 2) | 0;
+	// console.log('mid : ', mid);
+	// console.log('spanOffsets : ', spanOffsets);
+	// console.log('charOffsets : ', charOffsets);
 	const midRects = readClientRect(range, spans, charOffsets[mid], spanOffsets[mid], charOffsets[mid + 1], spanOffsets[mid + 1]);
 	discoverBreaks(range, spans, lineHeight, charOffsets, spanOffsets, low, lowRects, mid, midRects, result);
 	discoverBreaks(range, spans, lineHeight, charOffsets, spanOffsets, mid, midRects, high, highRects, result);
 }
 
 function readClientRect(range: Range, spans: HTMLSpanElement[], startCharacterOffset: number, startSpanOffset: number, endCharacterOffset: number, endSpanOffset: number): DOMRectList {
+	// console.log('startSpanOffset : ', startSpanOffset);
+	// console.log('endSpanOffset : ', endSpanOffset);
+	// console.log('spans : ', spans);
+	// console.log('spans[startSpanOffset] : ', spans[startSpanOffset]);
+	// console.log('spans[endSpanOffset] : ', spans[endSpanOffset]);
 	range.setStart(spans[startSpanOffset].firstChild!, startCharacterOffset);
 	range.setEnd(spans[endSpanOffset].firstChild!, endCharacterOffset);
 	return range.getClientRects();

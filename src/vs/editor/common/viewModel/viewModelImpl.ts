@@ -227,7 +227,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getFontSizeAtPosition(position: IPosition): number {
-		console.log('getFontSizeAtPosition', position);
 		let fontSize: number = this._configuration.options.get(EditorOption.fontSize);
 		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
 		if (screenReaderOptimized) {

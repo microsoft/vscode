@@ -133,7 +133,7 @@ export class ScreenReaderSupport {
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const positionLineNumber = this._screenReaderContentState.positionLineNumber;
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop + 1000;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
@@ -188,9 +188,9 @@ export class ScreenReaderSupport {
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
 			const screenReaderContentState = this._getScreenReaderContentState();
-			if (this._screenReaderContentState?.equals(screenReaderContentState)) {
-				return;
-			}
+			// if (this._screenReaderContentState?.equals(screenReaderContentState)) {
+			// 	return;
+			// }
 			this._screenReaderContentState = screenReaderContentState;
 			this.setIgnoreSelectionChangeTime('setValue');
 			const pretextOffsetRange = this._screenReaderContentState.pretextOffsetRange;
@@ -219,7 +219,7 @@ export class ScreenReaderSupport {
 			}
 			const domNode = this._domNode.domNode;
 			domNode.replaceChildren(...nodes);
-
+			console.log('domNode : ', domNode);
 			// this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 		} else {
 			this._screenReaderContentState = undefined;
