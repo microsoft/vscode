@@ -6,22 +6,22 @@
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
+import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ChatPromptAttachmentModel } from '../../chatAttachmentModel/chatPromptAttachmentModel.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -31,7 +31,7 @@ import { getFlatContextMenuActions } from '../../../../../../platform/actions/br
 /**
  * Widget for a single prompt instructions attachment.
  */
-export class InstructionsAttachmentWidget extends Disposable {
+export class InstructionsAttachmentWidget extends ObservableDisposable {
 	/**
 	 * The root DOM node of the widget.
 	 */
@@ -42,22 +42,6 @@ export class InstructionsAttachmentWidget extends Disposable {
 	 */
 	public get uri(): URI {
 		return this.model.reference.uri;
-	}
-
-	/**
-	 * Event that fires when the object is disposed.
-	 *
-	 * See {@linkcode onDispose}.
-	 */
-	protected _onDispose = this._register(new Emitter<void>());
-	/**
-	 * Subscribe to the `onDispose` event.
-	 * @param callback Function to invoke on dispose.
-	 */
-	public onDispose(callback: () => unknown): this {
-		this._register(this._onDispose.event(callback));
-
-		return this;
 	}
 
 	/**
@@ -81,11 +65,8 @@ export class InstructionsAttachmentWidget extends Disposable {
 
 		this.domNode = dom.$('.chat-prompt-attachment.chat-attached-context-attachment.show-file-icons.implicit');
 
-		this.render = this.render.bind(this);
-		this.dispose = this.dispose.bind(this);
-
-		this.model.onUpdate(this.render);
-		this.model.onDispose(this.dispose);
+		this._register(this.model.onUpdate(this.render.bind(this)));
+		this._register(this.model.onDispose(this.dispose.bind(this)));
 
 		this.render();
 	}
@@ -191,11 +172,5 @@ export class InstructionsAttachmentWidget extends Disposable {
 				},
 			});
 		}));
-	}
-
-	public override dispose(): void {
-		this._onDispose.fire();
-
-		super.dispose();
 	}
 }

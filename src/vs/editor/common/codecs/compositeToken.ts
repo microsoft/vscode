@@ -17,7 +17,7 @@ export abstract class CompositeToken<
 		super(BaseToken.fullRange(childTokens));
 	}
 
-	public override get text() {
+	public override get text(): string {
 		return BaseToken.render(this.childTokens);
 	}
 

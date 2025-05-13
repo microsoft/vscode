@@ -14,9 +14,9 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import * as strings from '../../../../base/common/strings.js';
 import { CharCode } from '../../../../base/common/charCode.js';
-import { LineRange } from '../../../common/viewLayout/viewLineRenderer.js';
 import { Position } from '../../../common/core/position.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 /**
  * The whitespace overlay will visual certain whitespace depending on the
@@ -104,7 +104,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			const lineIndex = lineNumber - ctx.viewportData.startLineNumber;
 			const lineData = viewportData.data[lineIndex]!;
 
-			let selectionsOnLine: LineRange[] | null = null;
+			let selectionsOnLine: OffsetRange[] | null = null;
 			if (this._options.renderWhitespace === 'selection') {
 				const selections = this._selection;
 				for (const selection of selections) {
@@ -121,7 +121,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 						if (!selectionsOnLine) {
 							selectionsOnLine = [];
 						}
-						selectionsOnLine.push(new LineRange(startColumn - 1, endColumn - 1));
+						selectionsOnLine.push(new OffsetRange(startColumn - 1, endColumn - 1));
 					}
 				}
 			}
@@ -130,7 +130,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: LineRange[] | null, lineData: ViewLineData): string {
+	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineData): string {
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}
@@ -179,7 +179,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 			const chCode = lineContent.charCodeAt(charIndex);
 
-			if (currentSelection && charIndex >= currentSelection.endOffset) {
+			if (currentSelection && currentSelection.endExclusive <= charIndex) {
 				currentSelectionIndex++;
 				currentSelection = selections && selections[currentSelectionIndex];
 			}
@@ -210,7 +210,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				}
 			}
 
-			if (selections && (!currentSelection || currentSelection.startOffset > charIndex || currentSelection.endOffset <= charIndex)) {
+			if (selections && !(currentSelection && currentSelection.start <= charIndex && charIndex < currentSelection.endExclusive)) {
 				// If rendering whitespace on selection, check that the charIndex falls within a selection
 				continue;
 			}

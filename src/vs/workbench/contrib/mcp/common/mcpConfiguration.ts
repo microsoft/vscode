@@ -14,7 +14,12 @@ export type { McpConfigurationServer, IMcpConfigurationStdio, IMcpConfiguration 
 
 const mcpActivationEventPrefix = 'onMcpCollection:';
 
-export const mcpActivationEvent = (collectionId: string) => mcpActivationEventPrefix + collectionId;
+/**
+ * note: `contributedCollectionId` is _not_ the collection ID. The collection
+ * ID is formed by passing the contributed ID through `extensionPrefixedIdentifier`
+ */
+export const mcpActivationEvent = (contributedCollectionId: string) =>
+	mcpActivationEventPrefix + contributedCollectionId;
 
 export const enum DiscoverySource {
 	ClaudeDesktop = 'claude-desktop',
@@ -141,7 +146,7 @@ export const mcpServerSchema: IJSONSchema = {
 };
 
 export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContribution[]> = {
-	extensionPoint: 'modelContextServerCollections',
+	extensionPoint: 'mcpServerDefinitionProviders',
 	activationEventsGenerator(contribs, result) {
 		for (const contrib of contribs) {
 			if (contrib.id) {

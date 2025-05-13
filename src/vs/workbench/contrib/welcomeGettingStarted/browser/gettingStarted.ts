@@ -18,10 +18,10 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { splitRecentLabel } from '../../../../base/common/labels.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
+import { ILink, LinkedText, parseLinkedText } from '../../../../base/common/linkedText.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { isMacintosh, OS } from '../../../../base/common/platform.js';
+import { OS } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -63,7 +63,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from './
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
-import { NEW_WELCOME_EXPERIENCE, startEntries } from '../common/gettingStartedContent.js';
+import { copilotSettingsMessage, NEW_WELCOME_EXPERIENCE, startEntries } from '../common/gettingStartedContent.js';
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -412,7 +412,7 @@ export class GettingStartedPage extends EditorPane {
 				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace')))) {
 					this.commandService.executeCommand(OpenFolderViaWorkspaceAction.ID);
 				} else {
-					this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+					this.commandService.executeCommand('workbench.action.files.openFolder');
 				}
 				break;
 			}
@@ -1616,6 +1616,10 @@ export class GettingStartedPage extends EditorPane {
 					const descElement = $('.multi-step-action');
 					this.buildMarkdownDescription(descElement, [linkedText]);
 					multiStepContainer.appendChild(descElement);
+					const actionMessage = $('span.action-message');
+					const updatedText = parseLinkedText(copilotSettingsMessage);
+					this.buildMarkdownDescription(actionMessage, [updatedText]);
+					multiStepContainer.appendChild(actionMessage);
 				}
 
 				textContent.appendChild(multiStepContainer);

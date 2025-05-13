@@ -72,8 +72,6 @@ const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
-	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
-	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
@@ -89,8 +87,6 @@ const defaultChat = {
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
-
-const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
 
 //#region Contribution
 
@@ -184,6 +180,9 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		const agent = disposables.add(instantiationService.createInstance(SetupAgent, context, controller, location));
 		disposables.add(chatAgentService.registerAgentImplementation(id, agent));
+		if (mode === ChatMode.Agent) {
+			chatAgentService.updateAgent(id, { themeIcon: Codicon.tools });
+		}
 
 		return { agent, disposable: disposables };
 	}
@@ -220,7 +219,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
-		if (!this.context.state.installed || this.context.state.entitlement === ChatEntitlement.Available || this.context.state.entitlement === ChatEntitlement.Unknown) {
+		if (!this.context.state.installed || this.context.state.disabled || this.context.state.entitlement === ChatEntitlement.Available || this.context.state.entitlement === ChatEntitlement.Unknown) {
 			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 		}
 
@@ -410,7 +409,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				if (result.dialogSkipped) {
 					progress({
 						kind: 'markdownContent',
-						content: new MarkdownString([localize('copilotSetupSuccess', "Copilot setup finished successfully."), copilotSettingsMessage].join('\n\n'))
+						content: new MarkdownString(localize('copilotSetupSuccess', "Copilot setup finished successfully."))
 					});
 				} else if (requestModel) {
 					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Copilot agent...
@@ -724,13 +723,9 @@ class ChatSetup {
 		const header = localize({ key: 'headerDialog', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer. Write code faster with completions, fix bugs and build new features across multiple files, and learn about your codebase through chat.", defaultChat.documentationUrl);
 		element.appendChild($('p.setup-header', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
 
-		// Terms
-		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		element.appendChild($('p.setup-legal', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
-
 		// SKU Settings
 		if (this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
-			const settings = copilotSettingsMessage;
+			const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
 			element.appendChild($('p.setup-settings', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 		}
 
@@ -770,8 +765,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 
 		const updateRegistration = () => {
-			const disabled = context.state.hidden /* via "Hide Copilot" */ || context.state.disabled /* via extension enablement */;
-			if (!disabled) {
+			if (!context.state.hidden && !context.state.disabled) {
 
 				// Default Agents (always, even if installed to allow for speedy requests right on startup)
 				if (!defaultAgentDisposables.value) {
@@ -799,8 +793,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 				}
 
-				// VSCode Agent + Tool (unless installed)
-				if (!context.state.installed && !vscodeAgentDisposables.value) {
+				// VSCode Agent + Tool (unless installed and enabled)
+				if (!(context.state.installed && !context.state.disabled) && !vscodeAgentDisposables.value) {
 					const disposables = vscodeAgentDisposables.value = new DisposableStore();
 
 					disposables.add(SetupAgent.registerVSCodeAgent(this.instantiationService, context, controller).disposable);
@@ -810,7 +804,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				vscodeAgentDisposables.clear();
 			}
 
-			if (context.state.installed) {
+			if (context.state.installed && !context.state.disabled) {
 				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 			}
 		};
@@ -838,7 +832,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode: ChatMode): Promise<void> {
+			override async run(accessor: ServicesAccessor, mode: ChatMode): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -864,9 +858,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					});
 
 					if (confirmed) {
-						commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+						return Boolean(await commandService.executeCommand(CHAT_SETUP_ACTION_ID));
 					}
 				}
+
+				return Boolean(success);
 			}
 		}
 
@@ -1235,7 +1231,7 @@ class ChatSetupController extends Disposable {
 	}
 
 	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch): Promise<boolean> {
-		const wasInstalled = this.context.state.installed;
+		const wasRunning = this.context.state.installed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
 		try {
@@ -1273,10 +1269,10 @@ class ChatSetupController extends Disposable {
 		}
 
 		if (typeof signUpResult === 'boolean') {
-			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasInstalled && !signUpResult ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined });
+			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasRunning && !signUpResult ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined });
 		}
 
-		if (wasInstalled && signUpResult === true) {
+		if (wasRunning && signUpResult === true) {
 			refreshTokens(this.commandService);
 		}
 

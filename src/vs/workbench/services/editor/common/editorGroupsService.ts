@@ -9,7 +9,7 @@ import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, I
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../base/common/uri.js';

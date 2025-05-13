@@ -114,6 +114,7 @@ export abstract class BaseToken<TText extends string = string> {
 			firstToken.range.startLineNumber <= lastToken.range.startLineNumber,
 			'First token must start on previous or the same line as the last token.',
 		);
+
 		if ((firstToken !== lastToken) && (firstToken.range.startLineNumber === lastToken.range.startLineNumber)) {
 			assert(
 				firstToken.range.endColumn <= lastToken.range.startColumn,

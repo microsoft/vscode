@@ -14,7 +14,7 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
-import { IDimension } from '../../../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../../../editor/common/model.js';

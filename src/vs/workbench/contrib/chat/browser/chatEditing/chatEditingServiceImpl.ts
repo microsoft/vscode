@@ -404,16 +404,17 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
-	public readonly onDidChange = Event.any(
-		observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
-		observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
-	);
+	readonly onDidChange: Event<URI[]>;
 
 	constructor(
 		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
+		this.onDidChange = Event.any(
+			observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
+			observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
+		);
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {

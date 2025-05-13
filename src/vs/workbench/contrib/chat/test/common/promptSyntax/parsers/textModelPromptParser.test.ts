@@ -18,8 +18,8 @@ import { randomBoolean } from '../../../../../../../base/test/common/testUtils.j
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -46,7 +46,7 @@ class TextModelPromptParserTest extends Disposable {
 		initialContents: string[],
 		languageId: string = PROMPT_LANGUAGE_ID,
 		@IFileService fileService: IFileService,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -69,7 +69,7 @@ class TextModelPromptParserTest extends Disposable {
 
 		// create the parser instance
 		this.parser = this._register(
-			initService.createInstance(TextModelPromptParser, this.model, {}),
+			instantiationService.createInstance(TextModelPromptParser, this.model, {}),
 		).start();
 	}
 
@@ -290,7 +290,52 @@ suite('TextModelPromptParser', () => {
 
 	suite('• header', () => {
 		suite(' • metadata', () => {
-			test('• has correct \'prompt\' metadata', async () => {
+			test(`• empty header`, async () => {
+				const test = createTest(
+					URI.file('/absolute/folder/and/a/filename.txt'),
+					[
+					/* 01 */"---",
+					/* 02 */"",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+					/* 05 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 06 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 07 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 08 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+					],
+				);
+
+				await test.validateReferences([
+					new ExpectedReference({
+						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+						text: '[text](./foo-bar-baz/another-file.ts)',
+						path: './foo-bar-baz/another-file.ts',
+						startLine: 5,
+						startColumn: 43,
+						pathStartColumn: 50,
+						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+					}),
+				]);
+
+				const { header, metadata } = test.parser;
+				assertDefined(
+					header,
+					'Prompt header must be defined.',
+				);
+
+				assert.deepStrictEqual(
+					metadata,
+					{
+						applyTo: undefined,
+						description: undefined,
+						mode: undefined,
+						tools: undefined,
+					},
+					'Must have empty metadata.',
+				);
+			});
+
+			test(`• has correct 'prompt' metadata`, async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.txt'),
 					[
@@ -333,7 +378,7 @@ suite('TextModelPromptParser', () => {
 				assert.deepStrictEqual(
 					tools,
 					['tool_name1', 'tool_name2'],
-					`Prompt header must have correct tools metadata.`,
+					`Prompt header must have correct tools metadata, got '${tools?.join(', ')}'.`,
 				);
 
 				assert.strictEqual(
@@ -355,7 +400,7 @@ suite('TextModelPromptParser', () => {
 				);
 			});
 
-			test('• has correct \'instructions\' metadata', async () => {
+			test(`• has correct 'instructions' metadata`, async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.instructions.md'),
 					[
@@ -972,12 +1017,12 @@ suite('TextModelPromptParser', () => {
 		test.model.dispose();
 
 		assert(
-			test.parser.disposed,
+			test.parser.isDisposed,
 			'The parser should be disposed with its model.',
 		);
 	});
 
-	test('• toString() implementation', async () => {
+	test('• toString()', async () => {
 		const modelUri = URI.file('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,

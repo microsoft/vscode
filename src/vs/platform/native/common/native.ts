@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
@@ -39,10 +38,26 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
-export interface IElementData {
-	readonly outerHTML: string;
-	readonly computedStyle: string;
-	readonly bounds: IRectangle;
+export const enum FocusMode {
+
+	/**
+	 * (Default) Transfer focus to the target window
+	 * when the editor is focused.
+	 */
+	Transfer,
+
+	/**
+	 * Transfer focus to the target window when the
+	 * editor is focused, otherwise notify the user that
+	 * the app has activity (macOS/Windows only).
+	 */
+	Notify,
+
+	/**
+	 * Force the window to be focused, even if the editor
+	 * is not currently focused.
+	 */
+	Force,
 }
 
 export interface ICommonNativeHostService {
@@ -117,13 +132,10 @@ export interface ICommonNativeHostService {
 
 	/**
 	 * Make the window focused.
-	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode.
+	 * @param options specify the specific window to focus and the focus mode.
+	 * Defaults to {@link FocusMode.Transfer}.
 	 */
-	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeHostOptions & { mode?: FocusMode }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
@@ -156,7 +168,6 @@ export interface ICommonNativeHostService {
 
 	// Screenshots
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
-	getElementData(rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
@@ -198,6 +209,7 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	stopTracing(): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;

@@ -18,7 +18,7 @@ export class FormFeed extends SimpleToken<'\f'> {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '\f' {
 		return FormFeed.symbol;
 	}
 

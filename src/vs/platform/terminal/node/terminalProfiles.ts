@@ -85,11 +85,7 @@ async function detectAvailableWindowsProfiles(
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-	let useWSLexe = false;
-
-	if (getWindowsBuildNumber() >= 16299) {
-		useWSLexe = true;
-	}
+	const useWSLexe = getWindowsBuildNumber() >= 22000;
 
 	await initializeWindowsProfiles(testPwshSourcePaths);
 

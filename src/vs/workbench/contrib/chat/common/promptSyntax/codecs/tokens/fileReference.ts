@@ -28,7 +28,7 @@ export class FileReference extends PromptVariableWithData {
 	 * Create a {@link FileReference} from a {@link PromptVariableWithData} instance.
 	 * @throws if variable name is not equal to {@link VARIABLE_NAME}.
 	 */
-	public static from(variable: PromptVariableWithData) {
+	public static from(variable: PromptVariableWithData): FileReference {
 		assert(
 			variable.name === VARIABLE_NAME,
 			`Variable name must be '${VARIABLE_NAME}', got '${variable.name}'.`,
