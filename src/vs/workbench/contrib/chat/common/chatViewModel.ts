@@ -72,6 +72,7 @@ export interface IChatRequestViewModel {
 	readonly attempt: number;
 	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
+	currentRenderedWidth: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
@@ -194,6 +195,7 @@ export interface IChatResponseViewModel {
 	readonly isPaused: IObservable<boolean>;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
+	currentRenderedWidth: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	usedReferencesExpanded?: boolean;
@@ -402,6 +404,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	currentRenderedHeight: number | undefined;
+	currentRenderedWidth: number | undefined;
 
 	constructor(
 		private readonly _model: IChatRequestModel,
@@ -531,6 +534,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	renderData: IChatResponseRenderData | undefined = undefined;
 	currentRenderedHeight: number | undefined;
+	currentRenderedWidth: number | undefined;
 
 	private _usedReferencesExpanded: boolean | undefined;
 	get usedReferencesExpanded(): boolean | undefined {

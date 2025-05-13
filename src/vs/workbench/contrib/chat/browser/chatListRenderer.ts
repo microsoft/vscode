@@ -103,6 +103,7 @@ interface IChatListItemTemplate {
 interface IItemHeightChangeParams {
 	element: ChatTreeItem;
 	height: number;
+	width: number;
 }
 
 const forceVerboseLayoutTracing = false
@@ -253,15 +254,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	layout(width: number): void {
 		const newWidth = width - 40; // padding
 		if (newWidth !== this._currentLayoutWidth) {
-			this._currentLayoutWidth = newWidth;
+			// this._currentLayoutWidth = newWidth;
 			for (const editor of this._editorPool.inUse()) {
-				editor.layout(this._currentLayoutWidth);
+				editor.layout(newWidth);
 			}
 			for (const toolEditor of this._toolEditorPool.inUse()) {
-				toolEditor.layout(this._currentLayoutWidth);
+				toolEditor.layout(newWidth);
 			}
 			for (const diffEditor of this._diffEditorPool.inUse()) {
-				diffEditor.layout(this._currentLayoutWidth);
+				diffEditor.layout(newWidth);
 			}
 		}
 	}
@@ -310,18 +311,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
-		if (this.rendererOptions.noHeader) {
-			header.classList.add('hidden');
-		} else {
-			titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarParent ?? header, MenuId.ChatMessageTitle, {
-				menuOptions: {
-					shouldForwardArgs: true
-				},
-				toolbarOptions: {
-					shouldInlineSubmenu: submenu => submenu.actions.length <= 1
-				},
-			}));
-		}
+		// if (this.rendererOptions.noHeader) {
+		header.classList.add('hidden');
+		// } else {
+		// 	titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarParent ?? header, MenuId.ChatMessageTitle, {
+		// 		menuOptions: {
+		// 			shouldForwardArgs: true
+		// 		},
+		// 		toolbarOptions: {
+		// 			shouldInlineSubmenu: submenu => submenu.actions.length <= 1
+		// 		},
+		// 	}));
+		// }
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		const footerToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, footerToolbarContainer, MenuId.ChatMessageFooter, {
@@ -633,15 +634,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
 		const newHeight = templateData.rowContainer.offsetHeight;
+		this._currentLayoutWidth = templateData.rowContainer.clientWidth;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
-		element.currentRenderedHeight = newHeight;
+		element.currentRenderedHeight = newHeight + 20;
 		if (fireEvent) {
 			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.value), () => {
 				// Have to recompute the height here because codeblock rendering is currently async and it may have changed.
 				// If it becomes properly sync, then this could be removed.
-				element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
+				element.currentRenderedHeight = templateData.rowContainer.offsetHeight + 20;
+				element.currentRenderedWidth = templateData.rowContainer.clientWidth;
 				disposable.dispose();
-				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
+				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight, width: element.currentRenderedWidth });
 			}));
 		}
 	}
@@ -651,9 +654,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		// this._currentLayoutWidth = templateData.rowContainer.clientWidth;
+
 		const newHeight = Math.max(templateData.rowContainer.offsetHeight, 1);
-		templateData.currentElement.currentRenderedHeight = newHeight;
-		this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
+		templateData.currentElement.currentRenderedHeight = newHeight + 20;
+		templateData.currentElement.currentRenderedWidth = templateData.rowContainer.clientWidth;
+		this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: templateData.currentElement.currentRenderedHeight, width: templateData.currentElement.currentRenderedWidth });
 	}
 
 	/**
@@ -694,7 +700,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 				if (!templateData.renderedParts) {
 					// First render? Initialize currentRenderedHeight. https://github.com/microsoft/vscode/issues/232096
-					const height = templateData.rowContainer.offsetHeight;
+					const height = templateData.rowContainer.offsetHeight + 20;
 					element.currentRenderedHeight = height;
 				}
 
@@ -706,10 +712,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.traceLayout('doNextProgressiveRender', `doing progressive render, ${partsToRender.length} parts to render`);
 		this.renderChatContentDiff(partsToRender, contentForThisTurn.content, element, templateData);
 
-		const height = templateData.rowContainer.offsetHeight;
+		const height = templateData.rowContainer.offsetHeight + 20;
 		element.currentRenderedHeight = height;
+		element.currentRenderedWidth = templateData.rowContainer.clientWidth;
 		if (!isInRenderElement) {
-			this._onDidChangeItemHeight.fire({ element, height });
+			this._onDidChangeItemHeight.fire({ element, height, width: element.currentRenderedWidth });
 		}
 
 		return false;
@@ -916,6 +923,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (content.kind === 'warning') {
 			return this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Warning, content.content, this.renderer);
 		} else if (content.kind === 'markdownContent') {
+			// console.log('Rendering markdown content', content);
 			return this.renderMarkdown(content, templateData, context);
 		} else if (content.kind === 'references') {
 			return this.renderContentReferencesListData(content, undefined, context, templateData);
@@ -1093,7 +1101,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
-			markdownPart.layout(this._currentLayoutWidth);
+			markdownPart.layout(markdownPart.domNode.clientWidth);
 			this.updateItemHeight(templateData);
 		}));
 

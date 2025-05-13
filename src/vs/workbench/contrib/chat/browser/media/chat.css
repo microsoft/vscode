@@ -3,15 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Chat bubble styling */
 .interactive-session {
 	max-width: 850px;
 	margin: auto;
 	position: relative; /* For chat dnd */
 }
 
+.interactive-list {
+	width: 100%;
+}
+
+.interactive-list > .monaco-list {
+	width: 100%;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element {
+	width: 100%;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	display: flex;
+	width: 100%;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row {
+	width: 100%;
+	display: flex;
+}
+
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
 	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 	display: none !important;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-contents {
+	width: 100%;
+	display: flex;
 }
 
 .interactive-item-container {
@@ -23,6 +57,55 @@
 	cursor: default;
 	user-select: text;
 	-webkit-user-select: text;
+
+	/* Bubble styling */
+	max-width: 80%;
+	margin-bottom: 20px;
+	border-radius: 4px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Request bubble styling (user messages on the right) */
+.interactive-item-container.interactive-request {
+	align-self: flex-end;
+	margin-left: auto;
+	margin-right: 12px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: 1px solid var(--vscode-button-border, transparent);
+}
+
+/* Response bubble styling (bot messages on the left) */
+.interactive-item-container.interactive-response {
+	align-self: flex-start;
+	margin-right: auto;
+	margin-left: 12px;
+	min-width: 80%;
+	background-color: var(--vscode-chat-responseBackground, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	border: 1px solid var(--vscode-chat-responseBorder, var(--vscode-widget-border));
+}
+/* Adjust the markdown content inside bubbles */
+.interactive-item-container .value .rendered-markdown {
+	margin: 0;
+}
+
+/* Make sure code blocks look good inside the bubbles */
+.interactive-item-container .value pre {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+/* Special styling for high contrast themes */
+.hc-black .interactive-item-container.interactive-request,
+.hc-light .interactive-item-container.interactive-request {
+	border-width: 2px;
+}
+
+.hc-black .interactive-item-container.interactive-response,
+.hc-light .interactive-item-container.interactive-response {
+	border-width: 2px;
 }
 
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
@@ -31,13 +114,24 @@
 	justify-content: space-between;
 	position: relative;
 	margin-bottom: 8px;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+	/* padding-bottom: 4px; */
 }
 
-.interactive-item-container .header.hidden {
+/* Hide unnecessary elements in request bubbles */
+.interactive-item-container.interactive-request .header .detail-container,
+.interactive-item-container.interactive-request .chat-footer-toolbar {
 	display: none;
 }
 
-.interactive-item-container .header .user {
+/* Adjust footer toolbar positioning */
+.interactive-item-container .chat-footer-toolbar {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 8px;
+}
+
+.interactive-item-container .header {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -105,6 +199,7 @@
 	display: flex;
 	pointer-events: none;
 	user-select: none;
+	/* margin-right: 8px; */
 }
 
 .interactive-item-container .header .avatar {
@@ -552,6 +647,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inline-flex;
 }
 
+.interactive-item-container .user {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 .interactive-item-container.minimal .user > .username {
 	display: none;
 }
@@ -563,6 +664,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container.minimal > .header {
 	position: absolute;
 	right: 0;
+}
+
+.interactive-session .interactive-list .monaco-list-row.focused,
+.interactive-session .interactive-list .monaco-list-row.selected,
+.interactive-session .interactive-list .monaco-list.focused,
+.interactive-session .interactive-list .monaco-list.selected {
+	outline: none !important;
 }
 
 .chat-dnd-overlay {
@@ -965,7 +1073,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .margin,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-interactive-result-editor-background-color) !important;
+	background-color: var(--vscode-sideBar-background) !important;
+	/* background-color: var(--vscode-interactive-result-editor-background-color) !important; */
 }
 
 .interactive-item-compact .interactive-result-code-block {
@@ -1862,5 +1971,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
+	display: none;
+}
+
+
+.interactive-session .interactive-request .header.hidden {
 	display: none;
 }
