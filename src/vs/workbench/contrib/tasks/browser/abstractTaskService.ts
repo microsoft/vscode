@@ -683,7 +683,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						actions.push({
 							label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
 							run: async () => {
-								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this task configuration error: ' + message + '\n```' + errorMessage + '```' });
+								const customMessage = message === errorMessage ? message : message + '\n```' + errorMessage + '```';
+								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this task configuration error: ' + customMessage });
 							}
 						});
 					}
