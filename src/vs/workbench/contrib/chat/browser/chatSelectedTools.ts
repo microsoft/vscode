@@ -146,7 +146,7 @@ export class ChatSelectedTools extends Disposable {
 		const result = new Map<IToolData, boolean>();
 		const enabledTools = new Set(this.tools.get().map(t => t.id));
 		for (const tool of this._allTools.get()) {
-			if (tool.supportsToolPicker) {
+			if (tool.canBeReferencedInPrompt) {
 				result.set(tool, enabledTools.has(tool.id));
 			}
 		}
