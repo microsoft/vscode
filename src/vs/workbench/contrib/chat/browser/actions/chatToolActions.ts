@@ -177,7 +177,7 @@ export class AttachToolsAction extends Action2 {
 		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const tool of toolsService.getTools()) {
-			if (!tool.supportsToolPicker) {
+			if (!tool.canBeReferencedInPrompt) {
 				continue;
 			}
 

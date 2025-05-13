@@ -152,7 +152,6 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 'new',
 				when: ContextKeyExpr.true(),
-				supportsToolPicker: true,
 			}).disposable);
 
 			return { agent, disposable: disposables };
