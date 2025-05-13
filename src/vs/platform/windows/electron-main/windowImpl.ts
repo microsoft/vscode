@@ -116,7 +116,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected _lastFocusTime = Date.now(); // window is shown on creation so take current time
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
-	private _maximizedWindowState: IWindowState | undefined;
+	private maximizedWindowState: IWindowState | undefined;
 
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
@@ -125,25 +125,19 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Window Events
 		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => {
-
-			// Windows-specific RDP multi-monitor workaround:
-			// Refs https://github.com/electron/electron/issues/47016
 			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this._win) {
 				const [x, y] = this._win.getPosition();
 				const [width, height] = this._win.getSize();
 
-				this._maximizedWindowState = { mode: WindowMode.Maximized, width, height, x, y };
-				this.logService.debug(`Saved maximized window ${this.id} display state:`, this._maximizedWindowState);
+				this.maximizedWindowState = { mode: WindowMode.Maximized, width, height, x, y };
+				this.logService.debug(`Saved maximized window ${this.id} display state:`, this.maximizedWindowState);
 			}
 
 			this._onDidMaximize.fire();
 		}));
 		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => {
-
-			// Windows-specific RDP multi-monitor workaround:
-			// Refs https://github.com/electron/electron/issues/47016
-			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this._maximizedWindowState) {
-				this._maximizedWindowState = undefined;
+			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this.maximizedWindowState) {
+				this.maximizedWindowState = undefined;
 
 				this.logService.debug(`Cleared maximized window ${this.id} state`);
 			}
@@ -233,6 +227,35 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				const displayWorkingArea = WindowStateValidator.getWorkingArea(e.display);
 				this.onDisplayAdded(displayWorkingArea);
 			}));
+		}
+	}
+
+	private onDisplayAdded(displayWorkingArea: Electron.Rectangle | undefined): void {
+		const state = this.maximizedWindowState;
+		if (
+			!this.win ||
+			!state ||
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number'
+		) {
+			return;
+		}
+
+		if (displayWorkingArea &&											// we have valid working area bounds
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
+		) {
+			this.logService.debug(`Setting maximized window ${this.id} bounds to match newly added display`, state);
+			this.win.setBounds({
+				x: state.x,
+				y: state.y,
+				width: state.width,
+				height: state.height
+			});
 		}
 	}
 
@@ -509,35 +532,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	}
 
 	//#endregion
-
-	private onDisplayAdded(displayWorkingArea: Electron.Rectangle | undefined): void {
-		const state = this._maximizedWindowState;
-		if (
-			!this.win ||
-			!state ||
-			typeof state.x !== 'number' ||
-			typeof state.y !== 'number' ||
-			typeof state.width !== 'number' ||
-			typeof state.height !== 'number'
-		) {
-			return;
-		}
-
-		if (displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
-			this.logService.debug(`Setting maximized window ${this.id} bounds to match newly added display`, state);
-			this.win.setBounds({
-				x: state.x,
-				y: state.y,
-				width: state.width,
-				height: state.height
-			});
-		}
-	}
 
 	abstract matches(webContents: electron.WebContents): boolean;
 
