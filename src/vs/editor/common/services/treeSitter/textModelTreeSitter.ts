@@ -41,6 +41,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	private _query: Parser.Query | undefined;
 	// TODO: @alexr00 use a better data structure for this
 	private readonly _injectionTreeSitterTrees: DisposableMap<string, TreeSitterParseResult> = this._register(new DisposableMap());
+	private readonly _injectionTreeSitterLanguages: Map<string, Set<string>> = new Map(); // parent language -> injected languages
 	private _versionId: number = 0;
 
 	get parseResult(): ITreeSitterParseResult | undefined { return this._rootTreeSitterTree; }
@@ -123,7 +124,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		});
 	}
 
-	private async _handleTreeUpdate(e: TreeParseUpdateEvent, parentTree?: Parser.Tree, parentLanguage?: string) {
+	private async _handleTreeUpdate(e: TreeParseUpdateEvent, parentTree?: Parser.Tree) {
 		if (e.ranges && (e.versionId >= this._versionId)) {
 			this._versionId = e.versionId;
 			const tree = (parentTree ?? this._rootTreeSitterTree!.tree)?.copy();
@@ -132,7 +133,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 				injections = await this._collectInjections(tree);
 				// kick off check for injected languages
 				if (injections) {
-					this._processInjections(injections, tree, parentLanguage ?? this.textModel.getLanguageId(), e.includedModelChanges).then(() => {
+					this._processInjections(injections, tree, e.language, e.includedModelChanges).then(() => {
 						// Clean up tree copy
 						tree.delete();
 					});
@@ -282,12 +283,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		parentLanguage: string,
 		modelChanges: IModelContentChangedEvent[] | undefined
 	): Promise<void> {
-		if (injections.size === 0) {
-			this._injectionTreeSitterTrees.clearAndDisposeAll();
-			return;
-		}
-
-		const unseenInjections: Set<string> = new Set(this._injectionTreeSitterTrees.keys());
+		const unseenInjections: Set<string> = this._injectionTreeSitterLanguages.get(parentLanguage) ?? new Set();
 		for (const [languageId, ranges] of injections) {
 			const language = await this._treeSitterLanguages.getLanguage(languageId);
 			if (!language) {
@@ -315,8 +311,10 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		if (!treeSitterTree) {
 			const Parser = await this._treeSitterImporter.getParserClass();
 			treeSitterTree = new TreeSitterParseResult(new Parser(), languageId, language, this._logService, this._telemetryService);
-			this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => this._handleTreeUpdate(e, copyOfParentTree, parentLanguage)));
+			this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => this._handleTreeUpdate(e, copyOfParentTree)));
 			this._injectionTreeSitterTrees.set(languageId, treeSitterTree);
+			const injectionLanguages = this._injectionTreeSitterLanguages.get(parentLanguage) ?? this._injectionTreeSitterLanguages.set(parentLanguage, new Set()).get(parentLanguage)!;
+			injectionLanguages.add(languageId);
 		}
 		return treeSitterTree;
 	}
