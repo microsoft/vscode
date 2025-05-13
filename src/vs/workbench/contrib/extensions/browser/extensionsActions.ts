@@ -2606,6 +2606,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
+		if (this.extension.pulledFromMarketplace) {
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('pulled from marketplace tooltip', "This extension is no longer available on the marketplace.")) }, true);
+			return;
+		}
+
 		if (this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
 		}

@@ -93,6 +93,8 @@ export class Extension implements IExtension {
 
 	private galleryResourcesCache = new Map<string, any>();
 
+	private _pulledFromMarketplace: boolean | undefined;
+
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
 		private runtimeStateProvider: IExtensionStateProvider<ExtensionRuntimeState | undefined>,
@@ -104,7 +106,7 @@ export class Extension implements IExtension {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
 	) {
 	}
 
@@ -132,6 +134,14 @@ export class Extension implements IExtension {
 	set gallery(gallery: IGalleryExtension | undefined) {
 		this._gallery = gallery;
 		this.galleryResourcesCache.clear();
+	}
+
+	get pulledFromMarketplace(): boolean {
+		return !!this._pulledFromMarketplace;
+	}
+
+	set pulledFromMarketplace(pulled: boolean) {
+		this._pulledFromMarketplace = pulled;
 	}
 
 	get type(): ExtensionType {
@@ -655,8 +665,8 @@ class Extensions extends Disposable {
 		return this.local;
 	}
 
-	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<void> {
-		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
+	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, expectLocalInstalledOnly: boolean): Promise<void> {
+		const { extensions, pulledExtensions } = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
 			if (extension.local && !extension.local.identifier.uuid) {
@@ -667,14 +677,20 @@ class Extensions extends Disposable {
 				this._onChange.fire({ extension });
 			}
 		}
+		if (expectLocalInstalledOnly) {
+			for (const extension of pulledExtensions) {
+				extension.pulledFromMarketplace = true;
+				this._onChange.fire({ extension });
+			}
+		}
 	}
 
-	private async mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<[Extension, IGalleryExtension][]> {
+	private async mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<{ extensions: [Extension, IGalleryExtension][]; pulledExtensions: Extension[] }> {
 		const mappedExtensions = this.mapInstalledExtensionWithGalleryExtension(galleryExtensions);
 		const targetPlatform = await this.server.extensionManagementService.getTargetPlatform();
 		const compatibleGalleryExtensions: IGalleryExtension[] = [];
 		const compatibleGalleryExtensionsToFetch: IExtensionInfo[] = [];
-		await Promise.allSettled(mappedExtensions.map(async ([extension, gallery]) => {
+		await Promise.allSettled(mappedExtensions.extensions.map(async ([extension, gallery]) => {
 			if (extension.local) {
 				if (await this.galleryService.isExtensionCompatible(gallery, extension.local.preRelease, targetPlatform, productVersion)) {
 					compatibleGalleryExtensions.push(gallery);
@@ -690,8 +706,9 @@ class Extensions extends Disposable {
 		return this.mapInstalledExtensionWithGalleryExtension(compatibleGalleryExtensions);
 	}
 
-	private mapInstalledExtensionWithGalleryExtension(galleryExtensions: IGalleryExtension[]): [Extension, IGalleryExtension][] {
+	private mapInstalledExtensionWithGalleryExtension(galleryExtensions: IGalleryExtension[]): { extensions: [Extension, IGalleryExtension][]; pulledExtensions: Extension[] } {
 		const mappedExtensions: [Extension, IGalleryExtension][] = [];
+		const pulledExtensions: Extension[] = [];
 		const byUUID = new Map<string, IGalleryExtension>(), byID = new Map<string, IGalleryExtension>();
 		for (const gallery of galleryExtensions) {
 			byUUID.set(gallery.identifier.uuid, gallery);
@@ -709,10 +726,18 @@ class Extensions extends Disposable {
 				const gallery = byID.get(installed.identifier.id.toLowerCase());
 				if (gallery) {
 					mappedExtensions.push([installed, gallery]);
+					continue;
 				}
 			}
+			// If we got to here but nothing in the gallery, assume it's been pulled.
+			if (installed.local?.source === 'gallery') {
+				pulledExtensions.push(installed);
+			}
 		}
-		return mappedExtensions;
+		return {
+			extensions: mappedExtensions,
+			pulledExtensions
+		};
 	}
 
 	private async updateMetadata(localExtension: ILocalExtension, gallery: IGalleryExtension): Promise<ILocalExtension> {
@@ -1252,6 +1277,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	get outdated(): IExtension[] {
 		return this.installed.filter(e => e.outdated && e.local && e.state === ExtensionState.Installed);
+	}
+
+	get pulledFromMarketplace(): IExtension[] {
+		return this.installed.filter(e => e.pulledFromMarketplace);
 	}
 
 	async queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]> {
@@ -1871,7 +1900,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.logService.trace(`Checking updates for extensions`, infos.map(e => e.id).join(', '));
 			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion(), updateCheck: true }, CancellationToken.None);
 			if (galleryExtensions.length) {
-				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
+				const expectLocalInstalledOnly = true;
+				await this.syncInstalledExtensionsWithGallery(galleryExtensions, expectLocalInstalledOnly);
 			}
 		}
 	}
@@ -1944,7 +1974,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[]): Promise<void> {
+	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[], expectLocalInstalledOnly: boolean = false): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -1958,7 +1988,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extensions.length) {
 			return;
 		}
-		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion())));
+		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion(), expectLocalInstalledOnly)));
 		if (this.outdated.length) {
 			this.logService.info(`Auto updating outdated extensions.`, this.outdated.map(e => e.identifier.id).join(', '));
 			this.eventuallyAutoUpdateExtensions();
