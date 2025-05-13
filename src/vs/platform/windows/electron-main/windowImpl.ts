@@ -233,12 +233,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		const state = this.maximizedWindowState;
 		if (state && this._win && WindowStateValidator.validateWindowStateOnDisplay(state, display)) {
 			this.logService.debug(`Setting maximized window ${this.id} bounds to match newly added display`, state);
-			this._win.setBounds({
-				x: state.x,
-				y: state.y,
-				width: state.width,
-				height: state.height
-			});
+
+			this._win.setBounds(state);
 		}
 	}
 
