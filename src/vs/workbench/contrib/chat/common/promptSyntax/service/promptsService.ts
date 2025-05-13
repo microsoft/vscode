@@ -55,12 +55,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IModelService private readonly modelService: IModelService,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
 
-		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
+		this.fileLocator = this.instantiationService.createInstance(PromptFilesLocator);
 		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
@@ -77,7 +77,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
 				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
 				 */
-				const parser: TextModelPromptParser = initService.createInstance(
+				const parser: TextModelPromptParser = instantiationService.createInstance(
 					TextModelPromptParser,
 					model,
 					{ seenReferences: [] },
@@ -229,7 +229,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			promptUris.map(async (uri) => {
 				let parser: PromptParser | undefined;
 				try {
-					parser = this.initService.createInstance(
+					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,
 						{ allowNonPromptFiles: true },

@@ -76,7 +76,7 @@ import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, isChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
@@ -129,6 +129,8 @@ interface IChatInputPartOptions {
 export interface IWorkingSetEntry {
 	uri: URI;
 }
+
+const GlobalLastChatModeKey = 'chat.lastChatMode';
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
@@ -547,7 +549,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	setChatMode(mode: ChatMode): void {
+	setChatMode(mode: ChatMode, storeSelection = true): void {
 		if (!this.options.supportsChangingModes) {
 			return;
 		}
@@ -556,6 +558,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentMode = mode;
 		this.chatMode.set(mode);
 		this._onDidChangeCurrentChatMode.fire();
+
+		if (storeSelection) {
+			this.storageService.store(GlobalLastChatModeKey, mode, StorageScope.APPLICATION, StorageTarget.USER);
+		}
 	}
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
@@ -644,6 +650,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (state.inputState?.chatMode) {
 			this.setChatMode(state.inputState.chatMode);
+		} else {
+			const persistedMode = this.storageService.get(GlobalLastChatModeKey, StorageScope.APPLICATION);
+			if (isChatMode(persistedMode)) {
+				this.setChatMode(persistedMode);
+			}
 		}
 
 		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
@@ -660,7 +671,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						const defaultMode = validateChatMode(defaultModeTreatment);
 						if (defaultMode) {
 							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
-							this.setChatMode(defaultMode);
+							this.setChatMode(defaultMode, false);
 							this.checkModelSupported();
 						}
 					}
@@ -1041,29 +1052,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			hoverDelegate
-		}));
-		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
-		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
-			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
-				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
-			}
-		}));
-		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
-			telemetrySource: this.options.menus.telemetrySource,
-			menuOptions: {
-				shouldForwardArgs: true
-			},
 			hoverDelegate,
-			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
-				if (this.location === ChatAgentLocation.Panel || this.location === ChatAgentLocation.Editor) {
-					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
-						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
-						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, { ...options, menuAsChild: false });
-					}
-				}
-
 				if (action.id === ChatOpenModelPickerActionId && action instanceof MenuItemAction) {
 					if (!this._currentLanguageModel) {
 						this.setCurrentLanguageModelToDefault();
@@ -1089,6 +1079,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						onDidChangeMode: this._onDidChangeCurrentChatMode.event
 					};
 					return this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
+				}
+
+				return undefined;
+			}
+		}));
+		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
+		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
+				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+			}
+		}));
+		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
+			telemetrySource: this.options.menus.telemetrySource,
+			menuOptions: {
+				shouldForwardArgs: true
+			},
+			hoverDelegate,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
+			actionViewItemProvider: (action, options) => {
+				if (this.location === ChatAgentLocation.Panel || this.location === ChatAgentLocation.Editor) {
+					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
+						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
+						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, { ...options, menuAsChild: false });
+					}
 				}
 
 				return undefined;

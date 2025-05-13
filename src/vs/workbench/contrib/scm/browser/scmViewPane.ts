@@ -2572,13 +2572,17 @@ export class SCMViewPane extends ViewPane {
 		const element = e.element;
 		let context: any = element;
 		let actions: IAction[] = [];
+
+		const disposables = new DisposableStore();
 		let actionRunner: IActionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		disposables.add(actionRunner);
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryContextMenu;
 			context = element.provider;
 			actionRunner = new RepositoryActionRunner(() => this.getSelectedRepositories());
+			disposables.add(actionRunner);
 			actions = collectContextMenuActions(menu);
 		} else if (isSCMInput(element) || isSCMActionButton(element)) {
 			// noop
@@ -2602,14 +2606,14 @@ export class SCMViewPane extends ViewPane {
 			}
 		}
 
-		actionRunner.onWillRun(() => this.tree.domFocus());
+		disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
 
 		this.contextMenuService.showContextMenu({
 			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => context,
-			onHide: () => actionRunner.dispose()
+			onHide: () => disposables.dispose()
 		});
 	}
 

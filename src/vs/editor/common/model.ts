@@ -219,7 +219,7 @@ export interface IModelDecorationOptions {
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 	/**
-	 * If set, the decoration will override the line height of the lines it spans.
+	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
 	 */
 	lineHeight?: number | null;
 	/**

@@ -95,9 +95,9 @@ export class AttachToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 			menu: {
 				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-				id: MenuId.ChatInput,
+				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 100
+				order: 1,
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),

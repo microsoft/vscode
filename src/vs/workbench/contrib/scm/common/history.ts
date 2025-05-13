@@ -88,6 +88,14 @@ export interface SCMHistoryItemViewModelTreeElement {
 	readonly type: 'historyItemViewModel';
 }
 
+export interface SCMHistoryItemChangeViewModelTreeElement {
+	readonly repository: ISCMRepository;
+	readonly historyItemViewModel: ISCMHistoryItemViewModel;
+	readonly historyItemChange: ISCMHistoryItemChange;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
+	readonly type: 'historyItemChangeViewModel';
+}
+
 export interface SCMHistoryItemLoadMoreTreeElement {
 	readonly repository: ISCMRepository;
 	readonly graphColumns: ISCMHistoryItemGraphNode[];
