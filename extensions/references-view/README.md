@@ -1,6 +1,6 @@
 # References View
 
-This extension shows reference search results as separate view, just like search results. It complements the peek view presentation that is also built into VS Code. The following feature are available:
+This extension shows reference search results as separate view, just like search results. It complements the peek view presentation that is also built into VS Code. The following features are available:
 
 * List All References via the Command Palette, the Context Menu, or via <kbd>Alt+Shift+F12</kbd>
 * View references in a dedicated tree view that sits in the sidebar
