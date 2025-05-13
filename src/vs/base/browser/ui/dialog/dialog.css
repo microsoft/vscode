@@ -163,26 +163,30 @@
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
 	width: 100%;
-	justify-content: flex-end;
-	overflow: hidden;
 }
 
 .monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons {
+	overflow: hidden;
+	justify-content: flex-end;
 	margin-left: 67px; /* for long buttons, force align with text */
 }
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons {
 	margin-left: 20px;
-	margin-left: 20px;
+	margin-right: 20px;
+	flex-direction: column-reverse;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	width: fit-content;
 	padding: 5px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
+}
+
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	width: fit-content;
 }
 
 /** Dialog: Dropdown */
