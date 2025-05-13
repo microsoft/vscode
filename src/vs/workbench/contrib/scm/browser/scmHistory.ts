@@ -353,3 +353,19 @@ export function toISCMHistoryItemViewModelArray(
 
 	return viewModels;
 }
+
+export function getHistoryItemColor(historyItemViewModel: ISCMHistoryItemViewModel): string {
+	const historyItem = historyItemViewModel.historyItem;
+	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
+	const outputSwimlanes = historyItemViewModel.outputSwimlanes;
+
+	// Find the history item in the input swimlanes
+	const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
+
+	// Circle index - use the input swimlane index if present, otherwise add it to the end
+	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
+
+	// Circle color - use the output swimlane color if present, otherwise the input swimlane color
+	return circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
+		circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemRefColor;
+}
