@@ -337,7 +337,7 @@ export class PearOverlayPart extends Part {
 		let messageReceived = false;
 
 		this.webviewView!.webview.onMessage((e) => {
-				console.log("Received message from webview:", e.message);
+				// console.log("Received message from webview:", e.message);
 				if (e.message.messageType === "loaded" || e.message.messageType === "pong") {
 						messageReceived = true;
 				}

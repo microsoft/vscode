@@ -487,7 +487,7 @@ export class CreatorOverlayPart extends Part {
         let messageReceived = false;
 
         this.webviewElement.onMessage((e) => {
-            console.log("Received message from webview:", e.message);
+            // console.log("Received message from webview:", e.message);
             if (e.message.messageType === "loaded" || e.message.messageType === "pong") {
                 messageReceived = true;
             }
