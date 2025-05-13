@@ -676,12 +676,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const chatEnabled = this._chatService.isEnabled(ChatAgentLocation.Panel);
 				const actions = [];
 				if (chatEnabled && errorMessage) {
-					actions.push({
-						label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
-						run: async () => {
-							this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this task configuration error: ' + '\n```' + errorMessage + '```' });
-						}
-					});
+					const regex = /^(.*?)\s*\{[\s\S]*$/;
+					const matches = errorMessage.match(regex);
+					if (matches && matches.length > 1) {
+						const message = matches[1];
+						actions.push({
+							label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
+							run: async () => {
+								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this task configuration error: ' + message + '\n```' + errorMessage + '```' });
+							}
+						});
+					}
 				}
 				actions.push({
 					label: nls.localize('showOutput', "Show Output"),
