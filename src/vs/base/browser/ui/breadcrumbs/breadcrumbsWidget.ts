@@ -65,6 +65,7 @@ export class BreadcrumbsWidget {
 	constructor(
 		container: HTMLElement,
 		horizontalScrollbarSize: number,
+		horizontalScrollbarVisibility: ScrollbarVisibility = ScrollbarVisibility.Auto,
 		separatorIcon: ThemeIcon,
 		styles: IBreadcrumbsWidgetStyles
 	) {
@@ -74,7 +75,7 @@ export class BreadcrumbsWidget {
 		this._domNode.setAttribute('role', 'list');
 		this._scrollable = new DomScrollableElement(this._domNode, {
 			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Auto,
+			horizontal: horizontalScrollbarVisibility,
 			horizontalScrollbarSize,
 			useShadows: false,
 			scrollYToX: true
@@ -96,6 +97,12 @@ export class BreadcrumbsWidget {
 	setHorizontalScrollbarSize(size: number) {
 		this._scrollable.updateOptions({
 			horizontalScrollbarSize: size
+		});
+	}
+
+	setHorizontalScrollbarVisibility(visibility: ScrollbarVisibility) {
+		this._scrollable.updateOptions({
+			horizontal: visibility
 		});
 	}
 
