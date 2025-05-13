@@ -27,7 +27,7 @@ import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { ISearchHistoryService, SearchHistoryService } from '../common/searchHistoryService.js';
 import { SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS } from '../../../services/search/common/search.js';
+import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS, AutoSemanticSearch } from '../../../services/search/common/search.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { assertType } from '../../../../base/common/types.js';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from '../common/search.js';
@@ -388,10 +388,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
-		'search.experimental.autoAISearchResults': {
-			type: 'boolean',
-			description: nls.localize('search.experimental.autoAISearchResults', "Automatically request search results from the AI search provider"),
-			default: false
+		'search.searchView.autoSemanticSearchResults': {
+			type: 'string',
+			description: nls.localize('search.searchView.autoSemanticSearchResults', "Automatically request semantic search results in the search view."),
+			enum: [AutoSemanticSearch.Disabled, AutoSemanticSearch.OnEmptyResults, AutoSemanticSearch.Enabled],
+			default: AutoSemanticSearch.Disabled,
+			enumDescriptions: [
+				nls.localize('search.searchView.autoSemanticSearchResults.disabled', "Disable automatic semantic search results."),
+				nls.localize('search.searchView.autoSemanticSearchResults.onEmptyResults', "Only automatically request semantic results when text search results are empty."),
+				nls.localize('search.searchView.autoSemanticSearchResults.enabled', "Enable automatic semantic search results.")
+			],
+			tags: ['preview'],
 		},
 	}
 });
