@@ -70,7 +70,7 @@ import { createEditorFromSearchResult } from '../../searchEditor/browser/searchE
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { AutoSemanticSearch, IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
+import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -632,7 +632,7 @@ export class SearchView extends ViewPane {
 			this.triggerQueryChange({
 				...options,
 				shouldKeepAIResults: false,
-				shouldUpdateAISearch: shouldRenderAIResults === AutoSemanticSearch.Enabled,
+				shouldUpdateAISearch: shouldRenderAIResults === SemanticSearchBehavior.Auto,
 			});
 		}));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
@@ -1880,7 +1880,7 @@ export class SearchView extends ViewPane {
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.autoAISearchResults;
-			if (complete.results.length === 0 && config === AutoSemanticSearch.OnEmptyResults) {
+			if (complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
 				this.model.searchResult.aiTextSearchResult.hidden = false;
 			}
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);

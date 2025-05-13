@@ -416,10 +416,10 @@ export const enum SearchSortOrder {
 	CountAscending = 'countAscending'
 }
 
-export const enum AutoSemanticSearch {
-	Enabled = 'enabled',
-	Disabled = 'disabled',
-	OnEmptyResults = 'onEmptyResults',
+export const enum SemanticSearchBehavior {
+	Auto = 'auto',
+	Manual = 'manual',
+	RunOnEmpty = 'runOnEmpty',
 }
 
 export interface ISearchConfigurationProperties {
