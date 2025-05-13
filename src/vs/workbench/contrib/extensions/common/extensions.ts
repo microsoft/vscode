@@ -107,7 +107,7 @@ export interface IExtension {
 	readonly isMalicious: boolean | undefined;
 	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
-	readonly pulledFromMarketplace?: boolean;
+	readonly missingFromGallery?: boolean;
 }
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
@@ -133,7 +133,7 @@ export interface IExtensionsWorkbenchService {
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
 	readonly outdated: IExtension[];
-	readonly pulledFromMarketplace: IExtension[];
+	readonly missingFromGallery: IExtension[];
 	readonly whenInitialized: Promise<void>;
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
