@@ -182,21 +182,21 @@ const validateFolder = async (
 suite('MockFilesystem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let initService: TestInstantiationService;
+	let instantiationService: TestInstantiationService;
 	let fileService: IFileService;
 	setup(async () => {
-		initService = disposables.add(new TestInstantiationService());
-		initService.stub(ILogService, new NullLogService());
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 
-		fileService = disposables.add(initService.createInstance(FileService));
+		fileService = disposables.add(instantiationService.createInstance(FileService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
-		initService.stub(IFileService, fileService);
+		instantiationService.stub(IFileService, fileService);
 	});
 
 	test('• mocks file structure', async () => {
-		const mockFilesystem = initService.createInstance(MockFilesystem, [
+		const mockFilesystem = instantiationService.createInstance(MockFilesystem, [
 			{
 				name: '/root/folder',
 				children: [

@@ -57,6 +57,14 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
+		this.editorWorkingSets = (() => {
+			const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
+			if (workingSetsRaw) {
+				return JSON.parse(workingSetsRaw);
+			}
+			return [];
+		})();
+
 		this.mainPart = this._register(this.createMainEditorPart());
 		this._register(this.registerPart(this.mainPart));
 
@@ -366,14 +374,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private static readonly EDITOR_WORKING_SETS_STORAGE_KEY = 'editor.workingSets';
 
-	private editorWorkingSets: IEditorWorkingSetState[] = (() => {
-		const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (workingSetsRaw) {
-			return JSON.parse(workingSetsRaw);
-		}
-
-		return [];
-	})();
+	private editorWorkingSets: IEditorWorkingSetState[];
 
 	saveWorkingSet(name: string): IEditorWorkingSet {
 		const workingSet: IEditorWorkingSetState = {

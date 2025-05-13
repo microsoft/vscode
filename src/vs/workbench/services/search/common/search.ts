@@ -460,6 +460,7 @@ export interface ISearchConfigurationProperties {
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
+		autoAISearchResults: boolean;
 	};
 }
 

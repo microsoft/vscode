@@ -139,7 +139,7 @@ if ($env:STARSHIP_SESSION_KEY) {
 elseif ($env:POSH_SESSION_ID) {
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=oh-my-posh`a")
 }
-elseif ($Global:GitPromptSettings) {
+elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSettings) {
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 

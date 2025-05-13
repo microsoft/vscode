@@ -9,7 +9,8 @@ import { BugIndicatingError } from '../../../base/common/errors.js';
 import { LineRange } from '../core/ranges/lineRange.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
-import { AbstractText, SingleTextEdit, TextEdit } from '../core/edits/textEdit.js';
+import { TextReplacement, TextEdit } from '../core/edits/textEdit.js';
+import { AbstractText } from '../core/text/abstractText.js';
 import { IChange } from './legacyLinesDiffComputer.js';
 
 /**
@@ -231,13 +232,13 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 export class RangeMapping {
 	public static fromEdit(edit: TextEdit): RangeMapping[] {
 		const newRanges = edit.getNewRanges();
-		const result = edit.edits.map((e, idx) => new RangeMapping(e.range, newRanges[idx]));
+		const result = edit.replacements.map((e, idx) => new RangeMapping(e.range, newRanges[idx]));
 		return result;
 	}
 
 	public static fromEditJoin(edit: TextEdit): RangeMapping {
 		const newRanges = edit.getNewRanges();
-		const result = edit.edits.map((e, idx) => new RangeMapping(e.range, newRanges[idx]));
+		const result = edit.replacements.map((e, idx) => new RangeMapping(e.range, newRanges[idx]));
 		return RangeMapping.join(result);
 	}
 
@@ -294,9 +295,9 @@ export class RangeMapping {
 	/**
 	 * Creates a single text edit that describes the change from the original to the modified text.
 	*/
-	public toTextEdit(modified: AbstractText): SingleTextEdit {
+	public toTextEdit(modified: AbstractText): TextReplacement {
 		const newText = modified.getValueOfRange(this.modifiedRange);
-		return new SingleTextEdit(this.originalRange, newText);
+		return new TextReplacement(this.originalRange, newText);
 	}
 
 	public join(other: RangeMapping): RangeMapping {

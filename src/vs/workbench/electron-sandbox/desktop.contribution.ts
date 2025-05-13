@@ -426,6 +426,12 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
 		};
 	}
+	if (isWindows) {
+		schema.properties!['enable-rdp-display-tracking'] = {
+			type: 'boolean',
+			description: localize('argv.enableRDPDisplayTracking', "Ensures that maximized windows gets restored to correct display during RDP reconnection.")
+		};
+	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
 })();

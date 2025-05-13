@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, ChatSentiment, IChatEntitlementService, IQuotaSnapshot } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot } from '../common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -126,7 +126,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private update(): void {
-		if (this.chatEntitlementService.sentiment !== ChatSentiment.Disabled) {
+		if (!this.chatEntitlementService.sentiment.hidden) {
 			if (!this.entry) {
 				this.entry = this.statusbarService.addEntry(this.getEntryProps(), 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			} else {
@@ -175,8 +175,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
+			// Disabled
+			if (this.chatEntitlementService.sentiment.disabled) {
+				text = `$(copilot-unavailable)`;
+				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
+			}
+
 			// Signed out
-			if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 				const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
 
 				text = `$(copilot-not-connected) ${signedOutWarning}`;
@@ -227,17 +233,18 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 }
 
 function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.sentiment !== ChatSentiment.Installed ||	// copilot not installed
+	return !chatEntitlementService.sentiment.installed ||					// copilot not installed
 		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to copilot
 }
 
 function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
 	const newUser = isNewUser(chatEntitlementService);
+	const disabled = chatEntitlementService.sentiment.disabled;
 	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 	const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
 	const allFreeQuotaReached = limited && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
-	return !newUser && !signedOut && !allFreeQuotaReached;
+	return !newUser && !signedOut && !allFreeQuotaReached && !disabled;
 }
 
 function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
@@ -327,9 +334,9 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const completionsQuotaIndicator = completionsQuota ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
-			const chatQuotaIndicator = chatQuota ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
+			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
+			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
 
 			if (resetDate) {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", this.dateFormatter.value.format(new Date(resetDate)))));
@@ -386,7 +393,8 @@ class ChatStatusDashboard extends Disposable {
 
 		// Settings
 		{
-			addSeparator(localize('settingsTitle', "Settings"), this.chatEntitlementService.sentiment === ChatSentiment.Installed ? toAction({
+			const chatSentiment = this.chatEntitlementService.sentiment;
+			addSeparator(localize('settingsTitle', "Settings"), chatSentiment.installed && !chatSentiment.disabled ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
@@ -400,15 +408,34 @@ class ChatStatusDashboard extends Disposable {
 		// New to Copilot / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
+			const disabled = this.chatEntitlementService.sentiment.disabled;
 			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			if (newUser || signedOut) {
+			if (newUser || signedOut || disabled) {
 				addSeparator();
 
-				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "Set up Copilot to use AI features.") : localize('signInDescription', "Sign in to use Copilot AI features.")));
+				let descriptionText: string;
+				if (newUser) {
+					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");
+				} else if (disabled) {
+					descriptionText = localize('enableDescription', "Enable Copilot to use AI features.");
+				} else {
+					descriptionText = localize('signInDescription', "Sign in to use Copilot AI features.");
+				}
+
+				let buttonLabel: string;
+				if (newUser) {
+					buttonLabel = localize('activateCopilotButton', "Set up Copilot");
+				} else if (disabled) {
+					buttonLabel = localize('enableCopilotButton', "Enable Copilot");
+				} else {
+					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
+				}
+
+				this.element.appendChild($('div.description', undefined, descriptionText));
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
-				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in to use Copilot");
-				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
+				button.label = buttonLabel;
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser || disabled ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}
 

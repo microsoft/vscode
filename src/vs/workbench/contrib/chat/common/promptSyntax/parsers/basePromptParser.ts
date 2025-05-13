@@ -10,11 +10,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
 import * as path from '../../../../../../base/common/path.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -240,8 +240,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			...options,
 		};
 
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-
 		const seenReferences = [...this.options.seenReferences];
 
 		// to prevent infinite file recursion, we keep track of all references in
@@ -327,6 +325,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// decode the byte stream to a stream of prompt tokens
 		this.stream = ChatPromptCodec.decode(streamOrError);
+
+		/**
+		 * !NOTE! The order of event subscriptions below is critical here because
+		 *        the `data` event is also starts the stream, hence changing
+		 *        the order of event subscriptions can lead to race conditions.
+		 *        See {@link ReadableStreamEvents} for more info.
+		 */
 
 		// on error or stream end, dispose the stream and fire the update event
 		this.stream.on('error', this.onStreamEnd.bind(this, this.stream));
@@ -777,11 +782,11 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
 		options: Partial<IPromptParserOptions>,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.parser = this._register(initService.createInstance(
+		this.parser = this._register(instantiationService.createInstance(
 			BasePromptParser,
 			this.promptContentsProvider,
 			options,
@@ -854,10 +859,9 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 
 	/**
 	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
 	 */
-	public onUpdate(callback: () => void): IDisposable {
-		return this.parser.onUpdate(callback);
+	public onUpdate(...args: Parameters<Event<void>>): ReturnType<Event<void>> {
+		return this.parser.onUpdate(...args);
 	}
 
 	public get range(): Range {
