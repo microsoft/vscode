@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
