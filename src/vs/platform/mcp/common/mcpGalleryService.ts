@@ -11,39 +11,26 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { asJson, IRequestService } from '../../request/common/request.js';
-import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions } from './mcpManagement.js';
-import { IMcpServerManifest } from './mcpPlatformTypes.js';
+import { asJson, asText, IRequestService } from '../../request/common/request.js';
+import { IGalleryMcpServer, IMcpGalleryService, IMcpServerManifest, IQueryOptions, mcpGalleryServiceUrlConfig } from './mcpManagement.js';
 
 interface IRawGalleryMcpServer {
 	readonly id: string;
 	readonly name: string;
-	readonly displayName: string;
-	readonly url: string;
 	readonly description: string;
-	readonly version: string;
-	readonly iconUrl: string;
-	readonly publisher: {
-		readonly name: string;
-		readonly id: string;
-		readonly domain?: string;
-		readonly verified?: boolean;
+	readonly repository: {
+		readonly url: string;
+		readonly source: string;
+		readonly readmeUrl: string;
 	};
-	readonly releaseDate: string;
-	readonly lastUpdated: string;
-	readonly codicon?: string;
-	readonly categories?: readonly string[];
-	readonly tags?: readonly string[];
-	readonly installCount: number;
-	readonly rating: number;
-	readonly ratingCount: number;
-	readonly manifestUrl: string;
-	readonly readmeUrl: string;
-	readonly repositoryUrl?: string;
-	readonly licenseUrl?: string;
-	readonly changeLogUrl?: string;
+	readonly version_detail: {
+		readonly version: string;
+		readonly releaseData: string;
+		readonly is_latest: boolean;
+	};
 }
 
+type RawGalleryMcpServerManifest = IRawGalleryMcpServer & IMcpServerManifest;
 
 export class McpGalleryService extends Disposable implements IMcpGalleryService {
 
@@ -67,7 +54,13 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			result = result.filter(item => item.name.toLowerCase().includes(searchText) || item.description.toLowerCase().includes(searchText));
 		}
 
-		return result.map(item => this.toGalleryMcpServer(item));
+		// Process items sequentially to get publisher info
+		const galleryServers: IGalleryMcpServer[] = [];
+		for (const item of result) {
+			galleryServers.push(await this.toGalleryMcpServer(item));
+		}
+
+		return galleryServers;
 	}
 
 	async getManifest(gallery: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest> {
@@ -87,38 +80,66 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			url: gallery.manifestUrl,
 		}, token);
 
-		const result = await asJson<IMcpServerManifest>(context);
+		const result = await asJson<RawGalleryMcpServerManifest>(context);
 		if (!result) {
 			throw new Error(`Failed to fetch manifest from ${gallery.manifestUrl}`);
 		}
+
+		return {
+			packages: result.packages,
+			remotes: result.remotes,
+		};
+	}
+
+	async getReadme(gallery: IGalleryMcpServer, token: CancellationToken): Promise<string | null> {
+		if (!gallery.readmeUrl) {
+			return null;
+		}
+		const uri = URI.parse(gallery.readmeUrl);
+		if (uri.scheme === Schemas.file) {
+			try {
+				const content = await this.fileService.readFile(uri);
+				return content.value.toString();
+			} catch (error) {
+				this.logService.error(`Failed to read file from ${uri}: ${error}`);
+			}
+		}
+
+		const context = await this.requestService.request({
+			type: 'GET',
+			url: gallery.readmeUrl,
+		}, token);
+
+		const result = await asText(context);
+		if (!result) {
+			throw new Error(`Failed to fetch manifest from ${gallery.manifestUrl}`);
+		}
+
 		return result;
 	}
 
-	private toGalleryMcpServer(item: IRawGalleryMcpServer): IGalleryMcpServer {
+	private async toGalleryMcpServer(item: IRawGalleryMcpServer): Promise<IGalleryMcpServer> {
+		let publisher;
+		const nameParts = item.name.split('/');
+		if (nameParts.length > 0) {
+			const domainParts = nameParts[0].split('.');
+			if (domainParts.length > 0) {
+				publisher = domainParts[domainParts.length - 1]; // Always take the last part as owner
+			}
+		}
+
 		return {
 			id: item.id,
 			name: item.name,
-			displayName: item.displayName,
-			url: item.url,
+			displayName: nameParts[nameParts.length - 1],
+			url: item.repository.url,
 			description: item.description,
-			version: item.version,
-			iconUrl: item.iconUrl,
-			codicon: item.codicon,
-			manifestUrl: item.manifestUrl,
-			readmeUrl: item.readmeUrl,
-			repositoryUrl: item.repositoryUrl,
-			licenseUrl: item.licenseUrl,
-			changeLogUrl: item.changeLogUrl,
-			publisher: item.publisher.id,
-			publisherDisplayName: item.publisher.name,
-			publisherDomain: item.publisher.domain ? { link: item.publisher.domain, verified: !!item.publisher.verified } : undefined,
-			installCount: item.installCount,
-			rating: item.rating,
-			ratingCount: item.ratingCount,
-			categories: item.categories ?? [],
-			tags: item.tags ?? [],
-			releaseDate: Date.parse(item.releaseDate),
-			lastUpdated: Date.parse(item.lastUpdated)
+			version: item.version_detail.version,
+			lastUpdated: Date.parse(item.version_detail.releaseData),
+			repositoryUrl: item.repository.url,
+			readmeUrl: item.repository.readmeUrl,
+			manifestUrl: this.getManifestUrl(item),
+			publisher
 		};
 	}
 
@@ -148,11 +169,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return result || [];
 	}
 
+	private getManifestUrl(item: IRawGalleryMcpServer): string {
+		return `${this.getMcpGalleryUrl()}/${item.id}`;
+	}
+
 	private getMcpGalleryUrl(): string | undefined {
 		if (this.productService.quality === 'stable') {
 			return undefined;
 		}
-		return this.configurationService.getValue<string>('mcp.gallery.serviceUrl');
+		return this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig);
 	}
 
 }

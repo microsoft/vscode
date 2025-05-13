@@ -21,6 +21,7 @@ import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
 import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -474,11 +475,13 @@ export interface IWorkbenchMcpServer {
 	readonly label: string;
 	readonly description: string;
 	readonly iconUrl: string;
+	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly installCount?: number;
 	readonly ratingCount?: number;
 	readonly rating?: number;
 	readonly url?: string;
+	readonly repository?: string;
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
@@ -487,4 +490,5 @@ export interface IMcpWorkbenchService {
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
 	install(mcpServer: IWorkbenchMcpServer): Promise<void>;
+	open(extension: IWorkbenchMcpServer | string, options?: IEditorOptions): Promise<void>;
 }

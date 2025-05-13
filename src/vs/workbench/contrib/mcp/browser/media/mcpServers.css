@@ -3,60 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.mcp-servers-editor {
-	height: 100%;
-	overflow: hidden;
-	max-width: 1200px;
-
-	.contents-view,
-	.sidebar-view {
-		height: 100%;
-	}
-
-	.sidebar-view {
-		.sidebar-container {
-			.mcp-servers-toc {
-				max-width: 1200px;
-				margin: auto;
-				padding-left: 24px;
-
-				.monaco-list-row {
-					.toc-entry-label {
-						overflow: hidden;
-						text-overflow: ellipsis;
-						line-height: 22px;
-						flex-shrink: 1;
-					}
-				}
-
-				.monaco-list-row.selected {
-					.toc-entry-label {
-						font-weight: bold;
-					}
-				}
-
-			}
-		}
-	}
-
-	.contents-view {
-		.contents-container {
-			height: 100%;
-		}
-
-		.mcp-servers-view {
-			height: 100%;
-			margin: 0 20px;
-		}
-	}
-}
-
 .mcp-server-item {
-	box-sizing: border-box;
 	height: 100%;
 	padding: 0 0 0 16px;
 	overflow: hidden;
-	border: 1px solid var(--vscode-extension-border);
 	display: flex;
 
 	.icon-container {
@@ -146,57 +96,6 @@
 					font-size: 80%;
 				}
 			}
-
-			.actions-container {
-				.monaco-action-bar > .actions-container .action-label:not(.icon) {
-					border-radius: 2px;
-				}
-
-				.monaco-action-bar > .actions-container {
-
-					.action-item.disabled {
-						.action-label {
-							display: none;
-						}
-					}
-
-					.action-label {
-						max-width: 150px;
-						line-height: 16px;
-						line-height: initial;
-						overflow: hidden;
-						white-space: nowrap;
-						text-overflow: ellipsis;
-					}
-
-					.label,
-					.text {
-						width: auto;
-						height: auto;
-						line-height: 14px;
-					}
-
-					.label {
-						padding: 0 5px;
-						outline-offset: 1px;
-						color: var(--vscode-extensionButton-foreground) !important;
-						background-color: var(--vscode-extensionButton-background) !important;
-
-						.prominent {
-							background-color: var(--vscode-extensionButton-prominentBackground);
-							color: var(--vscode-extensionButton-prominentForeground) !important;
-						}
-
-						.prominent:hover {
-							background-color: var(--vscode-extensionButton-prominentHoverBackground);
-						}
-					}
-
-					.label:hover {
-						background-color: var(--vscode-extensionButton-hoverBackground) !important;
-					}
-				}
-			}
 		}
 	}
 
@@ -204,6 +103,54 @@
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+}
+
+.mcp-server-actions > .monaco-action-bar > .actions-container {
+	.action-item.disabled {
+		.action-label {
+			display: none;
+		}
+	}
+
+	.action-label:not(.icon) {
+		border-radius: 2px;
+	}
+
+	.action-label {
+		max-width: 150px;
+		line-height: 16px;
+		line-height: initial;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.label,
+	.text {
+		width: auto;
+		height: auto;
+		line-height: 14px;
+	}
+
+	.label {
+		padding: 0 5px;
+		outline-offset: 1px;
+		color: var(--vscode-extensionButton-foreground) !important;
+		background-color: var(--vscode-extensionButton-background) !important;
+
+		.prominent {
+			background-color: var(--vscode-extensionButton-prominentBackground);
+			color: var(--vscode-extensionButton-prominentForeground) !important;
+		}
+
+		.prominent:hover {
+			background-color: var(--vscode-extensionButton-prominentHoverBackground);
+		}
+	}
+
+	.label:hover {
+		background-color: var(--vscode-extensionButton-hoverBackground) !important;
 	}
 }
 

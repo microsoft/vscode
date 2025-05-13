@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize, localize2 } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { EditorExtensions } from '../../../common/editor.js';
+import { IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
-import { IPreferencesEditorPaneRegistry, Extensions } from '../../preferences/browser/preferencesEditorRegistry.js';
+import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
+import { SearchMcpServersContext } from '../../extensions/common/extensions.js';
 import { ConfigMcpDiscovery } from '../common/discovery/configMcpDiscovery.js';
 import { ExtensionMcpDiscovery } from '../common/discovery/extensionMcpDiscovery.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
@@ -23,10 +28,12 @@ import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpService } from '../common/mcpService.js';
 import { IMcpService, IMcpWorkbenchService } from '../common/mcpTypes.js';
-import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
-import { McpServersEditorPane } from './mcpServersEditor.js';
+import { McpServerEditor } from './mcpServerEditor.js';
+import { McpServerEditorInput } from './mcpServerEditorInput.js';
+import { McpServersListView } from './mcpServersView.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 import { McpWorkbenchService } from './mcpWorkbenchService.js';
 
@@ -58,15 +65,26 @@ registerAction2(ShowOutput);
 registerAction2(InstallFromActivation);
 registerAction2(RestartServer);
 registerAction2(ShowConfiguration);
+registerAction2(McpBrowseCommand);
 
 registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, WorkbenchPhase.BlockRestore);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);
 
-Registry.as<IPreferencesEditorPaneRegistry>(Extensions.PreferencesEditorPane).registerPreferencesEditorPane({
-	id: McpServersEditorPane.ID,
-	title: McpServersEditorPane.TITLE,
-	ctorDescriptor: new SyncDescriptor(McpServersEditorPane),
-	order: 4,
-});
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: 'workbench.views.mcp.marketplace',
+	name: localize2('mcp', "MCP Servers"),
+	ctorDescriptor: new SyncDescriptor(McpServersListView),
+	when: SearchMcpServersContext,
+}], VIEW_CONTAINER);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		McpServerEditor,
+		McpServerEditor.ID,
+		localize('mcpServer', "MCP Server")
+	),
+	[
+		new SyncDescriptor(McpServerEditorInput)
+	]);

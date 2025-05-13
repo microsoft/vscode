@@ -22,7 +22,7 @@ export abstract class McpServerAction extends Action implements IMcpServerContai
 	abstract update(): void;
 }
 
-export class AddAction extends McpServerAction {
+export class InstallAction extends McpServerAction {
 
 	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent install`;
 	private static readonly HIDE = `${this.CLASS} hide`;
@@ -30,22 +30,22 @@ export class AddAction extends McpServerAction {
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 	) {
-		super('extensions.install', localize('add', "Add"), AddAction.CLASS, false);
+		super('extensions.install', localize('add', "Add"), InstallAction.CLASS, false);
 		this.update();
 	}
 
 	update(): void {
 		this.enabled = false;
-		this.class = AddAction.HIDE;
+		this.class = InstallAction.HIDE;
 		if (!this.mcpServer) {
 			return;
 		}
 		if (this.mcpServer.local) {
 			return;
 		}
-		this.class = AddAction.CLASS;
+		this.class = InstallAction.CLASS;
 		this.enabled = true;
-		this.label = localize('add', "Add");
+		this.label = localize('install', "Install");
 	}
 
 	override async run(): Promise<any> {

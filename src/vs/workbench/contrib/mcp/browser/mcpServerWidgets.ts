@@ -80,7 +80,7 @@ export class PublisherWidget extends McpServerWidget {
 		dom.append(verifiedPublisher, dom.$('span.extension-verified-publisher.clickable'), renderIcon(verifiedPublisherIcon));
 
 		if (this.small) {
-			if (this.mcpServer.gallery?.publisherDomain) {
+			if (this.mcpServer.gallery?.publisherDomain?.verified) {
 				dom.append(this.element, verifiedPublisher);
 			}
 			dom.append(this.element, publisherDisplayName);
@@ -91,7 +91,7 @@ export class PublisherWidget extends McpServerWidget {
 			this.containerHover = this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, localize('publisher', "Publisher ({0})", this.mcpServer.publisherDisplayName)));
 			dom.append(this.element, publisherDisplayName);
 
-			if (this.mcpServer.gallery?.publisherDomain) {
+			if (this.mcpServer.gallery?.publisherDomain?.verified) {
 				dom.append(this.element, verifiedPublisher);
 				const publisherDomainLink = URI.parse(this.mcpServer.gallery?.publisherDomain.link);
 				verifiedPublisher.tabIndex = 0;

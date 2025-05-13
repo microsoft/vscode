@@ -44,7 +44,6 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		return Object.entries(userLocal.value.servers).map(([name, config]) => {
 			return {
 				name,
-				manifest: config.manifest,
 				config
 			};
 		});

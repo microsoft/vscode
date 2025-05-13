@@ -5,9 +5,13 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../common/mcpTypes.js';
+import { McpServerEditorInput } from './mcpServerEditorInput.js';
 
 class McpWorkbenchServer implements IWorkbenchMcpServer {
 
@@ -18,27 +22,39 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 	}
 
 	get id(): string {
-		return this.gallery?.id ?? this.local?.manifest?.id ?? '';
+		return this.gallery?.id ?? /* this.local?.manifest?.id ?? */ '';
 	}
 
 	get label(): string {
-		return this.gallery?.displayName ?? this.local?.manifest?.displayName ?? '';
+		return this.gallery?.displayName ?? /* this.local?.manifest?.displayName ?? */ '';
 	}
 
 	get iconUrl(): string {
-		return this.gallery?.iconUrl ?? this.local?.manifest?.iconUrl ?? DefaultIconPath;
+		return this.gallery?.iconUrl /* ?? this.local?.manifest?.iconUrl */ ?? DefaultIconPath;
 	}
 
 	get publisherDisplayName(): string | undefined {
-		return this.gallery?.publisherDisplayName ?? this.local?.manifest?.publisherDisplayName;
+		return this.gallery?.publisherDisplayName ?? this.gallery?.publisher;
+	}
+
+	get publisherUrl(): string | undefined {
+		return this.gallery?.publisherDomain?.link;
 	}
 
 	get description(): string {
-		return this.gallery?.description ?? this.local?.manifest?.description ?? '';
+		return this.gallery?.description ?? /* this.local?.manifest?.description ?? */ '';
 	}
 
 	get installCount(): number {
 		return this.gallery?.installCount ?? 0;
+	}
+
+	get url(): string | undefined {
+		return this.gallery?.url;
+	}
+
+	get repository(): string | undefined {
+		return this.gallery?.repositoryUrl;
 	}
 
 }
@@ -50,6 +66,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	constructor(
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 		@IMcpManagementService private readonly mcpManagementService: IMcpManagementService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -69,6 +87,10 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			throw new Error('Gallery server is missing');
 		}
 		await this.mcpManagementService.installFromGallery(server.gallery);
+	}
+
+	async open(extension: IWorkbenchMcpServer, options?: IEditorOptions): Promise<void> {
+		await this.editorService.openEditor(this.instantiationService.createInstance(McpServerEditorInput, extension), options, ACTIVE_GROUP);
 	}
 
 }
