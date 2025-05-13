@@ -58,8 +58,9 @@
 	font-size: 48px;
 }
 
-/** Dialog: Message Container */
-.monaco-dialog-box .dialog-message-row .dialog-message-container {
+/** Dialog: Message/Footer Container */
+.monaco-dialog-box .dialog-message-row .dialog-message-container,
+.monaco-dialog-box .dialog-footer-container {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -71,7 +72,8 @@
 	white-space: normal;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container ul {
+.monaco-dialog-box .dialog-message-row .dialog-message-container ul,
+.monaco-dialog-box .dialog-footer-container {
 	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
 }
 

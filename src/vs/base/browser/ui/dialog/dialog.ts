@@ -35,6 +35,7 @@ export interface IDialogOptions {
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
+	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
 	readonly buttonDetails?: string[];
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
@@ -44,6 +45,7 @@ export interface IDialogOptions {
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly dialogStyles: IDialogStyles;
+	readonly extraClasses?: string[];
 }
 
 export interface IDialogResult {
@@ -77,6 +79,7 @@ export class Dialog extends Disposable {
 	private readonly buttonsContainer: HTMLElement;
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
+	private readonly footerContainer: HTMLElement | undefined;
 	private readonly iconElement: HTMLElement;
 	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
@@ -92,10 +95,26 @@ export class Dialog extends Disposable {
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
+		if (options.extraClasses) {
+			this.element.classList.add(...options.extraClasses);
+		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
 		hide(this.element);
 
+		// Footer
+		if (this.options.renderFooter) {
+			this.footerContainer = this.element.appendChild($('.dialog-footer-container'));
+
+			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
+			this.options.renderFooter(customFooter);
+
+			for (const el of this.footerContainer.querySelectorAll('a')) {
+				el.tabIndex = 0;
+			}
+		}
+
+		// Buttons
 		this.buttonStyles = options.buttonStyles;
 
 		if (Array.isArray(buttons) && buttons.length > 0) {
@@ -108,6 +127,7 @@ export class Dialog extends Disposable {
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
+		// Message
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
 		this.iconElement = messageRowElement.appendChild($('#monaco-dialog-icon.dialog-icon'));
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
@@ -135,6 +155,7 @@ export class Dialog extends Disposable {
 			}
 		}
 
+		// Inputs
 		if (this.options.inputs) {
 			this.inputs = this.options.inputs.map(input => {
 				const inputRowElement = this.messageContainer.appendChild($('.dialog-message-input'));
@@ -155,6 +176,7 @@ export class Dialog extends Disposable {
 			this.inputs = [];
 		}
 
+		// Checkbox
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = this.messageContainer.appendChild($('.dialog-checkbox-row'));
 
@@ -169,6 +191,7 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(checkboxMessageElement, EventType.CLICK, () => checkbox.checked = !checkbox.checked));
 		}
 
+		// Toolbar
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
 
@@ -364,6 +387,16 @@ export class Dialog extends Disposable {
 						}
 					}
 
+					if (this.footerContainer) {
+						const links = this.footerContainer.querySelectorAll('a');
+						for (const link of links) {
+							focusableElements.push(link);
+							if (isActiveElement(link)) {
+								focusedIndex = focusableElements.length - 1;
+							}
+						}
+					}
+
 					// Focus next element (with wrapping)
 					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
@@ -495,14 +528,8 @@ export class Dialog extends Disposable {
 		this.element.style.backgroundColor = bgColor ?? '';
 		this.element.style.border = border;
 
-		// TODO fix
-		// if (fgColor && bgColor) {
-		// 	const messageDetailColor = fgColor.transparent(.9);
-		// 	this.messageDetailElement.style.mixBlendMode = messageDetailColor.makeOpaque(bgColor).toString();
-		// }
-
 		if (linkFgColor) {
-			for (const el of this.messageContainer.getElementsByTagName('a')) {
+			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
 				el.style.color = linkFgColor;
 			}
 		}
