@@ -676,8 +676,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const chatEnabled = this._chatService.isEnabled(ChatAgentLocation.Panel);
 				const actions = [];
 				if (chatEnabled && errorMessage) {
-					const regex = /^(.*?)\s*\{[\s\S]*$/;
-					const matches = errorMessage.match(regex);
+					const beforeJSONregex = /^(.*?)\s*\{[\s\S]*$/;
+					const matches = errorMessage.match(beforeJSONregex);
 					if (matches && matches.length > 1) {
 						const message = matches[1];
 						actions.push({
