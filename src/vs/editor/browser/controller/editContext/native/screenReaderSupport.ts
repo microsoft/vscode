@@ -19,7 +19,8 @@ import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
-import { ariaLabelForScreenReaderContent, ISimpleModel, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
+import { ariaLabelForScreenReaderContent, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
+import { NativeEditContextPagedScreenReaderStrategy, NativeEditContextScreenReaderContentState } from './nativeEditContextUtils.js';
 
 export class ScreenReaderSupport {
 
@@ -34,7 +35,8 @@ export class ScreenReaderSupport {
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private _screenReaderContentState: ScreenReaderContentState | undefined;
+	private _screenReaderContentState: NativeEditContextScreenReaderContentState | undefined;
+	private _nativeEditContextScreenReaderStrategy: NativeEditContextPagedScreenReaderStrategy = new NativeEditContextPagedScreenReaderStrategy();
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -124,7 +126,7 @@ export class ScreenReaderSupport {
 		}
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const positionLineNumber = this._primarySelection.positionLineNumber;
+		const positionLineNumber = this._screenReaderContentState.positionLineNumber;
 		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
@@ -136,7 +138,7 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
+		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.pretextOffsetRange.start;
 		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
 		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
@@ -179,17 +181,13 @@ export class ScreenReaderSupport {
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
-			this._screenReaderContentState = this._getScreenReaderContentState();
-			const endPosition = this._context.viewModel.model.getPositionAt(Infinity);
-			let value = this._screenReaderContentState.value;
-			if (endPosition.column === 1 && this._primarySelection.getEndPosition().equals(endPosition)) {
-				value += '\n';
+			const screenReaderContentState = this._getScreenReaderContentState();
+			if (this._screenReaderContentState?.equals(screenReaderContentState)) {
+				return;
 			}
-			if (this._domNode.domNode.textContent !== value) {
-				this.setIgnoreSelectionChangeTime('setValue');
-				this._domNode.domNode.textContent = value;
-			}
-			this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
+			this._screenReaderContentState = screenReaderContentState;
+			this.setIgnoreSelectionChangeTime('setValue');
+			// this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -197,12 +195,12 @@ export class ScreenReaderSupport {
 		}
 	}
 
-	public get screenReaderContentState(): ScreenReaderContentState | undefined {
+	public get screenReaderContentState(): NativeEditContextScreenReaderContentState | undefined {
 		return this._screenReaderContentState;
 	}
 
-	private _getScreenReaderContentState(): ScreenReaderContentState {
-		const simpleModel: ISimpleModel = {
+	private _getScreenReaderContentState(): NativeEditContextScreenReaderContentState {
+		const simpleModel: ISimpleScreenReaderContext = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
 			},
@@ -219,7 +217,7 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
+		return this._nativeEditContextScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {

@@ -610,13 +610,16 @@ export class NativeEditContext extends AbstractEditContext {
 			const viewModel = this._context.viewModel;
 			const model = viewModel.model;
 			const coordinatesConverter = viewModel.coordinatesConverter;
-			const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(screenReaderContentState.startPositionWithinEditor);
+			const viewPosition = new Position(screenReaderContentState.pretextOffsetRange.start, 1);
+			const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
 			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
 			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
 			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
 			const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
 			if (modelUsesCRLF) {
-				const screenReaderContentText = screenReaderContentState.value;
+				const pretextStart = screenReaderContentState.pretextOffsetRange.start;
+				const posttextEnd = screenReaderContentState.posttextOffsetRange.endExclusive;
+				const screenReaderContentText = model.getValueInRange(new Range(pretextStart, 1, posttextEnd, model.getLineMaxColumn(posttextEnd)), EndOfLinePreference.TextDefined);
 				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
 				const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
 				const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);

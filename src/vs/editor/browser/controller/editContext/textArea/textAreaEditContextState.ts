@@ -6,6 +6,7 @@
 import { commonPrefixLength, commonSuffixLength } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
 import { IPagedScreenReaderStrategy, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
 
@@ -258,6 +259,7 @@ export interface TextAreaScreenReaderContentState {
 }
 
 export class TextAreaPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<TextAreaScreenReaderContentState> {
+
 	private _getPageOfLine(lineNumber: number, linesPerPage: number): number {
 		return Math.floor((lineNumber - 1) / linesPerPage);
 	}
@@ -269,7 +271,7 @@ export class TextAreaPagedScreenReaderStrategy implements IPagedScreenReaderStra
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public fromEditorSelection(model: ISimpleScreenReaderContext, selection: Range, linesPerPage: number, trimLongText: boolean): TextAreaScreenReaderContentState {
+	public fromEditorSelection(model: ISimpleScreenReaderContext, selection: Selection, linesPerPage: number, trimLongText: boolean): TextAreaScreenReaderContentState {
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;

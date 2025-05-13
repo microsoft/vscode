@@ -219,9 +219,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 			},
 			modifyPosition: (position: Position, offset: number): Position => {
 				return this._context.viewModel.modifyPosition(position, offset);
-			},
-			getCharacterCountInRange: (range: Range, eol?: EndOfLinePreference): number => {
-				return this._context.viewModel.model.getCharacterCountInRange(range, eol);
 			}
 		};
 
