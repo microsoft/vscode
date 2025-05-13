@@ -666,7 +666,7 @@ class Extensions extends Disposable {
 	}
 
 	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, flagMissingFromGallery: boolean): Promise<void> {
-		const { extensions, missing: missingFromGalleryExtensions } = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
+		const { extensions, missing } = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
 			if (extension.local && !extension.local.identifier.uuid) {
@@ -678,7 +678,7 @@ class Extensions extends Disposable {
 			}
 		}
 		if (flagMissingFromGallery) {
-			for (const extension of missingFromGalleryExtensions) {
+			for (const extension of missing) {
 				extension.missingFromGallery = true;
 				this._onChange.fire({ extension });
 			}
