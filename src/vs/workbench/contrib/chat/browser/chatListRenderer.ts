@@ -13,6 +13,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -48,7 +49,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatDataContent, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -75,9 +76,10 @@ import { ChatWarningContentPart } from './chatContentParts/chatWarningContentPar
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { IChatOutputItemRendererService } from './chatOutputItemRenderer.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
 
-const $ = dom.$;
+export const $ = dom.$;
 
 interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -166,6 +168,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatOutputItemRendererService private readonly chatOutputItemRendererService: IChatOutputItemRendererService,
 	) {
 		super();
 
@@ -912,6 +915,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderWorkingProgress(content, context);
 		} else if (content.kind === 'undoStop') {
 			return this.renderUndoStop(content);
+		} else if (content.kind === 'data') {
+			return this.renderData(content, templateData, context);
 		}
 
 		return this.renderNoContent(other => content.kind === other.kind);
@@ -1081,8 +1086,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
-
 		return markdownPart;
+	}
+
+	private renderData(markdown: IChatDataContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
+		context.container.querySelector('.webview-output')?.remove();
+
+		const parent = $('div.webview-output');
+		context.container.appendChild(parent);
+
+		this.chatOutputItemRendererService.renderOutputPart('text/mermaid', new Uint8Array(), parent, CancellationToken.None);
+
+		return {
+			domNode: parent,
+			dispose() {
+				// todo
+			},
+			hasSameContent(other, followingContent, element) {
+				// TODO
+				return false;
+			},
+		};
 	}
 
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {

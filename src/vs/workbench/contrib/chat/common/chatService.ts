@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -129,6 +130,13 @@ export interface IChatTreeData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
+}
+
+
+export interface IChatDataContent {
+	value: VSBuffer;
+	mime: string;
+	kind: 'data';
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -289,7 +297,8 @@ export type IChatProgress =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
-	| IChatUndoStop;
+	| IChatUndoStop
+	| IChatDataContent;
 
 export interface IChatFollowup {
 	kind: 'reply';

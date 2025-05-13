@@ -42,8 +42,8 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDataContent, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IToolData, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -2440,7 +2440,7 @@ export namespace LanguageModelChatMessage2 {
 	}
 
 	export function from(message: vscode.LanguageModelChatMessage2): chatProvider.IChatMessage {
-
+		// debugger;
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
@@ -2469,7 +2469,7 @@ export namespace LanguageModelChatMessage2 {
 							return {
 								type: 'data',
 								value: {
-									mimeType: part.mimeType as chatProvider.ChatImageMimeType,
+									mimeType: part.mimeType,
 									data: VSBuffer.wrap(part.data)
 								}
 							} satisfies IChatResponseDataPart;
@@ -2482,8 +2482,8 @@ export namespace LanguageModelChatMessage2 {
 				};
 			} else if (c instanceof types.LanguageModelDataPart) {
 				if (isImageDataPart(c)) {
-					const value: chatProvider.IChatImageURLPart = {
-						mimeType: c.mimeType as chatProvider.ChatImageMimeType,
+					const value: chatProvider.IChatDataValue = {
+						mimeType: c.mimeType,
 						data: VSBuffer.wrap(c.data),
 					};
 
@@ -2492,6 +2492,7 @@ export namespace LanguageModelChatMessage2 {
 						value: value
 					};
 				} else {
+					// debugger;
 					return {
 						type: 'data',
 						mimeType: c.mimeType,
@@ -2852,9 +2853,23 @@ export namespace ChatResponseCodeCitationPart {
 	}
 }
 
+export namespace ChatResponseDataPart {
+	export function from(part: vscode.ChatResponseDataPart): Dto<IChatDataContent> {
+		return {
+			kind: 'data',
+			value: VSBuffer.wrap(part.value),
+			mime: part.mimeType,
+		};
+	}
+
+	export function to(part: Dto<IChatDataContent>): vscode.ChatResponseDataPart {
+		return new types.ChatResponseDataPart(part.mime, part.value.buffer);
+	}
+}
+
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart | vscode.ChatResponseNotebookEditPart | vscode.ChatResponseExtensionsPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart | vscode.ChatResponseNotebookEditPart | vscode.ChatResponseExtensionsPart | vscode.ChatResponseDataPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2885,6 +2900,8 @@ export namespace ChatResponsePart {
 			return ChatResponseMovePart.from(part);
 		} else if (part instanceof types.ChatResponseExtensionsPart) {
 			return ChatResponseExtensionsPart.from(part);
+		} else if (part instanceof types.ChatResponseDataPart) {
+			return ChatResponseDataPart.from(part);
 		}
 
 		return {
@@ -2893,7 +2910,7 @@ export namespace ChatResponsePart {
 		};
 	}
 
-	export function to(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart | undefined {
+	export function to(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart | vscode.ChatResponseDataPart | undefined {
 		switch (part.kind) {
 			case 'reference': return ChatResponseReferencePart.to(part);
 			case 'markdownContent':
@@ -2901,18 +2918,20 @@ export namespace ChatResponsePart {
 			case 'progressMessage':
 			case 'treeData':
 			case 'command':
+			case 'data':
 				return toContent(part, commandsConverter);
 		}
 		return undefined;
 	}
 
-	export function toContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | undefined {
+	export function toContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | vscode.ChatResponseDataPart | undefined {
 		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.to(part);
 			case 'inlineReference': return ChatResponseAnchorPart.to(part);
 			case 'progressMessage': return undefined;
 			case 'treeData': return ChatResponseFilesPart.to(part);
 			case 'command': return ChatResponseCommandButtonPart.to(part, commandsConverter);
+			case 'data': return ChatResponseDataPart.to(part);
 		}
 
 		return undefined;
@@ -3302,11 +3321,11 @@ export namespace LanguageModelToolResult2 {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value);
 			} else if (item.kind === 'data') {
-				const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
-				if (!mimeType) {
-					throw new Error('Invalid MIME type');
-				}
-				return new types.LanguageModelDataPart(item.value.data.buffer, mimeType);
+				// const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
+				// // if (!mimeType) {
+				// // 	throw new Error('Invalid MIME type');
+				// // }
+				return new types.LanguageModelDataPart(item.value.data.buffer, item.value.mimeType);
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
@@ -3319,6 +3338,20 @@ export namespace LanguageModelToolResult2 {
 		}
 
 		let hasBuffers = false;
+		const detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | undefined> = Array.isArray(result.toolResultDetails)
+			? result.toolResultDetails?.map(detail => {
+				return URI.isUri(detail) ? detail : Location.from(detail as vscode.Location);
+			})
+			: result.toolResultDetails
+				? {
+					output: {
+						type: 'data',
+						mimeType: (result.toolResultDetails as { mime: string; value: Uint8Array }).mime,
+						value: VSBuffer.wrap((result.toolResultDetails as { mime: string; value: Uint8Array }).value),
+					}
+				} satisfies IToolResultOutputDetails
+				: undefined;
+
 		const dto: Dto<IToolResult> = {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
@@ -3332,6 +3365,7 @@ export namespace LanguageModelToolResult2 {
 						value: item.value,
 					};
 				} else if (item instanceof types.LanguageModelDataPart) {
+					// debugger;
 					hasBuffers = true;
 					return {
 						kind: 'data',
@@ -3345,8 +3379,10 @@ export namespace LanguageModelToolResult2 {
 				}
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
-			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
+			toolResultDetails: detailsDto,
 		};
+
+		hasBuffers = true;
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
 	}

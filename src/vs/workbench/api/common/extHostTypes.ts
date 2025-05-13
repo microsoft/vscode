@@ -4693,6 +4693,13 @@ export class ChatResponseExtensionsPart {
 	}
 }
 
+export class ChatResponseDataPart implements vscode.ChatResponseDataPart {
+	constructor(
+		public readonly mimeType: string,
+		public readonly value: Uint8Array,
+	) { }
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];

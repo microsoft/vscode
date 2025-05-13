@@ -140,8 +140,8 @@ declare module 'vscode' {
 	}
 
 	/**
- * A result returned from a tool invocation. If using `@vscode/prompt-tsx`, this result may be rendered using a `ToolResult`.
- */
+	 * A result returned from a tool invocation. If using `@vscode/prompt-tsx`, this result may be rendered using a `ToolResult`.
+	 */
 	export class LanguageModelToolResult2 {
 		/**
 		 * A list of tool result content parts. Includes `unknown` becauses this list may be extended with new content types in

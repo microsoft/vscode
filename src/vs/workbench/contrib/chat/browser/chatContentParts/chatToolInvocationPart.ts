@@ -6,7 +6,8 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { decodeBase64 } from '../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -31,11 +32,13 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
+import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../chat.js';
 import { getAttachableImageExtension } from '../chatAttachmentResolve.js';
+import { $ } from '../chatListRenderer.js';
+import { IChatOutputItemRendererService } from '../chatOutputItemRenderer.js';
 import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -150,6 +153,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatOutputItemRendererService private readonly chatOutputItemRendererService: IChatOutputItemRendererService,
 	) {
 		super();
 
@@ -167,6 +171,8 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.input, toolInvocation.resultDetails.output, !!toolInvocation.resultDetails.isError);
 		} else if (toolInvocation.kind === 'toolInvocation' && toolInvocation.toolSpecificData?.kind === 'input' && !toolInvocation.isComplete) {
 			this.domNode = this.createInputOutputMarkdownProgressPart(this.toolInvocation.invocationMessage, toolInvocation.originMessage, typeof toolInvocation.toolSpecificData.rawInput === 'string' ? toolInvocation.toolSpecificData.rawInput : JSON.stringify(toolInvocation.toolSpecificData.rawInput, null, 2), undefined, false);
+		} else if (isToolResultOutputDetails(toolInvocation.resultDetails)) {
+			this.domNode = this.createOutputPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.originMessage, toolInvocation.resultDetails.output);
 		} else {
 			this.domNode = this.createProgressPart();
 		}
@@ -631,6 +637,12 @@ class ChatToolInvocationSubPart extends Disposable {
 		}
 
 		return collapsibleListPart.domNode;
+	}
+
+	createOutputPart(arg0: string | IMarkdownString, originMessage: string | IMarkdownString | undefined, output: { type: 'data'; mimeType: string; value: VSBuffer }): HTMLElement {
+		const parent = $('div.webview-output');
+		this.chatOutputItemRendererService.renderOutputPart(output.mimeType, output.value.buffer, parent, CancellationToken.None);
+		return parent;
 	}
 
 	private createResultList(

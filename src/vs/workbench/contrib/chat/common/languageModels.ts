@@ -33,7 +33,7 @@ export interface IChatMessageTextPart {
 
 export interface IChatMessageImagePart {
 	type: 'image_url';
-	value: IChatImageURLPart;
+	value: IChatDataValue;
 }
 
 export interface IChatMessageDataPart {
@@ -42,27 +42,16 @@ export interface IChatMessageDataPart {
 	data: VSBuffer;
 }
 
-export interface IChatImageURLPart {
+export interface IChatDataValue {
 	/**
-	 * The image's MIME type (e.g., "image/png", "image/jpeg").
+	 * The content's MIME type (e.g., "image/png", "image/jpeg").
 	 */
-	mimeType: ChatImageMimeType;
+	mimeType: string;
 
 	/**
-	 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
+	 * The raw binary data of the value, encoded as a Uint8Array. Note: do not use base64 encoding d
 	 */
 	data: VSBuffer;
-}
-
-/**
- * Enum for supported image MIME types.
- */
-export enum ChatImageMimeType {
-	PNG = 'image/png',
-	JPEG = 'image/jpeg',
-	GIF = 'image/gif',
-	WEBP = 'image/webp',
-	BMP = 'image/bmp',
 }
 
 /**
@@ -101,7 +90,7 @@ export interface IChatResponsePromptTsxPart {
 
 export interface IChatResponseDataPart {
 	type: 'data';
-	value: IChatImageURLPart;
+	value: IChatDataValue;
 }
 
 export interface IChatResponseToolUsePart {
