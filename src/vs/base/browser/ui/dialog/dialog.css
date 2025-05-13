@@ -76,11 +76,15 @@
 	flex-direction: column;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	padding-left: 24px;
 	user-select: text;
 	-webkit-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
+}
+
+.monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container,
+.monaco-dialog-box:not(.align-vertical) .dialog-footer-container {
+	padding-left: 24px;
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row .dialog-message-container,
@@ -90,7 +94,7 @@
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container ul,
-.monaco-dialog-box .dialog-footer-container {
+.monaco-dialog-box .dialog-footer-container ul {
 	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
 }
 
@@ -190,7 +194,7 @@
 }
 
 /** Dialog: Dropdown */
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
 	margin: 4px 5px;
 }
 
