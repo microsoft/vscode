@@ -36,6 +36,8 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	// TODO@deepak1556 TODO@bpasero temporary until a real fix lands upstream
 	readonly enableRDPDisplayTracking: boolean;
 
+	readonly disableAppInstallDirDetection: boolean;
+
 	unsetSnapExportedVariables(): void;
 	restoreSnapExportedVariables(): void;
 }
@@ -67,6 +69,9 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get useCodeCache(): boolean { return !!this.codeCachePath; }
+
+	@memoize
+	get disableAppInstallDirDetection(): boolean { return !!this.args['disable-app-install-dir-detection']; }
 
 	unsetSnapExportedVariables() {
 		if (!isLinux) {

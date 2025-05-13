@@ -680,6 +680,11 @@ export class NativeWindow extends BaseWindow {
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
+		// macOS: move to Applications folder (if needed)
+		if (isMacintosh) {
+			this.nativeHostService.moveToApplicationsFolder();
+		}
+
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
 			registerWindowDriver(this.instantiationService);

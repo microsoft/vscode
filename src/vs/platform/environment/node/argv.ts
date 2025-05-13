@@ -186,6 +186,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'unresponsive-sample-interval': { type: 'string' },
 	'unresponsive-sample-period': { type: 'string' },
 	'enable-rdp-display-tracking': { type: 'boolean' },
+	'disable-app-install-dir-detection': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

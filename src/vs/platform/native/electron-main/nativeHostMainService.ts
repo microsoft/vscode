@@ -5,15 +5,16 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, dialog, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
-import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows, isCI } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { realpath } from '../../../base/node/extpath.js';
@@ -22,7 +23,7 @@ import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
-import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
+import { INativeOpenDialogOptions, massageMessageBoxOptions } from '../../dialogs/common/dialogs.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -48,6 +49,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -475,6 +477,65 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		return { source, target };
+	}
+
+	//#endregion
+
+	//#region macOS application mover
+
+	async moveToApplicationsFolder(): Promise<void> {
+		// macOS: detect non-standard app installation
+		if (isMacintosh && !app.isInApplicationsFolder()) {
+			// Only offer to move to Applications folder under the following scenarios:
+			// * Application was not launched from the cli
+			// * Application is not running in portable mode
+			// * Application is not running in an CI environment
+			// * Application was not launched with --disable-app-install-dir-detection
+			const should_move = !this.environmentMainService.disableAppInstallDirDetection &&
+				!isCI && !isLaunchedFromCli(process.env) && !process.env['VSCODE_PORTABLE'];
+			if (should_move) {
+				const { response } = await this.dialogMainService.showMessageBox({
+					type: 'info',
+					buttons: [
+						localize({ key: 'move', comment: ['&& denotes a mnemonic'] }, "&&Move to Applications"),
+						localize({ key: 'doNotMove', comment: ['&& denotes a mnemonic'] }, "&&Do not Move")
+					],
+					message: localize('moveToApplicationsFolderWarning', "{0} works best when run from the Applications folder", this.productService.nameLong),
+					cancelId: 1
+				});
+
+				if (response === 0) {
+					try {
+						const result = app.moveToApplicationsFolder({
+							conflictHandler: conflictType => {
+								if (conflictType === 'exists') {
+									const response = dialog.showMessageBoxSync(massageMessageBoxOptions({
+										type: 'warning',
+										buttons: [
+											localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Replace in Applications"),
+											localize({ key: 'doNotMove', comment: ['&& denotes a mnemonic'] }, "&&Do not Move")
+										],
+										message: localize('applicationAlreadyExists', "Another version of of {0} already exists in the Applications folder. Would you like to replace it?", this.productService.nameLong),
+										cancelId: 1
+									}, this.productService).options);
+									this.logService.trace(`update#moveToApplicationsFolder: received ${response} to replace existing version.`);
+									return (response === 0);
+								}
+								// No action needed when conflictType === existsAndRunning, since
+								// our singleton logic would attach to running application when using same user-data-dir.
+								// Different user-data-dir requires launching from cli in which case the detection would
+								// never happen.
+								this.logService.trace(`update#moveToApplicationsFolder: not performing move operation for conflictType ${conflictType}.`);
+								return false;
+							}
+						});
+						this.logService.trace(`update#moveToApplicationsFolder: ${result ? 'success' : 'failed'}.`);
+					} catch (error) {
+						this.logService.trace(`update#moveToApplicationsFolder: failed with ${toErrorMessage(error)}`);
+					}
+				}
+			}
+		}
 	}
 
 	//#endregion

@@ -197,6 +197,9 @@ export interface ICommonNativeHostService {
 	installShellCommand(): Promise<void>;
 	uninstallShellCommand(): Promise<void>;
 
+	// macOS application mover
+	moveToApplicationsFolder(): Promise<void>;
+
 	// Lifecycle
 	notifyReady(): Promise<void>;
 	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
