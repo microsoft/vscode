@@ -677,8 +677,6 @@ class Extensions extends Disposable {
 				this._onChange.fire({ extension });
 			}
 		}
-
-		// Flag extensions that
 		if (flagMissingFromGallery) {
 			for (const extension of missingFromGalleryExtensions) {
 				extension.missingFromGallery = true;
@@ -731,7 +729,6 @@ class Extensions extends Disposable {
 					continue;
 				}
 			}
-			// If we got to here but nothing in the gallery, assume it's been pulled.
 			if (installed.local?.source === 'gallery') {
 				missing.push(installed);
 			}
@@ -1279,10 +1276,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	get outdated(): IExtension[] {
 		return this.installed.filter(e => e.outdated && e.local && e.state === ExtensionState.Installed);
-	}
-
-	get missingFromGallery(): IExtension[] {
-		return this.installed.filter(e => e.missingFromGallery);
 	}
 
 	async queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]> {
