@@ -61,7 +61,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	/** A map of all known tools, from other EHs or registered in vscode core */
 	private readonly _allTools = new Map<string, Tool>();
 
-	// TODO release when session cleared
 	private readonly _sessionToolInvocationTokens = new Map<string, vscode.ChatParticipantToolToken>();
 
 	constructor(
