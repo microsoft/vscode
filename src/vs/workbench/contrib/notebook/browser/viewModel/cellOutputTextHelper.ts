@@ -80,11 +80,22 @@ export function getOutputStreamText(output: ICellOutputViewModel): { text: strin
 
 const decoder = new TextDecoder();
 
+function ensureMathWrapped(latex: string): string {
+	console.log('[DEBUG] ensureMathWrapped called with:', latex);  // Add this
+	if (!latex.trim().startsWith('$')) {
+		return `$${latex}$`;
+	}
+	return latex;
+}
+
 export function getOutputText(mimeType: string, buffer: IOutputItemDto, shortError: boolean = false): string {
 	let text = `${mimeType}`; // default in case we can't get the text value for some reason.
 
 	const charLimit = 100000;
 	text = decoder.decode(buffer.data.slice(0, charLimit).buffer);
+	if (mimeType === 'text/latex') {
+		text = ensureMathWrapped(text);
+	}
 
 	if (buffer.data.byteLength > charLimit) {
 		text = text + '...(truncated)';
