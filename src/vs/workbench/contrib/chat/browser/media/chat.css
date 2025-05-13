@@ -188,9 +188,18 @@
 
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
 	/* Complete response only */
-	display: initial;
-	padding-top: 6px;
-	height: 22px;
+		display: block;
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.2s ease, visibility 0.2s ease;
+		padding-top: 6px;
+		height: 22px;
+}
+
+/* Show toolbar on hover */
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar {
+	opacity: 1;
+	visibility: visible;
 }
 
 .interactive-item-container .value {
@@ -906,7 +915,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: auto;
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+.interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	min-width: 0px;
 
 	.chat-modelPicker-item {

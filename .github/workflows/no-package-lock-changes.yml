@@ -1,12 +1,14 @@
 name: Prevent package-lock.json changes in PRs
-on: [pull_request]
+
+on: pull_request
+permissions: {}
 
 jobs:
   main:
     name: Prevent package-lock.json changes in PRs
     runs-on: ubuntu-latest
     steps:
-      - uses: octokit/request-action@v2.x
+      - uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d # v2.4.0
         id: get_permissions
         with:
           route: GET /repos/microsoft/vscode/collaborators/{username}/permission

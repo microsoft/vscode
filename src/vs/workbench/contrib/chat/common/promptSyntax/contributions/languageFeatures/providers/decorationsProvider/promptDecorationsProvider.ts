@@ -50,7 +50,7 @@ export class PromptDecorator extends ProviderInstanceBase {
 	): this {
 		// by the time the promise above completes, either this object
 		// or the text model might be already has been disposed
-		if (this.disposed || this.model.isDisposed()) {
+		if (this.isDisposed || this.model.isDisposed()) {
 			return this;
 		}
 
@@ -167,7 +167,7 @@ export class PromptDecorator extends ProviderInstanceBase {
 	}
 
 	public override dispose(): void {
-		if (this.disposed) {
+		if (this.isDisposed) {
 			return;
 		}
 

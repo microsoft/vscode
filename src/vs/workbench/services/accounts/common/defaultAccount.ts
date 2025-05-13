@@ -201,7 +201,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], tokenEntitlementUrl: string, chatEntitlementUrl: string): Promise<IDefaultAccount | null> {
-		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) ? enterpriseAuthProviderId : authProviderId;
+		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
 		const sessions = await this.authenticationService.getSessions(id, undefined, undefined, true);
 		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
 
@@ -297,7 +297,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				});
 			}
 			run(): Promise<any> {
-				const id = that.configurationService.getValue(enterpriseAuthProviderConfig) ? enterpriseAuthProviderId : authProviderId;
+				const id = that.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
 				return that.authenticationService.createSession(id, scopes);
 			}
 		}));

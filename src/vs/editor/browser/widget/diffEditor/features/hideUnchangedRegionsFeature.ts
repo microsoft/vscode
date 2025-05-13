@@ -8,7 +8,7 @@ import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, derived, derivedDisposable, derivedWithStore, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, derived, derivedDisposable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
@@ -95,7 +95,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 			return regions;
 		});
 
-		this.viewZones = derivedWithStore(this, (reader, store) => {
+		this.viewZones = derived(this, (reader) => {
 			/** @description view Zones */
 			const modifiedOutlineSource = this._modifiedOutlineSource.read(reader);
 			if (!modifiedOutlineSource) { return { origViewZones: [], modViewZones: [] }; }
@@ -122,7 +122,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 						const origVz = new PlaceholderViewZone(d, 12);
 						origViewZones.push(origVz);
-						store.add(new CompactCollapsedCodeOverlayWidget(
+						reader.store.add(new CompactCollapsedCodeOverlayWidget(
 							this._editors.original,
 							origVz,
 							r,
@@ -133,7 +133,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 						const modViewZone = new PlaceholderViewZone(d, 12);
 						modViewZones.push(modViewZone);
-						store.add(new CompactCollapsedCodeOverlayWidget(
+						reader.store.add(new CompactCollapsedCodeOverlayWidget(
 							this._editors.modified,
 							modViewZone,
 							r,
@@ -144,7 +144,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 						const origVz = new PlaceholderViewZone(d, 24);
 						origViewZones.push(origVz);
-						store.add(new CollapsedCodeOverlayWidget(
+						reader.store.add(new CollapsedCodeOverlayWidget(
 							this._editors.original,
 							origVz,
 							r,
@@ -159,7 +159,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 						const modViewZone = new PlaceholderViewZone(d, 24);
 						modViewZones.push(modViewZone);
-						store.add(new CollapsedCodeOverlayWidget(
+						reader.store.add(new CollapsedCodeOverlayWidget(
 							this._editors.modified,
 							modViewZone,
 							r,

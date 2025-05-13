@@ -5,12 +5,13 @@
 
 import { numberComparator } from '../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { OffsetEdit, SingleOffsetEdit } from '../../../common/core/edits/offsetEdit.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { StringEdit, StringReplacement } from '../../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../common/core/position.js';
-import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
-import { AbstractText, SingleTextEdit, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { AbstractText } from '../../../common/core/text/abstractText.js';
 
 export abstract class Random {
 	public static readonly alphabetSmallLowercase = 'abcdefgh';
@@ -70,7 +71,7 @@ export abstract class Random {
 	}
 
 	public nextTextEdit(target: AbstractText, singleTextEditCount: number): TextEdit {
-		const singleTextEdits: SingleTextEdit[] = [];
+		const singleTextEdits: TextReplacement[] = [];
 
 		const positions = this.nextConsecutivePositions(target, singleTextEditCount * 2);
 
@@ -78,14 +79,14 @@ export abstract class Random {
 			const start = positions[i * 2];
 			const end = positions[i * 2 + 1];
 			const newText = this.nextString(end.column - start.column, this.stringGenerator(Random.basicAlphabetMultiline));
-			singleTextEdits.push(new SingleTextEdit(Range.fromPositions(start, end), newText));
+			singleTextEdits.push(new TextReplacement(Range.fromPositions(start, end), newText));
 		}
 
 		return new TextEdit(singleTextEdits).normalize();
 	}
 
-	public nextOffsetEdit(target: string, singleTextEditCount: number, newTextAlphabet = Random.basicAlphabetMultiline): OffsetEdit {
-		const singleTextEdits: SingleOffsetEdit[] = [];
+	public nextStringEdit(target: string, singleTextEditCount: number, newTextAlphabet = Random.basicAlphabetMultiline): StringEdit {
+		const singleTextEdits: StringReplacement[] = [];
 
 		const positions = this.nextConsecutiveOffsets(new OffsetRange(0, target.length), singleTextEditCount * 2);
 
@@ -96,15 +97,15 @@ export abstract class Random {
 
 			const newTextLen = this.nextIntRange(range.isEmpty ? 1 : 0, 10);
 			const newText = this.nextString(newTextLen, this.stringGenerator(newTextAlphabet));
-			singleTextEdits.push(new SingleOffsetEdit(range, newText));
+			singleTextEdits.push(new StringReplacement(range, newText));
 		}
 
-		return new OffsetEdit(singleTextEdits).normalize();
+		return new StringEdit(singleTextEdits).normalize();
 	}
 
-	public nextSingleOffsetEdit(target: string, newTextAlphabet = Random.basicAlphabetMultiline): SingleOffsetEdit {
-		const edit = this.nextOffsetEdit(target, 1, newTextAlphabet);
-		return edit.edits[0];
+	public nextSingleStringEdit(target: string, newTextAlphabet = Random.basicAlphabetMultiline): StringReplacement {
+		const edit = this.nextStringEdit(target, 1, newTextAlphabet);
+		return edit.replacements[0];
 	}
 }
 

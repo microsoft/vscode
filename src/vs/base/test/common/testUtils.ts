@@ -22,8 +22,7 @@ export function flakySuite(title: string, fn: () => void) /* Suite */ {
 }
 
 /**
- * Helper function that allows to await for a specified amount of time.
- * @param ms The amount of time to wait in milliseconds.
+ * @deprecated use `async#timeout` instead
  */
 export const wait = (ms: number): Promise<void> => {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -53,13 +52,7 @@ export const randomBoolean = (): boolean => {
 };
 
 /**
- * Mocks an `TObject` with the provided `overrides`.
- *
- * If you need to mock an `Service`, please use {@link mockService}
- * instead which provides better type safety guarantees for the case.
- *
- * @throws Reading non-overridden property or function
- * 		   on `TObject` throws an error.
+ *@deprecated use `mock.ts#mock` instead
  */
 export function mockObject<TObject extends Object>(
 	overrides: Partial<TObject>,

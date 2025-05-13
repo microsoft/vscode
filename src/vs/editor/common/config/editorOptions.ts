@@ -16,7 +16,6 @@ import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -54,6 +53,10 @@ export interface IEditorOptions {
 	 * This editor is used inside a diff editor.
 	 */
 	inDiffEditor?: boolean;
+	/**
+	 * This editor is allowed to use variable line heights.
+	 */
+	allowVariableLineHeights?: boolean;
 	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
@@ -5450,6 +5453,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	allowVariableLineHeights,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5630,6 +5634,9 @@ export const EditorOptions = {
 			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
 			tags: ['accessibility']
 		})),
+	allowVariableLineHeights: register(new EditorBooleanOption(
+		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
@@ -5867,7 +5874,7 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	experimentalEditContextEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', product.quality !== 'stable',
+		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', true,
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative

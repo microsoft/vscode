@@ -351,6 +351,7 @@ export interface IDefaultChatAgent {
 	readonly completionsMenuCommand: string;
 	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
+	readonly generateCommitMessageCommand: string;
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;

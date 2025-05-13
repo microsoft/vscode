@@ -247,16 +247,7 @@ async function expandAll(accessor: ServicesAccessor) {
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const viewer = searchView.getControl();
-
-		if (searchView.shouldShowAIResults()) {
-			if (searchView.model.hasAIResults) {
-				await forcedExpandRecursively(viewer, undefined);
-			} else {
-				await forcedExpandRecursively(viewer, searchView.model.searchResult.plainTextSearchResult);
-			}
-		} else {
-			await forcedExpandRecursively(viewer, undefined);
-		}
+		await forcedExpandRecursively(viewer, undefined);
 	}
 }
 

@@ -55,12 +55,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IModelService private readonly modelService: IModelService,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
 
-		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
+		this.fileLocator = this.instantiationService.createInstance(PromptFilesLocator);
 		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
@@ -77,7 +77,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
 				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
 				 */
-				const parser: TextModelPromptParser = initService.createInstance(
+				const parser: TextModelPromptParser = instantiationService.createInstance(
 					TextModelPromptParser,
 					model,
 					{ seenReferences: [] },
@@ -102,7 +102,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public getSyntaxParserFor(
 		model: ITextModel,
-	): TextModelPromptParser & { disposed: false } {
+	): TextModelPromptParser & { isDisposed: false } {
 		assert(
 			model.isDisposed() === false,
 			'Cannot create a prompt syntax parser for a disposed model.',
@@ -144,7 +144,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		if (command.match(/^[\w_\-\.]+/)) {
+		if (command.match(/^[\w_\-\.]+$/)) {
 			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
 		}
 		return undefined;
@@ -183,17 +183,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
-		const result: URI[] = [];
-
 		const instructionFiles = await this.listPromptFiles('instructions');
 		if (instructionFiles.length === 0) {
-			return result;
+			return [];
 		}
 
 		const instructions = await this.getAllMetadata(
 			instructionFiles.map(pick('uri')),
 		);
 
+		const foundFiles = new ResourceSet();
 		for (const instruction of instructions.flatMap(flatten)) {
 			const { metadata, uri } = instruction;
 			const { applyTo } = metadata;
@@ -205,7 +204,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// if glob pattern is one of the special wildcard values,
 			// add the instructions file event if no files are attached
 			if ((applyTo === '**') || (applyTo === '**/*')) {
-				result.push(uri);
+				foundFiles.add(uri);
 
 				continue;
 			}
@@ -214,12 +213,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// add the instructions file if its rule matches the file
 			for (const file of files) {
 				if (match(applyTo, file.fsPath)) {
-					result.push(uri);
+					foundFiles.add(uri);
 				}
 			}
 		}
 
-		return [...new ResourceSet(result)];
+		return [...foundFiles];
 	}
 
 	@logTime()
@@ -230,7 +229,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			promptUris.map(async (uri) => {
 				let parser: PromptParser | undefined;
 				try {
-					parser = this.initService.createInstance(
+					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,
 						{ allowNonPromptFiles: true },

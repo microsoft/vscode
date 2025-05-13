@@ -224,12 +224,10 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 	}
 
 	constructor(
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
-
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
 	}
 
 	/**
@@ -250,8 +248,8 @@ export class ChatPromptAttachmentsCollection extends Disposable {
 				continue;
 			}
 
-			const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri);
-			instruction.addDisposable(
+			const instruction = this.instantiationService.createInstance(ChatPromptAttachmentModel, uri);
+			instruction.addDisposables(
 				instruction.onDispose(() => {
 					// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
 					//       alternative results in an infinite loop of calling this callback

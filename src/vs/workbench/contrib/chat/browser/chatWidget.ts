@@ -6,8 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { pick } from '../../../../base/common/arrays.js';
-import { assert } from '../../../../base/common/assert.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -18,16 +16,15 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, autorunWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { isLocation, Location } from '../../../../editor/common/languages.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -48,7 +45,7 @@ import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey
 import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
-import { IChatFollowup, IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
+import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
@@ -56,7 +53,7 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js'
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
-import { IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -272,7 +269,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
@@ -345,7 +341,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(autorunWithStore((r, store) => {
+		this._register(autorun(r => {
 
 			const viewModel = viewModelObs.read(r);
 			const sessions = chatEditingService.editingSessionsObs.read(r);
@@ -366,14 +362,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this._editingSession.set(session, undefined);
 
-			store.add(session.onDidDispose(() => {
+			r.store.add(session.onDidDispose(() => {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
 			}));
-			store.add(this.onDidChangeParsedInput(() => {
+			r.store.add(this.onDidChangeParsedInput(() => {
 				this.renderChatEditingSessionState();
 			}));
-			store.add(this.inputEditor.onDidChangeModelContent(() => {
+			r.store.add(this.inputEditor.onDidChangeModelContent(() => {
 				if (this.getInput() === '') {
 					this.refreshParsedInput();
 					this.renderChatEditingSessionState();
@@ -676,13 +672,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layoutDynamicChatTreeItemMode();
 			}
 
-			if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete) {
-				this.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
-			} else if (!treeItems.length && this.viewModel) {
-				this.renderSampleQuestions();
-			} else {
-				this.renderFollowups(undefined);
-			}
+			this.renderFollowups();
 		}
 	}
 
@@ -751,15 +741,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private renderSampleQuestions() {
-		if (this.viewModel?.getItems().length === 0) {
-			// TODO@roblourens hack- only Chat mode supports sample questions
-			this.renderFollowups(this.input.currentMode === ChatMode.Ask ? this.viewModel.model.sampleQuestions : undefined);
+	private async renderFollowups(): Promise<void> {
+		if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete && this.inputPart.currentMode === ChatMode.Ask) {
+			this.inputPart.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
+		} else {
+			this.inputPart.renderFollowups(undefined, undefined);
 		}
-	}
-
-	private async renderFollowups(items: IChatFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
-		this.inputPart.renderFollowups(items, response);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
@@ -1031,9 +1018,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderWelcomeViewContentIfNeeded();
 		}));
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
-			this.renderSampleQuestions();
 			this.renderWelcomeViewContentIfNeeded();
 			this.refreshParsedInput();
+			this.renderFollowups();
 		}));
 		this._register(autorun(r => {
 			const enabledTools = new Set(this.input.selectedToolsModel.tools.read(r).map(t => t.id));
@@ -1208,7 +1195,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return input;
 		}
 
-		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(toUri(variable), promptPath.uri))) {
+		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(URI.isUri(variable.value) ? variable.value : variable.value.uri, promptPath.uri))) {
 			// not yet attached, so attach it
 			const variable = toChatVariable({ uri: promptPath.uri, isPromptFile: true }, true);
 			attachedContext.push(variable);
@@ -1238,7 +1225,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (instructionsEnabled) {
 				input = await this._handlePromptSlashCommand(input, attachedContext);
 				await this.autoAttachInstructions(attachedContext);
-				input = await this.setupChatModeAndTools(input, attachedContext);
+				const newInput = await this.setupChatModeAndTools(input, attachedContext);
+				if (newInput === undefined) {
+					return;
+				}
+				input = newInput;
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
@@ -1511,35 +1502,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	/**
-	 * Set's up the `chat mode` and selects required `tools` based on
-	 * the metadata defined in headers of attached prompt files.
-	 */
-	private async setupChatModeAndTools(
-		input: string,
-		attachedContext: readonly IChatRequestVariableEntry[],
-	): Promise<string> {
+	private async setupChatModeAndTools(input: string, attachedContext: readonly IChatRequestVariableEntry[],): Promise<string | undefined> {
 		// process prompt files starting from the 'root' ones
-		const promptFileVariables = attachedContext
-			.filter(isPromptFileChatVariable)
-			.filter(pick('isRoot'));
-		const promptUris = promptFileVariables.map(toUri);
+		const promptUris: URI[] = [];
+		for (const item of attachedContext) {
+			if (isPromptFileChatVariable(item) && item.isRoot) {
+				if (URI.isUri(item.value)) {
+					promptUris.push(item.value);
+				} else {
+					promptUris.push(item.value.uri);
+				}
+			}
+		}
 
-		if (promptFileVariables.length === 0) {
+		if (promptUris.length === 0) {
 			return input;
 		}
 
 		if (!input.trim()) {
-			const promptNames = (promptUris.length === 1)
-				? `'${basename(promptUris[0])}'`
-				: `the prompt files`;
-
-			input = `Follow instructions from ${promptNames}.`;
+			input = promptUris.length === 1
+				? localize('input.1', "Follow instructions from ${0}.", basename(promptUris[0]))
+				: localize('input.N', "Follow instructions from the prompt files.");
 		}
 
 
-		const metadata = await this.promptsService
-			.getCombinedToolsMetadata(promptUris);
+		const metadata = await this.promptsService.getCombinedToolsMetadata(promptUris);
 
 		if (metadata === null) {
 			return input;
@@ -1549,10 +1536,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// switch to appropriate chat mode if needed
 		if (mode && mode !== this.inputPart.currentMode) {
-			await this.commandService.executeCommand(
-				ToggleAgentModeActionId,
-				{ mode } satisfies IToggleChatModeArgs,
-			);
+			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.inputPart.currentMode, mode, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+			if (!chatModeCheck) {
+				return undefined;
+			} else if (chatModeCheck.needToClearSession) {
+				this.clear();
+				await this.waitForReady();
+			}
+			this.inputPart.setChatMode(mode);
 		}
 
 		// if not tools to enable are present, we are done
@@ -1560,34 +1551,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return input;
 		}
 
-		// sanity check on the logic of the `getPromptFilesMetadata` method
-		// and the code above in case this block is moved around somewhere else:
-		// if we have some tools present, the mode must have been equal to `agent`
-		assert(
-			this.inputPart.currentMode === ChatMode.Agent,
-			`Chat mode must be 'agent' when there are 'tools' defined, got ${this.inputPart.currentMode}.`,
-		);
-
 		// convert tools names to tool IDs
-		const toolIds = tools
-			.map((toolName) => {
-				const tool = this.toolsService.getToolByName(toolName);
-
-				if (tool === undefined) {
-					this.logService.warn(
-						`[setup tools]: cannot to find tool '${toolName}'`,
-					);
-				}
-
-				return tool;
-			})
-			.filter(isDefined)
-			.map(pick('id'));
+		const toolIds: string[] = [];
+		for (const toolName of tools) {
+			const tool = this.toolsService.getToolByName(toolName);
+			if (tool) {
+				toolIds.push(tool.id);
+			}
+		}
 
 		// if there are some tools defined in the prompt files, select only the specified tools
-		this.inputPart
-			.selectedToolsModel
-			.selectOnly(toolIds);
+		this.inputPart.selectedToolsModel.selectOnly(toolIds);
 
 		return input;
 	}
@@ -1597,12 +1571,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * match file references in the attached context and then attaches
 	 * such instructions to the context.
 	 */
-	private async autoAttachInstructions(
-		attachedContext: IChatRequestVariableEntry[],
-	): Promise<void> {
-		const variableUris = attachedContext
-			.filter(hasAddressableValue)
-			.map(toUri);
+	private async autoAttachInstructions(attachedContext: IChatRequestVariableEntry[]): Promise<void> {
+
+		const variableUris: URI[] = [];
+		for (const item of attachedContext) {
+			if (URI.isUri(item.value)) {
+				variableUris.push(item.value);
+			} else if (isLocation(item.value)) {
+				variableUris.push(item.value.uri);
+			}
+		}
 
 		const automaticInstructions = await this.promptsService
 			.findInstructionFilesFor(variableUris);
@@ -1621,42 +1599,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 }
 
-/**
- * Type for any "addressable" object - i.e., an object that has
- * the `value` property that is either a {@link URI} or a {@link Location}.
- */
-export type TAddressable<T extends object> = T & { value: URI | Location };
 
-/**
- * Check if provided object is "addressable" - i.e., has the `value`
- * property that is either a {@link URI} or a {@link Location}.
- */
-const hasAddressableValue = <T extends object>(
-	thing: T,
-): thing is TAddressable<T> => {
-	if ((!thing) || (('value' in thing) === false)) {
-		return false;
-	}
-
-	if (URI.isUri(thing.value) || isLocation(thing.value)) {
-		return true;
-	}
-
-	return false;
-};
-
-/**
- * Returns URI of a provided "addressable" object.
- */
-const toUri = <T extends object>(
-	thing: TAddressable<T>,
-): URI => {
-	const { value } = thing;
-
-	return URI.isUri(value)
-		? value
-		: value.uri;
-};
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
