@@ -11,6 +11,14 @@ import { INotebookExecutionStateService, NotebookExecutionType } from '../../../
 import { INotebookEditorContribution, INotebookEditor } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { INotebookActionContext, NotebookAction } from '../../controller/coreActions.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+
+const ENABLE_EXECUTION_FOLLOWER_COMMAND_ID = 'notebook.enableExecutionFollower';
+const DISABLE_EXECUTION_FOLLOWER_COMMAND_ID = 'notebook.disableExecutionFollower';
 
 // Padding in pixels to reveal cell/output in viewport
 const VIEWPORT_REVEAL_PADDING = 20;
@@ -90,6 +98,58 @@ export class ExecutionFollowerController extends Disposable implements INotebook
 			}
 		}));
 	}
+
+	setFollowerConfig(value: 'off' | 'cell' | 'output'): void {
+		this._followEnabled = value !== 'off';
+		this._followTarget = value === 'output' ? 'output' : 'container';
+		this._configurationService.updateValue('notebook.scrolling.followRunningCell', value);
+	}
 }
+
+registerAction2(class EnableExecutionFollowerAction extends NotebookAction {
+	constructor() {
+		super({
+			id: ENABLE_EXECUTION_FOLLOWER_COMMAND_ID,
+			title: 'Enable Follower',
+			tooltip: 'Enable Cell Execution Follower',
+			icon: Codicon.pinned,
+			menu: [{
+				id: MenuId.NotebookToolbar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.equals('config.notebook.scrolling.followRunningCell', 'off')
+			}]
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const editor = context.notebookEditor;
+		const controller = editor.getContribution<ExecutionFollowerController>(ExecutionFollowerController.id);
+		controller.setFollowerConfig('cell');
+	}
+});
+
+registerAction2(class DisableExecutionFollowerAction extends NotebookAction {
+	constructor() {
+		super({
+			id: DISABLE_EXECUTION_FOLLOWER_COMMAND_ID,
+			title: 'Disable Follower',
+			tooltip: 'Disable Cell Execution Follower',
+			icon: Codicon.pinnedDirty,
+			menu: [{
+				id: MenuId.NotebookToolbar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.notEquals('config.notebook.scrolling.followRunningCell', 'off')
+			}]
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const editor = context.notebookEditor;
+		const controller = editor.getContribution<ExecutionFollowerController>(ExecutionFollowerController.id);
+		controller.setFollowerConfig('off');
+	}
+});
 
 registerNotebookContribution(ExecutionFollowerController.id, ExecutionFollowerController);
