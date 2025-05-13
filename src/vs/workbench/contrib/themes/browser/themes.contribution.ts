@@ -337,17 +337,29 @@ class InstalledThemesPicker {
 			}, applyTheme ? 0 : 200);
 		};
 
-		const pickInstalledThemes = (activeItemId: string | undefined) => {
+		const themeService = this.instantiationService.invokeFunction(accessor => accessor.get(IWorkbenchThemeService));
+
+		const pickInstalledThemes = async (activeItemId: string | undefined, showAllThemes: boolean = false) => {
 			const disposables = new DisposableStore();
+			let displayPicks = picks;
+
+			if (showAllThemes) {
+				const allThemes = await themeService.getColorThemes();
+				const lightEntries = toEntries(allThemes.filter(t => t.type === ColorScheme.LIGHT), 'Light Themes', false);
+				const darkEntries = toEntries(allThemes.filter(t => t.type === ColorScheme.DARK), 'Dark Themes', false);
+				const hcEntries = toEntries(allThemes.filter(t => isHighContrast(t.type)), 'High Contrast Themes', false);
+				displayPicks = [...lightEntries, ...darkEntries, ...hcEntries];
+			}
+
 			return new Promise<void>((s, _) => {
 				let isCompleted = false;
-				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === activeItemId);
+				const autoFocusIndex = displayPicks.findIndex(p => isItem(p) && p.id === activeItemId);
 				const quickpick = disposables.add(this.quickInputService.createQuickPick<ThemeItem>({ useSeparators: true }));
-				quickpick.items = picks;
+				quickpick.items = displayPicks;
 				quickpick.title = this.options.title;
 				quickpick.description = this.options.description;
 				quickpick.placeholder = this.options.placeholderMessage;
-				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
+				quickpick.activeItems = [displayPicks[autoFocusIndex] as ThemeItem];
 				quickpick.canSelectMany = false;
 				quickpick.toggles = this.options.toggles;
 				quickpick.toggles?.forEach(toggle => {
@@ -357,8 +369,12 @@ class InstalledThemesPicker {
 				disposables.add(quickpick.onDidAccept(async _ => {
 					isCompleted = true;
 					const theme = quickpick.selectedItems[0];
-					if (!theme || theme.configureItem) { // 'pick in marketplace' entry
-						if (!theme || theme.configureItem === ConfigureItem.EXTENSIONS_VIEW) {
+					if (!theme || theme.configureItem) {
+						if (theme?.id === 'other-themes') {
+							// Show all themes when "Other Themes" is selected
+							await pickInstalledThemes(undefined, true);
+							return;
+						} else if (!theme || theme.configureItem === ConfigureItem.EXTENSIONS_VIEW) {
 							this.extensionsWorkbenchService.openSearch(`${this.options.marketplaceTag} ${quickpick.value}`);
 						} else if (theme.configureItem === ConfigureItem.BROWSE_GALLERY) {
 							if (marketplaceThemePicker) {
@@ -476,24 +492,7 @@ registerAction2(class extends Action2 {
 		const themes = await themeService.getColorThemes();
 		const currentTheme = themeService.getColorTheme();
 
-		const lightEntries = toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes"));
-		const darkEntries = toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes"));
-		const hcEntries = toEntries(themes.filter(t => isHighContrast(t.type)), localize('themes.category.hc', "high contrast themes"));
-
-		let picks;
-		switch (preferredColorScheme) {
-			case ColorScheme.DARK:
-				picks = [...darkEntries, ...lightEntries, ...hcEntries];
-				break;
-			case ColorScheme.HIGH_CONTRAST_DARK:
-			case ColorScheme.HIGH_CONTRAST_LIGHT:
-				picks = [...hcEntries, ...lightEntries, ...darkEntries];
-				break;
-			case ColorScheme.LIGHT:
-			default:
-				picks = [...lightEntries, ...darkEntries, ...hcEntries];
-				break;
-		}
+		const picks = toEntries(themes);
 		await picker.openQuickPick(picks, currentTheme);
 
 	}
@@ -632,11 +631,36 @@ function toEntry(theme: IWorkbenchTheme): ThemeItem {
 	return item;
 }
 
-function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
+function toEntries(themes: Array<IWorkbenchTheme>, category?: string, showOnlyPearAI: boolean = true): QuickPickInput<ThemeItem>[] {
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
-	const entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
-	if (entries.length > 0 && label) {
-		entries.unshift({ type: 'separator', label });
+
+	if (!showOnlyPearAI) {
+		const entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
+		if (entries.length > 0 && category) {
+			entries.unshift({ type: 'separator', label: category });
+		}
+		return entries;
+	}
+
+	// PearAI filtering logic
+	const pearAIThemes = themes.filter(t => t.label.includes('PearAI'));
+	const otherThemes = themes.filter(t => !t.label.includes('PearAI'));
+
+	const entries: QuickPickInput<ThemeItem>[] = [];
+
+	if (pearAIThemes.length > 0) {
+		entries.push({ type: 'separator', label: category ? category : 'PearAI Themes' });
+		entries.push(...pearAIThemes.map(toEntry).sort(sorter));
+	}
+
+	if (otherThemes.length > 0) {
+		entries.push({
+			id: 'other-themes',
+			label: '$(folder) Other Installed Themes',
+			alwaysShow: true,
+			theme: undefined,
+			configureItem: ConfigureItem.CUSTOM_TOP_ENTRY
+		});
 	}
 	return entries;
 }
