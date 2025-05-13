@@ -392,10 +392,11 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const element = append(container, $('.history-item'));
 		const margin = append(element, $('.margin'));
 		const graphContainer = append(element, $('.graph-container'));
-		const iconLabel = new IconLabel(element, { supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true });
+		const iconLabel = new IconLabel(element, {
+			supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true
+		});
 
 		const labelContainer = append(element, $('.label-container'));
-		element.appendChild(labelContainer);
 
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
@@ -627,7 +628,6 @@ interface HistoryItemChangeTemplate {
 	readonly element: HTMLElement;
 	readonly margin: HTMLElement;
 	readonly graphPlaceholder: HTMLElement;
-	readonly labelContainer: HTMLElement;
 	readonly resourceLabel: IResourceLabel;
 	readonly actionBar: WorkbenchToolBar;
 	readonly disposables: IDisposable;
@@ -656,16 +656,16 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeVie
 		const graphPlaceholder = append(element, $('.graph-placeholder'));
 
 		const labelContainer = append(element, $('.label-container'));
-		element.appendChild(labelContainer);
-
-		const resourceLabel = this.resourceLabels.create(labelContainer, { supportDescriptionHighlights: true, supportHighlights: true });
+		const resourceLabel = this.resourceLabels.create(labelContainer, {
+			supportDescriptionHighlights: true, supportHighlights: true
+		});
 
 		const disposables = new DisposableStore();
 		const actionsContainer = append(resourceLabel.element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 		disposables.add(actionBar);
 
-		return { element, margin, graphPlaceholder, labelContainer, resourceLabel, actionBar, disposables };
+		return { element, margin, graphPlaceholder, resourceLabel, actionBar, disposables };
 	}
 
 	renderElement(element: ITreeNode<SCMHistoryItemChangeViewModelTreeElement, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
