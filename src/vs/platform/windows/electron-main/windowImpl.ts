@@ -224,33 +224,16 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			// This helps restore maximized windows to their correct monitor after RDP reconnection.
 			// Refs https://github.com/electron/electron/issues/47016
 			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
-				const displayWorkingArea = WindowStateValidator.getWorkingArea(e.display);
-				this.onDisplayAdded(displayWorkingArea);
+				this.onDisplayAdded(e.display);
 			}));
 		}
 	}
 
-	private onDisplayAdded(displayWorkingArea: Electron.Rectangle | undefined): void {
+	private onDisplayAdded(display: Display): void {
 		const state = this.maximizedWindowState;
-		if (
-			!this.win ||
-			!state ||
-			typeof state.x !== 'number' ||
-			typeof state.y !== 'number' ||
-			typeof state.width !== 'number' ||
-			typeof state.height !== 'number'
-		) {
-			return;
-		}
-
-		if (displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
+		if (state && this._win && WindowStateValidator.validateWindowStateOnDisplay(state, display)) {
 			this.logService.debug(`Setting maximized window ${this.id} bounds to match newly added display`, state);
-			this.win.setBounds({
+			this._win.setBounds({
 				x: state.x,
 				y: state.y,
 				width: state.width,
