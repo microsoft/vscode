@@ -31,7 +31,7 @@ import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground, historyItemRefColor } from './scmHistory.js';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemColor } from './scmHistory.js';
 import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
@@ -414,8 +414,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		});
 		templateData.elementDisposables.add(historyItemHover);
 
-		const color = historyItemViewModel.inputSwimlanes.find(s => s.id === historyItem.id)?.color;
-		templateData.margin.style.borderLeftColor = asCssVariable(color ?? historyItemRefColor);
+		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
@@ -672,8 +671,7 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeVie
 		const historyItemViewModel = element.element.historyItemViewModel;
 		const historyItemChange = element.element.historyItemChange;
 
-		const color = historyItemViewModel.inputSwimlanes.find(s => s.id === historyItemViewModel.historyItem.id)?.color;
-		templateData.margin.style.borderLeftColor = asCssVariable(color ?? historyItemRefColor);
+		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 
 		templateData.graphPlaceholder.textContent = '';
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (element.element.graphColumns.length + 1)}px`;
