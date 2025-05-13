@@ -92,6 +92,7 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
+	max-height: 75vh;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
