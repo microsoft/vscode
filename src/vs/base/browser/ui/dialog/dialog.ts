@@ -510,7 +510,7 @@ export class Dialog extends Disposable {
 
 			this.element.setAttribute('aria-modal', 'true');
 			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text');
-			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body');
+			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body monaco-dialog-footer');
 			show(this.element);
 
 			// Focus first element (input or button)

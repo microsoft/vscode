@@ -83,6 +83,10 @@
 	white-space: normal;
 }
 
+.monaco-dialog-box .dialog-footer-row {
+	margin-top: 20px;
+}
+
 .monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container,
 .monaco-dialog-box:not(.align-vertical) .dialog-footer-row {
 	padding-left: 24px;
