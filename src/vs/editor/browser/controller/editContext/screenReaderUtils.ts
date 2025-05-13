@@ -140,3 +140,16 @@ export function newlinecount(text: string): number {
 	} while (true);
 	return result;
 }
+
+export interface ISimpleScreenReaderContext {
+	getLineCount(): number;
+	getLineMaxColumn(lineNumber: number): number;
+	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	modifyPosition(position: Position, offset: number): Position;
+	getCharacterCountInRange(range: Range, eol?: EndOfLinePreference): number;
+}
+
+export interface IPagedScreenReaderStrategy<T> {
+	fromEditorSelection(model: ISimpleScreenReaderContext, selection: Range, linesPerPage: number, trimLongText: boolean): T;
+}
