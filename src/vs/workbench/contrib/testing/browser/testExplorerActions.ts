@@ -6,6 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -76,6 +77,7 @@ const enum ActionOrder {
 	DisplayMode,
 	Sort,
 	GoToTest,
+	CopyTestName = 11,
 	HideTest,
 	ContinuousRunTest = -1 >>> 1, // max int, always at the end to avoid shifting on hover
 }
@@ -986,6 +988,33 @@ export class GoToTest extends Action2 {
 
 		if (element && element instanceof TestItemTreeElement) {
 			accessor.get(ICommandService).executeCommand('vscode.revealTest', element.test.item.extId, preserveFocus);
+		}
+	}
+}
+
+/**
+ * Copy the selected test’s name into the OS clipboard.
+ */
+export class CopyTestNameAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CopyTestName,
+			title: localize2('testing.copyTestName', 'Copy Test Name'),
+			icon: Codicon.copy,
+			menu: {
+				id: MenuId.TestItem,
+				group: 'builtin@1',               // same group as GoToTest
+				order: ActionOrder.CopyTestName,  // just after GoToTest
+				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
+			},
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor, element?: TestExplorerTreeElement) {
+		if (element instanceof TestItemTreeElement) {
+			const label = element.test.item.label;
+			const clipboard = accessor.get(IClipboardService);
+			clipboard.writeText(label);
 		}
 	}
 }
