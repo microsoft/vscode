@@ -118,7 +118,7 @@ export class Dialog extends Disposable {
 
 		// Footer
 		if (this.options.renderFooter) {
-			this.footerContainer = this.element.appendChild($('.dialog-footer-container'));
+			this.footerContainer = this.element.appendChild($('.dialog-footer-row'));
 
 			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
 			this.options.renderFooter(customFooter);

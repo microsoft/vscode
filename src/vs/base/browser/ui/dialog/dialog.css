@@ -47,8 +47,9 @@
 	justify-content: flex-end;
 }
 
-/** Dialog: Message Row */
-.monaco-dialog-box .dialog-message-row {
+/** Dialog: Message/Footer Row */
+.monaco-dialog-box .dialog-message-row,
+.monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-grow: 1;
 	align-items: center;
@@ -71,7 +72,7 @@
 
 /** Dialog: Message/Footer Container */
 .monaco-dialog-box .dialog-message-row .dialog-message-container,
-.monaco-dialog-box .dialog-footer-container {
+.monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -83,18 +84,18 @@
 }
 
 .monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container,
-.monaco-dialog-box:not(.align-vertical) .dialog-footer-container {
+.monaco-dialog-box:not(.align-vertical) .dialog-footer-row {
 	padding-left: 24px;
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row .dialog-message-container,
-.monaco-dialog-box.align-vertical .dialog-footer-container {
+.monaco-dialog-box.align-vertical .dialog-footer-row {
 	align-items: center;
 	text-align: center;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container ul,
-.monaco-dialog-box .dialog-footer-container ul {
+.monaco-dialog-box .dialog-footer-row ul {
 	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
 }
 
@@ -176,8 +177,8 @@
 }
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons {
-	margin-left: 20px;
-	margin-right: 20px;
+	margin-left: 5px;
+	margin-right: 5px;
 	flex-direction: column-reverse;
 }
 
