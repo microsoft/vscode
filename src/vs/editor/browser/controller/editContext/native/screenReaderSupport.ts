@@ -193,35 +193,8 @@ export class ScreenReaderSupport {
 			// 	return;
 			// }
 			this._screenReaderContentState = screenReaderContentState;
-			this.setIgnoreSelectionChangeTime('setValue');
-			const pretextOffsetRange = this._screenReaderContentState.pretextOffsetRange;
-			const posttextOffsetRange = this._screenReaderContentState.posttextOffsetRange;
-			const positionLineNumber = this._screenReaderContentState.positionLineNumber;
-
-			const nodes: HTMLDivElement[] = [];
-			for (let lineNumber = pretextOffsetRange.start; lineNumber <= pretextOffsetRange.endExclusive; lineNumber++) {
-				nodes.push(this._renderLine(lineNumber));
-			}
-			if (pretextOffsetRange.endExclusive !== positionLineNumber - 1) {
-				const div = document.createElement('div');
-				const span = document.createElement('span');
-				div.appendChild(span);
-				span.textContent = String.fromCharCode(8230);
-			}
-			nodes.push(this._renderLine(positionLineNumber));
-			if (posttextOffsetRange.start !== positionLineNumber + 1) {
-				const div = document.createElement('div');
-				const span = document.createElement('span');
-				div.appendChild(span);
-				span.textContent = String.fromCharCode(8230);
-			}
-			for (let lineNumber = posttextOffsetRange.start; lineNumber <= posttextOffsetRange.endExclusive; lineNumber++) {
-				nodes.push(this._renderLine(lineNumber));
-			}
-			const domNode = this._domNode.domNode;
-			domNode.replaceChildren(...nodes);
-			console.log('domNode : ', domNode);
-			// this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
+			this._renderScreenReaderContent(screenReaderContentState);
+			this._setSelectionOfScreenReaderContent(this._screenReaderContentState, this._primarySelection);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -311,21 +284,50 @@ export class ScreenReaderSupport {
 		return this._nativeEditContextScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
-	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
-		const activeDocument = getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		if (!activeDocumentSelection) {
-			return;
+	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): void {
+		const pretextOffsetRange = screenReaderContentState.pretextOffsetRange;
+		const posttextOffsetRange = screenReaderContentState.posttextOffsetRange;
+		const positionLineNumber = screenReaderContentState.positionLineNumber;
+		const nodes: HTMLDivElement[] = [];
+		for (let lineNumber = pretextOffsetRange.start; lineNumber <= pretextOffsetRange.endExclusive; lineNumber++) {
+			nodes.push(this._renderLine(lineNumber));
 		}
-		const textContent = this._domNode.domNode.firstChild;
-		if (!textContent) {
-			return;
+		if (pretextOffsetRange.endExclusive !== positionLineNumber - 1) {
+			const div = document.createElement('div');
+			const span = document.createElement('span');
+			div.appendChild(span);
+			span.textContent = String.fromCharCode(8230);
 		}
-		const range = new globalThis.Range();
-		range.setStart(textContent, selectionOffsetStart);
-		range.setEnd(textContent, selectionOffsetEnd);
-		this.setIgnoreSelectionChangeTime('setRange');
-		activeDocumentSelection.removeAllRanges();
-		activeDocumentSelection.addRange(range);
+		nodes.push(this._renderLine(positionLineNumber));
+		if (posttextOffsetRange.start !== positionLineNumber + 1) {
+			const div = document.createElement('div');
+			const span = document.createElement('span');
+			div.appendChild(span);
+			span.textContent = String.fromCharCode(8230);
+		}
+		for (let lineNumber = posttextOffsetRange.start; lineNumber <= posttextOffsetRange.endExclusive; lineNumber++) {
+			nodes.push(this._renderLine(lineNumber));
+		}
+		this.setIgnoreSelectionChangeTime('setValue');
+		const domNode = this._domNode.domNode;
+		domNode.replaceChildren(...nodes);
+	}
+
+	private _setSelectionOfScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState, primarySelection: Selection): void {
+		// const activeDocument = getActiveWindow().document;
+		// const activeDocumentSelection = activeDocument.getSelection();
+		// if (!activeDocumentSelection) {
+		// 	return;
+		// }
+		// const textContent = this._domNode.domNode.firstChild;
+		// if (!textContent) {
+		// 	return;
+		// }
+		// const range = new globalThis.Range();
+		// range.setStart(textContent, selectionOffsetStart);
+		// range.setEnd(textContent, selectionOffsetEnd);
+		// this.setIgnoreSelectionChangeTime('setRange');
+		// activeDocumentSelection.removeAllRanges();
+		// activeDocumentSelection.addRange(range);
 	}
 }

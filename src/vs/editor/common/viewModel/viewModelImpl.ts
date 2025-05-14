@@ -813,7 +813,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
 		const inlineDecorations = this._decorations.getInlineDecorationsOnLine(lineNumber);
-		console.log('inlineDecorations', inlineDecorations);
 		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
 	}
 
