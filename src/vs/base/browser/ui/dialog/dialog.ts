@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
-import { ButtonBar, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
+import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
 import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
 import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
 import { Action, toAction } from '../../../common/actions.js';
@@ -253,7 +253,7 @@ export class Dialog extends Disposable {
 			};
 			this._register(toDisposable(close));
 
-			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
+			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer, { alignment: this.options?.alignment === DialogContentsAlignment.Vertical ? ButtonBarAlignment.Vertical : ButtonBarAlignment.Horizontal }));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 
 			const onButtonClick = (index: number) => {
