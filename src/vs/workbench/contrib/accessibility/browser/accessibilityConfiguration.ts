@@ -751,6 +751,27 @@ const configuration: IConfigurationNode = {
 				'announcement': 'never'
 			}
 		},
+		'accessibility.signals.chatUserActionRequired': {
+			...signalFeatureBase,
+			'markdownDescription': localize('accessibility.signals.chatUserActionRequired', "Plays a signal - sound (audio cue) and/or announcement (alert) - when user action is required in the chat."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatUserActionRequired.sound', "Plays a sound when user action is required in the chat."),
+					'type': 'string',
+					'enum': ['auto', 'on', 'off'],
+					'default': 'auto',
+					'enumDescriptions': [
+						localize('sound.enabled.autoWindow', "Enable sound when a screen reader is attached or when the current window is focused."),
+						localize('sound.enabled.on', "Enable sound."),
+						localize('sound.enabled.off', "Disable sound.")
+					],
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.chatUserActionRequired.announcement', "Announces when a user action is required in the chat - including information about the action and how to take it."),
+					...announcementFeatureBase
+				},
+			},
+		},
 		'accessibility.underlineLinks': {
 			'type': 'boolean',
 			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),

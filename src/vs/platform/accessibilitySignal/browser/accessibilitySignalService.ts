@@ -61,6 +61,12 @@ export interface IAccessbilitySignalOptions {
 	 * play the sound if the user triggered the action.
 	 */
 	userGesture?: boolean;
+
+	/**
+	 * The custom message to alert with.
+	 * This will override the default announcement message.
+	 */
+	customAlertMessage?: string;
 }
 
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
@@ -115,7 +121,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 
 	public async playSignal(signal: AccessibilitySignal, options: IAccessbilitySignalOptions = {}): Promise<void> {
 		const shouldPlayAnnouncement = options.modality === 'announcement' || options.modality === undefined;
-		const announcementMessage = signal.announcementMessage;
+		const announcementMessage = options.customAlertMessage ?? signal.announcementMessage;
 		if (shouldPlayAnnouncement && this.isAnnouncementEnabled(signal, options.userGesture) && announcementMessage) {
 			this.accessibilityService.status(announcementMessage);
 		}
@@ -667,5 +673,12 @@ export class AccessibilitySignal {
 		sound: Sound.editsUndone,
 		announcementMessage: localize('accessibility.signals.editsUndone', 'Edits Undone'),
 		settingsKey: 'accessibility.signals.editsUndone',
+	});
+
+	public static readonly chatUserActionRequired = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.chatUserActionRequired', 'Chat User Action Required'),
+		sound: Sound.terminalBell,
+		announcementMessage: localize('accessibility.signals.chatUserActionRequired', 'Chat User Action Required'),
+		settingsKey: 'accessibility.signals.chatUserActionRequired',
 	});
 }
