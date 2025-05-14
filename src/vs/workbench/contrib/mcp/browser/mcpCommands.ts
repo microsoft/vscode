@@ -32,10 +32,12 @@ import { ChatMode } from '../../chat/common/constants.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerToolsState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -56,9 +58,9 @@ export class ListMcpServerCommand extends Action2 {
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
-				id: MenuId.ChatInput,
+				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 101
+				order: 2,
 			},
 		});
 	}
@@ -564,5 +566,28 @@ export class InstallFromActivation extends Action2 {
 	async run(accessor: ServicesAccessor, uri: URI) {
 		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
 		addConfigHelper.pickForUrlHandler(uri);
+	}
+}
+
+export class McpBrowseCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.Browse,
+			title: localize2('mcp.command.browse', "MCP Servers"),
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: McpServersGalleryEnabledContext,
+			}, {
+				id: extensionsFilterSubMenu,
+				when: McpServersGalleryEnabledContext,
+				group: '1_predefined',
+				order: 1,
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
 	}
 }

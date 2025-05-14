@@ -230,14 +230,19 @@ export interface IEditorGroupsContainer {
 	readonly onDidChangeGroupMaximized: Event<boolean>;
 
 	/**
+	 * An event that notifies when container options change.
+	 */
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
+
+	/**
 	 * A property that indicates when groups have been created
-	 * and are ready to be used in the editor part.
+	 * and are ready to be used in the container.
 	 */
 	readonly isReady: boolean;
 
 	/**
 	 * A promise that resolves when groups have been created
-	 * and are ready to be used in the editor part.
+	 * and are ready to be used in the container.
 	 *
 	 * Await this promise to safely work on the editor groups model
 	 * (for example, install editor group listeners).
@@ -249,7 +254,7 @@ export interface IEditorGroupsContainer {
 
 	/**
 	 * A promise that resolves when groups have been restored in
-	 * the editor part.
+	 * the container.
 	 *
 	 * For groups with active editor, the promise will resolve
 	 * when the visible editor has finished to resolve.
@@ -260,7 +265,7 @@ export interface IEditorGroupsContainer {
 	readonly whenRestored: Promise<void>;
 
 	/**
-	 * Find out if the editor part has UI state to restore
+	 * Find out if the container has UI state to restore
 	 * from a previous session.
 	 */
 	readonly hasRestorableState: boolean;
@@ -292,6 +297,16 @@ export interface IEditorGroupsContainer {
 	 * The current layout orientation of the root group.
 	 */
 	readonly orientation: GroupOrientation;
+
+	/**
+	 * Access the options of the container.
+	 */
+	readonly partOptions: IEditorPartOptions;
+
+	/**
+	 * Enforce container options temporarily.
+	 */
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 
 	/**
 	 * Get all groups that are currently visible in the container.
@@ -474,11 +489,6 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Find out if the editor layout is currently centered.
 	 */
 	isLayoutCentered(): boolean;
-
-	/**
-	 * Enforce editor part options temporarily.
-	 */
-	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
@@ -550,16 +560,6 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Get the editor part that is rooted in the provided container.
 	 */
 	getPart(container: unknown /* HTMLElement */): IEditorPart;
-
-	/**
-	 * Access the options of the editor part.
-	 */
-	readonly partOptions: IEditorPartOptions;
-
-	/**
-	 * An event that notifies when editor part options change.
-	 */
-	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Opens a new window with a full editor part instantiated
