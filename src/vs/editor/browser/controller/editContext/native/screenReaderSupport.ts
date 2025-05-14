@@ -144,7 +144,7 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.pretextOffsetRange.start;
+		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.preStartOffsetRange.start;
 		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
 		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
@@ -157,11 +157,12 @@ export class ScreenReaderSupport {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		this._domNode.setTop(top);
+		this._domNode.setTop(top + 500);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
-		this._domNode.setHeight(height);
+		this._domNode.setHeight(500);
 		this._domNode.setLineHeight(height);
+		this._domNode.domNode.style.background = 'white';
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
 
@@ -193,8 +194,8 @@ export class ScreenReaderSupport {
 			// 	return;
 			// }
 			this._screenReaderContentState = screenReaderContentState;
-			this._renderScreenReaderContent(screenReaderContentState);
-			this._setSelectionOfScreenReaderContent(this._screenReaderContentState, this._primarySelection);
+			const lines = this._renderScreenReaderContent(screenReaderContentState);
+			this._setSelectionOfScreenReaderContent(lines, this._screenReaderContentState, this._primarySelection);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -284,9 +285,9 @@ export class ScreenReaderSupport {
 		return this._nativeEditContextScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
-	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): void {
-		const pretextOffsetRange = screenReaderContentState.pretextOffsetRange;
-		const posttextOffsetRange = screenReaderContentState.posttextOffsetRange;
+	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): HTMLDivElement[] {
+		const pretextOffsetRange = screenReaderContentState.preStartOffsetRange;
+		const posttextOffsetRange = screenReaderContentState.postEndOffsetRange;
 		const positionLineNumber = screenReaderContentState.positionLineNumber;
 		const nodes: HTMLDivElement[] = [];
 		for (let lineNumber = pretextOffsetRange.start; lineNumber <= pretextOffsetRange.endExclusive; lineNumber++) {
@@ -311,9 +312,10 @@ export class ScreenReaderSupport {
 		this.setIgnoreSelectionChangeTime('setValue');
 		const domNode = this._domNode.domNode;
 		domNode.replaceChildren(...nodes);
+		return nodes;
 	}
 
-	private _setSelectionOfScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState, primarySelection: Selection): void {
+	private _setSelectionOfScreenReaderContent(lines: HTMLDivElement[], screenReaderContentState: NativeEditContextScreenReaderContentState, primarySelection: Selection): void {
 		// const activeDocument = getActiveWindow().document;
 		// const activeDocumentSelection = activeDocument.getSelection();
 		// if (!activeDocumentSelection) {

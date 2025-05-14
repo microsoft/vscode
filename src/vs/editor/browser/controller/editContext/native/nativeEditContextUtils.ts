@@ -92,19 +92,31 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 export class NativeEditContextScreenReaderContentState {
 
 	constructor(
-		readonly positionLineNumber: number,
-		readonly pretextOffsetRange: OffsetRange,
-		readonly posttextOffsetRange: OffsetRange,
+		readonly startSelectionLineNumber: number,
+		readonly endSelectionLineNumber: number,
+		readonly preStartOffsetRange: OffsetRange,
+		readonly postStartOffsetRange: OffsetRange,
+		readonly preEndOffsetRange: OffsetRange,
+		readonly postEndOffsetRange: OffsetRange,
 	) { }
 
 	equals(other: NativeEditContextScreenReaderContentState): boolean {
-		if (this.positionLineNumber !== other.positionLineNumber) {
+		if (this.startSelectionLineNumber !== other.startSelectionLineNumber) {
 			return false;
 		}
-		if (!this.pretextOffsetRange.equals(other.pretextOffsetRange)) {
+		if (this.endSelectionLineNumber !== other.endSelectionLineNumber) {
 			return false;
 		}
-		if (!this.posttextOffsetRange.equals(other.posttextOffsetRange)) {
+		if (!this.preStartOffsetRange.equals(other.preStartOffsetRange)) {
+			return false;
+		}
+		if (!this.postStartOffsetRange.equals(other.postStartOffsetRange)) {
+			return false;
+		}
+		if (!this.postEndOffsetRange.equals(other.postEndOffsetRange)) {
+			return false;
+		}
+		if (!this.preEndOffsetRange.equals(other.preEndOffsetRange)) {
 			return false;
 		}
 		return true;
