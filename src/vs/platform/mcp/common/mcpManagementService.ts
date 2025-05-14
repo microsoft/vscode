@@ -232,7 +232,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		const args: string[] = [];
 		const env: Record<string, string> = {};
 
-		if (packageType === PackageType.DOCKER) {
+		if (serverPackage.registry_name === PackageType.DOCKER) {
 			args.push('run');
 			args.push('-i');
 			args.push('--rm');
@@ -263,13 +263,13 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			}
 		}
 
-		if (packageType === PackageType.NODE) {
+		if (serverPackage.registry_name === PackageType.NODE) {
 			args.push(`${serverPackage.name}@${serverPackage.version}`);
 		}
-		else if (packageType === PackageType.PYTHON) {
+		else if (serverPackage.registry_name === PackageType.PYTHON) {
 			args.push(`${serverPackage.name}==${serverPackage.version}`);
 		}
-		else if (packageType === PackageType.DOCKER) {
+		else if (serverPackage.registry_name === PackageType.DOCKER) {
 			args.push(`${serverPackage.name}:${serverPackage.version}`);
 		}
 
