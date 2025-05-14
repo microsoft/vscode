@@ -412,6 +412,11 @@ export class InlineCompletionsModel extends Disposable {
 			}
 			return v?.primaryGhostText;
 		});
+
+		this._jumpedToId = observableValue<undefined | string>(this, undefined);
+		this._inAcceptFlow = observableValue(this, false);
+		this.inAcceptFlow = this._inAcceptFlow;
+
 		this.showCollapsed = derived<boolean>(this, reader => {
 			const state = this.state.read(reader);
 			if (!state || state.kind !== 'inlineEdit') {
@@ -466,6 +471,10 @@ export class InlineCompletionsModel extends Disposable {
 				return true;
 			}
 
+			if (this._inAcceptFlow.read(reader)) {
+				return false;
+			}
+
 			return !s.cursorAtInlineEdit.read(reader);
 		});
 		this.tabShouldAcceptInlineEdit = derived(this, reader => {
@@ -475,6 +484,9 @@ export class InlineCompletionsModel extends Disposable {
 			}
 			if (this.showCollapsed.read(reader)) {
 				return false;
+			}
+			if (this._inAcceptFlow.read(reader)) {
+				return true;
 			}
 			if (s.inlineCompletion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
 				return true;
@@ -488,9 +500,6 @@ export class InlineCompletionsModel extends Disposable {
 
 			return s.cursorAtInlineEdit.read(reader);
 		});
-		this._jumpedToId = observableValue<undefined | string>(this, undefined);
-		this._inAcceptFlow = observableValue(this, false);
-		this.inAcceptFlow = this._inAcceptFlow;
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
