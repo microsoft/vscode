@@ -689,20 +689,20 @@ class ChatSetup {
 
 			if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
 				return coalesce([
-					[localize('setupWithProviderShort', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined],
-					supportAlternateProvider ? [localize('setupWithProviderShort', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.DefaultSetup, undefined] : undefined,
-					[localize('setupWithEnterpriseProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithEnterpriseProvider, { renderAsLink: true }]
+					[localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined],
+					supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
+					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { renderAsLink: true }]
 				]);
 			}
 
 			return coalesce([
-				[localize('signInButton', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.DefaultSetup, undefined],
-				supportAlternateProvider ? [localize('setupWithProviderShort', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.DefaultSetup, undefined] : undefined,
-				[localize('setupWithEnterpriseProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { renderAsLink: true }]
+				[localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
+				supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
+				[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { renderAsLink: true }]
 			]);
 		}
 
-		return [[localize('useCopilotButton', "Use Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
+		return [[localize('useCopilot', "Use Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
 	}
 
 	private getDialogTitle(): string {
