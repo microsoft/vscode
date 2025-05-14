@@ -20,6 +20,15 @@ lazy_static! {
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
 	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
+}
+
+#[cfg(target_arch = "arm")]
+lazy_static! {
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 26);
+}
+
+#[cfg(not(target_arch = "arm"))]
+lazy_static! {
 	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
 }
 

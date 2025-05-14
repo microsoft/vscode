@@ -125,8 +125,8 @@ steps:
       if [ "$SYSROOT_ARCH" == "x64" ]; then
         SYSROOT_ARCH="amd64"
       fi
-      export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
-      SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+      export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
+      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -233,17 +233,31 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
 
-    - script: |
-        set -e
+    - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+      - script: |
+          set -e
 
-        EXPECTED_GLIBC_VERSION="2.28" \
-        EXPECTED_GLIBCXX_VERSION="3.4.25" \
-        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-      env:
-        SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
-        npm_config_arch: $(NPM_ARCH)
-        VSCODE_ARCH: $(VSCODE_ARCH)
-      displayName: Check GLIBC and GLIBCXX dependencies in server archive
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.25" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
+    - ${{ else }}:
+      - script: |
+          set -e
+
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.26" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
     - script: npm run gulp "transpile-client-esbuild" "transpile-extensions"
@@ -280,7 +294,7 @@ steps:
         elif [ "$VSCODE_ARCH" == "armhf" ]; then
           TRIPLE="arm-rpi-linux-gnueabihf"
         fi
-        export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+        export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
         export STRIP="$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/strip"
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
       env:
