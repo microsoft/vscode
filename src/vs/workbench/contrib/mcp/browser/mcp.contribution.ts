@@ -18,6 +18,7 @@ import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspac
 import { IMcpConfigPathsService, McpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
+import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.js';
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpService } from '../common/mcpService.js';
@@ -30,6 +31,8 @@ import { McpUrlHandler } from './mcpUrlHandler.js';
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpConfigPathsService, McpConfigPathsService, InstantiationType.Delayed);
+registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
+
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ConfigMcpDiscovery));

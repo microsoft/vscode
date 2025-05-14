@@ -205,11 +205,11 @@ suite('Workbench - MCP - Registry', () => {
 		const disposable = registry.registerDelegate(delegate);
 		store.add(disposable);
 
-		assert.strictEqual(registry.delegates.length, 1);
-		assert.strictEqual(registry.delegates[0], delegate);
+		assert.strictEqual(registry.delegates.get().length, 1);
+		assert.strictEqual(registry.delegates.get()[0], delegate);
 
 		disposable.dispose();
-		assert.strictEqual(registry.delegates.length, 0);
+		assert.strictEqual(registry.delegates.get().length, 0);
 	});
 
 	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {

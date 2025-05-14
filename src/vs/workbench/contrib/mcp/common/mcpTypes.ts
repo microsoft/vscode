@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMcpDevModeConfig } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
@@ -107,6 +108,8 @@ export interface McpServerDefinition {
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
 	/** Nonce used for caching the server. Changing the nonce will indicate that tools need to be refreshed. */
 	readonly cacheNonce?: string;
+	/** Dev mode configuration for the server */
+	readonly devMode?: IMcpDevModeConfig;
 
 	readonly presentation?: {
 		/** Sort order of the definition. */
@@ -145,7 +148,8 @@ export namespace McpServerDefinition {
 			&& arraysEqual(a.roots, b.roots, (a, b) => a.toString() === b.toString())
 			&& objectsEqual(a.launch, b.launch)
 			&& objectsEqual(a.presentation, b.presentation)
-			&& objectsEqual(a.variableReplacement, b.variableReplacement);
+			&& objectsEqual(a.variableReplacement, b.variableReplacement)
+			&& objectsEqual(a.devMode, b.devMode);
 	}
 }
 
@@ -213,6 +217,13 @@ export interface IMcpServer extends IDisposable {
 	readonly definition: McpDefinitionReference;
 	readonly connection: IObservable<IMcpServerConnection | undefined>;
 	readonly connectionState: IObservable<McpConnectionState>;
+
+	/**
+	 * Full definition as it exists in the MCP registry. Unlike the references
+	 * in `collection` and `definition`, this may change over time.
+	 */
+	readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
+
 	/**
 	 * Reflects the MCP server trust state. True if trusted, false if untrusted,
 	 * undefined if consent is required but not indicated.

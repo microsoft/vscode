@@ -136,6 +136,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					section: mcpConfigurationSection,
 					target: src.path.target,
 				},
+				devMode: value.dev,
 				presentation: {
 					order: src.path.order,
 					origin: configMapping?.get(name),

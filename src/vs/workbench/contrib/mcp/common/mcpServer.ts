@@ -26,9 +26,10 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IOutputService } from '../../../services/output/common/output.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
+import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 type ServerBootData = {
@@ -170,12 +171,10 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	public readonly tools: IObservable<readonly IMcpTool[]>;
 
+	private readonly _fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
+
 	public readonly toolsState = derived(reader => {
-		const currentNonce = () => this._mcpRegistry.collections.read(reader)
-			.find(c => c.id === this.collection.id)
-			?.serverDefinitions.read(reader)
-			.find(d => d.id === this.definition.id)
-			?.cacheNonce;
+		const currentNonce = () => this._fullDefinitions.read(reader)?.server?.cacheNonce;
 		const stateWhenServingFromCache = () => {
 			if (!this.toolsFromCache) {
 				return McpServerToolsState.Unknown;
@@ -231,6 +230,8 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
+		this._register(this._instantiationService.createInstance(McpDevModeServerAttache, this));
+
 		// If the logger is disposed but not deregistered, then the disposed instance
 		// is reused and no-ops. todo@sandy081 this seems like a bug.
 		this._register(toDisposable(() => _loggerService.deregisterLogger(this._loggerId)));
@@ -277,6 +278,10 @@ export class McpServer extends Disposable implements IMcpServer {
 		});
 	}
 
+	public readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
+		return this._fullDefinitions;
+	}
+
 	public showOutput(): void {
 		this._loggerService.setVisibility(this._loggerId, true);
 		this._outputService.showChannel(this._loggerId);
@@ -287,7 +292,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
 			if (this._requiresExtensionActivation && !this._extensionService.activationEventIsDone(activationEvent)) {
 				await this._extensionService.activateByEvent(activationEvent);
-				await Promise.all(this._mcpRegistry.delegates
+				await Promise.all(this._mcpRegistry.delegates.get()
 					.map(r => r.waitForInitialProviderPromises()));
 				// This can happen if the server was created from a cached MCP server seen
 				// from an extension, but then it wasn't registered when the extension activated.
@@ -320,6 +325,10 @@ export class McpServer extends Disposable implements IMcpServer {
 				}
 
 				this._connection.set(connection, undefined);
+			}
+
+			if (isFromInteraction && connection.definition.devMode) {
+				this.showOutput();
 			}
 
 			const start = Date.now();
