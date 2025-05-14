@@ -20,7 +20,7 @@ import { TreeSitterLanguages } from './treeSitterLanguages.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { getClosestPreviousNodes, gotoNthChild, gotoParent, nextSiblingOrParentSibling } from './cursorUtils.js';
+import { getClosestPreviousNodes, gotoNthChild, gotoParent, nextSiblingOrParentSibling } from '../../model/tokens/treeSitter/cursorUtils.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { isDefined } from '../../../../base/common/types.js';
 

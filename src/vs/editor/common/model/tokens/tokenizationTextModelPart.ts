@@ -17,7 +17,7 @@ import { BracketPairsTextModelPart } from '../bracketPairsTextModelPart/bracketP
 import { TextModel } from '../textModel.js';
 import { TextModelPart } from '../textModelPart.js';
 import { AbstractTokens, AttachedViews } from './tokens.js';
-import { TreeSitterTokens } from './treesitter/treeSitterTokens.js';
+import { TreeSitterTokens } from './treeSitter/treeSitterTokens.js';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
 import { ITokenizationTextModelPart } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';

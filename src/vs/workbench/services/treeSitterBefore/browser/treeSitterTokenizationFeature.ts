@@ -18,7 +18,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { ITreeSitterTokenizationStoreService } from '../../../../editor/common/model/tokens/treesitter/treeSitterTokenStoreService.js';
+import { ITreeSitterTokenizationStoreService } from '../../../../editor/common/model/tokens/treeSitterBefore/treeSitterTokenStoreService.js';
 import { LanguageId } from '../../../../editor/common/encodedTokenAttributes.js';
 import { TokenQuality, TokenUpdate } from '../../../../editor/common/model/tokenStore.js';
 import { Range } from '../../../../editor/common/core/range.js';

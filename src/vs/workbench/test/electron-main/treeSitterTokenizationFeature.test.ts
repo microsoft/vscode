@@ -41,7 +41,7 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { ProbeScope, TokenStyle } from '../../../platform/theme/common/tokenClassificationRegistry.js';
 import { TextMateThemingRuleDefinitions } from '../../services/themes/common/colorThemeData.js';
 import { Color } from '../../../base/common/color.js';
-import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/tokens/treesitter/treeSitterTokenStoreService.js';
+import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/tokens/treeSitterBefore/treeSitterTokenStoreService.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenStore.js';

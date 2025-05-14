@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type * as Parser from '@vscode/tree-sitter-wasm';
+import type * as TreeSitter from '@vscode/tree-sitter-wasm';
 
-export function gotoNextSibling(newCursor: Parser.TreeCursor, oldCursor: Parser.TreeCursor) {
+export function gotoNextSibling(newCursor: TreeSitter.TreeCursor, oldCursor: TreeSitter.TreeCursor) {
 	const n = newCursor.gotoNextSibling();
 	const o = oldCursor.gotoNextSibling();
 	if (n !== o) {
@@ -13,7 +13,7 @@ export function gotoNextSibling(newCursor: Parser.TreeCursor, oldCursor: Parser.
 	return n && o;
 }
 
-export function gotoParent(newCursor: Parser.TreeCursor, oldCursor: Parser.TreeCursor) {
+export function gotoParent(newCursor: TreeSitter.TreeCursor, oldCursor: TreeSitter.TreeCursor) {
 	const n = newCursor.gotoParent();
 	const o = oldCursor.gotoParent();
 	if (n !== o) {
@@ -22,7 +22,7 @@ export function gotoParent(newCursor: Parser.TreeCursor, oldCursor: Parser.TreeC
 	return n && o;
 }
 
-export function gotoNthChild(newCursor: Parser.TreeCursor, oldCursor: Parser.TreeCursor, index: number) {
+export function gotoNthChild(newCursor: TreeSitter.TreeCursor, oldCursor: TreeSitter.TreeCursor, index: number) {
 	const n = newCursor.gotoFirstChild();
 	const o = oldCursor.gotoFirstChild();
 	if (n !== o) {
@@ -44,7 +44,7 @@ export function gotoNthChild(newCursor: Parser.TreeCursor, oldCursor: Parser.Tre
 	return n && o;
 }
 
-export function nextSiblingOrParentSibling(newCursor: Parser.TreeCursor, oldCursor: Parser.TreeCursor) {
+export function nextSiblingOrParentSibling(newCursor: TreeSitter.TreeCursor, oldCursor: TreeSitter.TreeCursor) {
 	do {
 		if (newCursor.currentNode.nextSibling) {
 			return gotoNextSibling(newCursor, oldCursor);
@@ -56,7 +56,7 @@ export function nextSiblingOrParentSibling(newCursor: Parser.TreeCursor, oldCurs
 	return false;
 }
 
-export function getClosestPreviousNodes(cursor: Parser.TreeCursor, tree: Parser.Tree): Parser.Node | undefined {
+export function getClosestPreviousNodes(cursor: TreeSitter.TreeCursor, tree: TreeSitter.Tree): TreeSitter.Node | undefined {
 	// Go up parents until the end of the parent is before the start of the current.
 	const findPrev = tree.walk();
 	findPrev.resetTo(cursor);
