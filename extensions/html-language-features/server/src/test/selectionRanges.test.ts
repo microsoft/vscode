@@ -17,7 +17,7 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 
 	const { document, languageService } = await getTestService({ content });
 	const actualRanges = await languageService.getSelectionRanges(URI.parse(document.uri), [document.positionAt(offset)]);
-	assert(!!actualRanges);
+	assert.ok(!!actualRanges);
 
 	assert.strictEqual(actualRanges.length, 1);
 	const offsetPairs: [number, string][] = [];

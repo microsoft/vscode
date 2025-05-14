@@ -12,7 +12,7 @@ import {
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient
-} from 'vscode-languageclient';
+} from '@volar/vscode/node';
 import { serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
 import { activateAutoInsertion } from '@volar/vscode';

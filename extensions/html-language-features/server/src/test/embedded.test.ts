@@ -23,7 +23,7 @@ suite('HTML Embedded Support', () => {
 			getLength: () => value.length,
 			getChangeRange: () => undefined,
 		}, { getAssociatedScript: () => undefined });
-		assert(!!virtualCode);
+		assert.ok(!!virtualCode);
 
 		let mappedCode: VirtualCode | undefined;
 
@@ -38,7 +38,7 @@ suite('HTML Embedded Support', () => {
 			}
 		}
 
-		assert(!!mappedCode);
+		assert.ok(!!mappedCode);
 		assert.strictEqual(mappedCode.languageId, expectedLanguageId);
 	}
 

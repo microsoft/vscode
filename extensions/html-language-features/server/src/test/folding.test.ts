@@ -26,7 +26,7 @@ async function assertRanges(lines: string[], expected: ExpectedIndentRange[], me
 		} : undefined,
 	});
 	const actual = await languageService.getFoldingRanges(URI.parse(document.uri));
-	assert(!!actual);
+	assert.ok(!!actual);
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {

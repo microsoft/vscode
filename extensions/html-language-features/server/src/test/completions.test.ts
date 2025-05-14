@@ -55,7 +55,7 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 	});
 	const position = document.positionAt(offset);
 	const list = await languageService.getCompletionItems(URI.parse(document.uri), position);
-	assert(!!list);
+	assert.ok(!!list);
 
 	if (expected.count) {
 		assert.strictEqual(list.items.length, expected.count);

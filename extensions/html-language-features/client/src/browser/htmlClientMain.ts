@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as serverProtocol from '@volar/language-server/protocol';
+import { BaseLanguageClient, LanguageClientOptions, createLabsInfo } from '@volar/vscode';
 import { LanguageClient } from '@volar/vscode/browser';
 import { Disposable, ExtensionContext, Uri, l10n } from 'vscode';
-import { LanguageClientOptions } from 'vscode-languageclient';
 import { AsyncDisposable, LanguageClientConstructor, startClient } from '../htmlClient';
-import { BaseLanguageClient, createLabsInfo } from '@volar/vscode';
 
 let client: AsyncDisposable | undefined;
 

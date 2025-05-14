@@ -24,7 +24,7 @@ const legend: SemanticTokensLegend = {
 async function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range, message?: string): Promise<void> {
 	const { document, languageService } = await getTestService({ content: lines.join('\n') });
 	const actual = await languageService.getSemanticTokens(URI.parse(document.uri), range, legend);
-	assert(!!actual);
+	assert.ok(!!actual);
 
 	const actualRanges = [];
 	let lastLine = 0;

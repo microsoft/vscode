@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { provider as nodeFsProvider } from '@volar/language-server/lib/fileSystemProviders/node';
-import { createServerBase } from '@volar/language-server/lib/server';
-import { createConnection } from '@volar/language-server/node';
+import { createConnection, createServer } from '@volar/language-server/node';
 import { startServer } from '../htmlServer';
 import { getFileSystemProvider } from '../requests';
 
 const connection = createConnection();
 const workspaceFsProvider = getFileSystemProvider(connection);
-const server = createServerBase(connection);
+const server = createServer(connection);
 const installedFs = new Set<string>();
 
 server.onInitialize(() => {

@@ -5,7 +5,7 @@
 
 import type { FileStat, FileType } from '@volar/language-service';
 import { Disposable, Uri, workspace } from 'vscode';
-import { BaseLanguageClient, RequestType } from 'vscode-languageclient';
+import { BaseLanguageClient, RequestType } from '@volar/vscode';
 
 export namespace FsStatRequest {
 	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
