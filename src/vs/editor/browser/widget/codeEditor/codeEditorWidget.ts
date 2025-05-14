@@ -603,7 +603,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const viewModel = this._modelData.viewModel;
 		if (viewModel.coordinatesConverter.modelPositionIsVisible(Position.lift(position))) {
-			return viewModel.getLineHeightForLineNumber(position.lineNumber);
+			return viewModel.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 		}
 		return 0;
 	}

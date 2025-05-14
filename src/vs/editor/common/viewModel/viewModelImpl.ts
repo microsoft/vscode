@@ -724,10 +724,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getViewLineLength(lineNumber);
 	}
 
-	public getLineHeightForLineNumber(lineNumber: number): number {
-		return this.viewLayout.getLineHeightForLineNumber(lineNumber);
-	}
-
 	public getLineMinColumn(lineNumber: number): number {
 		return this._lines.getViewLineMinColumn(lineNumber);
 	}

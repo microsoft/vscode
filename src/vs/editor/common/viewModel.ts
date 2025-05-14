@@ -57,7 +57,6 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	getLineHeightForLineNumber(lineNumber: number): number;
 	getLineLength(lineNumber: number): number;
 	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
