@@ -861,33 +861,50 @@ class ToolCompletions extends Disposable {
 
 				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
 				const usedToolNames = new Set(usedTools.map(v => v.toolName));
-				const toolItems: CompletionItem[] = [];
-				toolItems.push(...widget.input.selectedToolsModel.tools.get()
-					.filter(t => t.canBeReferencedInPrompt)
-					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
-					.map((t): CompletionItem => {
-						const source = t.source;
-						const detail = source.type === 'mcp'
-							? localize('desc', "MCP Server: {0}", source.label)
-							: source.type === 'extension'
-								? source.label
-								: undefined;
 
-						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
-						return {
-							label: withLeader,
-							range,
-							detail,
-							insertText: withLeader + ' ',
-							documentation: t.userDescription ?? t.modelDescription,
-							kind: CompletionItemKind.Text,
-							sortText: 'z'
-						};
-					}));
+				const suggestions: CompletionItem[] = [];
 
-				return {
-					suggestions: toolItems
-				};
+
+				const { tools, toolSets } = widget.input.selectedToolsModel.entries.get();
+
+				for (const toolSet of toolSets) {
+					const withLeader = `${chatVariableLeader}${toolSet.toolReferenceName ?? toolSet.displayName}`;
+					suggestions.push({
+						label: withLeader,
+						range,
+						detail: toolSet.description,
+						insertText: withLeader + ' ',
+						kind: CompletionItemKind.Text,
+						sortText: 'z',
+					});
+				}
+
+
+				for (const tool of tools) {
+					if (!tool.canBeReferencedInPrompt || usedToolNames.has(tool.toolReferenceName ?? '')) {
+						continue;
+					}
+
+					const source = tool.source;
+					const detail = source.type === 'mcp'
+						? localize('desc', "MCP Server: {0}", source.label)
+						: source.type === 'extension'
+							? source.label
+							: undefined;
+
+					const withLeader = `${chatVariableLeader}${tool.toolReferenceName}`;
+					suggestions.push({
+						label: withLeader,
+						range,
+						detail,
+						insertText: withLeader + ' ',
+						documentation: tool.userDescription ?? tool.modelDescription,
+						kind: CompletionItemKind.Text,
+						sortText: 'z'
+					});
+				}
+
+				return { suggestions };
 			}
 		}));
 	}

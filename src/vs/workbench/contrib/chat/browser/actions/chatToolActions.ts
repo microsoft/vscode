@@ -7,7 +7,6 @@ import { assertNever } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { diffSets } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -29,7 +28,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { isIToolSet, IToolData, IToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -88,7 +87,7 @@ export class AttachToolsAction extends Action2 {
 	constructor() {
 		super({
 			id: AttachToolsAction.id,
-			title: localize('label', "Select Tools..."),
+			title: localize('label', "Configure Tools..."),
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
@@ -112,7 +111,6 @@ export class AttachToolsAction extends Action2 {
 		const quickPickService = accessor.get(IQuickInputService);
 		const mcpService = accessor.get(IMcpService);
 		const mcpRegistry = accessor.get(IMcpRegistry);
-		const toolsService = accessor.get(ILanguageModelToolsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
@@ -143,11 +141,28 @@ export class AttachToolsAction extends Action2 {
 		}
 
 		const enum BucketOrdinal { Extension, Mcp, Other }
-		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: ToolPick[]; source: ToolDataSource };
+		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[]; source: ToolDataSource };
+		type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: IToolSet; parent: BucketPick };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 		type AddPick = IQuickPickItem & { pickable: false; run: () => void };
-		type MyPick = ToolPick | BucketPick | AddPick;
+		type MyPick = BucketPick | ToolSetPick | ToolPick | AddPick;
 		type ActionableButton = IQuickInputButton & { action: () => void };
+
+		function isBucketPick(obj: any): obj is BucketPick {
+			return Boolean((obj as BucketPick).children);
+		}
+		function isToolSetPick(obj: MyPick): obj is ToolSetPick {
+			return Boolean((obj as ToolSetPick).toolset);
+		}
+		function isToolPick(obj: MyPick): obj is ToolPick {
+			return Boolean((obj as ToolPick).tool);
+		}
+		function isAddPick(obj: MyPick): obj is AddPick {
+			return Boolean((obj as AddPick).run);
+		}
+		function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
+			return typeof (obj as ActionableButton).action === 'function';
+		}
 
 		const addMcpPick: AddPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
 		const addExpPick: AddPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
@@ -157,7 +172,7 @@ export class AttachToolsAction extends Action2 {
 					[addMcpPick, addExpPick],
 					{
 						canPickMany: false,
-						title: localize('noTools', "Add tools to chat")
+						placeHolder: localize('noTools', "Add tools to chat")
 					}
 				);
 				pick?.run();
@@ -173,22 +188,19 @@ export class AttachToolsAction extends Action2 {
 			picked: true,
 		};
 
-		const nowSelectedTools = new Set(widget.input.selectedToolsModel.tools.get());
 		const toolBuckets = new Map<string, BucketPick>();
 
-		for (const tool of toolsService.getTools()) {
-			if (!tool.canBeReferencedInPrompt) {
-				continue;
-			}
+		for (const [toolSetOrTool, picked] of widget.input.selectedToolsModel.value) {
 
 			let bucket: BucketPick | undefined;
 
-			if (tool.source.type === 'mcp') {
-				const mcpServer = mcpServerByTool.get(tool.id);
+			if (toolSetOrTool.source.type === 'mcp') {
+				const { definitionId } = toolSetOrTool.source;
+				const mcpServer = mcpService.servers.get().find(candidate => candidate.definition.id === definitionId);
 				if (!mcpServer) {
 					continue;
 				}
-				const key = tool.source.type + mcpServer.definition.id;
+				const key = toolSetOrTool.source.type + mcpServer.definition.id;
 				bucket = toolBuckets.get(key);
 
 				if (!bucket) {
@@ -216,59 +228,57 @@ export class AttachToolsAction extends Action2 {
 						label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
 						status: localize('mcpstatus', "from {0}", mcpServer.collection.label),
 						ordinal: BucketOrdinal.Mcp,
-						source: tool.source,
+						source: toolSetOrTool.source,
 						picked: false,
 						children: [],
 						buttons,
 					};
 					toolBuckets.set(key, bucket);
 				}
-			} else if (tool.source.type === 'extension') {
-				const key = tool.source.type + ExtensionIdentifier.toKey(tool.source.extensionId);
+			} else if (toolSetOrTool.source.type === 'extension') {
+				const key = toolSetOrTool.source.type + ExtensionIdentifier.toKey(toolSetOrTool.source.extensionId);
 
 				bucket = toolBuckets.get(key) ?? {
 					type: 'item',
-					label: tool.source.label,
+					label: toolSetOrTool.source.label,
 					ordinal: BucketOrdinal.Extension,
 					picked: false,
-					source: tool.source,
+					source: toolSetOrTool.source,
 					children: []
 				};
 				toolBuckets.set(key, bucket);
-			} else if (tool.source.type === 'internal') {
+			} else if (toolSetOrTool.source.type === 'internal') {
 				bucket = defaultBucket;
 			} else {
-				assertNever(tool.source);
+				assertNever(toolSetOrTool.source);
 			}
 
-			const picked = nowSelectedTools.has(tool);
+			if (isIToolSet(toolSetOrTool)) {
+				bucket.children.push({
+					parent: bucket,
+					type: 'item',
+					picked,
+					toolset: toolSetOrTool,
+					label: toolSetOrTool.displayName,
+					description: toolSetOrTool.description,
+					indented: true,
 
-			bucket.children.push({
-				tool,
-				parent: bucket,
-				type: 'item',
-				label: tool.displayName,
-				description: tool.userDescription,
-				picked,
-				indented: true,
-			});
+				});
+			} else if (toolSetOrTool.canBeReferencedInPrompt) {
+				bucket.children.push({
+					parent: bucket,
+					type: 'item',
+					picked,
+					tool: toolSetOrTool,
+					label: toolSetOrTool.toolReferenceName ?? toolSetOrTool.displayName,
+					description: toolSetOrTool.userDescription,
+					indented: true,
+				});
+			}
 
 			if (picked) {
 				bucket.picked = true;
 			}
-		}
-
-		function isBucketPick(obj: any): obj is BucketPick {
-			return Boolean((obj as BucketPick).children);
-		}
-		function isToolPick(obj: any): obj is ToolPick {
-			return Boolean((obj as ToolPick).tool);
-		}
-		function isAddPick(obj: any): obj is AddPick {
-			return Boolean((obj as AddPick).run);
-		}
-		function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
-			return typeof (obj as ActionableButton).action === 'function';
 		}
 
 		const store = new DisposableStore();
@@ -316,19 +326,19 @@ export class AttachToolsAction extends Action2 {
 				lastSelectedItems = new Set(items);
 				picker.selectedItems = items;
 
-				const disableBuckets: ToolDataSource[] = [];
+				const disableToolSets: IToolSet[] = [];
 				const disableTools: IToolData[] = [];
 				for (const item of picks) {
 					if (item.type === 'item' && !item.picked) {
-						if (isBucketPick(item)) {
-							disableBuckets.push(item.source);
-						} else if (isToolPick(item) && item.parent.picked) {
+						if (isToolSetPick(item)) {
+							disableToolSets.push(item.toolset);
+						} else if (isToolPick(item)) {
 							disableTools.push(item.tool);
 						}
 					}
 				}
 
-				widget.input.selectedToolsModel.update(disableBuckets, disableTools);
+				widget.input.selectedToolsModel.update(disableToolSets, disableTools);
 			} finally {
 				ignoreEvent = false;
 			}
@@ -395,10 +405,13 @@ export class AttachToolsAction extends Action2 {
 		}));
 
 		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
-		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
-			enabled: widget.input.selectedToolsModel.tools.get().length,
-			total: Iterable.length(toolsService.getTools()),
-		});
+
+		const telData: SelectedToolData = { enabled: 0, total: 0, };
+		for (const [, enabled] of widget.input.selectedToolsModel.value) {
+			telData.total++;
+			telData.enabled += Number(enabled);
+		}
+		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', telData);
 		store.dispose();
 	}
 }

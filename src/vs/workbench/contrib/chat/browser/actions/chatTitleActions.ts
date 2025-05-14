@@ -259,10 +259,20 @@ export function registerChatTitleActions() {
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
-			const userSelectedTools = widget?.input.currentMode === ChatMode.Agent ? widget.input.selectedToolsModel.tools.get().map(tool => tool.id) : undefined;
+
+			let userSelectedTools: string[] | undefined;
+			let userSelectedTools2: Record<string, boolean> | undefined;
+			if (widget?.input.currentMode === ChatMode.Agent) {
+				userSelectedTools = Array.from(widget.input.selectedToolsModel.asEnablementMap().entries()).map(([tool]) => tool.id);
+				userSelectedTools2 = {};
+				for (const [tool, enablement] of widget.input.selectedToolsModel.asEnablementMap()) {
+					userSelectedTools2[tool.id] = enablement;
+				}
+			}
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,
 				userSelectedTools,
+				userSelectedTools2,
 				attempt: (request?.attempt ?? -1) + 1,
 				mode: widget?.input.currentMode,
 			});

@@ -19,6 +19,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IObservable } from '../../../../base/common/observable.js';
 
 export interface IToolData {
 	id: string;
@@ -73,6 +74,16 @@ export namespace ToolDataSource {
 			case 'extension': return `extension:${source.extensionId.value}`;
 			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
 			case 'internal': return 'internal';
+		}
+	}
+
+	export function classify(source: ToolDataSource): { readonly ordinal: number; readonly label: string } {
+		if (source.type === 'internal' || source.type === 'extension' && !source.isExternalTool) {
+			return { ordinal: 1, label: 'Built-In' };
+		} else if (source.type === 'mcp') {
+			return { ordinal: 2, label: 'MCP Servers' };
+		} else {
+			return { ordinal: 3, label: 'Extensions' };
 		}
 	}
 }
@@ -161,6 +172,27 @@ export interface IToolImpl {
 	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
+export interface IToolSet extends IDisposable {
+	readonly id: string;
+	readonly displayName: string;
+	readonly icon: ThemeIcon;
+	readonly toolReferenceName?: string;
+	readonly description?: string;
+	readonly source: ToolDataSource;
+
+	readonly tools: IObservable<ReadonlySet<IToolData>>;
+
+	appendTool(toolId: string): IDisposable;
+}
+
+export function isIToolSet(candidate: unknown): candidate is IToolSet {
+	return typeof candidate === 'object'
+		&& candidate !== null
+		&& typeof (candidate as IToolSet).id === 'string'
+		&& typeof (candidate as IToolSet).displayName === 'string'
+		&& typeof (candidate as IToolSet).appendTool === 'function';
+}
+
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
 export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
@@ -177,6 +209,9 @@ export interface ILanguageModelToolsService {
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
+
+	readonly toolSets: IObservable<Iterable<IToolSet>>;
+	createToolSet(source: ToolDataSource, id: string, displayName: string, icon: ThemeIcon, options?: { toolReferenceName?: string; description?: string }): IToolSet;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

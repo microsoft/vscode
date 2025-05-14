@@ -44,6 +44,7 @@ suite('ChatRequestParser', () => {
 		variableService = mockObject<IChatVariablesService>()();
 		variableService.getDynamicVariables.returns([]);
 		variableService.getSelectedTools.returns([]);
+		variableService.getSelectedToolSets.returns([]);
 
 		instantiationService.stub(IChatVariablesService, variableService as any);
 	});

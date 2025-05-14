@@ -482,7 +482,7 @@ export interface IChatSendRequestOptions {
 	userSelectedModelId?: string;
 	userSelectedTools?: string[];
 	userSelectedTools2?: Record<string, boolean>;
-	toolSelectionIsExclusive?: boolean;
+	toolSelectionIsExclusive?: boolean;//TODO@jrieken
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;

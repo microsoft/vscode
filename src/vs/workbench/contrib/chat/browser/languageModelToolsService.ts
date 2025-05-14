@@ -15,6 +15,8 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
+import { IObservable, ObservableSet } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -31,7 +33,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, IToolSet, stringifyPromptTsxPart, ToolDataSource } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -95,6 +97,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
+	}
+	override dispose(): void {
+		super.dispose();
+
+		this._callsByRequestId.forEach(calls => calls.forEach(call => call.store.dispose()));
+		this._ctxToolsCount.reset();
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -429,11 +437,40 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	private readonly _toolSets = new ObservableSet<IToolSet>();
 
-		this._callsByRequestId.forEach(calls => calls.forEach(call => call.store.dispose()));
-		this._ctxToolsCount.reset();
+	readonly toolSets: IObservable<Iterable<IToolSet>> = this._toolSets.observable;
+
+	createToolSet(source: ToolDataSource, id: string, displayName: string, icon: ThemeIcon, options?: { toolReferenceName?: string; description?: string }): IToolSet {
+
+		const tools = new ObservableSet<IToolData>();
+
+		const result: IToolSet = {
+			source,
+			id,
+			displayName,
+			icon,
+			description: options?.description,
+			toolReferenceName: options?.toolReferenceName,
+			tools: tools.observable,
+			appendTool: (toolId: string): IDisposable => {
+				const tool = this.getTool(toolId);
+				if (!tool) {
+					return Disposable.None;
+				}
+				tools.add(tool);
+				return toDisposable(() => tools.delete(tool));
+			},
+			dispose: () => {
+				if (this._toolSets.has(result)) {
+					tools.clear();
+					this._toolSets.delete(result);
+				}
+			}
+		};
+
+		this._toolSets.add(result);
+		return result;
 	}
 }
 

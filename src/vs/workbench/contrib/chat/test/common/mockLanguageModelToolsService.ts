@@ -6,8 +6,9 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -55,5 +56,11 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return {
 			content: [{ kind: 'text', value: 'result' }]
 		};
+	}
+
+	toolSets: IObservable<readonly IToolSet[]> = constObservable([]);
+
+	createToolSet(): IToolSet {
+		throw new Error('Method not implemented.');
 	}
 }
