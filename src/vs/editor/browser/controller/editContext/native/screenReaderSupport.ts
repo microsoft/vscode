@@ -70,7 +70,7 @@ export class ScreenReaderSupport {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			// this.writeScreenReaderContent();
+			this.writeScreenReaderContent();
 		}
 	}
 
@@ -108,7 +108,7 @@ export class ScreenReaderSupport {
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		this.writeScreenReaderContent(ctx);
+		this.writeScreenReaderContent();
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
 	}
 
@@ -180,7 +180,8 @@ export class ScreenReaderSupport {
 		}
 	}
 
-	public writeScreenReaderContent(ctx: RenderingContext): void {
+	public writeScreenReaderContent(): void {
+		console.log('writeScreenReaderContent');
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
@@ -199,7 +200,7 @@ export class ScreenReaderSupport {
 
 			const nodes: HTMLDivElement[] = [];
 			for (let lineNumber = pretextOffsetRange.start; lineNumber <= pretextOffsetRange.endExclusive; lineNumber++) {
-				nodes.push(this._renderLine(ctx, lineNumber));
+				nodes.push(this._renderLine(lineNumber));
 			}
 			if (pretextOffsetRange.endExclusive !== positionLineNumber - 1) {
 				const div = document.createElement('div');
@@ -207,7 +208,7 @@ export class ScreenReaderSupport {
 				div.appendChild(span);
 				span.textContent = String.fromCharCode(8230);
 			}
-			nodes.push(this._renderLine(ctx, positionLineNumber));
+			nodes.push(this._renderLine(positionLineNumber));
 			if (posttextOffsetRange.start !== positionLineNumber + 1) {
 				const div = document.createElement('div');
 				const span = document.createElement('span');
@@ -215,7 +216,7 @@ export class ScreenReaderSupport {
 				span.textContent = String.fromCharCode(8230);
 			}
 			for (let lineNumber = posttextOffsetRange.start; lineNumber <= posttextOffsetRange.endExclusive; lineNumber++) {
-				nodes.push(this._renderLine(ctx, lineNumber));
+				nodes.push(this._renderLine(lineNumber));
 			}
 			const domNode = this._domNode.domNode;
 			domNode.replaceChildren(...nodes);
@@ -228,7 +229,7 @@ export class ScreenReaderSupport {
 		}
 	}
 
-	private _renderLine(ctx: RenderingContext, lineNumber: number): HTMLDivElement {
+	private _renderLine(lineNumber: number): HTMLDivElement {
 		const viewModel = this._context.viewModel;
 		const positionLineData = viewModel.getViewLineRenderingData(lineNumber);
 		const options = this._context.configuration.options;
@@ -237,14 +238,11 @@ export class ScreenReaderSupport {
 		const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		const fontLigatures = options.get(EditorOption.fontLigatures);
 		const disableMonospaceOptimizations = options.get(EditorOption.disableMonospaceOptimizations);
-		const viewRange = new Range(lineNumber, 1, lineNumber, viewModel.getLineMaxColumn(lineNumber));
-		const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-		const actualInlineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, modelRange.startLineNumber, 0, Infinity);
+		const lineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, lineNumber, positionLineData.minColumn, positionLineData.maxColumn);
 		const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 		const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
 		let renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>;
-		const fontDecorations = this._context.viewModel.model.getFontDecorations(lineNumber);
-		const renderWhitespacesInline = fontDecorations.length > 0;
+		const renderWhitespacesInline = viewModel.model.getFontDecorations(lineNumber).length > 0;
 		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
 		if (renderWhitespacesInline || experimentalWhitespaceRendering === 'off') {
 			renderWhitespace = options.get(EditorOption.renderWhitespace);
@@ -260,7 +258,7 @@ export class ScreenReaderSupport {
 			positionLineData.containsRTL,
 			positionLineData.minColumn - 1,
 			positionLineData.tokens,
-			actualInlineDecorations,
+			lineDecorations,
 			positionLineData.tabSize,
 			positionLineData.startVisibleColumn,
 			fontInfo.spaceWidth,
