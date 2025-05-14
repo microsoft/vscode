@@ -52,7 +52,7 @@ export interface IDialogOptions {
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonDetails?: string[];
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; renderAsLink?: boolean }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
 	readonly disableDefaultAction?: boolean;
@@ -269,7 +269,10 @@ export class Dialog extends Disposable {
 				const primary = buttonMap[index].index === 0;
 
 				let button: IButton;
-				if (primary && this.options?.primaryButtonDropdown) {
+				if (this.options.buttonOptions?.[buttonMap[index]?.index]?.renderAsLink) {
+					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
+					button.element.classList.add('link-button');
+				} else if (primary && this.options?.primaryButtonDropdown) {
 					const actions = isActionProvider(this.options.primaryButtonDropdown.actions) ? this.options.primaryButtonDropdown.actions.getActions() : this.options.primaryButtonDropdown.actions;
 					button = this._register(buttonBar.addButtonWithDropdown({
 						...this.options.primaryButtonDropdown,
@@ -284,7 +287,7 @@ export class Dialog extends Disposable {
 							}
 						}))
 					}));
-				} else if (this.options.buttonDetails) {
+				} else if (this.options.buttonOptions?.[buttonMap[index]?.index]?.sublabel) {
 					button = this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles }));
 				} else {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
@@ -292,7 +295,10 @@ export class Dialog extends Disposable {
 
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
-					button.description = this.options.buttonDetails![buttonMap[index].index];
+					const sublabel = this.options.buttonOptions?.[buttonMap[index]?.index]?.sublabel;
+					if (sublabel) {
+						button.description = sublabel;
+					}
 				}
 				this._register(button.onDidClick(e => {
 					if (e) {
