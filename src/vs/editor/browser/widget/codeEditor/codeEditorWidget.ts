@@ -602,8 +602,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		const viewModel = this._modelData.viewModel;
-		const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(Position.lift(position));
-		return viewModel.getLineHeightForPosition(viewPosition);
+		if (viewModel.coordinatesConverter.modelPositionIsVisible(Position.lift(position))) {
+			return viewModel.getLineHeightForLineNumber(position.lineNumber);
+		}
+		return 0;
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {

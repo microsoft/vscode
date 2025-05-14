@@ -71,7 +71,7 @@ export class ViewCursor {
 		// Create the dom node
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setClassName(`cursor ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this._domNode.setHeight(this._context.viewLayout.getLineHeightForPosition(new Position(1, 1)));
+		this._domNode.setHeight(this._context.viewLayout.getLineHeightForLineNumber(1));
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
 		applyFontInfo(this._domNode, fontInfo);
@@ -190,7 +190,7 @@ export class ViewCursor {
 			}
 
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-			const lineHeight = this._context.viewLayout.getLineHeightForPosition(position);
+			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 			return new ViewCursorRenderData(top, left, paddingLeft, width, lineHeight, textContent, textContentClassName);
 		}
 
@@ -221,7 +221,7 @@ export class ViewCursor {
 		}
 
 		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-		const lineHeight = this._context.viewLayout.getLineHeightForPosition(position);
+		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 		let height = lineHeight;
 
 		// Underline might interfere with clicking

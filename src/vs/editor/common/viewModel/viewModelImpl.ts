@@ -585,10 +585,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getHiddenAreas();
 	}
 
-	public isHiddenPosition(position: IPosition): boolean {
-		return this._lines.isHiddenPosition(position);
-	}
-
 	private _toModelVisibleRanges(visibleViewRange: Range): Range[] {
 		const visibleRange = this.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
 		const hiddenAreas = this._lines.getHiddenAreas();
@@ -728,12 +724,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getViewLineLength(lineNumber);
 	}
 
-	public getLineHeightForPosition(position: IPosition): number {
-		const isHiddenPosition = this._lines.isHiddenPosition(position);
-		if (isHiddenPosition) {
-			return 0;
-		}
-		return this.viewLayout.getLineHeightForPosition(position);
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		return this.viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
