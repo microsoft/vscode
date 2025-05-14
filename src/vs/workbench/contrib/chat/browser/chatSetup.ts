@@ -671,7 +671,6 @@ class ChatSetup {
 				icon: Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: -1, // not offered as button, but X can cancel
-				renderBody: body => body.appendChild(this.createDialogBody(disposables)),
 				renderFooter: this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ? footer => footer.appendChild(this.createDialogFooter(disposables)) : undefined,
 				primaryButtonDropdown: {
 					contextMenuProvider: this.contextMenuService,
@@ -712,17 +711,6 @@ class ChatSetup {
 		}
 
 		return this.context.state.registered ? localize('copilotTitle', "Start using Copilot") : localize('copilotFreeTitle', "Start using Copilot for free");
-	}
-
-	private createDialogBody(disposables: DisposableStore): HTMLElement {
-		const element = $('.chat-setup-dialog-body');
-
-		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
-
-		const header = localize('headerDialog', "Copilot is your AI pair programmer. Write code faster with completions, fix bugs and build new features across multiple files, and learn about your codebase through chat.");
-		element.appendChild($('p.setup-header', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
-
-		return element;
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
