@@ -468,7 +468,8 @@ export interface ISearchConfigurationProperties {
 		closedNotebookRichContentResults: boolean;
 	};
 	searchView: {
-		autoAISearchResults: string;
+		semanticSearchBehavior: string;
+		keywordSuggestions: boolean;
 	};
 }
 
