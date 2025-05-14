@@ -26,8 +26,8 @@ import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
-export interface MarkedOptions extends marked.MarkedOptions {
-	baseUrl?: never;
+export interface MarkedOptions extends Readonly<Omit<marked.MarkedOptions, 'extensions' | 'baseUrl'>> {
+	readonly markedExtensions?: marked.MarkedExtension[];
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
@@ -99,13 +99,14 @@ const defaultMarkedRenderers = Object.freeze({
  * **Note** that for most cases you should be using {@link import('../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js').MarkdownRenderer MarkdownRenderer}
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: Readonly<MarkedOptions> = {}): { element: HTMLElement; dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
 	const element = createElement(options);
 
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(options, markdown);
+	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
@@ -116,11 +117,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			...markedOptions,
 			renderer
 		};
-		const tokens = marked.lexer(value, opts);
+		const tokens = markedInstance.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
-		renderedMarkdown = marked.parser(newTokens, opts);
+		renderedMarkdown = markedInstance.parser(newTokens, opts);
 	} else {
-		renderedMarkdown = marked.parse(value, { ...markedOptions, renderer, async: false });
+		renderedMarkdown = markedInstance.parse(value, { ...markedOptions, renderer, async: false });
 	}
 
 	// Rewrite theme icons
@@ -243,7 +244,7 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	}
 }
 
-function createMarkdownRenderer(options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer();
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
