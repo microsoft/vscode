@@ -22,8 +22,8 @@ import { defaultKeybindingLabelStyles } from '../../../../../../../platform/them
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder, keybindingLabelBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
-import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
+import { IInlineEditModel } from '../inlineEditsViewInterface.js';
 import { FirstFnArg, } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
@@ -67,8 +67,8 @@ export class GutterIndicatorMenuContent {
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
 			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
-			icon: this._model.tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight),
-			commandId: this._model.tabAction.map(action => action === InlineEditTabAction.Accept ? inlineSuggestCommitId : jumpToNextInlineEditId)
+			icon: Codicon.check,
+			commandId: inlineSuggestCommitId
 		}));
 
 		const reject = option(createOptionArgs({

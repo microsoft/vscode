@@ -386,6 +386,12 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
+		'chat.setup.signInWithAlternateProvider': {
+			type: 'boolean',
+			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
+			default: false,
+			tags: ['onExp', 'experimental'],
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

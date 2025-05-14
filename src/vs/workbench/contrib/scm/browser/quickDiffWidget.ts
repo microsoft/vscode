@@ -229,7 +229,9 @@ class QuickDiffWidget extends PeekViewWidget {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const editorHeight = this.editor.getLayoutInfo().height;
 		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
-		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
+		const height = Math.min(
+			getChangeHeight(change) + 2 /* arrow, frame, header */ + 6 /* 3 lines above/below the change */,
+			Math.floor(editorHeightInLines / 3));
 
 		this.renderTitle();
 		this.updateDropdown();
@@ -250,7 +252,10 @@ class QuickDiffWidget extends PeekViewWidget {
 		}
 		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, contextIndex];
 		if (usePosition) {
-			this.show(position, height);
+			// In order to account for the 1px border-top of the content element we
+			// have to add 1px. The pixel value needs to be expressed as a fraction
+			// of the line height.
+			this.show(position, height + (1 / lineHeight));
 			this.editor.setPosition(position);
 			this.editor.focus();
 		}
