@@ -237,7 +237,7 @@ steps:
         set -e
 
         EXPECTED_GLIBC_VERSION="2.28" \
-        EXPECTED_GLIBCXX_VERSION="3.4.26" \
+        EXPECTED_GLIBCXX_VERSION="3.4.25" \
         ./build/azure-pipelines/linux/verify-glibc-requirements.sh
       env:
         SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
