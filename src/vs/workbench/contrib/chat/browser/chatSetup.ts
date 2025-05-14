@@ -702,7 +702,7 @@ class ChatSetup {
 			]);
 		}
 
-		return [[localize('useCopilot', "Use Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
+		return [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
 	}
 
 	private getDialogTitle(): string {
