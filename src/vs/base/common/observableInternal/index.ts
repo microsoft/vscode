@@ -15,6 +15,9 @@ export { constObservable, debouncedObservableDeprecated, debouncedObservable, de
 export { type DebugOwner } from './debugName.js';
 export { type IChangeContext, type IChangeTracker, recordChanges } from './changeTracker.js';
 
+export { ObservableSet } from './set.js';
+export { ObservableMap } from './map.js';
+
 import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
 import { DevToolsLogger } from './logging/debugger/devToolsLogger.js';
