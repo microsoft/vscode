@@ -223,7 +223,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				continue;
 			}
 			const content = model.getValueInRange(range);
-			const tokenUpdates = await this._forceParseAndTokenizeContent(model, range, startOffsetOfRangeInDocument, endOffsetOfRangeInDocument, content, true);
+			const tokenUpdates = this._forceParseAndTokenizeContent(model, range, startOffsetOfRangeInDocument, endOffsetOfRangeInDocument, content, true);
 			if (!tokenUpdates || this._tokenizationStoreService.rangeHasTokens(model, range, TokenQuality.ViewportGuess)) {
 				continue;
 			}

@@ -21,6 +21,8 @@ import { AppResourcePath, FileAccess } from '../../../../base/common/network.js'
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { getClosestPreviousNodes, gotoNthChild, gotoParent, nextSiblingOrParentSibling } from './cursorUtils.js';
+import { OffsetRange } from '../../core/ranges/offsetRange.js';
+import { isDefined } from '../../../../base/common/types.js';
 
 export interface TextModelTreeSitterItem {
 	dispose(): void;
@@ -351,6 +353,54 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		treeSitterTree.onDidChangeContent(this.textModel, change, ranges);
 	}
 }
+
+/** For debugging only. */
+export function toDebugJson(tree: Parser.Tree): unknown {
+	const node = toAstNode(tree.rootNode, node => {
+		return {
+			label: node.type,
+			range: new OffsetRange(node.startIndex, node.endIndex),
+			children: node.children.filter(isDefined)
+		};
+	});
+
+	return {
+		source: { value: tree.rootNode.text, decorations: [] },
+		root: node,
+	};
+}
+
+export function toAstNode<T>(
+	node: T,
+	fn: (node: T) => Omit<IAstNode, 'children' | 'range'> & { range: OffsetRange; children?: readonly T[] }
+): IAstNode {
+	const data = fn(node);
+	return {
+		...data,
+		range: [data.range.start, data.range.endExclusive],
+		children: data.children?.map(child => toAstNode(child, fn)),
+	};
+}
+
+export interface IAstVisualization {
+	source: ISource | string;
+	root: IAstNode;
+}
+
+interface IAstNode {
+	label: string;
+	isMarked?: boolean;
+	range: IOffsetRange;
+	children?: IAstNode[];
+}
+
+interface ISource {
+	value: string;
+	decorations: { range: IOffsetRange; color: string }[];
+}
+
+type IOffsetRange = [start: number, endEx: number];
+
 
 export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResult {
 	private _tree: Parser.Tree | undefined;
