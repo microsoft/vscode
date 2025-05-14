@@ -171,7 +171,7 @@ export class CreatorOverlayPart extends Part {
 	private _webviewService: WebviewService | undefined;
 	private closeHandler: ((event: MouseEvent) => void) | undefined;
 
-	private state: keyof typeof overlayStates = "loading";
+	private state: keyof typeof overlayStates = "closed";
 	private _isLocked: boolean = false;
 	private initializedWebview: boolean = false;
 
@@ -200,6 +200,17 @@ export class CreatorOverlayPart extends Part {
 			layoutService,
 		);
 
+		this.setupInitialState();
+	}
+
+	/**
+	 * Sets up the initial state and services for the overlay part
+	 */
+	private setupInitialState(): void {
+		// Reset all state variables to their initial values
+		this.resetState();
+
+		// Setup webview service
 		if (this._webviewViewService === undefined) {
 			console.log("WebviewViewService is undefined");
 		}
@@ -207,7 +218,7 @@ export class CreatorOverlayPart extends Part {
 		this._webviewService =
 			this._instantiationService.createInstance(WebviewService);
 
-		// Listen for theme changes
+		// Listen for theme changes - this should remain even after resets
 		this._register(
 			this.themeService.onDidColorThemeChange(
 				(() => {
@@ -221,7 +232,39 @@ export class CreatorOverlayPart extends Part {
 			),
 		);
 
+		// Initialize the component
 		this.initialize();
+	}
+
+	/**
+	 * Resets the overlay part to its initial state
+	 * This can be called to get a clean slate
+	 */
+	private resetState(): void {
+		// Reset all state variables
+		this.state = "loading";
+		this._isLocked = false;
+		this.initializedWebview = false;
+		this.needsReinit = false;
+		this._webviewEnabled = true;
+		this.openInProgress = false;
+		this.initializingPromise = null;
+
+		// Clear elements
+		this.webviewElement = undefined;
+		this.webviewView = undefined;
+
+		// Remove event listeners
+		if (this.closeHandler && this.overlayContainer) {
+			this.overlayContainer.removeEventListener("click", this.closeHandler);
+			this.closeHandler = undefined;
+		}
+
+		// Reset overlay container if it exists
+		if (this.overlayContainer) {
+			const loadingState = overlayStates.loading;
+			Object.assign(this.overlayContainer.style, loadingState.overlayContainer);
+		}
 	}
 
 	isVisible(): boolean {
@@ -600,8 +643,10 @@ export class CreatorOverlayPart extends Part {
 				});
 				return;
 			}
+
 			// Add a slide-up animation when closing
 			this.handleStateTransition("closed").then(() => {
+				// Apply closed state styles
 				const closedState = overlayStates.closed;
 
 				// Apply top body styles
@@ -615,8 +660,12 @@ export class CreatorOverlayPart extends Part {
 				// Focus the active editor
 				this._editorGroupsService.activeGroup.focus();
 
-				// Mark webview as needing reinitialization before next open
-				this.needsReinit = true;
+				// Reset the state to get a clean slate
+				this.resetState();
+
+				// Set the state back to closed after reset
+				this.state = "closed";
+
 				resolve();
 			});
 		});
