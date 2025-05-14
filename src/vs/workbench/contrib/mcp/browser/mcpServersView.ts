@@ -6,9 +6,9 @@
 import './media/mcpServers.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { IListContextMenuEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
 import { Event } from '../../../../base/common/event.js';
-import { combinedDisposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -26,12 +26,15 @@ import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.j
 import { IViewDescriptorService } from '../../../common/views.js';
 import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
-import { InstallAction, UninstallAction } from './mcpServerActions.js';
+import { DropDownAction, InstallAction, ManageMcpServerAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget } from './mcpServerWidgets.js';
+import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 export class McpServersListView extends ViewPane {
 
 	private list: WorkbenchPagedList<IWorkbenchMcpServer> | null = null;
+	private readonly contextMenuActionRunner = this._register(new ActionRunner());
 
 	constructor(
 		options: IViewletViewOptions,
@@ -79,6 +82,38 @@ export class McpServersListView extends ViewPane {
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
 			this.mcpWorkbenchService.open(options.element!, options.editorOptions);
 		}));
+		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+	}
+
+	private async onContextMenu(e: IListContextMenuEvent<IWorkbenchMcpServer>): Promise<void> {
+		if (e.element) {
+			const disposables = new DisposableStore();
+			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageMcpServerAction, false));
+			const extension = e.element ? this.mcpWorkbenchService.local.find(local => local.name === e.element!.name) || e.element
+				: e.element;
+			manageExtensionAction.mcpServer = extension;
+			let groups: IAction[][] = [];
+			if (manageExtensionAction.enabled) {
+				groups = await manageExtensionAction.getActionGroups();
+			}
+			const actions: IAction[] = [];
+			for (const menuActions of groups) {
+				for (const menuAction of menuActions) {
+					actions.push(menuAction);
+					if (isDisposable(menuAction)) {
+						disposables.add(menuAction);
+					}
+				}
+				actions.push(new Separator());
+			}
+			actions.pop();
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				actionRunner: this.contextMenuActionRunner,
+				onHide: () => disposables.dispose()
+			});
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -136,14 +171,22 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		const statsContainer = dom.append(footerContainer, dom.$('.stats-container'));
 		const installCount = dom.append(statsContainer, dom.$('span.install-count'));
 		const ratings = dom.append(statsContainer, dom.$('span.ratings'));
-		const actionbar = new ActionBar(dom.append(footerContainer, dom.$('.actions-container.mcp-server-actions')));
+		const actionbar = new ActionBar(dom.append(footerContainer, dom.$('.actions-container.mcp-server-actions')), {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof DropDownAction) {
+					return action.createActionViewItem(options);
+				}
+				return undefined;
+			},
+			focusOnlyEnabledItems: true
+		});
 
 		actionbar.setFocusable(false);
 		const actionBarListener = actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const actions = [
 			this.instantiationService.createInstance(InstallAction),
-			this.instantiationService.createInstance(UninstallAction),
+			this.instantiationService.createInstance(ManageMcpServerAction, false),
 		];
 
 		const widgets = [

@@ -7,7 +7,7 @@ import { $, Dimension, addDisposableListener, append, setParentFlowTo } from '..
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Action } from '../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import * as arrays from '../../../../base/common/arrays.js';
 import { Cache, CacheResult } from '../../../../base/common/cache.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -38,11 +38,12 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
 import { InstallCountWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
-import { InstallAction, UninstallAction } from './mcpServerActions.js';
+import { DropDownAction, InstallAction, ManageMcpServerAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILocalMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
 import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 const enum McpServerEditorTab {
 	Readme = 'readme',
@@ -155,7 +156,6 @@ export class McpServerEditor extends EditorPane {
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IMcpGalleryService private readonly galleryService: IMcpGalleryService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -218,10 +218,17 @@ export class McpServerEditor extends EditorPane {
 		const actions = [
 			this.instantiationService.createInstance(InstallAction),
 			this.instantiationService.createInstance(UninstallAction),
+			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container.mcp-server-actions'));
 		const actionBar = this._register(new ActionBar(actionsAndStatusContainer, {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof DropDownAction) {
+					return action.createActionViewItem(options);
+				}
+				return undefined;
+			},
 			focusOnlyEnabledItems: true
 		}));
 
@@ -290,7 +297,7 @@ export class McpServerEditor extends EditorPane {
 
 		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
 
-		this.mcpServerReadme = new Cache(() => mcpServer.readmeUrl ? this.galleryService.getReadme(mcpServer.readmeUrl, token) : Promise.resolve(localize('noReadme', "No README available.")));
+		this.mcpServerReadme = new Cache(() => mcpServer.getReadme(token));
 		template.mcpServer = mcpServer;
 
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = DefaultIconPath, { once: true }));
@@ -592,6 +599,10 @@ class AdditionalDetailsWidget extends Disposable {
 		this.container.innerText = '';
 		this.disposables.clear();
 
+		if (extension.local) {
+			this.renderInstallInfo(this.container, extension.local);
+		}
+
 		if (extension.gallery) {
 			this.renderMarketplaceInfo(this.container, extension);
 		}
@@ -600,9 +611,6 @@ class AdditionalDetailsWidget extends Disposable {
 
 	private renderExtensionResources(container: HTMLElement, extension: IWorkbenchMcpServer): void {
 		const resources: [string, URI][] = [];
-		if (extension.url) {
-			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
-		}
 		if (extension.repository) {
 			try {
 				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
@@ -623,6 +631,23 @@ class AdditionalDetailsWidget extends Disposable {
 		}
 	}
 
+	private renderInstallInfo(container: HTMLElement, extension: ILocalMcpServer): void {
+		const installInfoContainer = append(container, $('.more-info-container.additional-details-element'));
+		append(installInfoContainer, $('.additional-details-title', undefined, localize('Install Info', "Installation")));
+		const installInfo = append(installInfoContainer, $('.more-info'));
+		append(installInfo,
+			$('.more-info-entry', undefined,
+				$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
+				$('code', undefined, extension.name)
+			));
+		append(installInfo,
+			$('.more-info-entry', undefined,
+				$('div.more-info-entry-name', undefined, localize('Version', "Version")),
+				$('code', undefined, extension.version)
+			)
+		);
+	}
+
 	private renderMarketplaceInfo(container: HTMLElement, extension: IWorkbenchMcpServer): void {
 		const gallery = extension.gallery;
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
@@ -630,6 +655,11 @@ class AdditionalDetailsWidget extends Disposable {
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
 		if (gallery) {
 			if (!extension.local) {
+				append(moreInfo,
+					$('.more-info-entry', undefined,
+						$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
+						$('code', undefined, extension.name)
+					));
 				append(moreInfo,
 					$('.more-info-entry', undefined,
 						$('div.more-info-entry-name', undefined, localize('Version', "Version")),

@@ -462,7 +462,7 @@ export interface IWorkbenchMcpServer {
 	readonly rating?: number;
 	readonly url?: string;
 	readonly repository?: string;
-	readonly readmeUrl?: string;
+	getReadme(token: CancellationToken): Promise<string>;
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
@@ -505,3 +505,4 @@ export class McpServerContainers extends Disposable {
 
 export const McpServersGalleryEnabledContext = ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`);
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', false);
+export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';

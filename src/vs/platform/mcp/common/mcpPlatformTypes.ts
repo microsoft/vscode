@@ -45,7 +45,7 @@ export interface IMcpServerVariable {
 }
 
 export interface IMcpServerConfiguration {
-	readonly manifestLocation?: UriComponents;
+	readonly location?: UriComponents;
 }
 
 export interface IMcpStdioServerConfiguration extends IMcpServerConfiguration {
