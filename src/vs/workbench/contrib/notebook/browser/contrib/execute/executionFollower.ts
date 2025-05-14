@@ -84,12 +84,17 @@ export class ExecutionFollowerController extends Disposable implements INotebook
 				this._notebookEditor.focusNotebookCell(cell, this._followTarget);
 
 				// scroll to either reveal cell or output
-				let elementScrollTop: number;
-				if (this._followTarget === 'container') {
-					elementScrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
-				} else {
-					elementScrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell) + cell.layoutInfo.editorHeight;
-				}
+				const revealPercent = this._configurationService.getValue<number>('notebook.scrolling.revealPercent');
+				const smartThreshold = this._configurationService.getValue<number>('notebook.scrolling.smartThreshold');
+				const elementScrollTop = this.computeSmartScrollTop(cell, smartThreshold, revealPercent);
+				// let elementScrollTop: number;
+				// if (this.computeSmartScrollTop(cell, smartThreshold, revealPercent)) {
+				// 	elementScrollTop = this.computeSmartScrollTop(cell, smartThreshold, revealPercent);
+				// } else if (this._followTarget === 'container') {
+				// 	elementScrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
+				// } else {
+				// 	elementScrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell) + cell.layoutInfo.editorHeight;
+				// }
 
 				this._notebookEditor.setScrollTop(elementScrollTop - VIEWPORT_REVEAL_PADDING); // subtract since smaller scrolltop is higher up
 			} else {
@@ -103,6 +108,29 @@ export class ExecutionFollowerController extends Disposable implements INotebook
 		this._followEnabled = value !== 'off';
 		this._followTarget = value === 'output' ? 'output' : 'container';
 		this._configurationService.updateValue('notebook.scrolling.followRunningCell', value);
+	}
+
+	private computeSmartScrollTop(cell: CodeCellViewModel, smartThreshold: number, revealPercent: number): number {
+		const cellEditorHeight = cell.layoutInfo.editorHeight;
+		const viewportHeight = this._notebookEditor.getLayoutInfo().height;
+
+		// If the cell is not larger than the smart threshold % of the viewport, do not apply smart scroll
+		if (cellEditorHeight < (smartThreshold / 100) * viewportHeight) {
+			if (this._followTarget === 'container') {
+				return this._notebookEditor.getAbsoluteTopOfElement(cell);
+			} else {
+				return this._notebookEditor.getAbsoluteTopOfElement(cell) + cell.layoutInfo.editorHeight;
+			}
+		}
+
+		// Compute the scrollTop so that the bottom revealPercent of the cell is visible
+		const cellTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
+		const revealFraction = Math.max(0, Math.min(1, revealPercent / 100));
+		const revealHeight = cellEditorHeight * revealFraction;
+
+		// We want the bottom 'revealHeight' of the cell to be visible at the bottom of the viewport
+		// So scrollTop should be cellTop + cellEditorHeight - revealHeight
+		return cellTop + cellEditorHeight - revealHeight;
 	}
 }
 
