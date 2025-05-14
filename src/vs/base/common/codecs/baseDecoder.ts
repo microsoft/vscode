@@ -119,9 +119,15 @@ export abstract class BaseDecoder<
 		}
 		this.started = true;
 
-		this.stream.on('data', this.tryOnStreamData);
-		this.stream.on('error', this.onStreamError);
+		/**
+		 * !NOTE! The order of event subscriptions is critical here because
+		 *        the `data` event is also starts the stream, hence changing
+		 *        the order of event subscriptions can lead to race conditions.
+		 *        See {@link ReadableStreamEvents} for more info.
+		 */
 		this.stream.on('end', this.onStreamEnd);
+		this.stream.on('error', this.onStreamError);
+		this.stream.on('data', this.tryOnStreamData);
 
 		// this allows to compose decoders together, - if a decoder
 		// instance is passed as a readable stream to this decoder,
