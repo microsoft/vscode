@@ -95,9 +95,9 @@ export class AttachToolsAction extends Action2 {
 			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 			menu: {
 				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-				id: MenuId.ChatInput,
+				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 100
+				order: 1,
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
@@ -177,7 +177,7 @@ export class AttachToolsAction extends Action2 {
 		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const tool of toolsService.getTools()) {
-			if (!tool.supportsToolPicker) {
+			if (!tool.canBeReferencedInPrompt) {
 				continue;
 			}
 

@@ -249,7 +249,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'log-level',
 
 		// Use an in-memory storage for secrets
-		'use-inmemory-secretstorage'
+		'use-inmemory-secretstorage',
+
+		// Enables display tracking to restore maximized windows under RDP: https://github.com/electron/electron/issues/47016
+		'enable-rdp-display-tracking'
 	];
 
 	// Read argv config
@@ -307,6 +310,12 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 						process.argv.push('--use-inmemory-secretstorage');
 					}
 					break;
+
+				case 'enable-rdp-display-tracking':
+					if (argvValue) {
+						process.argv.push('--enable-rdp-display-tracking');
+					}
+					break;
 			}
 		}
 	});
@@ -359,6 +368,7 @@ interface IArgvConfig {
 	readonly 'log-level'?: string | string[];
 	readonly 'disable-chromium-sandbox'?: boolean;
 	readonly 'use-inmemory-secretstorage'?: boolean;
+	readonly 'enable-rdp-display-tracking'?: boolean;
 }
 
 function readArgvConfigSync(): IArgvConfig {

@@ -33,6 +33,9 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	// --- config
 	readonly disableUpdates: boolean;
 
+	// TODO@deepak1556 TODO@bpasero temporary until a real fix lands upstream
+	readonly enableRDPDisplayTracking: boolean;
+
 	unsetSnapExportedVariables(): void;
 	restoreSnapExportedVariables(): void;
 }
@@ -55,6 +58,9 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
+
+	@memoize
+	get enableRDPDisplayTracking(): boolean { return !!this.args['enable-rdp-display-tracking']; }
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }

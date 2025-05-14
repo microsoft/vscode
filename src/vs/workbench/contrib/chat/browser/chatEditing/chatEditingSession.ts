@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { asyncTransaction, autorun, derived, derivedOpts, IObservable, IReader, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -304,11 +304,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			const modelUris = modelUrisObservable.read(reader);
 			if (!modelUris) { return undefined; }
 
+			const store = reader.store.add(new DisposableStore());
 			const promise = Promise.all(modelUris.map(u => this._textModelService.createModelReference(u))).then(refs => {
-				if (reader.store.isDisposed) {
+				if (store.isDisposed) {
 					refs.forEach(r => r.dispose());
 				} else {
-					refs.forEach(r => reader.store.add(r));
+					refs.forEach(r => store.add(r));
 				}
 
 				return refs;

@@ -262,6 +262,8 @@ export interface IPreferencesService {
 	hasDefaultSettingsContent(uri: URI): boolean;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
+	openPreferences(): Promise<void>;
+
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
 	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openApplicationSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;

@@ -527,6 +527,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
+		Schemas.vscodeNotebookCell
 	];
 
 	if (options.isTrusted) {

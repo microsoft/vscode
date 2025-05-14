@@ -31,7 +31,7 @@ import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground, historyItemRefColor } from './scmHistory.js';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemColor } from './scmHistory.js';
 import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
@@ -392,10 +392,11 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const element = append(container, $('.history-item'));
 		const margin = append(element, $('.margin'));
 		const graphContainer = append(element, $('.graph-container'));
-		const iconLabel = new IconLabel(element, { supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true });
+		const iconLabel = new IconLabel(element, {
+			supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true
+		});
 
 		const labelContainer = append(element, $('.label-container'));
-		element.appendChild(labelContainer);
 
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
@@ -413,8 +414,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		});
 		templateData.elementDisposables.add(historyItemHover);
 
-		const color = historyItemViewModel.inputSwimlanes.find(s => s.id === historyItem.id)?.color;
-		templateData.margin.style.borderLeftColor = asCssVariable(color ?? historyItemRefColor);
+		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
@@ -627,7 +627,6 @@ interface HistoryItemChangeTemplate {
 	readonly element: HTMLElement;
 	readonly margin: HTMLElement;
 	readonly graphPlaceholder: HTMLElement;
-	readonly labelContainer: HTMLElement;
 	readonly resourceLabel: IResourceLabel;
 	readonly actionBar: WorkbenchToolBar;
 	readonly disposables: IDisposable;
@@ -656,24 +655,23 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeVie
 		const graphPlaceholder = append(element, $('.graph-placeholder'));
 
 		const labelContainer = append(element, $('.label-container'));
-		element.appendChild(labelContainer);
-
-		const resourceLabel = this.resourceLabels.create(labelContainer, { supportDescriptionHighlights: true, supportHighlights: true });
+		const resourceLabel = this.resourceLabels.create(labelContainer, {
+			supportDescriptionHighlights: true, supportHighlights: true
+		});
 
 		const disposables = new DisposableStore();
 		const actionsContainer = append(resourceLabel.element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 		disposables.add(actionBar);
 
-		return { element, margin, graphPlaceholder, labelContainer, resourceLabel, actionBar, disposables };
+		return { element, margin, graphPlaceholder, resourceLabel, actionBar, disposables };
 	}
 
 	renderElement(element: ITreeNode<SCMHistoryItemChangeViewModelTreeElement, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
 		const historyItemViewModel = element.element.historyItemViewModel;
 		const historyItemChange = element.element.historyItemChange;
 
-		const color = historyItemViewModel.inputSwimlanes.find(s => s.id === historyItemViewModel.historyItem.id)?.color;
-		templateData.margin.style.borderLeftColor = asCssVariable(color ?? historyItemRefColor);
+		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 
 		templateData.graphPlaceholder.textContent = '';
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (element.element.graphColumns.length + 1)}px`;

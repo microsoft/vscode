@@ -450,7 +450,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			return results;
 		}
 
-		// Make sure there are multiple diagnostics of the same type in the file
+		// Make sure there are multiple different diagnostics of the same type in the file
 		if (!this.diagnosticsManager.getDiagnostics(resource).some(x => {
 			if (x === diagnostic) {
 				return false;
@@ -479,7 +479,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 	}
 }
 
-// Some fix all actions can actually fix multiple differnt diagnostics. Make sure we still show the fix all action
+// Some fix all actions can actually fix multiple different diagnostics. Make sure we still show the fix all action
 // in such cases
 const fixAllErrorCodes = new Map<number, number>([
 	// Missing async

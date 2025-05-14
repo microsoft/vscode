@@ -412,6 +412,28 @@ export class InlineCompletionsModel extends Disposable {
 			}
 			return v?.primaryGhostText;
 		});
+
+		this._jumpedToId = observableValue<undefined | string>(this, undefined);
+		this._inAcceptFlow = observableValue(this, false);
+		this.inAcceptFlow = this._inAcceptFlow;
+
+		// When the suggestion appeared, was it inside the view port or not
+		const appearedInsideViewport = derived<boolean>(this, reader => {
+			const state = this.state.read(reader);
+			if (!state || !state.inlineCompletion) {
+				return false;
+			}
+
+			const targetRange = state.inlineCompletion.targetRange;
+			const visibleRanges = this._editorObs.editor.getVisibleRanges();
+			if (visibleRanges.length < 1) {
+				return false;
+			}
+
+			const viewportRange = new Range(visibleRanges[0].startLineNumber, visibleRanges[0].startColumn, visibleRanges[visibleRanges.length - 1].endLineNumber, visibleRanges[visibleRanges.length - 1].endColumn);
+			return viewportRange.containsRange(targetRange);
+		});
+
 		this.showCollapsed = derived<boolean>(this, reader => {
 			const state = this.state.read(reader);
 			if (!state || state.kind !== 'inlineEdit') {
@@ -466,6 +488,10 @@ export class InlineCompletionsModel extends Disposable {
 				return true;
 			}
 
+			if (this._inAcceptFlow.read(reader) && appearedInsideViewport.read(reader)) {
+				return false;
+			}
+
 			return !s.cursorAtInlineEdit.read(reader);
 		});
 		this.tabShouldAcceptInlineEdit = derived(this, reader => {
@@ -475,6 +501,9 @@ export class InlineCompletionsModel extends Disposable {
 			}
 			if (this.showCollapsed.read(reader)) {
 				return false;
+			}
+			if (this._inAcceptFlow.read(reader) && appearedInsideViewport.read(reader)) {
+				return true;
 			}
 			if (s.inlineCompletion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
 				return true;
@@ -488,9 +517,6 @@ export class InlineCompletionsModel extends Disposable {
 
 			return s.cursorAtInlineEdit.read(reader);
 		});
-		this._jumpedToId = observableValue<undefined | string>(this, undefined);
-		this._inAcceptFlow = observableValue(this, false);
-		this.inAcceptFlow = this._inAcceptFlow;
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 

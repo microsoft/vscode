@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatWidget } from '../../chat.js';
+import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -16,19 +16,22 @@ import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem } from '../../chatContextPickService.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { INSTRUCTIONS_COMMAND_ID } from '../../promptSyntax/contributions/attachInstructionsCommand.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
 import { compare } from '../../../../../../base/common/strings.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { IPromptFileVariableEntry } from '../../../common/chatModel.js';
+import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -74,17 +77,32 @@ class AttachInstructionsAction extends Action2 {
 			f1: false,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Slash,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+			}
 		});
 	}
 
 	public override async run(
 		accessor: ServicesAccessor,
-		options: IAttachInstructionsActionOptions,
+		options?: IAttachInstructionsActionOptions,
 	): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const promptsService = accessor.get(IPromptsService);
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
+
+		if (!options) {
+			options = {
+				resource: getActiveInstructionsFileUri(accessor),
+				widget: getFocusedChatWidget(accessor),
+			};
+		}
 
 		const pickers = instaService.createInstance(PromptFilePickers);
 
@@ -96,7 +114,7 @@ class AttachInstructionsAction extends Action2 {
 			commandService,
 		};
 
-		if (skipSelectionDialog === true) {
+		if (skipSelectionDialog) {
 			assertDefined(
 				resource,
 				'Resource must be defined when skipping prompt selection dialog.',
@@ -131,19 +149,32 @@ class AttachInstructionsAction extends Action2 {
 	}
 }
 
+function getFocusedChatWidget(accessor: ServicesAccessor): IChatWidget | undefined {
+	const chatWidgetService = accessor.get(IChatWidgetService);
+
+	const { lastFocusedWidget } = chatWidgetService;
+	if (!lastFocusedWidget) {
+		return undefined;
+	}
+
+	// the widget input `must` be focused at the time when command run
+	if (!lastFocusedWidget.hasInputFocus()) {
+		return undefined;
+	}
+
+	return lastFocusedWidget;
+}
+
 /**
- * Runs the `Attach Instructions` action with provided options. We export this
- * function instead of {@link ATTACH_INSTRUCTIONS_ACTION_ID} directly to
- * encapsulate/enforce the correct options to be passed to the action.
+ * Gets `URI` of a instructions file open in an active editor instance, if any.
  */
-export const runAttachInstructionsAction = async (
-	commandService: ICommandService,
-	options: IAttachInstructionsActionOptions,
-): Promise<void> => {
-	return await commandService.executeCommand(
-		ATTACH_INSTRUCTIONS_ACTION_ID,
-		options,
-	);
+const getActiveInstructionsFileUri = (accessor: ServicesAccessor): URI | undefined => {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const model = codeEditorService.getActiveCodeEditor()?.getModel();
+	if (model?.getLanguageId() === INSTRUCTIONS_LANGUAGE_ID) {
+		return model.uri;
+	}
+	return undefined;
 };
 
 /**
@@ -159,7 +190,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.attach.instructions.label', 'Instructions...');
 	readonly icon = Codicon.bookmark;
-	readonly commandId = INSTRUCTIONS_COMMAND_ID;
+	readonly commandId = ATTACH_INSTRUCTIONS_ACTION_ID;
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,

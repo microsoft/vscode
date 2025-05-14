@@ -338,6 +338,8 @@ export interface IDefaultChatAgent {
 	readonly providerName: string;
 	readonly enterpriseProviderId: string;
 	readonly enterpriseProviderName: string;
+	readonly alternativeProviderId: string;
+	readonly alternativeProviderName: string;
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 
@@ -351,6 +353,7 @@ export interface IDefaultChatAgent {
 	readonly completionsMenuCommand: string;
 	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
+	readonly generateCommitMessageCommand: string;
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;

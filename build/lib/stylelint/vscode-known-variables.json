@@ -342,6 +342,7 @@
 		"--vscode-editorWidget-foreground",
 		"--vscode-editorWidget-resizeBorder",
 		"--vscode-errorForeground",
+		"--vscode-extension-border",
 		"--vscode-extensionBadge-remoteBackground",
 		"--vscode-extensionBadge-remoteForeground",
 		"--vscode-extensionButton-background",
