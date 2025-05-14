@@ -105,7 +105,7 @@ function code() {
 	fi
 
 	# Configuration
-	export NODE_ENV=development
+	# export NODE_ENV="development"
 	export VSCODE_DEV=1
 	export VSCODE_CLI=1
 	export ELECTRON_ENABLE_STACK_DUMPING=1
