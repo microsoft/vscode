@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { TreeSitterTextModelService } from '../../../editor/common/services/treeSitter/treeSitterParserService.js';
+import { TreeSitterTextModelService } from '../../../editor/common/services/treeSitterBefore/treeSitterParserServiceImpl.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
@@ -19,8 +19,8 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { TreeSitterTokenizationFeature } from '../../services/treeSitter/browser/treeSitterTokenizationFeature.js';
-import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
+import { TreeSitterTokenizationFeature } from '../../services/treeSitterBefore/browser/treeSitterTokenizationFeature.js';
+import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter, TreeUpdateEvent } from '../../../editor/common/services/treeSitterBefore/treeSitterParserService.js';
 import { ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -41,7 +41,7 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { ProbeScope, TokenStyle } from '../../../platform/theme/common/tokenClassificationRegistry.js';
 import { TextMateThemingRuleDefinitions } from '../../services/themes/common/colorThemeData.js';
 import { Color } from '../../../base/common/color.js';
-import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/treeSitterTokenStoreService.js';
+import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/tokens/treesitter/treeSitterTokenStoreService.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenStore.js';

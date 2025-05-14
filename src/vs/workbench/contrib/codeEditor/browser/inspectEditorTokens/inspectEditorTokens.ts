@@ -31,7 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from '../../../../../editor/contrib/semanticTokens/common/semanticTokensConfig.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { ITextModelTreeSitter, ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterParserService.js';
+import { ITextModelTreeSitter, ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterBefore/treeSitterParserService.js';
 import type * as Parser from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;

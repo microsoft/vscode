@@ -21,7 +21,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { splitLines } from '../../../../base/common/strings.js';
-import { ITextModelTreeSitter, ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
+import { ITextModelTreeSitter, ITreeSitterParserService } from '../../../../editor/common/services/treeSitterBefore/treeSitterParserService.js';
 import { ColorThemeData, findMetadata } from '../../../services/themes/common/colorThemeData.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { Event } from '../../../../base/common/event.js';

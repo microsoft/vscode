@@ -5,8 +5,8 @@
 
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { TreeSitterTextModelService } from '../../../../editor/common/services/treeSitter/treeSitterParserService.js';
-import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter } from '../../../../editor/common/services/treeSitterParserService.js';
+import { TreeSitterTextModelService } from '../../../../editor/common/services/treeSitterBefore/treeSitterParserServiceImpl.js';
+import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter } from '../../../../editor/common/services/treeSitterBefore/treeSitterParserService.js';
 import { ITreeSitterTokenizationFeature } from './treeSitterTokenizationFeature.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';

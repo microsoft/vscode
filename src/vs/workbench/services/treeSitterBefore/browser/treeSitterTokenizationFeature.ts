@@ -9,7 +9,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../.
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, QueryCapture, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, RangeChange, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, RangeWithOffsets, ITextModelTreeSitter } from '../../../../editor/common/services/treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, RangeChange, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, RangeWithOffsets, ITextModelTreeSitter } from '../../../../editor/common/services/treeSitterBefore/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -18,7 +18,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { ITreeSitterTokenizationStoreService } from '../../../../editor/common/model/treeSitterTokenStoreService.js';
+import { ITreeSitterTokenizationStoreService } from '../../../../editor/common/model/tokens/treesitter/treeSitterTokenStoreService.js';
 import { LanguageId } from '../../../../editor/common/encodedTokenAttributes.js';
 import { TokenQuality, TokenUpdate } from '../../../../editor/common/model/tokenStore.js';
 import { Range } from '../../../../editor/common/core/range.js';

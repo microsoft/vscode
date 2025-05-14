@@ -9,7 +9,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
+import { ITreeSitterParserService } from '../../../../editor/common/services/treeSitterBefore/treeSitterParserService.js';
 
 export interface IViewPortChangeEvent {
 	model: ITextModel;

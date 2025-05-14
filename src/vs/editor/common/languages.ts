@@ -29,7 +29,7 @@ import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
 import { ITextModel } from './model.js';
 import { TokenUpdate } from './model/tokenStore.js';
-import { ITextModelTreeSitter } from './services/treeSitterParserService.js';
+import { ITextModelTreeSitter } from './services/treeSitterBefore/treeSitterParserService.js';
 import type * as Parser from '@vscode/tree-sitter-wasm';
 
 /**

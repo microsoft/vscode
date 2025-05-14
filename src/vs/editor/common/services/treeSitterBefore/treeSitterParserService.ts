@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
-import { Event } from '../../../base/common/event.js';
-import { ITextModel } from '../model.js';
-import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { Range } from '../core/range.js';
-import { importAMDNodeModule } from '../../../amdX.js';
-import { IModelContentChangedEvent } from '../textModelEvents.js';
+import { Event } from '../../../../base/common/event.js';
+import { ITextModel } from '../../model.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Range } from '../../core/range.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
+import { IModelContentChangedEvent } from '../../textModelEvents.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 export const TREESITTER_ALLOWED_SUPPORT = ['css', 'typescript', 'ini', 'regex'];
@@ -114,6 +114,7 @@ export class TreeSitterImporter implements ITreeSitterImporter {
 		if (!this._parserClass) {
 			this._parserClass = (await this._getTreeSitterImport()).Parser;
 		}
+
 		return this._parserClass;
 	}
 

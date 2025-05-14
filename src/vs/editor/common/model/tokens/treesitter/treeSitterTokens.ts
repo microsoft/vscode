@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageIdCodec, ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../languages.js';
-import { LineTokens } from '../tokens/lineTokens.js';
-import { StandardTokenType } from '../encodedTokenAttributes.js';
-import { TextModel } from './textModel.js';
-import { IModelContentChangedEvent } from '../textModelEvents.js';
-import { AbstractTokens } from './tokens.js';
-import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MutableDisposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Range } from '../../../core/range.js';
+import { StandardTokenType } from '../../../encodedTokenAttributes.js';
+import { ITreeSitterTokenizationSupport, ILanguageIdCodec, TreeSitterTokenizationRegistry } from '../../../languages.js';
+import { IModelContentChangedEvent } from '../../../textModelEvents.js';
+import { BackgroundTokenizationState } from '../../../tokenizationTextModelPart.js';
+import { LineTokens } from '../../../tokens/lineTokens.js';
+import { TextModel } from '../../textModel.js';
+import { AbstractTokens } from '../tokens.js';
 import { ITreeSitterTokenizationStoreService } from './treeSitterTokenStoreService.js';
-import { Range } from '../core/range.js';
-import { BackgroundTokenizationState } from '../tokenizationTextModelPart.js';
-import { Emitter, Event } from '../../../base/common/event.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;

@@ -34,7 +34,7 @@ import { ILanguageFeaturesService } from '../../common/services/languageFeatures
 import { LanguageFeaturesService } from '../../common/services/languageFeaturesService.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { mock } from '../../../base/test/common/mock.js';
-import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
+import { ITreeSitterParserService } from '../../common/services/treeSitterBefore/treeSitterParserService.js';
 import { TestTreeSitterParserService } from './services/testTreeSitterService.js';
 
 class TestTextModel extends TextModel {

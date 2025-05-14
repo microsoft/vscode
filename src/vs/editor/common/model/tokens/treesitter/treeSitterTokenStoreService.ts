@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from '../core/range.js';
-import { ITextModel } from '../model.js';
-import { TokenQuality, TokenStore, TokenUpdate } from './tokenStore.js';
-import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
-import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { IModelContentChangedEvent } from '../textModelEvents.js';
+import { Range } from '../../../core/range.js';
+import { ITextModel } from '../../../model.js';
+import { TokenQuality, TokenStore, TokenUpdate } from '../../tokenStore.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IModelContentChangedEvent } from '../../../textModelEvents.js';
 
 export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;

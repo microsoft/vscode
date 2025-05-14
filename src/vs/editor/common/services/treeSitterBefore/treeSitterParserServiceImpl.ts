@@ -5,7 +5,7 @@
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITextModelTreeSitter, TreeUpdateEvent, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, ModelTreeUpdateEvent } from '../treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITextModelTreeSitter, TreeUpdateEvent, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, ModelTreeUpdateEvent } from './treeSitterParserService.js';
 import { IModelService } from '../model.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../model.js';
