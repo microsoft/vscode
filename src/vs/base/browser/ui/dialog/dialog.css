@@ -194,6 +194,10 @@
 	outline-offset: 2px !important;
 }
 
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	margin: 4px 0; /* allows button focus outline to be visible */
+}
+
 .monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button {
 	width: fit-content;
 }
