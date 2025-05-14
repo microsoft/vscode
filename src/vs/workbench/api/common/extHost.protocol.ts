@@ -181,7 +181,7 @@ export interface AuthenticationGetSessionOptions {
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): void;
+	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedIssuers?: UriComponents[]): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void;

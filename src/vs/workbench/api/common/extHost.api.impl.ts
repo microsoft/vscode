@@ -298,6 +298,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
+				if (options?.issuer) {
+					checkProposedApiEnabled(extension, 'authIssuers');
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getAccounts(providerId: string) {
@@ -312,6 +315,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostAuthentication.getExtensionScopedSessionsEvent(extension.identifier.value));
 			},
 			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
+				if (options?.supportedIssuers) {
+					checkProposedApiEnabled(extension, 'authIssuers');
+				}
 				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
 			}
 		};
