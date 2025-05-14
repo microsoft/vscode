@@ -3,60 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/timelinePane';
-import { localize, localize2 } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { fromNow } from 'vs/base/common/date';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { isString } from 'vs/base/common/types';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import './media/timelinePane.css';
+import { localize, localize2 } from '../../../../nls.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import * as css from '../../../../base/browser/cssValue.js';
+import { IAction, ActionRunner } from '../../../../base/common/actions.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { DisposableStore, IDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
+import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from '../common/timeline.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor.js';
+import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { getContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { isString } from '../../../../base/common/types.js';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 const ItemHeight = 22;
 
@@ -226,12 +226,17 @@ class LoadMoreCommand {
 	}
 
 	get themeIcon(): ThemeIcon | undefined {
-		return undefined; //this.loading ? { id: 'sync~spin' } : undefined;
+		return undefined;
 	}
 }
 
 export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
 export const TimelineExcludeSources = new RawContextKey<string>('timelineExcludeSources', '[]', true);
+export const TimelineViewFocusedContext = new RawContextKey<boolean>('timelineFocused', true);
+
+interface IPendingRequest extends IDisposable {
+	readonly request: TimelineRequest;
+}
 
 export class TimelinePane extends ViewPane {
 	static readonly TITLE: ILocalizedString = localize2('timeline', "Timeline");
@@ -248,7 +253,7 @@ export class TimelinePane extends ViewPane {
 	private timelineExcludeSourcesContext: IContextKey<string>;
 
 	private excludedSources: Set<string>;
-	private pendingRequests = new Map<string, TimelineRequest>();
+	private pendingRequests = new Map<string, IPendingRequest>();
 	private timelinesBySource = new Map<string, TimelineAggregate>();
 
 	private uri: URI | undefined;
@@ -268,13 +273,12 @@ export class TimelinePane extends ViewPane {
 		@ITimelineService protected timelineService: ITimelineService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.commands = this._register(this.instantiationService.createInstance(TimelinePaneCommands, this));
 
@@ -285,7 +289,7 @@ export class TimelinePane extends ViewPane {
 		this.timelineExcludeSourcesContext.set(excludedSourcesString);
 		this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
-		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'timeline.excludeSources', this._register(new DisposableStore()))(this.onStorageServiceChanged, this));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'timeline.excludeSources', this._store)(this.onStorageServiceChanged, this));
 		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
@@ -493,8 +497,9 @@ export class TimelinePane extends ViewPane {
 		this.timelinesBySource.clear();
 
 		if (cancelPending) {
-			for (const { tokenSource } of this.pendingRequests.values()) {
-				tokenSource.dispose(true);
+			for (const pendingRequest of this.pendingRequests.values()) {
+				pendingRequest.request.tokenSource.cancel();
+				pendingRequest.dispose();
 			}
 
 			this.pendingRequests.clear();
@@ -586,34 +591,38 @@ export class TimelinePane extends ViewPane {
 			options = { cursor: reset ? undefined : timeline?.cursor, limit: this.pageSize };
 		}
 
-		let request = this.pendingRequests.get(source);
-		if (request !== undefined) {
-			options.cursor = request.options.cursor;
+		const pendingRequest = this.pendingRequests.get(source);
+		if (pendingRequest !== undefined) {
+			options.cursor = pendingRequest.request.options.cursor;
 
 			// TODO@eamodio deal with concurrent requests better
 			if (typeof options.limit === 'number') {
-				if (typeof request.options.limit === 'number') {
-					options.limit += request.options.limit;
+				if (typeof pendingRequest.request.options.limit === 'number') {
+					options.limit += pendingRequest.request.options.limit;
 				} else {
-					options.limit = request.options.limit;
+					options.limit = pendingRequest.request.options.limit;
 				}
 			}
 		}
-		request?.tokenSource.dispose(true);
+		pendingRequest?.request?.tokenSource.cancel();
+		pendingRequest?.dispose();
+
 		options.cacheResults = true;
 		options.resetCache = reset;
-		request = this.timelineService.getTimeline(
-			source, uri, options, new CancellationTokenSource()
-		);
+		const tokenSource = new CancellationTokenSource();
+		const newRequest = this.timelineService.getTimeline(source, uri, options, tokenSource);
 
-		if (request === undefined) {
+		if (newRequest === undefined) {
+			tokenSource.dispose();
 			return false;
 		}
 
-		this.pendingRequests.set(source, request);
-		request.tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source));
+		const disposables = new DisposableStore();
+		this.pendingRequests.set(source, { request: newRequest, dispose: () => disposables.dispose() });
+		disposables.add(tokenSource);
+		disposables.add(tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source)));
 
-		this.handleRequest(request);
+		this.handleRequest(newRequest);
 
 		return true;
 	}
@@ -639,6 +648,7 @@ export class TimelinePane extends ViewPane {
 			response = await this.progressService.withProgress({ location: this.id }, () => request.result);
 		}
 		finally {
+			this.pendingRequests.get(request.source)?.dispose();
 			this.pendingRequests.delete(request.source);
 		}
 
@@ -918,13 +928,13 @@ export class TimelinePane extends ViewPane {
 		container.appendChild(this.$tree);
 
 		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
-		this.treeRenderer.onDidScrollToEnd(item => {
+		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
 			}
-		});
+		}));
 
-		this.tree = <WorkbenchObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(WorkbenchObjectTree, 'TimelinePane',
+		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree<TreeElement, FuzzyScore>, 'TimelinePane',
 			this.$tree, new TimelineListVirtualDelegate(), [this.treeRenderer], {
 			identityProvider: new TimelineIdentityProvider(),
 			accessibilityProvider: {
@@ -948,6 +958,8 @@ export class TimelinePane extends ViewPane {
 			multipleSelectionSupport: false,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 		});
+
+		TimelineViewFocusedContext.bindTo(this.tree.contextKeyService);
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
 		this._register(this.tree.onDidChangeSelection(e => this.ensureValidItems()));
@@ -1158,7 +1170,11 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IThemeService private themeService: IThemeService,
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = getDefaultHoverDelegate('mouse');
+		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {
+			position: {
+				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
+			}
+		});
 	}
 
 	private uri: URI | undefined;
@@ -1186,7 +1202,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		if (iconUrl) {
 			template.icon.className = 'custom-view-tree-node-item-icon';
-			template.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
+			template.icon.style.backgroundImage = css.asCSSUrl(iconUrl);
 			template.icon.style.color = '';
 		} else if (item.themeIcon) {
 			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;
@@ -1224,6 +1240,10 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		if (isLoadMoreCommand(item)) {
 			setTimeout(() => this._onDidScrollToEnd.fire(item), 0);
 		}
+	}
+
+	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate, height: number | undefined): void {
+		templateData.actionBar.actionRunner.dispose();
 	}
 
 	disposeTemplate(template: TimelineElementTemplate): void {
@@ -1316,12 +1336,7 @@ class TimelinePaneCommands extends Disposable {
 		]);
 
 		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, result, 'inline');
-
-		return result;
+		return getContextMenuActions(menu, 'inline');
 	}
 
 	private updateTimelineSourceFilters() {

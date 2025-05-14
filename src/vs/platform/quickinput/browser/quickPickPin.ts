@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Codicon } from '../../../base/common/codicons.js';
+import { localize } from '../../../nls.js';
+import { IQuickPick, IQuickPickItem, QuickPickItem } from '../common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 
 const pinButtonClass = ThemeIcon.asClassName(Codicon.pin);
 const pinnedButtonClass = ThemeIcon.asClassName(Codicon.pinned);
@@ -60,7 +60,7 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 		const itemToPin = quickPick.items.find(item => itemsMatch(item, itemToFind));
 		if (itemToPin) {
 			const pinnedItemId = getItemIdentifier(itemToPin);
-			const pinnedItem: IQuickPickItem = Object.assign({} as IQuickPickItem, itemToPin);
+			const pinnedItem: IQuickPickItem = { ...(itemToPin as IQuickPickItem) };
 			if (!filterDuplicates || !pinnedIds.has(pinnedItemId)) {
 				pinnedIds.add(pinnedItemId);
 				updateButtons(pinnedItem, false);

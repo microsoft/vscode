@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewStyles } from '../../../../webview/browser/webview.js';
 
 const mapping: ReadonlyMap<string, string> = new Map([
 	['theme-font-family', 'vscode-font-family'],

@@ -3,112 +3,96 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { Emitter } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { URI } from 'vs/base/common/uri';
-import { FileKind } from 'vs/platform/files/common/files';
-import { Range } from 'vs/editor/common/core/range';
-import { basename, dirname } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { ChatResponseReferencePartStatusKind, IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import * as dom from '../../../../../base/browser/dom.js';
+import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { localize } from '../../../../../nls.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ResourceLabels } from '../../../../browser/labels.js';
+import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
+import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget } from '../chatAttachmentWidgets.js';
+
+export const chatAttachmentResourceContextKey = new RawContextKey<string>('chatAttachmentResource', undefined, { type: 'URI', description: localize('resource', "The full value of the chat attachment resource, including scheme and path") });
+
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+	private readonly _contextResourceLabels: ResourceLabels;
 
 	constructor(
 		private readonly variables: IChatRequestVariableEntry[],
 		private readonly contentReferences: ReadonlyArray<IChatContentReference> = [],
-		public readonly domNode: HTMLElement = dom.$('.chat-attached-context'),
+		public readonly domNode: HTMLElement | undefined = dom.$('.chat-attached-context'),
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
+		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 
 		this.initAttachedContext(domNode);
+		if (!domNode.childElementCount) {
+			this.domNode = undefined;
+		}
 	}
 
 	private initAttachedContext(container: HTMLElement) {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
-		dom.setVisibility(Boolean(this.variables.length), this.domNode);
+		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
-		this.variables.forEach((attachment) => {
-			const widget = dom.append(container, dom.$('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
-			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+		this.variables.forEach(async (attachment) => {
+			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 
-			const correspondingContentReference = this.contentReferences.find((ref) => typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name);
+			let widget;
+			if (isElementVariableEntry(attachment)) {
+				widget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+			} else if (isImageVariableEntry(attachment)) {
+				widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
+				widget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+			} else if (isPasteVariableEntry(attachment)) {
+				widget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+			} else if (resource && isNotebookOutputVariableEntry(attachment)) {
+				widget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+			} else {
+				widget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+			}
+
+			const correspondingContentReference = this.contentReferences.find((ref) => (typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name) || (URI.isUri(ref.reference) && basename(ref.reference.path) === attachment.name));
 			const isAttachmentOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted;
 			const isAttachmentPartialOrOmitted = isAttachmentOmitted || correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial;
 
-			if (file) {
-				const fileBasename = basename(file.path);
-				const fileDirname = dirname(file.path);
-				const friendlyName = `${fileBasename} ${fileDirname}`;
-				let ariaLabel;
-				if (isAttachmentOmitted) {
-					ariaLabel = range ? localize('chat.omittedFileAttachmentWithRange', "Omitted: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.omittedFileAttachment', "Omitted: {0}.", friendlyName);
-				} else if (isAttachmentPartialOrOmitted) {
-					ariaLabel = range ? localize('chat.partialFileAttachmentWithRange', "Partially attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.partialFileAttachment', "Partially attached: {0}.", friendlyName);
-				} else {
-					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
-				}
-
-				label.setFile(file, {
-					fileKind: FileKind.FILE,
-					hidePath: true,
-					range,
-					title: correspondingContentReference?.options?.status?.description
-				});
-				widget.ariaLabel = ariaLabel;
-				widget.tabIndex = 0;
-				widget.style.cursor = 'pointer';
-
-				this.attachedContextDisposables.add(dom.addDisposableListener(widget, dom.EventType.CLICK, async (e: MouseEvent) => {
-					dom.EventHelper.stop(e, true);
-					if (file) {
-						this.openerService.open(
-							file,
-							{
-								fromUserGesture: true,
-								editorOptions: {
-									selection: range
-								} as any
-							});
-					}
-				}));
-			} else {
-				const attachmentLabel = attachment.fullName ?? attachment.name;
-				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
-				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
-
-				widget.ariaLabel = localize('chat.attachment3', "Attached context: {0}.", attachment.name);
-				widget.tabIndex = 0;
-			}
+			let ariaLabel: string | null = null;
 
 			if (isAttachmentPartialOrOmitted) {
-				widget.classList.add('warning');
+				widget.element.classList.add('warning');
 			}
 			const description = correspondingContentReference?.options?.status?.description;
 			if (isAttachmentPartialOrOmitted) {
-				widget.ariaLabel = `${widget.ariaLabel}${description ? ` ${description}` : ''}`;
+				ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
 				for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-					const element = label.element.querySelector(selector);
+					const element = widget.label.element.querySelector(selector);
 					if (element) {
 						element.classList.add('warning');
 					}
 				}
 			}
+
+			if (this.attachedContextDisposables.isDisposed) {
+				return;
+			}
+
+			if (ariaLabel) {
+				widget.element.ariaLabel = ariaLabel;
+			}
 		});
 	}
 }
-

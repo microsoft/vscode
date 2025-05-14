@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { language } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { disposableTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Disposable, dispose, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { language } from '../../../../../../base/common/platform.js';
+import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { themeColorFromId } from '../../../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from './notebookVisibleCellObserver.js';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { cellStatusIconError, cellStatusIconSuccess } from '../../notebookEditorWidget.js';
+import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from '../../notebookIcons.js';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookSetting } from '../../../common/notebookCommon.js';
+import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -227,17 +228,28 @@ class TimerCellStatusBarItem extends Disposable {
 
 	private _deferredUpdate: IDisposable | undefined;
 
+	private _isVerbose: boolean;
+
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
 		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+		this._isVerbose = this._configurationService.getValue(NotebookSetting.cellExecutionTimeVerbosity) === 'verbose';
 
 		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarItem.UPDATE_INTERVAL));
 		this._update();
 		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotebookSetting.cellExecutionTimeVerbosity)) {
+				this._isVerbose = this._configurationService.getValue(NotebookSetting.cellExecutionTimeVerbosity) === 'verbose';
+				this._update();
+			}
+		}));
 	}
 
 	private async _update() {
@@ -276,7 +288,7 @@ class TimerCellStatusBarItem extends Disposable {
 				this._deferredUpdate = disposableTimeout(() => {
 					this._deferredUpdate = undefined;
 					this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
-				}, UPDATE_TIMER_GRACE_PERIOD);
+				}, UPDATE_TIMER_GRACE_PERIOD, this._store);
 			}
 		} else {
 			this._deferredUpdate?.dispose();
@@ -290,8 +302,9 @@ class TimerCellStatusBarItem extends Disposable {
 
 		let tooltip: IMarkdownString | undefined;
 
+		const lastExecution = new Date(endTime).toLocaleTimeString(language);
+
 		if (runtimeInformation) {
-			const lastExecution = new Date(endTime).toLocaleTimeString(language);
 			const { renderDuration, executionDuration, timerDuration } = runtimeInformation;
 
 			let renderTimes = '';
@@ -318,8 +331,12 @@ class TimerCellStatusBarItem extends Disposable {
 
 		}
 
+		const executionText = this._isVerbose ?
+			localize('notebook.cell.statusBar.timerVerbose', "Last Execution: {0}, Duration: {1}", lastExecution, formatCellDuration(duration, false)) :
+			formatCellDuration(duration, false);
+
 		return {
-			text: formatCellDuration(duration, false),
+			text: executionText,
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip

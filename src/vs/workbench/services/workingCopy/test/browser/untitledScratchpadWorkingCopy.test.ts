@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBufferReadableStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { consumeReadable, consumeStream, isReadable, isReadableStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { TestUntitledFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { VSBufferReadableStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { consumeReadable, consumeStream, isReadable, isReadableStream } from '../../../../../base/common/stream.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from '../../common/untitledFileWorkingCopy.js';
+import { TestUntitledFileWorkingCopyModel } from './untitledFileWorkingCopy.test.js';
+import { TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 export class TestUntitledFileWorkingCopyModelFactory implements IUntitledFileWorkingCopyModelFactory<TestUntitledFileWorkingCopyModel> {
 

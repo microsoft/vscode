@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ITextModel } from 'vs/editor/common/model';
-import { URI } from 'vs/base/common/uri';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { Event } from 'vs/base/common/event';
-import { timeout } from 'vs/base/common/async';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput.js';
+import { TextResourceEditorModel } from '../../../../common/editor/textResourceEditorModel.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from '../../../../test/browser/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { TextFileEditorModel } from '../../../textfile/common/textFileEditorModel.js';
+import { snapshotToString } from '../../../textfile/common/textfiles.js';
+import { TextFileEditorModelManager } from '../../../textfile/common/textFileEditorModelManager.js';
+import { Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
+import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('Workbench - TextModelResolverService', () => {
 

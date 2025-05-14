@@ -3,26 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import type { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
+import type { IChatEditorOptions } from './chatEditor.js';
+import { IChatModel } from '../common/chatModel.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatAgentLocation } from '../common/constants.js';
+import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from './actions/chatActions.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
-export class ChatEditorInput extends EditorInput {
+export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
 	static readonly countsInUse = new Set<number>();
 
 	static readonly TypeID: string = 'workbench.input.chatSession';
@@ -50,7 +52,8 @@ export class ChatEditorInput extends EditorInput {
 	constructor(
 		readonly resource: URI,
 		readonly options: IChatEditorOptions,
-		@IChatService private readonly chatService: IChatService
+		@IChatService private readonly chatService: IChatService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -67,12 +70,29 @@ export class ChatEditorInput extends EditorInput {
 		this._register(toDisposable(() => ChatEditorInput.countsInUse.delete(this.inputCount)));
 	}
 
+	override closeHandler = this;
+
+	showConfirm(): boolean {
+		return this.model?.editingSession ? shouldShowClearEditingSessionConfirmation(this.model.editingSession) : false;
+	}
+
+	async confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
+		if (!this.model?.editingSession) {
+			return ConfirmResult.SAVE;
+		}
+
+		const titleOverride = nls.localize('chatEditorConfirmTitle', "Close Chat Editor");
+		const messageOverride = nls.localize('chat.startEditing.confirmation.pending.message.default', "Closing the chat editor will end your current edit session.");
+		const result = await showClearEditingSessionConfirmation(this.model.editingSession, this.dialogService, { titleOverride, messageOverride });
+		return result ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
+	}
+
 	override get editorId(): string | undefined {
 		return ChatEditorInput.EditorID;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Singleton;
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -93,7 +113,8 @@ export class ChatEditorInput extends EditorInput {
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		if (typeof this.sessionId === 'string') {
-			this.model = this.chatService.getOrRestoreSession(this.sessionId);
+			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
+				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if ('data' in this.options.target) {

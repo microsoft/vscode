@@ -6,13 +6,13 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
+import * as path from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as pfs from '../../../../base/node/pfs.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils.js';
+import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../../node/workspaces.js';
 
 flakySuite('Workspaces', () => {
 

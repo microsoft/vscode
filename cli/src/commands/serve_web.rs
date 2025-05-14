@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::pin;
+use tokio::{pin, time};
 
 use crate::async_pipe::{
 	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
@@ -50,7 +50,7 @@ const SERVER_IDLE_TIMEOUT_SECS: u64 = 60 * 60;
 /// (should be large enough to basically never happen)
 const SERVER_ACTIVE_TIMEOUT_SECS: u64 = SERVER_IDLE_TIMEOUT_SECS * 24 * 30 * 12;
 /// How long to cache the "latest" version we get from the update service.
-const RELEASE_CACHE_SECS: u64 = 60 * 60;
+const RELEASE_CHECK_INTERVAL: u64 = 60 * 60;
 
 /// Number of bytes for the secret keys. See workbench.ts for their usage.
 const SECRET_KEY_BYTES: usize = 32;
@@ -86,7 +86,11 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		}
 	}
 
-	let cm = ConnectionManager::new(&ctx, platform, args.clone());
+	let cm: Arc<ConnectionManager> = ConnectionManager::new(&ctx, platform, args.clone());
+	let update_check_interval = 3600;
+	cm.clone()
+		.start_update_checker(Duration::from_secs(update_check_interval));
+
 	let key = get_server_key_half(&ctx.paths);
 	let make_svc = move || {
 		let ctx = HandleContext {
@@ -121,7 +125,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		};
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
-		let mut listening = format!("Web UI available at http://{}", addr);
+		let mut listening = format!("Web UI available at http://{addr}");
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
@@ -129,7 +133,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 			listening.push_str(&base);
 		}
 		if let Some(ct) = args.connection_token {
-			listening.push_str(&format!("?tkn={}", ct));
+			listening.push_str(&format!("?tkn={ct}"));
 		}
 		ctx.log.result(listening);
 
@@ -175,7 +179,7 @@ async fn handle_proxied(ctx: &HandleContext, req: Request<Body>) -> Response<Bod
 	let release = if let Some((r, _)) = get_release_from_path(req.uri().path(), ctx.cm.platform) {
 		r
 	} else {
-		match ctx.cm.get_latest_release().await {
+		match ctx.cm.get_release_from_cache().await {
 			Ok(r) => r,
 			Err(e) => {
 				error!(ctx.log, "error getting latest version: {}", e);
@@ -219,12 +223,9 @@ fn append_secret_headers(
 	let headers = res.headers_mut();
 	headers.append(
 		hyper::header::SET_COOKIE,
-		format!(
-			"{}={}{}; SameSite=Strict; Path=/",
-			PATH_COOKIE_NAME, base_path, SECRET_KEY_MINT_PATH,
-		)
-		.parse()
-		.unwrap(),
+		format!("{PATH_COOKIE_NAME}={base_path}{SECRET_KEY_MINT_PATH}; SameSite=Strict; Path=/",)
+			.parse()
+			.unwrap(),
 	);
 	headers.append(
 		hyper::header::SET_COOKIE,
@@ -251,6 +252,7 @@ fn get_release_from_path(path: &str, platform: Platform) -> Option<(Release, Str
 
 	let (quality_commit, remaining) = path.split_at(i);
 	let (quality, commit) = quality_commit.split_at(quality_commit_sep);
+	let commit = &commit[1..];
 
 	if !is_commit_hash(commit) {
 		return None;
@@ -441,14 +443,14 @@ mod response {
 	pub fn connection_err(err: hyper::Error) -> Response<Body> {
 		Response::builder()
 			.status(503)
-			.body(Body::from(format!("Error connecting to server: {:?}", err)))
+			.body(Body::from(format!("Error connecting to server: {err:?}")))
 			.unwrap()
 	}
 
 	pub fn code_err(err: CodeError) -> Response<Body> {
 		Response::builder()
 			.status(500)
-			.body(Body::from(format!("Error serving request: {}", err)))
+			.body(Body::from(format!("Error serving request: {err}")))
 			.unwrap()
 	}
 
@@ -538,19 +540,67 @@ impl ConnectionManager {
 	pub fn new(ctx: &CommandContext, platform: Platform, args: ServeWebArgs) -> Arc<Self> {
 		let base_path = normalize_base_path(args.server_base_path.as_deref().unwrap_or_default());
 
+		let cache = DownloadCache::new(ctx.paths.web_server_storage());
+		let target_kind = TargetKind::Web;
+
+		let quality = VSCODE_CLI_QUALITY.map_or(Quality::Stable, |q| match Quality::try_from(q) {
+			Ok(q) => q,
+			Err(_) => Quality::Stable,
+		});
+
+		let now = Instant::now();
+		let latest_version = tokio::sync::Mutex::new(cache.get().first().map(|latest_commit| {
+			(
+				now.checked_sub(Duration::from_secs(RELEASE_CHECK_INTERVAL))
+					.unwrap_or(now), // handle 0-ish instants, #233155
+				Release {
+					name: String::from("0.0.0"), // Version information not stored on cache
+					commit: latest_commit.clone(),
+					platform,
+					target: target_kind,
+					quality,
+				},
+			)
+		}));
+
 		Arc::new(Self {
 			platform,
 			args,
 			base_path,
 			log: ctx.log.clone(),
-			cache: DownloadCache::new(ctx.paths.web_server_storage()),
+			cache,
 			update_service: UpdateService::new(
 				ctx.log.clone(),
 				Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 			),
 			state: ConnectionStateMap::default(),
-			latest_version: tokio::sync::Mutex::default(),
+			latest_version,
 		})
+	}
+
+	// spawns a task that checks for updates every n seconds duration
+	pub fn start_update_checker(self: Arc<Self>, duration: Duration) {
+		tokio::spawn(async move {
+			let mut interval = time::interval(duration);
+			loop {
+				interval.tick().await;
+
+				if let Err(e) = self.get_latest_release().await {
+					warning!(self.log, "error getting latest version: {}", e);
+				}
+			}
+		});
+	}
+
+	// Returns the latest release from the cache, if one exists.
+	pub async fn get_release_from_cache(&self) -> Result<Release, CodeError> {
+		let latest = self.latest_version.lock().await;
+		if let Some((_, release)) = &*latest {
+			return Ok(release.clone());
+		}
+
+		drop(latest);
+		self.get_latest_release().await
 	}
 
 	/// Gets a connection to a server version
@@ -571,11 +621,7 @@ impl ConnectionManager {
 	pub async fn get_latest_release(&self) -> Result<Release, CodeError> {
 		let mut latest = self.latest_version.lock().await;
 		let now = Instant::now();
-		if let Some((checked_at, release)) = &*latest {
-			if checked_at.elapsed() < Duration::from_secs(RELEASE_CACHE_SECS) {
-				return Ok(release.clone());
-			}
-		}
+		let target_kind = TargetKind::Web;
 
 		let quality = VSCODE_CLI_QUALITY
 			.ok_or_else(|| CodeError::UpdatesNotConfigured("no configured quality"))
@@ -585,13 +631,14 @@ impl ConnectionManager {
 
 		let release = self
 			.update_service
-			.get_latest_commit(self.platform, TargetKind::Web, quality)
+			.get_latest_commit(self.platform, target_kind, quality)
 			.await
 			.map_err(|e| CodeError::UpdateCheckFailed(e.to_string()));
 
 		// If the update service is unavailable and we have stale data, use that
-		if let (Err(e), Some((_, previous))) = (&release, &*latest) {
+		if let (Err(e), Some((_, previous))) = (&release, latest.clone()) {
 			warning!(self.log, "error getting latest release, using stale: {}", e);
+			*latest = Some((now, previous.clone()));
 			return Ok(previous.clone());
 		}
 
@@ -729,14 +776,6 @@ impl ConnectionManager {
 		}
 		if let Some(a) = &args.args.server_data_dir {
 			cmd.arg("--server-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.user_data_dir {
-			cmd.arg("--user-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.extensions_dir {
-			cmd.arg("--extensions-dir");
 			cmd.arg(a);
 		}
 		if args.args.without_connection_token {

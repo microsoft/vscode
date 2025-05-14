@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { IWorkerServer, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { StateDeltas } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { UriComponents } from '../../../../../../base/common/uri.js';
+import { IWebWorkerServer, IWebWorkerClient } from '../../../../../../base/common/worker/webWorker.js';
+import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 
 export abstract class TextMateWorkerHost {
 	public static CHANNEL_NAME = 'textMateWorkerHost';
-	public static getChannel(workerServer: IWorkerServer): TextMateWorkerHost {
+	public static getChannel(workerServer: IWebWorkerServer): TextMateWorkerHost {
 		return workerServer.getChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWorkerClient<any>, obj: TextMateWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<any>, obj: TextMateWorkerHost): void {
 		workerClient.setChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME, obj);
 	}
 

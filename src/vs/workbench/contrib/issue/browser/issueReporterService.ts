@@ -2,11 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IProductConfiguration } from 'vs/base/common/product';
-import { localize } from 'vs/nls';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
-import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
+import { IProductConfiguration } from '../../../../base/common/product.js';
+import { localize } from '../../../../nls.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IIssueFormService, IssueReporterData } from '../common/issue.js';
+import { BaseIssueReporterService } from './baseIssueReporterService.js';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -23,9 +25,11 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		product: IProductConfiguration,
 		window: Window,
 		@IIssueFormService issueFormService: IIssueFormService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService fileService: IFileService,
+		@IFileDialogService fileDialogService: IFileDialogService
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService, themeService);
+		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService);
 
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 

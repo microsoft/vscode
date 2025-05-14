@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Event } from 'vs/base/common/event';
-import type { IDisposable } from 'vs/base/common/lifecycle';
-import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
-import type { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import type { Event } from '../../../../../../base/common/event.js';
+import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import type * as webviewMessages from './webviewMessages.js';
+import type { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 import type * as rendererApi from 'vscode-notebook-renderer';
+import type { NotebookCellOutputTransferData } from '../../../../../../platform/dnd/browser/dnd.js';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -187,6 +188,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}, 0);
 	};
 
+	const isEditableElement = (element: Element) => {
+		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea'
+			|| ('editContext' in element && !!element.editContext);
+	};
+
 	// check if an input element is focused within the output element
 	const checkOutputInputFocus = (e: FocusEvent) => {
 		lastFocusedOutput = getOutputContainer(e);
@@ -196,7 +202,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+		if (id && (isEditableElement(activeElement) || activeElement.tagName === 'SELECT')) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -303,7 +309,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			(activeElement as HTMLInputElement).select();
 		}
 	};
@@ -329,7 +335,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			// Leave for default behavior.
 			return;
 		}
@@ -357,7 +363,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			// The input element will handle this.
 			return;
 		}
@@ -696,7 +702,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusableElement.tabIndex = -1;
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			} else {
-				const inputFocused = focusableElement.tagName === 'INPUT' || focusableElement.tagName === 'TEXTAREA';
+				const inputFocused = isEditableElement(focusableElement);
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
@@ -1064,7 +1070,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([valueBytes], { type: this.mime });
+					return new Blob([valueBytes as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				get _allOutputItems() {
@@ -1773,6 +1779,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 				outputContainer?.classList.add(...event.data.addedClassNames);
 				outputContainer?.classList.remove(...event.data.removedClassNames);
+				break;
+			}
+			case 'markupDecorations': {
+				const markupCell = window.document.getElementById(event.data.cellId);
+				// The cell may not have been added yet if it is out of view.
+				// Decorations will be added when the cell is shown.
+				if (markupCell) {
+					markupCell?.classList.add(...event.data.addedClassNames);
+					markupCell?.classList.remove(...event.data.removedClassNames);
+				}
 				break;
 			}
 			case 'customKernelMessage':
@@ -2504,7 +2520,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([this.data()], { type: this.mime });
+					return new Blob([this.data() as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				_allOutputItems: [{
@@ -2728,20 +2744,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (!!data.executionId && !!data.rendererId) {
 				let outputSize: number | undefined = undefined;
-				let mimeType: string | undefined = undefined;
 				if (data.content.type === 1 /* extension */) {
 					outputSize = data.content.output.valueBytes.length;
-					mimeType = data.content.output.mime;
 				}
 
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
-					cellId: data.cellId,
-					executionId: data.executionId,
-					duration: Date.now() - startTime,
-					rendererId: data.rendererId,
-					outputSize,
-					mimeType
-				});
+				// Only send performance messages for non-empty outputs up to a certain size
+				if (outputSize !== undefined && outputSize > 0 && outputSize < 100 * 1024) {
+					postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+						cellId: data.cellId,
+						executionId: data.executionId,
+						duration: Date.now() - startTime,
+						rendererId: data.rendererId,
+						outputSize
+					});
+				}
 			}
 		}
 
@@ -2879,6 +2895,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private hasResizeObserver = false;
 
 		private renderTaskAbort?: AbortController;
+		private isImageOutput = false;
 
 		constructor(
 			private readonly outputId: string,
@@ -2899,6 +2916,37 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.addEventListener('mouseleave', () => {
 				postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', { id: outputId });
 			});
+
+			// Add drag handler
+			this.element.addEventListener('dragstart', (e: DragEvent) => {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const outputData: NotebookCellOutputTransferData = {
+					outputId: this.outputId,
+				};
+
+				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
+			});
+
+			// Add alt key handlers
+			window.addEventListener('keydown', (e) => {
+				if (e.altKey) {
+					this.element.draggable = true;
+				}
+			});
+
+			window.addEventListener('keyup', (e) => {
+				if (!e.altKey) {
+					this.element.draggable = this.isImageOutput;
+				}
+			});
+
+			// Handle window blur to reset draggable state
+			window.addEventListener('blur', () => {
+				this.element.draggable = this.isImageOutput;
+			});
 		}
 
 		public dispose() {
@@ -2918,6 +2966,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
+
+				const imageMimeTypes = ['image/png', 'image/jpeg', 'image/svg'];
+				this.isImageOutput = imageMimeTypes.includes(content.output.mime);
+				this.element.draggable = this.isImageOutput;
+
 				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();

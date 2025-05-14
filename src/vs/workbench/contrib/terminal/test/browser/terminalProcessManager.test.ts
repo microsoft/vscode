@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITerminalChildProcess } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalInstanceService } from '../../browser/terminal.js';
+import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;

@@ -5,17 +5,17 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import sinonTest from 'sinon-test';
-import { mainWindow } from 'vs/base/browser/window';
-import * as Errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { mainWindow } from '../../../../base/browser/window.js';
+import * as Errors from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import ErrorTelemetry from '../../browser/errorTelemetry.js';
+import { TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
+import { ITelemetryServiceConfig, TelemetryService } from '../../common/telemetryService.js';
+import { ITelemetryAppender, NullAppender } from '../../common/telemetryUtils.js';
 
 const sinonTestFn = sinonTest(sinon);
 

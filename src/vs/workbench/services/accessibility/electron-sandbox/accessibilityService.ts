@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IAccessibilityService, AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
+import { isWindows, isLinux } from '../../../../base/common/platform.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AccessibilityService } from '../../../../platform/accessibility/browser/accessibilityService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 interface AccessibilityMetrics {
 	enabled: boolean;

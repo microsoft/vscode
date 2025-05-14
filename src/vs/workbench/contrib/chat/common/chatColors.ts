@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { localize } from '../../../../nls.js';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
@@ -41,4 +41,15 @@ export const chatAvatarForeground = registerColor(
 	'chat.avatarForeground',
 	foreground,
 	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
+);
+
+export const chatEditedFileForeground = registerColor(
+	'chat.editedFileForeground',
+	{
+		light: '#895503',
+		dark: '#E2C08D',
+		hcDark: '#E2C08D',
+		hcLight: '#895503'
+	},
+	localize('chat.editedFileForeground', 'The foreground color of a chat edited file in the edited file list.')
 );

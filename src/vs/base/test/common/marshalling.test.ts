@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { parse, stringify } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { parse, stringify } from '../../common/marshalling.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Marshalling', () => {
 

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model.js';
+import { MirrorTextModel } from '../../../common/model/mirrorTextModel.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { assertSyncedModels, testApplyEditsWithSyncedModels } from './editableTextModelTestUtils.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 

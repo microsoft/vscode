@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ProfilingSession } from 'v8-inspect-profiler';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IV8InspectProfilingService, IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IV8InspectProfilingService, IV8Profile } from '../common/profiling.js';
 
 export class InspectProfilingService implements IV8InspectProfilingService {
 

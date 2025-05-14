@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ICommonMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
-import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { ICommonMenubarService, IMenubarData } from '../common/menubar.js';
+import { Menubar } from './menubar.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 export const IMenubarMainService = createDecorator<IMenubarMainService>('menubarMainService');
 
@@ -20,7 +20,7 @@ export class MenubarMainService extends Disposable implements IMenubarMainServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly menubar = this.installMenuBarAfterWindowOpen();
+	private readonly menubar: Promise<Menubar>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -28,6 +28,8 @@ export class MenubarMainService extends Disposable implements IMenubarMainServic
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.menubar = this.installMenuBarAfterWindowOpen();
 	}
 
 	private async installMenuBarAfterWindowOpen(): Promise<Menubar> {

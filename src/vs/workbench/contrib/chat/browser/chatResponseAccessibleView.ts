@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IChatWidgetService, IChatWidget, ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { isResponseVM } from '../common/chatViewModel.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
-export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
+export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
-	readonly when = CONTEXT_IN_CHAT_SESSION;
+	readonly when = ChatContextKeys.inChatSession;
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
@@ -33,7 +33,6 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 
 		const verifiedWidget: IChatWidget = widget;
 		const focusedItem = verifiedWidget.getFocus();
-
 		if (!focusedItem) {
 			return;
 		}
@@ -53,7 +52,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		this._focusedItem = item;
 	}
 
-	readonly id = AccessibleViewProviderId.Chat;
+	readonly id = AccessibleViewProviderId.PanelChat;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Chat;
 	readonly options = { type: AccessibleViewType.View };
 
@@ -62,21 +61,37 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	}
 
 	private _getContent(item: ChatTreeItem): string {
-		const isWelcome = item instanceof ChatWelcomeMessageModel;
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
-		if (isWelcome) {
-			const welcomeReplyContents = [];
-			for (const content of item.content) {
-				if (Array.isArray(content)) {
-					welcomeReplyContents.push(...content.map(m => m.message));
-				} else {
-					welcomeReplyContents.push((content as IMarkdownString).value);
-				}
-			}
-			responseContent = welcomeReplyContents.join('\n');
-		}
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
+		}
+		if (isResponseVM(item)) {
+
+			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
+			for (const toolInvocation of toolInvocations) {
+				if (toolInvocation.confirmationMessages) {
+					const title = toolInvocation.confirmationMessages.title;
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
+					const command = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
+					responseContent += `${title}`;
+					if (command) {
+						responseContent += `: ${command}`;
+					}
+					responseContent += `\n${message}\n`;
+				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
+					responseContent += toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
+					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
+				}
+			}
+
+			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
+			for (const pastConfirmation of pastConfirmations) {
+				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
+					if (pastConfirmation.pastTenseMessage) {
+						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderMarkdownAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
+					}
+				}
+			}
 		}
 		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
 	}
@@ -108,4 +123,3 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		return;
 	}
 }
-

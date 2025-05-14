@@ -3,24 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
-import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/textAreaInput';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorAction, MultiCommand, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as browser from '../../../../base/browser/browser.js';
+import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as platform from '../../../../base/common/platform.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import * as nls from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Handler } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteController.js';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -156,8 +160,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
-			label: nls.localize('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
-			alias: 'Copy With Syntax Highlighting',
+			label: nls.localize2('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy with Syntax Highlighting"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -201,7 +204,14 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			if (selection && selection.isEmpty() && !emptySelectionClipboard) {
 				return true;
 			}
-			focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
+			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
+			if (focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled) && browserCommand === 'cut') {
+				// execCommand(copy) works for edit context, but not execCommand(cut).
+				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
+				focusedEditor.trigger(undefined, Handler.Cut, undefined);
+			} else {
+				focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
+			}
 			return true;
 		}
 		return false;
@@ -222,14 +232,46 @@ if (PasteAction) {
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const productService = accessor.get(IProductService);
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
-		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			const result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-			if (result) {
-				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-			} else if (platform.isWeb) {
+		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
+			// execCommand(paste) does not work with edit context
+			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
+			if (experimentalEditContextEnabled) {
+				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
+				if (nativeEditContext) {
+					nativeEditContext.onWillPaste();
+				}
+			}
+
+			const sw = StopWatch.create(true);
+			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
+			if (triggerPaste) {
+				return triggerPaste.then(async () => {
+
+					if (productService.quality !== 'stable') {
+						const duration = sw.elapsed();
+						type EditorAsyncPasteClassification = {
+							duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the paste operation.' };
+							owner: 'aiday-mar';
+							comment: 'Provides insight into the delay introduced by pasting async via keybindings.';
+						};
+						type EditorAsyncPasteEvent = {
+							duration: number;
+						};
+						telemetryService.publicLog2<EditorAsyncPasteEvent, EditorAsyncPasteClassification>(
+							'editorAsyncPaste',
+							{ duration }
+						);
+					}
+
+					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+				});
+			}
+			if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
@@ -259,8 +301,8 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		getActiveDocument().execCommand('paste');
-		return true;
+		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
+		return triggerPaste ?? false;
 	});
 }
 

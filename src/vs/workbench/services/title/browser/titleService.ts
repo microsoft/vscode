@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAuxiliaryTitlebarPart, ITitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAuxiliaryTitlebarPart, ITitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
+import { IEditorGroupsContainer } from '../../editor/common/editorGroupsService.js';
 
 export const ITitleService = createDecorator<ITitleService>('titleService');
 

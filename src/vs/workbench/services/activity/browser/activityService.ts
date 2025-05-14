@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
-import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isUndefined } from 'vs/base/common/types';
+import { IActivityService, IActivity } from '../common/activity.js';
+import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IViewDescriptorService, ViewContainer } from '../../../common/views.js';
+import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from '../../../common/activity.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 class ViewContainerActivityByView extends Disposable {
 
@@ -77,31 +76,28 @@ export class ActivityService extends Disposable implements IActivityService {
 
 	showViewContainerActivity(viewContainerId: string, activity: IActivity): IDisposable {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
-		if (viewContainer) {
-			let activities = this.viewContainerActivities.get(viewContainerId);
-			if (!activities) {
-				activities = [];
-				this.viewContainerActivities.set(viewContainerId, activities);
-			}
-			for (let i = 0; i <= activities.length; i++) {
-				if (i === activities.length || isUndefined(activity.priority)) {
-					activities.push(activity);
-					break;
-				} else if (isUndefined(activities[i].priority) || activities[i].priority! <= activity.priority) {
-					activities.splice(i, 0, activity);
-					break;
-				}
+		if (!viewContainer) {
+			return Disposable.None;
+		}
+
+		let activities = this.viewContainerActivities.get(viewContainerId);
+		if (!activities) {
+			activities = [];
+			this.viewContainerActivities.set(viewContainerId, activities);
+		}
+
+		// add activity
+		activities.push(activity);
+
+		this._onDidChangeActivity.fire(viewContainer);
+
+		return toDisposable(() => {
+			activities.splice(activities.indexOf(activity), 1);
+			if (activities.length === 0) {
+				this.viewContainerActivities.delete(viewContainerId);
 			}
 			this._onDidChangeActivity.fire(viewContainer);
-			return toDisposable(() => {
-				activities.splice(activities.indexOf(activity), 1);
-				if (activities.length === 0) {
-					this.viewContainerActivities.delete(viewContainerId);
-				}
-				this._onDidChangeActivity.fire(viewContainer);
-			});
-		}
-		return Disposable.None;
+		});
 	}
 
 	getViewContainerActivities(viewContainerId: string): IActivity[] {

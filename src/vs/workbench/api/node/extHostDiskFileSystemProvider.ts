@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { Schemas } from 'vs/base/common/network';
-import { ILogService } from 'vs/platform/log/common/log';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { FilePermission } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
+import { IExtHostConsumerFileSystem } from '../common/extHostFileSystemConsumer.js';
+import { Schemas } from '../../../base/common/network.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
+import { FilePermission } from '../../../platform/files/common/files.js';
+import { isLinux } from '../../../base/common/platform.js';
 
 export class ExtHostDiskFileSystemProvider {
 
@@ -27,9 +27,11 @@ export class ExtHostDiskFileSystemProvider {
 
 class DiskFileSystemProviderAdapter implements vscode.FileSystemProvider {
 
-	private readonly impl = new DiskFileSystemProvider(this.logService);
+	private readonly impl: DiskFileSystemProvider;
 
-	constructor(private readonly logService: ILogService) { }
+	constructor(logService: ILogService) {
+		this.impl = new DiskFileSystemProvider(logService);
+	}
 
 	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
 		const stat = await this.impl.stat(uri);

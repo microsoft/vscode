@@ -3,26 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { ThemeColor } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { FormattingOptions } from 'vs/editor/common/languages';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
-import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { Event } from '../../base/common/event.js';
+import { IMarkdownString } from '../../base/common/htmlContent.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
+import { equals } from '../../base/common/objects.js';
+import { ThemeColor } from '../../base/common/themables.js';
+import { URI } from '../../base/common/uri.js';
+import { ISingleEditOperation } from './core/editOperation.js';
+import { IPosition, Position } from './core/position.js';
+import { IRange, Range } from './core/range.js';
+import { Selection } from './core/selection.js';
+import { TextChange } from './core/textChange.js';
+import { WordCharacterClassifier } from './core/wordCharacterClassifier.js';
+import { IWordAtPosition } from './core/wordHelper.js';
+import { FormattingOptions } from './languages.js';
+import { ILanguageSelection } from './languages/language.js';
+import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IGuidesTextModelPart } from './textModelGuides.js';
+import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
+import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
+import { TokenArray } from './tokens/tokenArray.js';
+import { IEditorModel } from './editorCommon.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -217,6 +219,10 @@ export interface IModelDecorationOptions {
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 	/**
+	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
+	 */
+	lineHeight?: number | null;
+	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string | null;
@@ -285,6 +291,11 @@ export interface InjectedTextOptions {
 	 * Sets the text to inject. Must be a single line.
 	 */
 	readonly content: string;
+
+	/**
+	 * @internal
+	*/
+	readonly tokens?: TokenArray | null;
 
 	/**
 	 * If set, the decoration will be rendered inline with the text with this CSS class name.
@@ -859,6 +870,11 @@ export interface ITextModel {
 	validateRange(range: IRange): Range;
 
 	/**
+	 * Verifies the range is valid.
+	 */
+	isValidRange(range: IRange): boolean;
+
+	/**
 	 * Converts the position to a zero-based offset.
 	 *
 	 * The position will be [adjusted](#TextDocument.validatePosition).
@@ -1097,6 +1113,12 @@ export interface ITextModel {
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
+	 * Gets all the decorations that contain custom line heights.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
 	 * @internal
 	 */
 	_getTrackedRange(id: string): Range | null;
@@ -1227,6 +1249,14 @@ export interface ITextModel {
 	 */
 	readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent>;
 	/**
+	 * An event emitted when line heights from decorations changes.
+	 * This event is emitted only when adding, removing or changing a decoration
+	 * and not when doing edits in the model (i.e. when decoration ranges change)
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	/**
 	 * An event emitted when the model options have changed.
 	 * @event
 	 */
@@ -1320,6 +1350,13 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly tokenization: ITokenizationTextModelPart;
+}
+
+/**
+ * @internal
+ */
+export function isITextModel(obj: IEditorModel): obj is ITextModel {
+	return Boolean(obj && (obj as ITextModel).uri);
 }
 
 /**

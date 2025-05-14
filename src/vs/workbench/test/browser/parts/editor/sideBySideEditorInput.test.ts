@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 suite('SideBySideEditorInput', () => {
 

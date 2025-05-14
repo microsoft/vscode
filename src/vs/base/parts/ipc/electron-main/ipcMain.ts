@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { VSCODE_AUTHORITY } from 'vs/base/common/network';
+import { onUnexpectedError } from '../../../common/errors.js';
+import { Event } from '../../../common/event.js';
+import { VSCODE_AUTHORITY } from '../../../common/network.js';
 
 type ipcMainListener = (event: electron.IpcMainEvent, ...args: any[]) => void;
 
@@ -111,7 +111,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 
 		const sender = event.senderFrame;
 
-		const url = sender.url;
+		const url = sender?.url;
 		// `url` can be `undefined` when running tests from playwright https://github.com/microsoft/vscode/issues/147301
 		// and `url` can be `about:blank` when reloading the window
 		// from performance tab of devtools https://github.com/electron/electron/issues/39427.
@@ -133,7 +133,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 			return false; // unexpected sender
 		}
 
-		if (sender.parent !== null) {
+		if (sender?.parent !== null) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because sender of origin '${host}' is not a main frame.`);
 			return false; // unexpected frame
 		}

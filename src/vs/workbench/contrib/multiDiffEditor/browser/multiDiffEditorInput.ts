@@ -3,35 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { Event, ValueWithChangeEvent } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { deepClone } from 'vs/base/common/objects';
-import { ObservableLazyPromise, autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { ValueWithChangeEventFromObservable, constObservable, mapObservableArrayCached, observableFromValueWithChangeEvent, recomputeInitiallyAndOnChange } from 'vs/base/common/observableInternal/utils';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isDefined, isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { RefCounted } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
-import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { localize } from 'vs/nls';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
-import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
-import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { parse } from '../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isDefined, isObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { MultiDiffEditorIcon } from './icons.contribution.js';
+import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
@@ -75,7 +74,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly; }
 	override get typeId(): string { return MultiDiffEditorInput.ID; }
 
-	private _name: string = '';
+	private _name: string;
 	override getName(): string { return this._name; }
 
 	override get editorId(): string { return DEFAULT_EDITOR_ASSOCIATION.id; }
@@ -93,16 +92,60 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
 		super();
+		this._name = '';
+		this._viewModel = new LazyStatefulPromise(async () => {
+			const model = await this._createModel();
+			this._register(model);
+			const vm = new MultiDiffEditorViewModel(model, this._instantiationService);
+			this._register(vm);
+			await raceTimeout(vm.waitForDiffs(), 1000);
+			return vm;
+		});
+		this._resolvedSource = new ObservableLazyPromise(async () => {
+			const source: IResolvedMultiDiffSource | undefined = this.initialResources
+				? { resources: ValueWithChangeEvent.const(this.initialResources) }
+				: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource);
+			return {
+				source,
+				resources: source ? observableFromValueWithChangeEvent(this, source.resources) : constObservable([]),
+			};
+		});
+		this.resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
+		this.textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
+			this._textFileService.files.onDidChangeDirty,
+			item => item.resource.toString(),
+			uri => uri.toString()
+		);
+		this._isDirtyObservables = mapObservableArrayCached(this, this.resources.map(r => r ?? []), res => {
+			const isModifiedDirty = res.modifiedUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.modifiedUri) : constObservable(false);
+			const isOriginalDirty = res.originalUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.originalUri) : constObservable(false);
+			return derived(reader => /** @description modifiedDirty||originalDirty */ isModifiedDirty.read(reader) || isOriginalDirty.read(reader));
+		}, i => i.getKey());
+		this._isDirtyObservable = derived(this, reader => this._isDirtyObservables.read(reader).some(isDirty => isDirty.read(reader)))
+			.keepObserved(this._store);
+		this.onDidChangeDirty = Event.fromObservableLight(this._isDirtyObservable);
+		this.closeHandler = {
+
+			// This is a workaround for not having a better way
+			// to figure out if the editors this input wraps
+			// around are opened or not
+
+			async confirm() {
+				return ConfirmResult.DONT_SAVE;
+			},
+			showConfirm() {
+				return false;
+			}
+		};
 
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
 			const label = this.label ?? localize('name', "Multi Diff Editor");
-			if (resources) {
-				this._name = label + localize({
-					key: 'files',
-					comment: ['the number of files being shown']
-				}, " ({0} files)", resources.length);
+			if (resources && resources.length === 1) {
+				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
+			} else if (resources) {
+				this._name = localize({ key: 'nameWithFiles', comment: ['{0} is the name of the editor', '{1} is the number of files being shown'] }, "{0} ({1} files)", label, resources.length);
 			} else {
 				this._name = label;
 			}
@@ -135,14 +178,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return this._viewModel.getPromise();
 	}
 
-	private readonly _viewModel = new LazyStatefulPromise(async () => {
-		const model = await this._createModel();
-		this._register(model);
-		const vm = new MultiDiffEditorViewModel(model, this._instantiationService);
-		this._register(vm);
-		await raceTimeout(vm.waitForDiffs(), 1000);
-		return vm;
-	});
+	private readonly _viewModel;
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
@@ -190,7 +226,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
 		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
 
-		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[]>('documents', []);
+		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>('documents', 'loading');
 
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */
@@ -211,15 +247,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return result;
 	}
 
-	private readonly _resolvedSource = new ObservableLazyPromise(async () => {
-		const source: IResolvedMultiDiffSource | undefined = this.initialResources
-			? { resources: ValueWithChangeEvent.const(this.initialResources) }
-			: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource);
-		return {
-			source,
-			resources: source ? observableFromValueWithChangeEvent(this, source.resources) : constObservable([]),
-		};
-	});
+	private readonly _resolvedSource;
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
@@ -233,23 +261,14 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return false;
 	}
 
-	public readonly resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
+	public readonly resources;
 
-	private readonly textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
-		this._textFileService.files.onDidChangeDirty,
-		item => item.resource.toString(),
-		uri => uri.toString()
-	);
+	private readonly textFileServiceOnDidChange;
 
-	private readonly _isDirtyObservables = mapObservableArrayCached(this, this.resources.map(r => r ?? []), res => {
-		const isModifiedDirty = res.modifiedUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.modifiedUri) : constObservable(false);
-		const isOriginalDirty = res.originalUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.originalUri) : constObservable(false);
-		return derived(reader => /** @description modifiedDirty||originalDirty */ isModifiedDirty.read(reader) || isOriginalDirty.read(reader));
-	}, i => i.getKey());
-	private readonly _isDirtyObservable = derived(this, reader => this._isDirtyObservables.read(reader).some(isDirty => isDirty.read(reader)))
-		.keepObserved(this._store);
+	private readonly _isDirtyObservables;
+	private readonly _isDirtyObservable;
 
-	override readonly onDidChangeDirty = Event.fromObservableLight(this._isDirtyObservable);
+	override readonly onDidChangeDirty;
 	override isDirty() { return this._isDirtyObservable.get(); }
 
 	override async save(group: number, options?: ISaveOptions | undefined): Promise<EditorInput> {
@@ -279,19 +298,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return undefined;
 	}
 
-	override readonly closeHandler: IEditorCloseHandler = {
-
-		// TODO@bpasero TODO@hediet this is a workaround for
-		// not having a better way to figure out if the
-		// editors this input wraps around are opened or not
-
-		async confirm() {
-			return ConfirmResult.DONT_SAVE;
-		},
-		showConfirm() {
-			return false;
-		}
-	};
+	override readonly closeHandler: IEditorCloseHandler;
 }
 
 export interface IDocumentDiffItemWithMultiDiffEditorItem extends IDocumentDiffItem {
@@ -314,7 +321,7 @@ class FastEventDispatcher<T, TKey> {
 	) {
 	}
 
-	public filteredEvent(filter: TKey): (listener: (e: T) => any) => IDisposable {
+	public filteredEvent(filter: TKey): (listener: (e: T) => unknown) => IDisposable {
 		return listener => {
 			const key = this._keyToString(filter);
 			let bucket = this._buckets.get(key);

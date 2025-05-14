@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { userInfo } from 'os';
-import * as platform from 'vs/base/common/platform';
-import { getFirstAvailablePowerShellInstallation } from 'vs/base/node/powershell';
-import * as processes from 'vs/base/node/processes';
+import * as platform from '../common/platform.js';
+import { getFirstAvailablePowerShellInstallation } from './powershell.js';
+import * as processes from './processes.js';
 
 /**
  * Gets the detected default shell for the _system_, not to be confused with VS Code's _default_

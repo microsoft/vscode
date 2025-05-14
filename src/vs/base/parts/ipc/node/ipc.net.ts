@@ -7,15 +7,15 @@ import { createHash } from 'crypto';
 import { Server as NetServer, Socket, createServer, createConnection } from 'net';
 import { tmpdir } from 'os';
 import { createDeflateRaw, ZlibOptions, InflateRaw, DeflateRaw, createInflateRaw } from 'zlib';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Platform, platform } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { VSBuffer } from '../../../common/buffer.js';
+import { onUnexpectedError } from '../../../common/errors.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { join } from '../../../common/path.js';
+import { Platform, platform } from '../../../common/platform.js';
+import { generateUuid } from '../../../common/uuid.js';
+import { ClientConnectionEvent, IPCServer } from '../common/ipc.js';
+import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../common/ipc.net.js';
 
 /**
  * Maximum time to wait for a 'close' event to fire after the socket stream

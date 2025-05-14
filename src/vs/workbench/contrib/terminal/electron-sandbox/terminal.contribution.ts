@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ILocalPtyService, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
-import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalNativeContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalNativeContribution';
-import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalProfileResolverService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ILocalPtyService, TerminalIpcChannels } from '../../../../platform/terminal/common/terminal.js';
+import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { ITerminalProfileResolverService } from '../common/terminal.js';
+import { TerminalNativeContribution } from './terminalNativeContribution.js';
+import { ElectronTerminalProfileResolverService } from './terminalProfileResolverService.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { LocalTerminalBackendContribution } from './localTerminalBackend.js';
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);

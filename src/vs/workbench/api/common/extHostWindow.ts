@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 import { WindowState } from 'vscode';
-import { ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from './extHost.protocol';
+import { ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { decodeBase64 } from '../../../base/common/buffer.js';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -24,6 +26,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	private readonly _onDidChangeWindowState = new Emitter<WindowState>();
 	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
+	private _nativeHandle: Uint8Array | undefined;
 	private _state = ExtHostWindow.InitialState;
 
 	getState(): WindowState {
@@ -40,12 +43,26 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		};
 	}
 
-	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+	constructor(
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	) {
+		if (initData.handle) {
+			this._nativeHandle = decodeBase64(initData.handle).buffer;
+		}
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWindow);
 		this._proxy.$getInitialState().then(({ isFocused, isActive }) => {
 			this.onDidChangeWindowProperty('focused', isFocused);
 			this.onDidChangeWindowProperty('active', isActive);
 		});
+	}
+
+	get nativeHandle(): Uint8Array | undefined {
+		return this._nativeHandle;
+	}
+
+	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void {
+		this._nativeHandle = handle ? decodeBase64(handle).buffer : undefined;
 	}
 
 	$onDidChangeWindowFocus(value: boolean) {

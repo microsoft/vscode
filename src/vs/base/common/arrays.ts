@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
-import { ISplice } from 'vs/base/common/sequence';
-import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
+import { findFirstIdxMonotonousOrArrLen } from './arraysFind.js';
+import { CancellationToken } from './cancellation.js';
+import { CancellationError } from './errors.js';
+import { ISplice } from './sequence.js';
 
 /**
- * Returns the last element of an array.
- * @param array The array.
- * @param n Which element from the end (default is zero).
+ * Returns the last entry and the initial N-1 entries of the array, as a tuple of [rest, last].
+ *
+ * The array must have at least one element.
+ *
+ * @param arr The input array
+ * @returns A tuple of [rest, last] where rest is all but the last element and last is the last element
+ * @throws Error if the array is empty
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
-	return array[array.length - (1 + n)];
-}
-
-export function tail2<T>(arr: T[]): [T[], T] {
+export function tail<T>(arr: T[]): [T[], T] {
 	if (arr.length === 0) {
 		throw new Error('Invalid tail call');
 	}
@@ -193,6 +193,10 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	}
 }
 
+export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
+	return ([] as any[]).concat(...arrays);
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
 	readonly toInsert: T[];
 	deleteCount: number;
@@ -361,14 +365,14 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts 
 /**
  * @deprecated Use `Array.copyWithin` instead
  */
-export function move(array: any[], from: number, to: number): void {
+export function move(array: unknown[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
 }
 
 /**
  * @returns false if the provided object is an array and not empty.
  */
-export function isFalsyOrEmpty(obj: any): boolean {
+export function isFalsyOrEmpty(obj: unknown): boolean {
 	return !Array.isArray(obj) || obj.length === 0;
 }
 
@@ -385,7 +389,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
  * Removes duplicates from the given array. The optional keyFn allows to specify
  * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = value => value): T[] {
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknown = value => value): T[] {
 	const seen = new Set<any>();
 
 	return array.filter(element => {
@@ -411,18 +415,6 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 		seen.add(key);
 		return true;
 	};
-}
-
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[0] : notFoundValue;
-}
-
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[array.length - 1] : notFoundValue;
 }
 
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
@@ -633,6 +625,17 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
+ * @deprecated do not use, use property access
+ */
+export const pick = <TObject, TKeyName extends keyof TObject>(
+	key: TKeyName,
+) => {
+	return (obj: TObject): TObject[TKeyName] => {
+		return obj[key];
+	};
+};
+
+/**
  * When comparing two values,
  * a negative number indicates that the first value is less than the second,
  * a positive number indicates that the first value is greater than the second,
@@ -696,14 +699,34 @@ export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<T
 	return (a, b) => -comparator(a, b);
 }
 
+/**
+ * Returns a new comparator that treats `undefined` as the smallest value.
+ * All other values are compared using the given comparator.
+*/
+export function compareUndefinedSmallest<T>(comparator: Comparator<T>): Comparator<T | undefined> {
+	return (a, b) => {
+		if (a === undefined) {
+			return b === undefined ? CompareResult.neitherLessOrGreaterThan : CompareResult.lessThan;
+		} else if (b === undefined) {
+			return CompareResult.greaterThan;
+		}
+
+		return comparator(a, b);
+	};
+}
+
 export class ArrayQueue<T> {
+	private readonly items: readonly T[];
 	private firstIdx = 0;
-	private lastIdx = this.items.length - 1;
+	private lastIdx: number;
 
 	/**
 	 * Constructs a queue that is backed by the given array. Runtime is O(1).
 	*/
-	constructor(private readonly items: readonly T[]) { }
+	constructor(items: readonly T[]) {
+		this.items = items;
+		this.lastIdx = this.items.length - 1;
+	}
 
 	get length(): number {
 		return this.lastIdx - this.firstIdx + 1;
@@ -899,4 +922,12 @@ export async function findAsync<T>(array: readonly T[], predicate: (element: T, 
 	));
 
 	return results.find(r => r.ok)?.element;
+}
+
+export function sum(array: readonly number[]): number {
+	return array.reduce((acc, value) => acc + value, 0);
+}
+
+export function sumBy<T>(array: readonly T[], selector: (value: T) => number): number {
+	return array.reduce((acc, value) => acc + selector(value), 0);
 }

@@ -113,7 +113,7 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Kill VS Code - Build, Yarn, VS Code - Build",
+			"label": "Kill VS Code - Build, Npm, VS Code - Build",
 			"dependsOn": [
 				"Kill VS Code - Build",
 				"npm: install",

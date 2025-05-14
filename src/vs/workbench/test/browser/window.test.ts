@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IRegisteredCodeWindow } from 'vs/base/browser/dom';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { BaseWindow } from 'vs/workbench/browser/window';
-import { TestEnvironmentService, TestHostService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IRegisteredCodeWindow } from '../../../base/browser/dom.js';
+import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { BaseWindow } from '../../browser/window.js';
+import { TestEnvironmentService, TestHostService } from './workbenchTestServices.js';
 
 suite('Window', () => {
 

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/dfd7e5f4f71f9695c5d8697ca57f81240165aa04",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/0b50d9c47145df62c4461c4407698a24e8f1f3c2",
 	"name": "YAML 1.0",
 	"scopeName": "source.yaml.1.0",
 	"comment": "https://yaml.org/spec/1.0/",
@@ -520,26 +520,20 @@
 			"patterns": [
 				{
 					"comment": "https://yaml.org/spec/1.2.2/#8111-block-indentation-indicator",
-					"begin": "([\t ]*+)(?>(\\|)|(>))(?<chomp>[+-])?+((0)|(1)|(2)|(3)|(4)|(5)|(6)|(7)|(8)|(9))(?(<chomp>)|([+-]))?+",
-					"while": "\\G(?>(?>(?!\\6)|(?!\\7) |(?!\\8) {2}|(?!\\9) {3}|(?!\\10) {4}|(?!\\11) {5}|(?!\\12) {6}|(?!\\13) {7}|(?!\\14) {8}|(?!\\15) {9})| *+($|[^#]))",
+					"begin": "(?>(\\|)|(>))(?<chomp>[+-])?+([0-9])(?(<chomp>)|\\g<chomp>)?+",
+					"while": "\\G(?> {\\4}| *+($|[^#]))",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.whitespace.separator.yaml"
-						},
-						"2": {
 							"name": "keyword.control.flow.block-scalar.literal.yaml"
 						},
-						"3": {
+						"2": {
 							"name": "keyword.control.flow.block-scalar.folded.yaml"
 						},
+						"3": {
+							"name": "storage.modifier.chomping-indicator.yaml"
+						},
 						"4": {
-							"name": "storage.modifier.chomping-indicator.yaml"
-						},
-						"5": {
 							"name": "constant.numeric.indentation-indicator.yaml"
-						},
-						"16": {
-							"name": "storage.modifier.chomping-indicator.yaml"
 						}
 					},
 					"whileCaptures": {
@@ -574,21 +568,17 @@
 					]
 				},
 				{
-					"comment": "https://yaml.org/spec/1.2.2/#rule-c-b-block-header",
 					"//": "Soooooooo many edge cases",
-					"begin": "([\t ]*+)(?>(\\|)|(>))([+-]?+)",
+					"begin": "(?>(\\|)|(>))([+-]?+)",
 					"while": "\\G",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.whitespace.separator.yaml"
-						},
-						"2": {
 							"name": "keyword.control.flow.block-scalar.literal.yaml"
 						},
-						"3": {
+						"2": {
 							"name": "keyword.control.flow.block-scalar.folded.yaml"
 						},
-						"4": {
+						"3": {
 							"name": "storage.modifier.chomping-indicator.yaml"
 						}
 					},

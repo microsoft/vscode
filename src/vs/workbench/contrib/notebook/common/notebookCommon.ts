@@ -3,45 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffResult } from 'vs/base/common/diff/diff';
-import { Event } from 'vs/base/common/event';
-import * as glob from 'vs/base/common/glob';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { ISplice } from 'vs/base/common/sequence';
-import { ThemeColor } from 'vs/base/common/themables';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IFileReadLimits } from 'vs/platform/files/common/files';
-import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { generateMetadataUri, generate as generateUri, parseMetadataUri, parse as parseUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
-import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDiffResult } from '../../../../base/common/diff/diff.js';
+import { Event } from '../../../../base/common/event.js';
+import * as glob from '../../../../base/common/glob.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { ISplice } from '../../../../base/common/sequence.js';
+import { ThemeColor } from '../../../../base/common/themables.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import * as editorCommon from '../../../../editor/common/editorCommon.js';
+import { Command, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
+import { IReadonlyTextBuffer, ITextModel } from '../../../../editor/common/model.js';
+import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IFileReadLimits } from '../../../../platform/files/common/files.js';
+import { UndoRedoGroup } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
+import { NotebookTextModel } from './model/notebookTextModel.js';
+import { ICellExecutionError } from './notebookExecutionStateService.js';
+import { INotebookTextModelLike } from './notebookKernelService.js';
+import { ICellRange } from './notebookRange.js';
+import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { generateMetadataUri, generate as generateUri, extractCellOutputDetails, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
+import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
+import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 export const NOTEBOOK_MULTI_DIFF_EDITOR_ID = 'workbench.editor.notebookMultiTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 export const REPL_EDITOR_ID = 'workbench.editor.repl';
+export const NOTEBOOK_OUTPUT_EDITOR_ID = 'workbench.editor.notebookOutputEditor';
 
 export const EXECUTE_REPL_COMMAND_ID = 'replNotebook.input.execute';
 
@@ -120,6 +121,12 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	/**
+	 * Used only for diffing of Notebooks.
+	 * This is not persisted and generally useful only when diffing two notebooks.
+	 * Useful only after we've manually matched a few cells together so we know which cells are matching.
+	 */
+	internalId?: string;
 	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
@@ -241,6 +248,24 @@ export interface CellInternalMetadataChangedEvent {
 	readonly lastRunSuccessChanged?: boolean;
 }
 
+export interface INotebookDocumentMetadataTextModel {
+	/**
+	 * Notebook Metadata Uri.
+	 */
+	readonly uri: URI;
+	/**
+	 * Triggered when the Notebook Metadata changes.
+	 */
+	readonly onDidChange: Event<void>;
+	readonly metadata: Readonly<NotebookDocumentMetadata>;
+	readonly textBuffer: IReadonlyTextBuffer;
+	/**
+	 * Text representation of the Notebook Metadata
+	 */
+	getValue(): string;
+	getHash(): string;
+}
+
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
@@ -251,11 +276,20 @@ export interface ICell {
 	internalMetadata: NotebookCellInternalMetadata;
 	getHashValue(): number;
 	textBuffer: IReadonlyTextBuffer;
+	textModel?: ITextModel;
+	onDidChangeTextModel: Event<void>;
+	getValue(): string;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
 	onDidChangeOutputItems?: Event<void>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
+}
+
+export interface INotebookSnapshotOptions {
+	context: SnapshotContext;
+	outputSizeLimit: number;
+	transientOptions?: TransientOptions;
 }
 
 export interface INotebookTextModel extends INotebookTextModelLike {
@@ -268,6 +302,8 @@ export interface INotebookTextModel extends INotebookTextModelLike {
 	readonly length: number;
 	readonly cells: readonly ICell[];
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void;
+	createSnapshot(options: INotebookSnapshotOptions): NotebookData;
+	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void;
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
 	onDidChangeContent: Event<NotebookTextModelChangedEvent>;
 	onWillDispose: Event<void>;
@@ -287,9 +323,10 @@ export type NotebookCellOutputsSplice = {
 
 export interface IMainCellDto {
 	handle: number;
-	uri: UriComponents;
+	url: string;
 	source: string[];
 	eol: string;
+	versionId: number;
 	language: string;
 	cellKind: CellKind;
 	outputs: IOutputDto[];
@@ -561,7 +598,7 @@ export interface INotebookContributionData {
 	priority?: RegisteredEditorPriority;
 }
 
-export namespace NotebookUri {
+export namespace NotebookMetadataUri {
 	export const scheme = Schemas.vscodeNotebookMetadata;
 	export function generate(notebook: URI): URI {
 		return generateMetadataUri(notebook);
@@ -581,32 +618,50 @@ export namespace CellUri {
 		return parseUri(cell);
 	}
 
-	export function generateCellOutputUri(notebook: URI, outputId?: string) {
+	/**
+	 * Generates a URI for a cell output in a notebook using the output ID.
+	 * Used when URI should be opened as text in the editor.
+	 */
+	export function generateCellOutputUriWithId(notebook: URI, outputId?: string) {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
-			fragment: `op${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			query: new URLSearchParams({
+				openIn: 'editor',
+				outputId: outputId ?? '',
+				notebookScheme: notebook.scheme !== Schemas.file ? notebook.scheme : '',
+			}).toString()
+		});
+	}
+	/**
+	 * Generates a URI for a cell output in a notebook using the output index.
+	 * Used when URI should be opened in notebook editor.
+	 */
+	export function generateCellOutputUriWithIndex(notebook: URI, cellUri: URI, outputIndex: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			fragment: cellUri.fragment,
+			query: new URLSearchParams({
+				openIn: 'notebook',
+				outputIndex: String(outputIndex),
+			}).toString()
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
-		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
-			return;
-		}
+	export function generateOutputEditorUri(notebook: URI, cellId: string, cellIndex: number, outputId: string, outputIndex: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			query: new URLSearchParams({
+				openIn: 'notebookOutputEditor',
+				notebook: notebook.toString(),
+				cellIndex: String(cellIndex),
+				outputId: outputId,
+				outputIndex: String(outputIndex),
+			}).toString()
+		});
+	}
 
-		const match = /^op([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
-		if (!match) {
-			return undefined;
-		}
-
-		const outputId = (match[1] && match[1] !== '') ? match[1] : undefined;
-		const scheme = match[2];
-		return {
-			outputId,
-			notebook: uri.with({
-				scheme: scheme || Schemas.file,
-				fragment: null
-			})
-		};
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellIndex?: number } | undefined {
+		return extractCellOutputDetails(uri);
 	}
 
 	export function generateCellPropertyUri(notebook: URI, handle: number, scheme: string): URI {
@@ -795,6 +850,7 @@ export interface INotebookLoadOptions {
 export type NotebookEditorModelCreationOptions = {
 	limits?: IFileReadLimits;
 	scratchpad?: boolean;
+	viewType?: string;
 };
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
@@ -824,8 +880,8 @@ export interface INotebookEditorModel extends IDisposable {
 }
 
 export interface INotebookDiffEditorModel extends IDisposable {
-	original: IResolvedNotebookEditorModel;
-	modified: IResolvedNotebookEditorModel;
+	original: { notebook: NotebookTextModel; resource: URI; viewType: string };
+	modified: { notebook: NotebookTextModel; resource: URI; viewType: string };
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
@@ -921,7 +977,7 @@ export interface INotebookCellStatusBarItemProvider {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
-	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
+	metadataChanged: boolean;
 }
 
 export interface INotebookCellStatusBarItem {
@@ -948,6 +1004,7 @@ export const NotebookSetting = {
 	cellToolbarLocation: 'notebook.cellToolbarLocation',
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
+	cellExecutionTimeVerbosity: 'notebook.cellExecutionTimeVerbosity',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
 	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
@@ -959,6 +1016,7 @@ export const NotebookSetting = {
 	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
+	openOutputInPreviewEditor: 'notebook.output.openInPreviewEditor.enabled',
 	showFoldingControls: 'notebook.showFoldingControls',
 	dragAndDropEnabled: 'notebook.dragAndDropEnabled',
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
@@ -997,10 +1055,13 @@ export const NotebookSetting = {
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	cellChat: 'notebook.experimental.cellChat',
 	cellGenerate: 'notebook.experimental.generate',
-	notebookVariablesView: 'notebook.experimental.variablesView',
+	notebookVariablesView: 'notebook.variablesView',
+	notebookInlineValues: 'notebook.inlineValues',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
+	multiCursor: 'notebook.multiCursor.enabled',
+	markupFontFamily: 'notebook.markup.fontFamily',
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -1012,13 +1073,16 @@ export class NotebookWorkingCopyTypeIdentifier {
 
 	private static _prefix = 'notebook/';
 
-	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
+	static create(notebookType: string, viewType?: string): string {
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}${notebookType}/${viewType ?? notebookType}`;
 	}
 
-	static parse(candidate: string): string | undefined {
+	static parse(candidate: string): { notebookType: string; viewType: string } | undefined {
 		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length);
+			const split = candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length).split('/');
+			if (split.length === 2) {
+				return { notebookType: split[0], viewType: split[1] };
+			}
 		}
 		return undefined;
 	}

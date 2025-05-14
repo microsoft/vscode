@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService } from 'vs/platform/files/common/files';
-import { basename, dirname } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Promises } from 'vs/base/common/async';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { Promises } from '../../../../base/common/async.js';
 
 export class LogsDataCleaner extends Disposable {
 

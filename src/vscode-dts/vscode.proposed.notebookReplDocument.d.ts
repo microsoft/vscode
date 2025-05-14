@@ -8,13 +8,26 @@ declare module 'vscode' {
 	export interface NotebookDocumentShowOptions {
 		/**
 		 * The notebook should be opened in a REPL editor,
-		 * where the last cell of the notebook is an input box and the rest are read-only.
+		 * where the last cell of the notebook is an input box and the other cells are the read-only history.
+		 * When the value is a string, it will be used as the label for the editor tab.
 		 */
-		readonly asRepl?: boolean;
+		readonly asRepl?: boolean | string | {
+			/**
+			* The label to be used for the editor tab.
+			*/
+			readonly label: string;
+		};
+	}
 
+	export interface NotebookEditor {
 		/**
-		 * The label to be used for the editor tab.
+		 * Information about the REPL editor if the notebook was opened as a repl.
 		 */
-		readonly label?: string;
+		replOptions?: {
+			/**
+			 * The index where new cells should be appended.
+			 */
+			appendIndex: number;
+		};
 	}
 }

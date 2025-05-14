@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { CustomTask, ContributedTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TaskQuickPick, ITaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isString } from 'vs/base/common/types';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { localize } from '../../../../nls.js';
+import { IQuickPickSeparator, IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { matchesFuzzy } from '../../../../base/common/filters.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ITaskService, Task } from '../common/taskService.js';
+import { CustomTask, ContributedTask, ConfiguringTask } from '../common/tasks.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { TaskQuickPick, ITaskTwoLevelQuickPickEntry } from './taskQuickPick.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { isString } from '../../../../base/common/types.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 

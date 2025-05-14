@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
+import ts from 'typescript';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { match } from 'minimatch';
@@ -24,7 +24,6 @@ import { match } from 'minimatch';
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-	'require', // from our AMD loader
 	'setTimeout',
 	'clearTimeout',
 	'setInterval',
@@ -69,10 +68,33 @@ const CORE_TYPES = [
 	'fetch',
 	'RequestInit',
 	'Headers',
+	'Request',
 	'Response',
+	'Body',
+	'__type',
 	'__global',
+	'Performance',
 	'PerformanceMark',
 	'PerformanceObserver',
+	'ImportMeta',
+	'structuredClone',
+
+	// webcrypto has been available since Node.js 19, but still live in dom.d.ts
+	'Crypto',
+	'SubtleCrypto',
+	'JsonWebKey',
+	'MessageEvent',
+
+	// node web types
+	'ReadableStream',
+	'ReadableStreamReadResult',
+	'ReadableStreamGenericReader',
+	'ReadableStreamDefaultReader',
+	'value',
+	'done',
+	'DOMException',
+	'localStorage',
+	'WebSocket',
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -84,7 +106,8 @@ const NATIVE_TYPES = [
 	'INativeWindowConfiguration',
 	'ICommonNativeHostService',
 	'INativeHostService',
-	'IMainProcessService'
+	'IMainProcessService',
+	'INativeBrowserElementsService',
 ];
 
 const RULES: IRule[] = [
@@ -128,6 +151,24 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/base/common/performance.ts
+	{
+		target: '**/vs/base/common/performance.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to Performance
+			'Performance',
+			'PerformanceEntry',
+			'PerformanceTiming'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/platform/environment/common/*
 	{
 		target: '**/vs/platform/environment/common/*.ts',
@@ -142,6 +183,28 @@ const RULES: IRule[] = [
 	// Common: vs/platform/window/common/window.ts
 	{
 		target: '**/vs/platform/window/common/window.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/browserElements/common/browserElements.ts
+	{
+		target: '**/vs/platform/browserElements/common/browserElements.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/browserElements/common/nativeBrowserElementsService.ts
+	{
+		target: '**/vs/platform/browserElements/common/nativeBrowserElementsService.ts',
 		allowedTypes: CORE_TYPES,
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [
@@ -188,9 +251,9 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Common: vs/base/parts/sandbox/electron-sandbox/preload.js
+	// Common: vs/base/parts/sandbox/electron-sandbox/preload.ts
 	{
-		target: '**/vs/base/parts/sandbox/electron-sandbox/preload.js',
+		target: '**/vs/base/parts/sandbox/electron-sandbox/preload.ts',
 		allowedTypes: [
 			...CORE_TYPES,
 
@@ -253,6 +316,24 @@ const RULES: IRule[] = [
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
+		]
+	},
+
+	// Electron (utility)
+	{
+		target: '**/vs/**/electron-utility/**',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// --> types from electron.d.ts that duplicate from lib.dom.d.ts
+			'Event',
+			'Request'
+		],
+		disallowedTypes: [
+			'ipcMain' // not allowed, use validatedIpcMain instead
+		],
+		disallowedDefinitions: [
+			'lib.dom.d.ts'	// no DOM
 		]
 	},
 

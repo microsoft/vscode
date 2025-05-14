@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferenceCollection, type IReference } from 'vs/base/common/lifecycle';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import type { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellOutlineDataSource } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSource';
+import { ReferenceCollection, type IReference } from '../../../../../base/common/lifecycle.js';
+import { IInstantiationService, createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { INotebookEditor } from '../notebookBrowser.js';
+import { NotebookCellOutlineDataSource } from './notebookOutlineDataSource.js';
 
 class NotebookCellOutlineDataSourceReferenceCollection extends ReferenceCollection<NotebookCellOutlineDataSource> {
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {

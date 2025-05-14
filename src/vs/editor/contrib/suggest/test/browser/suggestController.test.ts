@@ -4,35 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemInsertTextRule, CompletionItemKind } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DeleteLinesAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
+import { timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { CompletionItemInsertTextRule, CompletionItemKind } from '../../../../common/languages.js';
+import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
+import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { SuggestController } from '../../browser/suggestController.js';
+import { ISuggestMemoryService } from '../../browser/suggestMemory.js';
+import { createTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { DeleteLinesAction } from '../../../linesOperations/browser/linesOperations.js';
 
 suite('SuggestController', function () {
 

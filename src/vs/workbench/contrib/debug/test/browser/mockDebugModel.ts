@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { DebugModel } from '../../common/debugModel.js';
+import { MockDebugStorage } from '../common/mockDebug.js';
+import { TestFileService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 const fileService = new TestFileService();
 export const mockUriIdentityService = new UriIdentityService(fileService);

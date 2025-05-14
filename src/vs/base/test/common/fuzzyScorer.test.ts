@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from '../../common/fuzzyScorer.js';
+import { Schemas } from '../../common/network.js';
+import { basename, dirname, posix, sep, win32 } from '../../common/path.js';
+import { isWindows } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 class ResourceAccessorClass implements IItemAccessor<URI> {
 
@@ -1071,6 +1071,21 @@ suite('Fuzzy Scorer', () => {
 		const resourceB = URI.file('src/vs/workbench/electron-node/window.ts');
 
 		for (const query of ['window node', 'window.ts node']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.strictEqual(res[0], resourceB);
+			assert.strictEqual(res[1], resourceA);
+		}
+	});
+
+	test('compareFilesByScore - skip preference on label match when using path sep', function () {
+		const resourceA = URI.file('djangosite/ufrela/def.py');
+		const resourceB = URI.file('djangosite/urls/default.py');
+
+		for (const query of ['url/def']) {
 			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
 			assert.strictEqual(res[0], resourceB);
 			assert.strictEqual(res[1], resourceA);

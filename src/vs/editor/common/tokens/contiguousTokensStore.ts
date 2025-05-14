@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { ContiguousTokensEditing, EMPTY_LINE_TOKENS, toUint32Array } from 'vs/editor/common/tokens/contiguousTokensEditing';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { ITextModel } from 'vs/editor/common/model';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
+import * as arrays from '../../../base/common/arrays.js';
+import { Position } from '../core/position.js';
+import { IRange } from '../core/range.js';
+import { ContiguousTokensEditing, EMPTY_LINE_TOKENS, toUint32Array } from './contiguousTokensEditing.js';
+import { LineTokens } from './lineTokens.js';
+import { ILanguageIdCodec } from '../languages.js';
+import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata } from '../encodedTokenAttributes.js';
+import { ITextModel } from '../model.js';
+import { ContiguousMultilineTokens } from './contiguousMultilineTokens.js';
 
 /**
  * Represents contiguous tokens in a text model.

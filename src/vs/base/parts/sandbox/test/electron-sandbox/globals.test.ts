@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { context, ipcRenderer, process, webFrame, webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ipcRenderer, process, webFrame, webUtils } from '../../electron-sandbox/globals.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 suite('Sandbox', () => {
 
@@ -14,10 +14,6 @@ suite('Sandbox', () => {
 		assert.ok(typeof webFrame.setZoomLevel === 'function');
 		assert.ok(typeof process.platform === 'string');
 		assert.ok(typeof webUtils.getPathForFile === 'function');
-
-		const config = await context.resolveConfiguration();
-		assert.ok(config);
-		assert.ok(context.configuration());
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

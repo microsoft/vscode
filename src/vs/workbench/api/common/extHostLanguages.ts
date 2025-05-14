@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesShape } from './extHost.protocol';
+import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
-import Severity from 'vs/base/common/severity';
-import { disposableTimeout } from 'vs/base/common/async';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import * as typeConvert from './extHostTypeConverters.js';
+import { StandardTokenType, Range, Position, LanguageStatusSeverity } from './extHostTypes.js';
+import Severity from '../../../base/common/severity.js';
+import { disposableTimeout } from '../../../base/common/async.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { CommandsConverter } from './extHostCommands.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 

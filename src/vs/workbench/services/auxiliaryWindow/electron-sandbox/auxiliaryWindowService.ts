@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CodeWindow } from 'vs/base/browser/window';
-import { mark } from 'vs/base/common/performance';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { getZoomLevel, isFullscreen, setFullscreen } from 'vs/base/browser/browser';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isMacintosh } from 'vs/base/common/platform';
+import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
+import { ISandboxGlobals } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { mark } from '../../../../base/common/performance.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ShutdownReason } from '../../lifecycle/common/lifecycle.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Barrier } from '../../../../base/common/async.js';
+import { IHostService } from '../../host/browser/host.js';
+import { applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
+import { getZoomLevel, isFullscreen, setFullscreen } from '../../../../base/browser/browser.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -34,6 +34,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	private skipUnloadConfirmation = false;
 
 	private maximized = false;
+	private alwaysOnTop = false;
 
 	constructor(
 		window: CodeWindow,
@@ -55,6 +56,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		}
 
 		this.handleFullScreenState();
+		this.handleAlwaysOnTopState();
 	}
 
 	private handleMaximizedState(): void {
@@ -71,6 +73,18 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		this._register(this.nativeHostService.onDidUnmaximizeWindow(windowId => {
 			if (windowId === this.window.vscodeWindowId) {
 				this.maximized = false;
+			}
+		}));
+	}
+
+	private handleAlwaysOnTopState(): void {
+		(async () => {
+			this.alwaysOnTop = await this.nativeHostService.isWindowAlwaysOnTop({ targetWindowId: this.window.vscodeWindowId });
+		})();
+
+		this._register(this.nativeHostService.onDidChangeWindowAlwaysOnTop(({ windowId, alwaysOnTop }) => {
+			if (windowId === this.window.vscodeWindowId) {
+				this.alwaysOnTop = alwaysOnTop;
 			}
 		}));
 	}
@@ -113,7 +127,8 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		return {
 			...state,
 			bounds: state.bounds,
-			mode: this.maximized ? AuxiliaryWindowMode.Maximized : fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal
+			mode: this.maximized ? AuxiliaryWindowMode.Maximized : fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal,
+			alwaysOnTop: this.alwaysOnTop
 		};
 	}
 }
@@ -156,7 +171,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		return super.createContainer(auxiliaryWindow, disposables);
 	}
 
-	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier,): AuxiliaryWindow {
+	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier): AuxiliaryWindow {
 		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService);
 	}
 }

@@ -5,23 +5,23 @@
 
 import * as childProcess from 'child_process';
 import * as fs from 'fs';
-import * as path from 'vs/base/common/path';
+import * as path from '../../../../base/common/path.js';
 import { Readable } from 'stream';
 import { StringDecoder } from 'string_decoder';
-import * as arrays from 'vs/base/common/arrays';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as glob from 'vs/base/common/glob';
-import * as normalization from 'vs/base/common/normalization';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import * as platform from 'vs/base/common/platform';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import * as strings from 'vs/base/common/strings';
-import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch, hasSiblingFn } from 'vs/workbench/services/search/common/search';
-import { spawnRipgrepCmd } from './ripgrepFileSearch';
-import { prepareQuery } from 'vs/base/common/fuzzyScorer';
+import * as arrays from '../../../../base/common/arrays.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import * as glob from '../../../../base/common/glob.js';
+import * as normalization from '../../../../base/common/normalization.js';
+import { isEqualOrParent } from '../../../../base/common/extpath.js';
+import * as platform from '../../../../base/common/platform.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import * as strings from '../../../../base/common/strings.js';
+import * as types from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch, hasSiblingFn } from '../common/search.js';
+import { spawnRipgrepCmd } from './ripgrepFileSearch.js';
+import { prepareQuery } from '../../../../base/common/fuzzyScorer.js';
 
 interface IDirectoryEntry extends IRawFileMatch {
 	base: string;

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { SingleModelEditStackData } from 'vs/editor/common/model/editStack';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Selection } from '../../../common/core/selection.js';
+import { TextChange } from '../../../common/core/textChange.js';
+import { EndOfLineSequence } from '../../../common/model.js';
+import { SingleModelEditStackData } from '../../../common/model/editStack.js';
 
 suite('EditStack', () => {
 

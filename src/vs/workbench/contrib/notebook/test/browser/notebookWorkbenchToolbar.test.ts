@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchCalculateActions, workbenchDynamicCalculateActions } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { workbenchCalculateActions, workbenchDynamicCalculateActions } from '../../browser/viewParts/notebookEditorToolbar.js';
+import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 interface IActionModel {
 	action: IAction;

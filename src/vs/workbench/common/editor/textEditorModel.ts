@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel, ITextBufferFactory, ITextSnapshot, ModelConstants } from 'vs/editor/common/model';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { URI } from 'vs/base/common/uri';
-import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageDetectionService, LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { localize } from 'vs/nls';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ITextModel, ITextBufferFactory, ITextSnapshot, ModelConstants } from '../../../editor/common/model.js';
+import { EditorModel } from './editorModel.js';
+import { ILanguageSupport } from '../../services/textfile/common/textfiles.js';
+import { URI } from '../../../base/common/uri.js';
+import { ITextEditorModel, IResolvedTextEditorModel } from '../../../editor/common/services/resolverService.js';
+import { ILanguageService, ILanguageSelection } from '../../../editor/common/languages/language.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { MutableDisposable } from '../../../base/common/lifecycle.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../editor/common/languages/modesRegistry.js';
+import { ILanguageDetectionService, LanguageDetectionLanguageEventSource } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { localize } from '../../../nls.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -75,13 +75,22 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return true;
 	}
 
-	private _hasLanguageSetExplicitly: boolean = false;
-	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
+	private _blockLanguageChangeListener = false;
+	private _languageChangeSource: 'user' | 'api' | undefined = undefined;
+	get languageChangeSource() { return this._languageChangeSource; }
+	get hasLanguageSetExplicitly() {
+		// This is technically not 100% correct, because 'api' can also be
+		// set as source if a model is resolved as text first and then
+		// transitions into the resolved language. But to preserve the current
+		// behaviour, we do not change this property. Rather, `languageChangeSource`
+		// can be used to get more fine grained information.
+		return typeof this._languageChangeSource === 'string';
+	}
 
 	setLanguageId(languageId: string, source?: string): void {
 
 		// Remember that an explicit language was set
-		this._hasLanguageSetExplicitly = true;
+		this._languageChangeSource = 'user';
 
 		this.setLanguageIdInternal(languageId, source);
 	}
@@ -95,18 +104,26 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		this.textEditorModel.setLanguage(this.languageService.createById(languageId), source);
+		this._blockLanguageChangeListener = true;
+		try {
+			this.textEditorModel.setLanguage(this.languageService.createById(languageId), source);
+		} finally {
+			this._blockLanguageChangeListener = false;
+		}
 	}
 
 	protected installModelListeners(model: ITextModel): void {
 
 		// Setup listener for lower level language changes
-		const disposable = this._register(model.onDidChangeLanguage((e) => {
-			if (e.source === LanguageDetectionLanguageEventSource) {
+		const disposable = this._register(model.onDidChangeLanguage(e => {
+			if (
+				e.source === LanguageDetectionLanguageEventSource ||
+				this._blockLanguageChangeListener
+			) {
 				return;
 			}
 
-			this._hasLanguageSetExplicitly = true;
+			this._languageChangeSource = 'api';
 			disposable.dispose();
 		}));
 	}

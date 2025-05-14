@@ -94,6 +94,37 @@ suite('vscode API - editors', () => {
 		});
 	});
 
+	/**
+	 * Given :
+	 * This is line 1
+	 *   |
+	 *
+	 * Expect :
+	 * This is line 1
+	 *   This is line 2
+	 *   This is line 3
+	 *
+	 * The 3rd line should not be auto-indented, as the edit already
+	 * contains the necessary adjustment.
+	 */
+	test('insert snippet with replacement, avoid adjusting indentation', () => {
+		const snippetString = new SnippetString()
+			.appendText('This is line 2\n  This is line 3');
+
+		return withRandomFileEditor('This is line 1\n  ', (editor, doc) => {
+			editor.selection = new Selection(
+				new Position(1, 3),
+				new Position(1, 3)
+			);
+
+			return editor.insertSnippet(snippetString, undefined, { undoStopAfter: false, undoStopBefore: false, keepWhitespace: true }).then(inserted => {
+				assert.ok(inserted);
+				assert.strictEqual(doc.getText(), 'This is line 1\n  This is line 2\n  This is line 3');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
 	test('insert snippet with replacement, selection as argument', () => {
 		const snippetString = new SnippetString()
 			.appendText('has been');

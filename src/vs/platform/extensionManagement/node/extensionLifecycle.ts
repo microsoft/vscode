@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
-import { Limiter } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Limiter } from '../../../base/common/async.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { ILocalExtension } from '../common/extensionManagement.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 export class ExtensionsLifecycle extends Disposable {
 

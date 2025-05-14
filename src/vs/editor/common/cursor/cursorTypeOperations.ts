@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { CompositionSurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursorCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from 'vs/editor/common/cursor/cursorTypeEditOperations';
+import { ShiftCommand } from '../commands/shiftCommand.js';
+import { CompositionSurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
+import { Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { Position } from '../core/position.js';
+import { ICommand } from '../editorCommon.js';
+import { ITextModel } from '../model.js';
+import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, CompositionEndOvertypeOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
 
 export class TypeOperations {
 
@@ -90,7 +90,7 @@ export class TypeOperations {
 
 		if (!insertedText || insertedText.length !== 1) {
 			// we're only interested in the case where a single character was inserted
-			return null;
+			return CompositionEndOvertypeOperation.getEdits(config, compositions);
 		}
 
 		const ch = insertedText;
@@ -159,7 +159,7 @@ export class TypeOperations {
 			return autoClosingOpenCharEdits;
 		}
 
-		return null;
+		return CompositionEndOvertypeOperation.getEdits(config, compositions);
 	}
 
 	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
@@ -194,7 +194,7 @@ export class TypeOperations {
 			return interceptorElectricCharOperation;
 		}
 
-		return SimpleCharacterTypeOperation.getEdits(prevEditOperationType, selections, ch);
+		return SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, selections, ch, isDoingComposition);
 	}
 
 	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {
@@ -210,5 +210,6 @@ export class CompositionOutcome {
 		public readonly insertedText: string,
 		public readonly insertedSelectionStart: number,
 		public readonly insertedSelectionEnd: number,
+		public readonly insertedTextRange: Range,
 	) { }
 }

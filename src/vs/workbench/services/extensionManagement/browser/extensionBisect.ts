@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { localize, localize2 } from '../../../../nls.js';
+import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ExtensionType, IExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IHostService } from '../../host/browser/host.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IWorkbenchExtensionEnablementService } from '../common/extensionManagement.js';
 
 // --- bisect service
 

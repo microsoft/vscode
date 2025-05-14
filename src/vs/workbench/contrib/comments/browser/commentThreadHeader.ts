@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, ActionRunner } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import * as languages from 'vs/editor/common/languages';
-import { IRange } from 'vs/editor/common/core/range';
-import * as nls from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { MarshalledCommentThread } from 'vs/workbench/common/comments';
+import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action, ActionRunner } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import * as strings from '../../../../base/common/strings.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import * as nls from '../../../../nls.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenu, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { CommentMenus } from './commentMenus.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { MarshalledCommentThread } from '../../../common/comments.js';
+import { CommentCommandId } from '../common/commentCommandIds.js';
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
@@ -37,15 +38,16 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	private _headingLabel!: HTMLElement;
 	private _actionbarWidget!: ActionBar;
 	private _collapseAction!: Action;
+	private _contextMenuActionRunner: ActionRunner | undefined;
 
 	constructor(
 		container: HTMLElement,
 		private _delegate: { collapse: () => void },
 		private _commentMenus: CommentMenus,
 		private _commentThread: languages.CommentThread<T>,
-		private _contextKeyService: IContextKeyService,
-		private instantiationService: IInstantiationService,
-		private _contextMenuService: IContextMenuService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
 		super();
 		this._headElement = <HTMLDivElement>dom.$('.head');
@@ -62,13 +64,13 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 
 		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
 		this._actionbarWidget = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
+			actionViewItemProvider: createActionViewItem.bind(undefined, this._instantiationService)
 		});
 
 		this._register(this._actionbarWidget);
 
 		const collapseClass = threadHasComments(this._commentThread.comments) ? COLLAPSE_ACTION_CLASS : DELETE_ACTION_CLASS;
-		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), collapseClass, true, () => this._delegate.collapse());
+		this._collapseAction = new Action(CommentCommandId.Hide, nls.localize('label.collapse', "Collapse"), collapseClass, true, () => this._delegate.collapse());
 		if (!threadHasComments(this._commentThread.comments)) {
 			const commentsChanged: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 			commentsChanged.value = this._commentThread.onDidChangeComments(() => {
@@ -130,15 +132,18 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	}
 
 	private onContextMenu(e: MouseEvent) {
-		const actions = this._commentMenus.getCommentThreadTitleContextActions(this._contextKeyService).getActions({ shouldForwardArgs: true }).map((value) => value[1]).flat();
+		const actions = this._commentMenus.getCommentThreadTitleContextActions(this._contextKeyService);
 		if (!actions.length) {
 			return;
 		}
 		const event = new StandardMouseEvent(dom.getWindow(this._headElement), e);
+		if (!this._contextMenuActionRunner) {
+			this._contextMenuActionRunner = this._register(new ActionRunner());
+		}
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => event,
 			getActions: () => actions,
-			actionRunner: new ActionRunner(),
+			actionRunner: this._contextMenuActionRunner,
 			getActionsContext: (): MarshalledCommentThread => {
 				return {
 					commentControlHandle: this._commentThread.controllerHandle,

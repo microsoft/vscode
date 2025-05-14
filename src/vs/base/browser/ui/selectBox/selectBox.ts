@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IListStyles, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
-import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./selectBox';
+import { IContentActionHandler } from '../../formattedTextRenderer.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { IListStyles, unthemedListStyles } from '../list/listWidget.js';
+import { SelectBoxList } from './selectBoxCustom.js';
+import { SelectBoxNative } from './selectBoxNative.js';
+import { Widget } from '../widget.js';
+import { Event } from '../../../common/event.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
+import './selectBox.css';
 
 
 

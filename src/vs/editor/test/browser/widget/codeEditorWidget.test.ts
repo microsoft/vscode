@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { withTestCodeEditor } from '../testCodeEditor.js';
 
 suite('CodeEditorWidget', () => {
 

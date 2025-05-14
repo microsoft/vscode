@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'vs/base/common/assert';
-import { Schemas } from 'vs/base/common/network';
-import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
+import { ok } from '../../../base/common/assert.js';
+import { Schemas } from '../../../base/common/network.js';
+import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { MirrorTextModel } from '../../../editor/common/model/mirrorTextModel.js';
+import { ensureValidWordDefinition, getWordAtText } from '../../../editor/common/core/wordHelper.js';
+import { MainThreadDocumentsShape } from './extHost.protocol.js';
+import { EndOfLine, Position, Range } from './extHostTypes.js';
 import type * as vscode from 'vscode';
-import { equals } from 'vs/base/common/arrays';
+import { equals } from '../../../base/common/arrays.js';
 
 const _languageId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
@@ -37,6 +37,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
+		private _encoding: string
 	) {
 		super(uri, lines, eol, versionId);
 	}
@@ -66,6 +67,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get version() { return that._versionId; },
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
+				get encoding() { return that._encoding; },
 				save() { return that._save(); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
 				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
@@ -92,6 +94,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	_acceptIsDirty(isDirty: boolean): void {
 		ok(!this._isDisposed);
 		this._isDirty = isDirty;
+	}
+
+	_acceptEncoding(encoding: string): void {
+		ok(!this._isDisposed);
+		this._encoding = encoding;
 	}
 
 	private _save(): Promise<boolean> {

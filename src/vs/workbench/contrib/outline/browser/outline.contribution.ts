@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { OutlinePane } from './outlinePane';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
-import { IOutlinePane } from 'vs/workbench/contrib/outline/browser/outline';
+import { localize, localize2 } from '../../../../nls.js';
+import { IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
+import { OutlinePane } from './outlinePane.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { VIEW_CONTAINER } from '../../files/browser/explorerViewlet.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { OutlineConfigKeys } from '../../../services/outline/browser/outline.js';
+import { IOutlinePane } from './outline.js';
 
 // --- actions
 
-import './outlineActions';
+import './outlineActions.js';
 
 // --- view
 

@@ -34,8 +34,7 @@ export class QuickInput {
 	}
 
 	async closeQuickInput(): Promise<void> {
-		await this.code.dispatchKeybinding('escape');
-		await this.waitForQuickInputClosed();
+		await this.code.sendKeybinding('escape', () => this.waitForQuickInputClosed());
 	}
 
 	async waitForQuickInputElements(accept: (names: string[]) => boolean): Promise<void> {
@@ -49,11 +48,12 @@ export class QuickInput {
 	async selectQuickInputElement(index: number, keepOpen?: boolean): Promise<void> {
 		await this.waitForQuickInputOpened();
 		for (let from = 0; from < index; from++) {
-			await this.code.dispatchKeybinding('down');
+			await this.code.sendKeybinding('down');
 		}
-		await this.code.dispatchKeybinding('enter');
-		if (!keepOpen) {
-			await this.waitForQuickInputClosed();
-		}
+		await this.code.sendKeybinding('enter', async () => {
+			if (!keepOpen) {
+				await this.waitForQuickInputClosed();
+			}
+		});
 	}
 }

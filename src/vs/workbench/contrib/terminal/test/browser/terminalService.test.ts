@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fail } from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { TerminalService } from '../../browser/terminalService.js';
+import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

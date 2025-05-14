@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { KeyCode, ScanCode } from 'vs/base/common/keyCodes';
-import { KeyCodeChord, ScanCodeChord } from 'vs/base/common/keybindings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { KeyCode, ScanCode } from '../../common/keyCodes.js';
+import { KeyCodeChord, ScanCodeChord } from '../../common/keybindings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('keyCodes', () => {
 

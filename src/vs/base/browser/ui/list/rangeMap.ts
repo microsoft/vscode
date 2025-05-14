@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from 'vs/base/common/range';
+import { IRange, Range } from '../../../common/range.js';
 
 export interface IItem {
 	size: number;

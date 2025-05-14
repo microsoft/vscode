@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ProviderResult } from 'vs/editor/common/languages';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatProgress, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
-import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChatService';
-import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
+import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider } from '../../common/chatAgents.js';
+import { IChatModel } from '../../common/chatModel.js';
+import { IChatFollowup, IChatProgress } from '../../common/chatService.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from '../../common/voiceChatService.js';
 
 suite('VoiceChat', () => {
 
@@ -32,6 +31,7 @@ suite('VoiceChat', () => {
 		extensionDisplayName = '';
 		extensionPublisherId = '';
 		locations: ChatAgentLocation[] = [ChatAgentLocation.Panel];
+		modes = [ChatMode.Ask];
 		public readonly name: string;
 		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {
 			this.name = id;
@@ -42,15 +42,11 @@ suite('VoiceChat', () => {
 		publisherDisplayName?: string | undefined;
 		isDefault?: boolean | undefined;
 		isDynamic?: boolean | undefined;
-		disambiguation: { categoryName: string; description: string; examples: string[] }[] = [];
+		disambiguation: { category: string; description: string; examples: string[] }[] = [];
 		provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 			throw new Error('Method not implemented.');
 		}
-		provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
-			throw new Error('Method not implemented.');
-		}
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
-		provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
 		metadata = {};
 	}
 
@@ -65,26 +61,17 @@ suite('VoiceChat', () => {
 	];
 
 	class TestChatAgentService implements IChatAgentService {
-		hasChatParticipantDetectionProviders(): boolean {
-			throw new Error('Method not implemented.');
-		}
-		registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider): IDisposable {
-			throw new Error('Method not implemented.');
-		}
-		detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined> {
-			throw new Error('Method not implemented.');
-		}
 		_serviceBrand: undefined;
 		readonly onDidChangeAgents = Event.None;
 		registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable { throw new Error(); }
 		registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable { throw new Error('Method not implemented.'); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
+		setRequestPaused(agent: string, requestId: string, isPaused: boolean): void { throw new Error('not implemented'); }
 		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
 		getActivatedAgents(): IChatAgent[] { return agents; }
 		getAgents(): IChatAgent[] { return agents; }
 		getDefaultAgent(): IChatAgent | undefined { throw new Error(); }
 		getContributedDefaultAgent(): IChatAgentData | undefined { throw new Error(); }
-		getSecondaryAgent(): IChatAgent | undefined { throw new Error(); }
 		registerAgent(id: string, data: IChatAgentData): IDisposable { throw new Error('Method not implemented.'); }
 		getAgent(id: string): IChatAgentData | undefined { throw new Error('Method not implemented.'); }
 		getAgentsByName(name: string): IChatAgentData[] { throw new Error('Method not implemented.'); }
@@ -94,6 +81,16 @@ suite('VoiceChat', () => {
 		getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]> { throw new Error('Method not implemented.'); }
 		agentHasDupeName(id: string): boolean { throw new Error('Method not implemented.'); }
 		getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> { throw new Error('Method not implemented.'); }
+		hasToolsAgent: boolean = false;
+		hasChatParticipantDetectionProviders(): boolean {
+			throw new Error('Method not implemented.');
+		}
+		registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider): IDisposable {
+			throw new Error('Method not implemented.');
+		}
+		detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined> {
+			throw new Error('Method not implemented.');
+		}
 	}
 
 	class TestSpeechService implements ISpeechService {

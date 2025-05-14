@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import * as nls from '../../../../../nls.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
+import { ILogger, ILoggerService } from '../../../../../platform/log/common/log.js';
+import { windowLogGroup } from '../../../../services/log/common/logConstants.js';
 
 const logChannelId = 'notebook.rendering';
 
@@ -20,7 +21,7 @@ export class NotebookLoggingService extends Disposable implements INotebookLoggi
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-		this._logger = this._register(loggerService.createLogger(logChannelId, { name: nls.localize('renderChannelName', "Notebook") }));
+		this._logger = this._register(loggerService.createLogger(logChannelId, { name: nls.localize('renderChannelName', "Notebook"), group: windowLogGroup }));
 	}
 
 	debug(category: string, output: string): void {

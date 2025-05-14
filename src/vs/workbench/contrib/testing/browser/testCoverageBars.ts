@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import type { IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, autorun, observableValue } from 'vs/base/common/observable';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import * as coverUtils from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
-import { AbstractFileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
+import { h } from '../../../../base/browser/dom.js';
+import type { IManagedHover, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ITransaction, autorun, observableValue } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from '../../files/browser/explorerFileContrib.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from '../common/configuration.js';
+import { AbstractFileCoverage } from '../common/testCoverage.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
+import { safeIntl } from '../../../../base/common/date.js';
 
 export interface TestCoverageBarsOptions {
 	/**
@@ -159,10 +160,10 @@ const renderBar = (bar: HTMLElement, pct: number | undefined, isZero: boolean, t
 	bar.style.opacity = '1';
 };
 
-const nf = new Intl.NumberFormat();
-const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', nf.format(coverage.statement.covered), nf.format(coverage.statement.total), coverUtils.displayPercent(coverUtils.percent(coverage.statement)));
-const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.format(coverage.declaration.covered), nf.format(coverage.declaration.total), coverUtils.displayPercent(coverUtils.percent(coverage.declaration)));
-const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.format(coverage.branch.covered), nf.format(coverage.branch.total), coverUtils.displayPercent(coverUtils.percent(coverage.branch)));
+const nf = safeIntl.NumberFormat();
+const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', nf.value.format(coverage.statement.covered), nf.value.format(coverage.statement.total), coverUtils.displayPercent(coverUtils.percent(coverage.statement)));
+const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.value.format(coverage.declaration.covered), nf.value.format(coverage.declaration.total), coverUtils.displayPercent(coverUtils.percent(coverage.declaration)));
+const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.value.format(coverage.branch.covered), nf.value.format(coverage.branch.total), coverUtils.displayPercent(coverUtils.percent(coverage.branch)));
 
 const getOverallHoverText = (coverage: CoverageBarSource): IManagedHoverTooltipMarkdownString => {
 	const str = [

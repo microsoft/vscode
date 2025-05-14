@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from './editorBrowser.js';
+import { Position } from '../common/core/position.js';
+import { ScrollType } from '../common/editorCommon.js';
 
 export class StableEditorScrollState {
 

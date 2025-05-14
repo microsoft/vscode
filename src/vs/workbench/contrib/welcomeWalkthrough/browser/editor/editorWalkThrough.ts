@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import content from 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough';
-import { localize, localize2 } from 'vs/nls';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { walkThroughContentRegistry } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
+import content from './vs_code_editor_walkthrough.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WalkThroughInput, WalkThroughInputOptions } from '../walkThroughInput.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
+import { IEditorSerializer } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
+import { walkThroughContentRegistry } from '../../common/walkThroughContentProvider.js';
 
 walkThroughContentRegistry.registerProvider('vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough', content);
 

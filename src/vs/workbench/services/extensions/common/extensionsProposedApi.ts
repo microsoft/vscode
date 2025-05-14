@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { localize } from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { allApiProposals, ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Mutable } from 'vs/base/common/types';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { localize } from '../../../../nls.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { allApiProposals, ApiProposalName } from '../../../../platform/extensions/common/extensionsApiProposals.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from '../../extensionManagement/common/extensionFeatures.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Mutable } from '../../../../base/common/types.js';
 
 export class ExtensionsProposedApi {
 

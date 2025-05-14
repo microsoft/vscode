@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, TokenizationRegistry, EncodedTokenizationResult } from 'vs/editor/common/languages';
-import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IFoundBracket } from '../../../common/textModelBracketPairs.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ITokenizationSupport, TokenizationRegistry, EncodedTokenizationResult } from '../../../common/languages.js';
+import { StandardTokenType, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { CharacterPair } from '../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { TestLineToken } from '../core/testLineToken.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function createTextModelWithBrackets(disposables: DisposableStore, text: string, brackets: CharacterPair[]): TextModel {
 	const languageId = 'bracketMode2';

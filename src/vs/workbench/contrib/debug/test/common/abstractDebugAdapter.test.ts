@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { timeout } from '../../../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockDebugAdapter } from './mockDebug.js';
 
 suite('Debug - AbstractDebugAdapter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

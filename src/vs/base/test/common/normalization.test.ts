@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { removeAccents } from 'vs/base/common/normalization';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { removeAccents } from '../../common/normalization.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Normalization', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

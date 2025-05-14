@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IUpdateService } from '../../../../platform/update/common/update.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from '../browser/timerService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { process } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
 
 export class TimerService extends AbstractTimerService {
 

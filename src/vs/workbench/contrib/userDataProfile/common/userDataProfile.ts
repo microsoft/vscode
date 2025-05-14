@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IEditorPane } from 'vs/workbench/common/editor';
+import { URI } from '../../../../base/common/uri.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IEditorPane } from '../../../common/editor.js';
 
 export interface IUserDataProfilesEditor extends IEditorPane {
 	createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void>;

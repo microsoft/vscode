@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IAction } from '../../../base/common/actions.js';
+import { Event } from '../../../base/common/event.js';
+import BaseSeverity from '../../../base/common/severity.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export import Severity = BaseSeverity;
 
@@ -21,6 +20,11 @@ export enum NotificationPriority {
 	 * Default priority: notification will be visible unless do not disturb mode is enabled.
 	 */
 	DEFAULT,
+
+	/**
+	 * Optional priority: notification might only be visible from the notifications center.
+	 */
+	OPTIONAL,
 
 	/**
 	 * Silent priority: notification will only be visible from the notifications center.
@@ -268,6 +272,14 @@ export interface INotificationHandle {
 	close(): void;
 }
 
+export interface IStatusHandle {
+
+	/**
+	 * Hide the status message.
+	 */
+	close(): void;
+}
+
 interface IBasePromptChoice {
 
 	/**
@@ -445,9 +457,9 @@ export interface INotificationService {
 	 * @param message the message to show as status
 	 * @param options provides some optional configuration options
 	 *
-	 * @returns a disposable to hide the status message
+	 * @returns a handle to hide the status message
 	 */
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle;
 }
 
 export class NoOpNotification implements INotificationHandle {

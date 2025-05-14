@@ -3,30 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchIssueService, IssueType, IIssueFormService } from 'vs/workbench/contrib/issue/common/issue';
-import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
-import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
-import { NativeIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issueService';
-import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
-import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { NativeIssueFormService } from 'vs/workbench/contrib/issue/electron-sandbox/nativeIssueFormService';
-
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProcessService } from '../../../../platform/process/common/process.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
+import '../browser/issueTroubleshoot.js';
+import { BaseIssueContribution } from '../common/issue.contribution.js';
+import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
+import { NativeIssueService } from './issueService.js';
+import { NativeIssueFormService } from './nativeIssueFormService.js';
 
 //#region Issue Contribution
-
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
 
@@ -37,6 +35,10 @@ class NativeIssueContribution extends BaseIssueContribution {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(productService, configurationService);
+
+		if (!configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
+			return;
+		}
 
 		if (productService.reportIssueUrl) {
 			this._register(registerAction2(ReportPerformanceIssueUsingReporterAction));
@@ -56,16 +58,6 @@ class NativeIssueContribution extends BaseIssueContribution {
 				}]
 			});
 		};
-
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-			properties: {
-				'issueReporter.experimental.auxWindow': {
-					type: 'boolean',
-					default: true,
-					description: 'Enable the new experimental issue reporter in electron.',
-				},
-			}
-		});
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (!configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess') && disposable) {
@@ -102,5 +94,9 @@ class ReportPerformanceIssueUsingReporterAction extends Action2 {
 		return issueService.openReporter({ issueType: IssueType.PerformanceIssue });
 	}
 }
+
+CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
+	return accessor.get(IProcessService).getSystemStatus();
+});
 
 // #endregion

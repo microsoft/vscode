@@ -3,37 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TITLE, isProfileURL } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { URI } from 'vs/base/common/uri';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserDataProfilesEditor } from 'vs/workbench/contrib/userDataProfile/common/userDataProfile';
-import { IURLService } from 'vs/platform/url/common/url';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTagsService } from '../../tags/common/workspaceTags.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from './userDataProfilesEditor.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
+import { IURLService } from '../../../../platform/url/common/url.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
+const ProfilesMenu = new MenuId('Profiles');
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -60,7 +61,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		super();
 
 		this.currentProfileContext = CURRENT_PROFILE_CONTEXT.bindTo(contextKeyService);
-		PROFILES_ENABLEMENT_CONTEXT.bindTo(contextKeyService).set(this.userDataProfilesService.isEnabled());
 		this.isCurrentProfileTransientContext = IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.bindTo(contextKeyService);
 
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
@@ -121,6 +121,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerActions(): void {
+		this.registerProfileSubMenu();
 		this._register(this.registerManageProfilesAction());
 		this._register(this.registerSwitchProfileAction());
 
@@ -138,6 +139,30 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.registerHelpAction();
 	}
 
+	private registerProfileSubMenu(): void {
+		const getProfilesTitle = () => {
+			return localize('profiles', "Profile ({0})", this.userDataProfileService.currentProfile.name);
+		};
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			get title() {
+				return getProfilesTitle();
+			},
+			submenu: ProfilesMenu,
+			group: '2_configuration',
+			order: 1,
+			when: HAS_PROFILES_CONTEXT
+		});
+		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			get title() {
+				return getProfilesTitle();
+			},
+			submenu: ProfilesMenu,
+			group: '2_configuration',
+			order: 1,
+			when: HAS_PROFILES_CONTEXT
+		});
+	}
+
 	private registerOpenProfileSubMenu(): void {
 		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 			title: localize('New Profile Window', "New Window with Profile"),
@@ -152,9 +177,37 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.profilesDisposable.value = new DisposableStore();
 		for (const profile of this.userDataProfilesService.profiles) {
 			if (!profile.isTransient) {
+				this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
 				this.profilesDisposable.value.add(this.registerNewWindowAction(profile));
 			}
 		}
+	}
+
+	private registerProfileEntryAction(profile: IUserDataProfile): IDisposable {
+		const that = this;
+		return registerAction2(class ProfileEntryAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
+					title: profile.name,
+					metadata: {
+						description: localize2('change profile', "Switch to {0} profile", profile.name),
+					},
+					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
+					menu: [
+						{
+							id: ProfilesMenu,
+							group: '0_profiles',
+						}
+					]
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				if (that.userDataProfileService.currentProfile.id !== profile.id) {
+					return that.userDataProfileManagementService.switchProfile(profile);
+				}
+			}
+		});
 	}
 
 	private registerNewWindowWithProfileAction(): IDisposable {
@@ -201,6 +254,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: localize2('openShort', "{0}", profile.name),
+					metadata: {
+						description: localize2('open profile', "Open New Window with {0} Profile", profile.name),
+					},
 					menu: {
 						id: OpenProfileMenu,
 						group: '0_profiles',
@@ -236,7 +292,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					title: localize2('switchProfile', 'Switch Profile...'),
 					category: PROFILES_CATEGORY,
 					f1: true,
-					precondition: PROFILES_ENABLEMENT_CONTEXT,
 				});
 			}
 			async run(accessor: ServicesAccessor) {
@@ -276,10 +331,17 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 1,
+							when: HAS_PROFILES_CONTEXT.negate()
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
+							order: 1,
+							when: HAS_PROFILES_CONTEXT.negate()
+						},
+						{
+							id: ProfilesMenu,
+							group: '1_manage',
 							order: 1,
 						},
 					]
@@ -325,7 +387,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			command: {
 				id,
 				title: localize2('export profile in share', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
-				precondition: PROFILES_ENABLEMENT_CONTEXT,
 			},
 		}));
 		return disposables;
@@ -341,7 +402,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					title: localize2('save profile as', "Save Current Profile As..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
-					precondition: PROFILES_ENABLEMENT_CONTEXT
 				});
 			}
 
@@ -360,7 +420,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					id: 'workbench.profiles.actions.createProfile',
 					title: localize2('create profile', "New Profile..."),
 					category: PROFILES_CATEGORY,
-					precondition: PROFILES_ENABLEMENT_CONTEXT,
 					f1: true,
 					menu: [
 						{
@@ -387,7 +446,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					title: localize2('delete profile', "Delete Profile..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
-					precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
+					precondition: HAS_PROFILES_CONTEXT,
 				});
 			}
 
@@ -435,7 +494,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					}],
 				});
 			}
-			run(accessor: ServicesAccessor): any {
+			run(accessor: ServicesAccessor): unknown {
 				return accessor.get(IOpenerService).open(URI.parse('https://aka.ms/vscode-profiles-help'));
 			}
 		}));
@@ -443,6 +502,19 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private async reportWorkspaceProfileInfo(): Promise<void> {
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
+
+		type UserProfilesCountClassification = {
+			owner: 'sandy081';
+			comment: 'Report the number of user profiles excluding the default profile';
+			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of user profiles excluding the default profile' };
+		};
+		type UserProfilesCountEvent = {
+			count: number;
+		};
+		if (this.userDataProfilesService.profiles.length > 1) {
+			this.telemetryService.publicLog2<UserProfilesCountEvent, UserProfilesCountClassification>('profiles:count', { count: this.userDataProfilesService.profiles.length - 1 });
+		}
+
 		const workspaceId = await this.workspaceTagsService.getTelemetryWorkspaceId(this.workspaceContextService.getWorkspace(), this.workspaceContextService.getWorkbenchState());
 		type WorkspaceProfileInfoClassification = {
 			owner: 'sandy081';

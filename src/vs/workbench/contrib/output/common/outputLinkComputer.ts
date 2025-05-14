@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILink } from 'vs/editor/common/languages';
-import { URI } from 'vs/base/common/uri';
-import * as extpath from 'vs/base/common/extpath';
-import * as resources from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { isWindows } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { WorkerTextModelSyncServer, ICommonModel } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { ILink } from '../../../../editor/common/languages.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as extpath from '../../../../base/common/extpath.js';
+import * as resources from '../../../../base/common/resources.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
+import { WorkerTextModelSyncServer, ICommonModel } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 
 export interface IResourceCreator {
 	toResource: (folderRelativePath: string) => URI | null;
 }
 
-export class OutputLinkComputer implements IRequestHandler {
+export class OutputLinkComputer implements IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 
 	private readonly workerTextModelSyncServer = new WorkerTextModelSyncServer();
 	private patterns = new Map<URI /* folder uri */, RegExp[]>();
 
-	constructor(workerServer: IWorkerServer) {
+	constructor(workerServer: IWebWorkerServer) {
 		this.workerTextModelSyncServer.bindToServer(workerServer);
 	}
 
@@ -181,10 +181,6 @@ export class OutputLinkComputer implements IRequestHandler {
 	}
 }
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
-export function create(workerServer: IWorkerServer): OutputLinkComputer {
+export function create(workerServer: IWebWorkerServer): OutputLinkComputer {
 	return new OutputLinkComputer(workerServer);
 }

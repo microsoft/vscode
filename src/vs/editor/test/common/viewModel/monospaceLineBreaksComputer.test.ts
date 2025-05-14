@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditorOptions, WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILineBreaksComputerFactory, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
+import { ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';

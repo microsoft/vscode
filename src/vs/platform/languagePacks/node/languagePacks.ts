@@ -5,19 +5,19 @@
 
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { equals } from 'vs/base/common/arrays';
-import { Queue } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
-import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
-import { URI } from 'vs/base/common/uri';
+import { equals } from '../../../base/common/arrays.js';
+import { Queue } from '../../../base/common/async.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from '../../extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../extensionManagement/common/extensionManagementUtil.js';
+import { ILogService } from '../../log/common/log.js';
+import { ILocalizationContribution } from '../../extensions/common/extensions.js';
+import { ILanguagePackItem, LanguagePackBaseService } from '../common/languagePacks.js';
+import { URI } from '../../../base/common/uri.js';
 
 interface ILanguagePack {
 	hash: string;

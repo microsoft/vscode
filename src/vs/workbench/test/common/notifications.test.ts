@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType, INotificationsFilter } from 'vs/workbench/common/notifications';
-import { Action } from 'vs/base/common/actions';
-import { INotification, Severity, NotificationsFilter, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType, INotificationsFilter } from '../../common/notifications.js';
+import { Action } from '../../../base/common/actions.js';
+import { INotification, Severity, NotificationsFilter, NotificationPriority } from '../../../platform/notification/common/notification.js';
+import { createErrorWithActions } from '../../../base/common/errorMessage.js';
+import { NotificationService } from '../../services/notification/common/notificationService.js';
+import { TestStorageService } from './workbenchTestServices.js';
+import { timeout } from '../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 suite('Notifications', () => {
 
@@ -275,7 +275,7 @@ suite('Notifications', () => {
 		assert.strictEqual(model.statusMessage!.message, 'Hello World');
 		assert.strictEqual(lastStatusMessageEvent.item.message, model.statusMessage!.message);
 		assert.strictEqual(lastStatusMessageEvent.kind, StatusMessageChangeType.ADD);
-		disposable.dispose();
+		disposable.close();
 		assert.ok(!model.statusMessage);
 		assert.strictEqual(lastStatusMessageEvent.kind, StatusMessageChangeType.REMOVE);
 
@@ -284,10 +284,10 @@ suite('Notifications', () => {
 
 		assert.strictEqual(model.statusMessage!.message, 'Hello World 3');
 
-		disposable2.dispose();
+		disposable2.close();
 		assert.strictEqual(model.statusMessage!.message, 'Hello World 3');
 
-		disposable3.dispose();
+		disposable3.close();
 		assert.ok(!model.statusMessage);
 
 		item2DuplicateHandle.close();

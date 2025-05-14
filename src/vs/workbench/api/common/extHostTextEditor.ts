@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'vs/base/common/assert';
-import { ReadonlyError, illegalArgument } from 'vs/base/common/errors';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
+import { ok } from '../../../base/common/assert.js';
+import { ReadonlyError, illegalArgument } from '../../../base/common/errors.js';
+import { IdGenerator } from '../../../base/common/idGenerator.js';
+import { TextEditorCursorStyle } from '../../../editor/common/config/editorOptions.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from './extHost.protocol.js';
+import * as TypeConverters from './extHostTypeConverters.js';
+import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from './extHostTypes.js';
 import type * as vscode from 'vscode';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Lazy } from 'vs/base/common/lazy';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 export class TextEditorDecorationType {
 
@@ -412,6 +412,7 @@ export class ExtHostTextEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _disposed: boolean = false;
 	private _hasDecorationsForKey = new Set<string>();
+	private _diffInformation: vscode.TextEditorDiffInformation[] | undefined;
 
 	readonly value: vscode.TextEditor;
 
@@ -465,6 +466,9 @@ export class ExtHostTextEditor {
 			set visibleRanges(_value: Range[]) {
 				throw new ReadonlyError('visibleRanges');
 			},
+			get diffInformation() {
+				return that._diffInformation;
+			},
 			// --- options
 			get options(): vscode.TextEditorOptions {
 				return that._options.value;
@@ -491,7 +495,7 @@ export class ExtHostTextEditor {
 				return that._applyEdit(edit);
 			},
 			// --- snippet edit
-			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; keepWhitespace?: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 				if (that._disposed) {
 					return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 				}
@@ -516,6 +520,9 @@ export class ExtHostTextEditor {
 							ranges.push({ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column });
 						}
 					}
+				}
+				if (options.keepWhitespace === undefined) {
+					options.keepWhitespace = false;
 				}
 				return _proxy.$tryInsertSnippet(id, document.value.version, snippet.value, ranges, options);
 			},
@@ -598,6 +605,11 @@ export class ExtHostTextEditor {
 	_acceptSelections(selections: Selection[]): void {
 		ok(!this._disposed);
 		this._selections = selections;
+	}
+
+	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation[] | undefined): void {
+		ok(!this._disposed);
+		this._diffInformation = diffInformation;
 	}
 
 	private async _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {

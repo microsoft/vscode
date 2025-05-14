@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, type IMultiDiffSourceResolver } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { NotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
-import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, type IMultiDiffSourceResolver } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
+import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
+import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 
 export const NotebookMultiDiffEditorScheme = 'multi-cell-notebook-diff-editor';
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toUint32 } from 'vs/base/common/uint';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/model/prefixSumComputer';
+import { toUint32 } from '../../../../base/common/uint.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PrefixSumComputer, PrefixSumIndexOfResult } from '../../../common/model/prefixSumComputer.js';
 
 function toUint32Array(arr: number[]): Uint32Array {
 	const len = arr.length;

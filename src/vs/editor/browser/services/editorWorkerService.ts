@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { logOnceWebWorkerWarning, IWorkerClient, Proxied, IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { DiffAlgorithmName, IEditorWorkerService, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { canceled, onUnexpectedError } from 'vs/base/common/errors';
-import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { ILinesDiffComputerOptions, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/services/findSectionHeaders';
-import { mainWindow } from 'vs/base/browser/window';
-import { WindowIntervalTimer } from 'vs/base/browser/dom';
-import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { timeout } from '../../../base/common/async.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { logOnceWebWorkerWarning, IWebWorkerClient, Proxied } from '../../../base/common/worker/webWorker.js';
+import { createWebWorker, IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
+import { Position } from '../../common/core/position.js';
+import { IRange, Range } from '../../common/core/range.js';
+import { ITextModel } from '../../common/model.js';
+import * as languages from '../../common/languages.js';
+import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
+import { EditorWorker } from '../../common/services/editorWebWorker.js';
+import { DiffAlgorithmName, IEditorWorkerService, ILineChange, IUnicodeHighlightsResult } from '../../common/services/editorWorker.js';
+import { IModelService } from '../../common/services/model.js';
+import { ITextResourceConfigurationService } from '../../common/services/textResourceConfiguration.js';
+import { isNonEmptyArray } from '../../../base/common/arrays.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { canceled, onUnexpectedError } from '../../../base/common/errors.js';
+import { UnicodeHighlighterOptions } from '../../common/services/unicodeTextModelHighlighter.js';
+import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
+import { IChange } from '../../common/diff/legacyLinesDiffComputer.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../common/diff/documentDiffProvider.js';
+import { ILinesDiffComputerOptions, MovedText } from '../../common/diff/linesDiffComputer.js';
+import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from '../../common/diff/rangeMapping.js';
+import { LineRange } from '../../common/core/ranges/lineRange.js';
+import { SectionHeader, FindSectionHeaderOptions } from '../../common/services/findSectionHeaders.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { WindowIntervalTimer } from '../../../base/browser/dom.js';
+import { WorkerTextModelSyncClient } from '../../common/services/textModelSync/textModelSync.impl.js';
+import { EditorWorkerHost } from '../../common/services/editorWorkerHost.js';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -59,7 +59,7 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 	private readonly _logService: ILogService;
 
 	constructor(
-		workerDescriptor: IWorkerDescriptor,
+		workerDescriptor: IWebWorkerDescriptor,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
@@ -222,7 +222,7 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 		return worker.$computeDefaultDocumentColors(uri.toString());
 	}
 
-	private async _workerWithResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorSimpleWorker>> {
+	private async _workerWithResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorWorker>> {
 		const worker = await this._workerManager.withWorker();
 		return await worker.workerWithSyncedResources(resources, forceLargeModels);
 	}
@@ -313,7 +313,7 @@ class WorkerManager extends Disposable {
 	private _lastWorkerUsedTime: number;
 
 	constructor(
-		private readonly _workerDescriptor: IWorkerDescriptor,
+		private readonly _workerDescriptor: IWebWorkerDescriptor,
 		@IModelService modelService: IModelService
 	) {
 		super();
@@ -375,7 +375,7 @@ class WorkerManager extends Disposable {
 	}
 }
 
-class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
+class SynchronousWorkerClient<T extends IDisposable> implements IWebWorkerClient<T> {
 	private readonly _instance: T;
 	public readonly proxy: Proxied<T>;
 
@@ -405,12 +405,12 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
-	private _worker: IWorkerClient<EditorSimpleWorker> | null;
+	private _worker: IWebWorkerClient<EditorWorker> | null;
 	private _modelManager: WorkerTextModelSyncClient | null;
 	private _disposed = false;
 
 	constructor(
-		private readonly _workerDescriptor: IWorkerDescriptor,
+		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker,
 		keepIdleModels: boolean,
 		@IModelService modelService: IModelService,
 	) {
@@ -426,10 +426,10 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		throw new Error(`Not implemented!`);
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<EditorWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<EditorSimpleWorker>(this._workerDescriptor));
+				this._worker = this._register(createWebWorker<EditorWorker>(this._workerDescriptorOrWorker));
 				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
@@ -439,7 +439,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		return this._worker;
 	}
 
-	protected async _getProxy(): Promise<Proxied<EditorSimpleWorker>> {
+	protected async _getProxy(): Promise<Proxied<EditorWorker>> {
 		try {
 			const proxy = this._getOrCreateWorker().proxy;
 			await proxy.$ping();
@@ -451,8 +451,8 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		}
 	}
 
-	private _createFallbackLocalWorker(): SynchronousWorkerClient<EditorSimpleWorker> {
-		return new SynchronousWorkerClient(new EditorSimpleWorker(this._createEditorWorkerHost(), null));
+	private _createFallbackLocalWorker(): SynchronousWorkerClient<EditorWorker> {
+		return new SynchronousWorkerClient(new EditorWorker(null));
 	}
 
 	private _createEditorWorkerHost(): EditorWorkerHost {
@@ -461,14 +461,14 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		};
 	}
 
-	private _getOrCreateModelManager(proxy: Proxied<EditorSimpleWorker>): WorkerTextModelSyncClient {
+	private _getOrCreateModelManager(proxy: Proxied<EditorWorker>): WorkerTextModelSyncClient {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new WorkerTextModelSyncClient(proxy, this._modelService, this._keepIdleModels));
 		}
 		return this._modelManager;
 	}
 
-	public async workerWithSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorSimpleWorker>> {
+	public async workerWithSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorWorker>> {
 		if (this._disposed) {
 			return Promise.reject(canceled());
 		}

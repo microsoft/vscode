@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostContext, ExtHostEmbeddingsShape, MainContext, MainThreadEmbeddingsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ExtHostContext, ExtHostEmbeddingsShape, MainContext, MainThreadEmbeddingsShape } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 
 interface IEmbeddingsProvider {

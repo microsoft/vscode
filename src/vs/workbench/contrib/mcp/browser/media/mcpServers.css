@@ -1,0 +1,170 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mcp-server-item {
+	height: 100%;
+	padding: 0 0 0 16px;
+	overflow: hidden;
+	display: flex;
+
+	.icon-container {
+		position: relative;
+		display: flex;
+		align-items: center;
+
+		.icon {
+			width: 42px;
+			height: 42px;
+			padding-right: 14px;
+			flex-shrink: 0;
+			object-fit: contain;
+		}
+	}
+
+	.details-container {
+		flex: 1;
+		display: flex;
+		overflow: hidden;
+		flex-direction: column;
+		justify-content: center;
+
+		.name-container {
+			height: 24px;
+			display: flex;
+			overflow: hidden;
+			padding-right: 11px;
+			align-items: center;
+			flex-wrap: nowrap;
+
+			.name {
+				font-weight: bold;
+				flex: 1;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				overflow: hidden;
+			}
+		}
+
+		.publisher-container {
+			line-height: 24px;
+
+			.publisher {
+				display: flex;
+				align-items: center;
+
+				.publisher-name {
+					font-size: 90%;
+					color: var(--vscode-descriptionForeground);
+					font-weight: 600;
+				}
+
+				.publisher-name:not(:first-child) {
+					padding-left: 1px;
+				}
+			}
+		}
+
+		.footer-container {
+			display: flex;
+			padding-right: 7px;
+			height: 24px;
+			overflow: hidden;
+			align-items: center;
+
+			.stats-container {
+				flex: 1;
+
+				.codicon {
+					font-size: 120%;
+					margin-right: 3px;
+					-webkit-mask: inherit;
+				}
+
+				.install-count,
+				.ratings {
+					display: flex;
+					align-items: center;
+				}
+
+				.ratings {
+					text-align: right;
+				}
+
+				.install-count:not(:empty) {
+					font-size: 80%;
+				}
+			}
+		}
+	}
+
+	.ellipsis {
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+}
+
+.mcp-server-actions > .monaco-action-bar > .actions-container {
+	.action-item.disabled {
+		.action-label {
+			display: none;
+		}
+	}
+
+	.action-label:not(.icon) {
+		border-radius: 2px;
+	}
+
+	.action-label {
+		max-width: 150px;
+		line-height: 16px;
+		line-height: initial;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.label,
+	.text {
+		width: auto;
+		height: auto;
+		line-height: 14px;
+	}
+
+	.label {
+		padding: 0 5px;
+		outline-offset: 1px;
+		color: var(--vscode-extensionButton-foreground) !important;
+		background-color: var(--vscode-extensionButton-background) !important;
+
+		.prominent {
+			background-color: var(--vscode-extensionButton-prominentBackground);
+			color: var(--vscode-extensionButton-prominentForeground) !important;
+		}
+
+		.prominent:hover {
+			background-color: var(--vscode-extensionButton-prominentHoverBackground);
+		}
+	}
+
+	.label:hover {
+		background-color: var(--vscode-extensionButton-hoverBackground) !important;
+	}
+}
+
+.monaco-list-row.selected {
+	.mcp-server-item {
+		.details {
+			.description {
+				color: unset;
+			}
+		}
+	}
+}
+
+.hc-black .mcp-server-item > .details > .description,
+.hc-light .mcp-server-item > .details > .description {
+	color: unset;
+}

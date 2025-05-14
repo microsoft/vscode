@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CursorMove } from 'vs/editor/common/cursor/cursorMoveCommands';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CoreNavigationCommands } from '../../../browser/coreCommands.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { CursorMove } from '../../../common/cursor/cursorMoveCommands.js';
+import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
+import { ITestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
 
 suite('Cursor move command test', () => {
 

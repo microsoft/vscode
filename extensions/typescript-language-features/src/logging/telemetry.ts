@@ -11,6 +11,7 @@ export interface TelemetryProperties {
 
 export interface TelemetryReporter {
 	logTelemetry(eventName: string, properties?: TelemetryProperties): void;
+	logTraceEvent(tracePoint: string, correlationId: string, command?: string): void;
 }
 
 export class VSCodeTelemetryReporter implements TelemetryReporter {
@@ -33,5 +34,28 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 		properties['version'] = this.clientVersionDelegate();
 
 		reporter.postEventObj(eventName, properties);
+	}
+
+	public logTraceEvent(point: string, id: string, data?: string): void {
+		const event: { point: string; id: string; data?: string | undefined } = {
+			point,
+			id
+		};
+		if (data) {
+			event.data = data;
+		}
+
+		/* __GDPR__
+			"typeScriptExtension.trace" : {
+				"owner": "dirkb",
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				],
+				"point" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The trace point." },
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The traceId is used to correlate the request with other trace points." },
+				"data": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Additional data" }
+			}
+		*/
+		this.logTelemetry('typeScriptExtension.trace', event);
 	}
 }

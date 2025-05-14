@@ -2,34 +2,42 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IValidEditOperation } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_AGENT, EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
-import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService';
-import { isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { autorun, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isCompositeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IValidEditOperation } from '../../../../editor/common/model.js';
+import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatService } from '../../chat/common/chatService.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
+import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
 
 
 type SessionData = {
@@ -68,6 +76,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 
+	readonly hideOnRequest: IObservable<boolean>;
+
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
@@ -79,8 +89,16 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
-	) { }
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+
+		const v2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, this._configurationService);
+
+		this.hideOnRequest = observableConfigValue(InlineChatConfigKeys.HideOnRequest, false, this._configurationService)
+			.map((value, r) => v2.read(r) && value);
+	}
 
 	dispose() {
 		this._store.dispose();
@@ -88,7 +106,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; headless?: boolean; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
+	async createSession(editor: IActiveCodeEditor, options: { headless?: boolean; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
 
 		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
 
@@ -157,7 +175,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}));
 
 		store.add(this._chatAgentService.onDidChangeAgents(e => {
-			if (e === undefined && !this._chatAgentService.getAgent(agent.id)) {
+			if (e === undefined && (!this._chatAgentService.getAgent(agent.id) || !this._chatAgentService.getActivatedAgents().map(agent => agent.id).includes(agent.id))) {
 				this._logService.trace(`[IE] provider GONE for ${editor.getId()}, ${agent.extensionId}`);
 				this._releaseSession(session, true);
 			}
@@ -197,7 +215,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}
 
 		const session = new Session(
-			options.editMode,
 			options.headless ?? false,
 			targetUri,
 			textModel0,
@@ -312,6 +329,86 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._keyComputers.set(scheme, value);
 		return toDisposable(() => this._keyComputers.delete(scheme));
 	}
+
+	// ---- NEW
+
+	private readonly _sessions2 = new ResourceMap<IInlineChatSession2>();
+
+	private readonly _onDidChangeSessions = this._store.add(new Emitter<this>());
+	readonly onDidChangeSessions: Event<this> = this._onDidChangeSessions.event;
+
+
+	async createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2> {
+
+		assertType(editor.hasModel());
+
+		if (this._sessions2.has(uri)) {
+			throw new Error('Session already exists');
+		}
+
+		this._onWillStartSession.fire(editor as IActiveCodeEditor);
+
+		const chatModel = this._chatService.startSession(ChatAgentLocation.Panel, token, false);
+
+		const editingSession = await chatModel.editingSessionObs?.promise!;
+		const widget = this._chatWidgetService.getWidgetBySessionId(chatModel.sessionId);
+		await widget?.attachmentModel.addFile(uri);
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => {
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
+			editingSession.reject();
+			this._sessions2.delete(uri);
+			this._onDidChangeSessions.fire(this);
+		}));
+		store.add(chatModel);
+
+		store.add(autorun(r => {
+
+			const entries = editingSession.entries.read(r);
+			if (entries.length === 0) {
+				return;
+			}
+
+			const allSettled = entries.every(entry => {
+				const state = entry.state.read(r);
+				return (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected)
+					&& !entry.isCurrentlyBeingModifiedBy.read(r);
+			});
+
+			if (allSettled && !chatModel.requestInProgress) {
+				// self terminate
+				store.dispose();
+			}
+		}));
+
+		const result: IInlineChatSession2 = {
+			uri,
+			initialPosition: editor.getPosition().delta(-1),
+			chatModel,
+			editingSession,
+			dispose: store.dispose.bind(store)
+		};
+		this._sessions2.set(uri, result);
+		this._onDidChangeSessions.fire(this);
+		return result;
+	}
+
+	getSession2(uri: URI): IInlineChatSession2 | undefined {
+		let result = this._sessions2.get(uri);
+		if (!result) {
+			// no direct session, try to find an editing session which has a file entry for the uri
+			for (const [_, candidate] of this._sessions2) {
+				const entry = candidate.editingSession.getEntry(uri);
+				if (entry) {
+					result = candidate;
+					break;
+				}
+			}
+		}
+
+		return result;
+	}
 }
 
 export class InlineChatEnabler {
@@ -319,21 +416,51 @@ export class InlineChatEnabler {
 	static Id = 'inlineChat.enabler';
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
+	private readonly _ctxHasProvider2: IContextKey<boolean>;
+	private readonly _ctxPossible: IContextKey<boolean>;
 
 	private readonly _store = new DisposableStore();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatAgentService chatAgentService: IChatAgentService
+		@IChatAgentService chatAgentService: IChatAgentService,
+		@IEditorService editorService: IEditorService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
 		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
-		this._store.add(chatAgentService.onDidChangeAgents(() => {
-			const hasEditorAgent = Boolean(chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
-			this._ctxHasProvider.set(hasEditorAgent);
+		this._ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
+		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
+
+		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
+		const inlineChat2Obs = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configService);
+
+		this._store.add(autorun(r => {
+			const v2 = inlineChat2Obs.read(r);
+			const agent = agentObs.read(r);
+			if (!agent) {
+				this._ctxHasProvider.reset();
+				this._ctxHasProvider2.reset();
+			} else if (v2) {
+				this._ctxHasProvider.reset();
+				this._ctxHasProvider2.set(true);
+			} else {
+				this._ctxHasProvider.set(true);
+				this._ctxHasProvider2.reset();
+			}
 		}));
+
+		const updateEditor = () => {
+			const ctrl = editorService.activeEditorPane?.getControl();
+			const isCodeEditorLike = isCodeEditor(ctrl) || isDiffEditor(ctrl) || isCompositeEditor(ctrl);
+			this._ctxPossible.set(isCodeEditorLike);
+		};
+
+		this._store.add(editorService.onDidActiveEditorChange(updateEditor));
+		updateEditor();
 	}
 
 	dispose() {
+		this._ctxPossible.reset();
 		this._ctxHasProvider.reset();
 		this._store.dispose();
 	}

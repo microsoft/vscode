@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileWriteOptions, IFileService, IStat, IWatchOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { readTrustedDomains, TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, TRUSTED_DOMAINS_STORAGE_KEY } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../../base/common/event.js';
+import { parse } from '../../../../base/common/json.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileWriteOptions, IFileService, IStat, IWatchOptions, IFileSystemProviderWithFileReadWriteCapability } from '../../../../platform/files/common/files.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { readTrustedDomains, TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, TRUSTED_DOMAINS_STORAGE_KEY } from './trustedDomains.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const TRUSTED_DOMAINS_SCHEMA = 'trustedDomains';
 

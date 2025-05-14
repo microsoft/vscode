@@ -63,10 +63,10 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/(module|(text|application)\/(java|ecma)script|text\/babel)/.test(value)) {
+					const token = scanner.getTokenText();
+					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(token) || token === 'module') {
 						languageIdFromType = 'javascript';
-						isModuleScript = true;
-					} else if (/text\/typescript/.test(value)) {
+					} else if (/["']text\/typescript["']/.test(token)) {
 						languageIdFromType = 'typescript';
 						isModuleScript = true;
 					} else if (/application\/json/.test(value)) {
@@ -141,6 +141,17 @@ function getSuffix(c: EmbeddedRegion) {
 function updateContent(c: EmbeddedRegion, content: string): string {
 	if (!c.attributeValue && c.languageId === 'javascript') {
 		return content.replace(`<!--`, `/* `).replace(`-->`, ` */`);
+	}
+	if (c.languageId === 'css') {
+		const quoteEscape = /(&quot;|&#34;)/g;
+		return content.replace(quoteEscape, (match, _, offset) => {
+			const spaces = ' '.repeat(match.length - 1);
+			const afterChar = content[offset + match.length];
+			if (!afterChar || afterChar.includes(' ')) {
+				return `${spaces}"`;
+			}
+			return `"${spaces}`;
+		});
 	}
 	return content;
 }

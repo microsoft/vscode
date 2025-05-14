@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from 'vs/platform/notification/common/notification';
+import { Event } from '../../../../base/common/event.js';
+import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusHandle, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from '../../common/notification.js';
 
 export class TestNotificationService implements INotificationService {
 
@@ -39,8 +38,10 @@ export class TestNotificationService implements INotificationService {
 		return TestNotificationService.NO_OP;
 	}
 
-	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	status(message: string | Error, options?: IStatusMessageOptions): IStatusHandle {
+		return {
+			close: () => { }
+		};
 	}
 
 	setFilter(): void { }

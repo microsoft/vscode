@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('CancellationToken', function () {
 

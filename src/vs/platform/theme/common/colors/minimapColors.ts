@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color, RGBA } from 'vs/base/common/color';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { registerColor, transparent } from '../colorUtils.js';
 
 // Import the colors we need
-import { editorInfoForeground, editorWarningForeground, editorWarningBorder, editorInfoBorder } from 'vs/platform/theme/common/colors/editorColors';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colors/miscColors';
+import { editorInfoForeground, editorWarningForeground, editorWarningBorder, editorInfoBorder } from './editorColors.js';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from './miscColors.js';
 
 
 export const minimapFindMatch = registerColor('minimap.findMatchHighlight',

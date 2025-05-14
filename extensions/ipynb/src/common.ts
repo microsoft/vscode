@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as nbformat from '@jupyterlab/nbformat';
-import { workspace } from 'vscode';
 
 /**
  * Metadata we store in VS Code cell output items.
@@ -63,9 +62,6 @@ export interface CellMetadata {
 	/**
 	 * The code cell's prompt number. Will be null if the cell has not been run.
 	 */
-	execution_count?: number;
+	execution_count?: number | null;
 }
 
-export function useCustomPropertyInMetadata() {
-	return !workspace.getConfiguration('jupyter', undefined).get<boolean>('experimental.dropCustomMetadata', true);
-}

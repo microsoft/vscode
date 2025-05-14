@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AsyncIterableSource, DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService } from '../../common/languageModels.js';
+import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 
 suite('LanguageModels', function () {
 
@@ -30,7 +32,8 @@ suite('LanguageModels', function () {
 					return Promise.resolve();
 				}
 			},
-			new NullLogService()
+			new NullLogService(),
+			new MockContextKeyService()
 		);
 
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;
@@ -48,6 +51,7 @@ suite('LanguageModels', function () {
 				name: 'Pretty Name',
 				vendor: 'test-vendor',
 				family: 'test-family',
+				modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 				version: 'test-version',
 				id: 'test-id',
 				maxInputTokens: 100,
@@ -68,6 +72,7 @@ suite('LanguageModels', function () {
 				vendor: 'test-vendor',
 				family: 'test2-family',
 				version: 'test2-version',
+				modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 				id: 'test-id',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
@@ -117,6 +122,7 @@ suite('LanguageModels', function () {
 				id: 'actual-lm',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
+				modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
 			},
 			sendChatRequest: async (messages, _from, _options, token) => {
 				// const message = messages.at(-1);
@@ -142,7 +148,7 @@ suite('LanguageModels', function () {
 			}
 		}));
 
-		const models = await languageModels.selectLanguageModels({ identifier: 'actual-lm' });
+		const models = await languageModels.selectLanguageModels({ id: 'actual-lm' });
 		assert.ok(models.length === 1);
 
 		const first = models[0];

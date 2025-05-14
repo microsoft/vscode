@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { flakySuite } from 'vs/base/test/common/testUtils';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
@@ -16,11 +16,6 @@ flakySuite('Native Modules (all platforms)', () => {
 	(isMacintosh ? test.skip : test)('kerberos', async () => { // Somehow fails on macOS ARM?
 		const { default: kerberos } = await import('kerberos');
 		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
-	});
-
-	test('minimist', async () => {
-		const { default: minimist } = await import('minimist');
-		assert.ok(typeof minimist === 'function', testErrorMessage('minimist'));
 	});
 
 	test('yauzl', async () => {
@@ -107,32 +102,17 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('@vscode/sqlite3', async () => {
-		// ESM-comment-begin
-		const sqlite3 = await import('@vscode/sqlite3');
-		// ESM-comment-end
-		// ESM-uncomment-begin
-		// const { default: sqlite3 } = await import('@vscode/sqlite3');
-		// ESM-uncomment-end
+		const { default: sqlite3 } = await import('@vscode/sqlite3');
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
 	test('http-proxy-agent', async () => {
-		// ESM-comment-begin
-		const mod = await import('http-proxy-agent');
-		// ESM-comment-end
-		// ESM-uncomment-begin
-		// const { default: mod } = await import('http-proxy-agent');
-		// ESM-uncomment-end
+		const { default: mod } = await import('http-proxy-agent');
 		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
 	});
 
 	test('https-proxy-agent', async () => {
-		// ESM-comment-begin
-		const mod = await import('https-proxy-agent');
-		// ESM-comment-end
-		// ESM-uncomment-begin
-		// const { default: mod } = await import('https-proxy-agent');
-		// ESM-uncomment-end
+		const { default: mod } = await import('https-proxy-agent');
 		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
 	});
 

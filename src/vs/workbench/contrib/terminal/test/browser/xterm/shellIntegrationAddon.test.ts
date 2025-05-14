@@ -6,12 +6,12 @@
 import type { Terminal } from '@xterm/xterm';
 import { deepEqual, deepStrictEqual, strictEqual } from 'assert';
 import * as sinon from 'sinon';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { deserializeMessage, parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { deserializeMessage, parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { writeP } from '../../../browser/terminalTestHelpers.js';
 
 class TestShellIntegrationAddon extends ShellIntegrationAddon {
 	getCommandDetectionMock(terminal: Terminal): sinon.SinonMock {
@@ -287,6 +287,8 @@ suite('ShellIntegrationAddon', () => {
 			['escaped newline (upper hex)', `${Backslash}x0A`, Newline],
 			['escaped backslash followed by literal "x0a" is not a newline', `${Backslash}${Backslash}x0a`, `${Backslash}x0a`],
 			['non-initial escaped backslash followed by literal "x0a" is not a newline', `foo${Backslash}${Backslash}x0a`, `foo${Backslash}x0a`],
+			['PS1 simple', '[\\u@\\h \\W]\\$', '[\\u@\\h \\W]\\$'],
+			['PS1 VSC SI', `${Backslash}x1b]633;A${Backslash}x07\\[${Backslash}x1b]0;\\u@\\h:\\w\\a\\]${Backslash}x1b]633;B${Backslash}x07`, '\x1b]633;A\x07\\[\x1b]0;\\u@\\h:\\w\\a\\]\x1b]633;B\x07']
 		];
 
 		cases.forEach(([title, input, expected]) => {

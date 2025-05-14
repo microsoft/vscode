@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { withEditorModel } from 'vs/editor/test/common/testTextModel';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
+import { EditorAutoIndentStrategy } from '../../../common/config/editorOptions.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { getEditOperation, testCommand } from '../testCommand.js';
+import { javascriptOnEnterRules } from '../../common/modes/supports/onEnterRules.js';
+import { TestLanguageConfigurationService } from '../../common/modes/testLanguageConfigurationService.js';
+import { withEditorModel } from '../../common/testTextModel.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Create single edit operation

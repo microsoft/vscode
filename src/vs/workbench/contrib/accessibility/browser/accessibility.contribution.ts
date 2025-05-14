@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { DynamicSpeechAccessibilityConfiguration, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
-import { AccessibilityStatus } from 'vs/workbench/contrib/accessibility/browser/accessibilityStatus';
-import { EditorAccessibilityHelpContribution } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
-import { SaveAccessibilitySignalContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/saveAccessibilitySignal';
-import { DiffEditorActiveAnnouncementContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/openDiffEditorAnnouncement';
-import { SpeechAccessibilitySignalContribution } from 'vs/workbench/contrib/speech/browser/speechAccessibilitySignal';
-import { AccessibleViewInformationService, IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
-import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccesibleViewHelpContribution, AccesibleViewContributions } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
-import { ExtensionAccessibilityHelpDialogContribution } from 'vs/workbench/contrib/accessibility/browser/extensionAccesibilityHelp.contribution';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { DynamicSpeechAccessibilityConfiguration, registerAccessibilityConfiguration } from './accessibilityConfiguration.js';
+import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { UnfocusedViewDimmingContribution } from './unfocusedViewDimmingContribution.js';
+import { AccessibilityStatus } from './accessibilityStatus.js';
+import { EditorAccessibilityHelpContribution } from './editorAccessibilityHelp.js';
+import { SaveAccessibilitySignalContribution } from '../../accessibilitySignals/browser/saveAccessibilitySignal.js';
+import { DiffEditorActiveAnnouncementContribution } from '../../accessibilitySignals/browser/openDiffEditorAnnouncement.js';
+import { SpeechAccessibilitySignalContribution } from '../../speech/browser/speechAccessibilitySignal.js';
+import { AccessibleViewInformationService, IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
+import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewService } from './accessibleView.js';
+import { AccesibleViewHelpContribution, AccesibleViewContributions } from './accessibleViewContributions.js';
+import { ExtensionAccessibilityHelpDialogContribution } from './extensionAccesibilityHelp.contribution.js';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);

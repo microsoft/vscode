@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/singleeditortabscontrol';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { Dimension } from 'vs/base/browser/dom';
-import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { IToolbarActions } from 'vs/workbench/common/editor';
+import './media/singleeditortabscontrol.css';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorTabsControl } from './editorTabsControl.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { IEditorTitleControlDimensions } from './editorTitleControl.js';
+import { IToolbarActions } from '../../../common/editor.js';
 
 export class NoEditorTabsControl extends EditorTabsControl {
 	private activeEditor: EditorInput | null = null;
@@ -47,9 +47,17 @@ export class NoEditorTabsControl extends EditorTabsControl {
 
 	beforeCloseEditor(editor: EditorInput): void { }
 
-	closeEditor(editor: EditorInput): void { }
+	closeEditor(editor: EditorInput): void {
+		this.handleClosedEditors();
+	}
 
-	closeEditors(editors: EditorInput[]): void { }
+	closeEditors(editors: EditorInput[]): void {
+		this.handleClosedEditors();
+	}
+
+	private handleClosedEditors(): void {
+		this.activeEditor = this.tabsModel.activeEditor;
+	}
 
 	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void { }
 

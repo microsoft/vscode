@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { groupBy } from 'vs/base/common/arrays';
-import { createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import { Command } from 'vs/editor/common/languages';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtension, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IActiveNotebookEditor, INotebookExtensionRecommendation, JUPYTER_EXTENSION_ID, KERNEL_RECOMMENDATIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IAction } from '../../../../../base/common/actions.js';
+import { groupBy } from '../../../../../base/common/arrays.js';
+import { createCancelablePromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { uppercaseFirstLetter } from '../../../../../base/common/strings.js';
+import { Command } from '../../../../../editor/common/languages.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IActiveNotebookEditor, INotebookExtensionRecommendation, JUPYTER_EXTENSION_ID, KERNEL_RECOMMENDATIONS } from '../notebookBrowser.js';
+import { NotebookEditorWidget } from '../notebookEditorWidget.js';
+import { executingStateIcon, selectKernelIcon } from '../notebookIcons.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from '../../common/notebookKernelService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { INotebookTextModel } from '../../common/notebookCommon.js';
+import { SELECT_KERNEL_ID } from '../controller/coreActions.js';
+import { EnablementState, IExtensionManagementServerService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -73,7 +72,7 @@ export type KernelQuickPickContext =
 	{ id: string; extension: string } |
 	{ notebookEditorId: string } |
 	{ id: string; extension: string; notebookEditorId: string } |
-	{ ui?: boolean; notebookEditor?: NotebookEditorWidget };
+	{ ui?: boolean; notebookEditor?: NotebookEditorWidget; skipIfAlreadySelected?: boolean };
 
 export interface IKernelPickerStrategy {
 	showQuickPick(editor: IActiveNotebookEditor, wantedKernelId?: string): Promise<boolean>;
@@ -105,10 +104,10 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		protected readonly _quickInputService: IQuickInputService,
 		protected readonly _labelService: ILabelService,
 		protected readonly _logService: ILogService,
-		protected readonly _paneCompositePartService: IPaneCompositePartService,
 		protected readonly _extensionWorkbenchService: IExtensionsWorkbenchService,
 		protected readonly _extensionService: IExtensionService,
-		protected readonly _commandService: ICommandService
+		protected readonly _commandService: ICommandService,
+		protected readonly _extensionManagementServerService: IExtensionManagementServerService
 	) { }
 
 	async showQuickPick(editor: IActiveNotebookEditor, wantedId?: string, skipAutoRun?: boolean): Promise<boolean> {
@@ -255,18 +254,18 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		// actions
 		if (isSearchMarketplacePick(pick)) {
 			await this._showKernelExtension(
-				this._paneCompositePartService,
 				this._extensionWorkbenchService,
 				this._extensionService,
+				this._extensionManagementServerService,
 				editor.textModel.viewType,
 				[]
 			);
 			// suggestedExtension must be defined for this option to be shown, but still check to make TS happy
 		} else if (isInstallExtensionPick(pick)) {
 			await this._showKernelExtension(
-				this._paneCompositePartService,
 				this._extensionWorkbenchService,
 				this._extensionService,
+				this._extensionManagementServerService,
 				editor.textModel.viewType,
 				pick.extensionIds,
 				this._productService.quality !== 'stable'
@@ -284,36 +283,50 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	}
 
 	protected async _showKernelExtension(
-		paneCompositePartService: IPaneCompositePartService,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		extensionService: IExtensionService,
+		extensionManagementServerService: IExtensionManagementServerService,
 		viewType: string,
 		extIds: string[],
 		isInsiders?: boolean
 	) {
 		// If extension id is provided attempt to install the extension as the user has requested the suggested ones be installed
 		const extensionsToInstall: IExtension[] = [];
+		const extensionsToInstallOnRemote: IExtension[] = [];
 		const extensionsToEnable: IExtension[] = [];
 
 		for (const extId of extIds) {
 			const extension = (await extensionWorkbenchService.getExtensions([{ id: extId }], CancellationToken.None))[0];
 			if (extension.enablementState === EnablementState.DisabledGlobally || extension.enablementState === EnablementState.DisabledWorkspace || extension.enablementState === EnablementState.DisabledByEnvironment) {
 				extensionsToEnable.push(extension);
-			} else {
+			} else if (!extensionWorkbenchService.installed.some(e => areSameExtensions(e.identifier, extension.identifier))) {
+				// Install this extension only if it hasn't already been installed.
 				const canInstall = await extensionWorkbenchService.canInstall(extension);
-				if (canInstall) {
+				if (canInstall === true) {
 					extensionsToInstall.push(extension);
+				}
+			} else if (extensionManagementServerService.remoteExtensionManagementServer) {
+				// already installed, check if it should be installed on remote since we are not getting any kernels or kernel providers.
+				if (extensionWorkbenchService.installed.some(e => areSameExtensions(e.identifier, extension.identifier) && e.server === extensionManagementServerService.remoteExtensionManagementServer)) {
+					// extension exists on remote server. should not happen
+					continue;
+				} else {
+					// extension doesn't exist on remote server
+					const canInstall = await extensionWorkbenchService.canInstall(extension);
+					if (canInstall) {
+						extensionsToInstallOnRemote.push(extension);
+					}
 				}
 			}
 		}
 
-		if (extensionsToInstall.length || extensionsToEnable.length) {
+		if (extensionsToInstall.length || extensionsToEnable.length || extensionsToInstallOnRemote.length) {
 			await Promise.all([...extensionsToInstall.map(async extension => {
 				await extensionWorkbenchService.install(
 					extension,
 					{
 						installPreReleaseVersion: isInsiders ?? false,
-						context: { skipWalkthrough: true }
+						context: { skipWalkthrough: true },
 					},
 					ProgressLocation.Notification
 				);
@@ -331,16 +344,16 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 					default:
 						break;
 				}
+			}), ...extensionsToInstallOnRemote.map(async extension => {
+				await extensionWorkbenchService.installInServer(extension, this._extensionManagementServerService.remoteExtensionManagementServer!);
 			})]);
 
 			await extensionService.activateByEvent(`onNotebook:${viewType}`);
 			return;
 		}
 
-		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 		const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
-		view?.search(`@tag:notebookKernel${pascalCased}`);
+		await extensionWorkbenchService.openSearch(`@tag:notebookKernel${pascalCased}`);
 	}
 
 	private async _showInstallKernelExtensionRecommendation(
@@ -441,9 +454,9 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		@IQuickInputService _quickInputService: IQuickInputService,
 		@ILabelService _labelService: ILabelService,
 		@ILogService _logService: ILogService,
-		@IPaneCompositePartService _paneCompositePartService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService _extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService _extensionService: IExtensionService,
+		@IExtensionManagementServerService _extensionManagementServerService: IExtensionManagementServerService,
 		@ICommandService _commandService: ICommandService,
 		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
 		@IOpenerService private readonly _openerService: IOpenerService
@@ -455,10 +468,10 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			_quickInputService,
 			_labelService,
 			_logService,
-			_paneCompositePartService,
 			_extensionWorkbenchService,
 			_extensionService,
 			_commandService,
+			_extensionManagementServerService,
 		);
 	}
 
@@ -617,18 +630,18 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				}
 			} else if (isSearchMarketplacePick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
-					this._paneCompositePartService,
 					this._extensionWorkbenchService,
 					this._extensionService,
+					this._extensionManagementServerService,
 					editor.textModel.viewType,
 					[]
 				);
 				return true;
 			} else if (isInstallExtensionPick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
-					this._paneCompositePartService,
 					this._extensionWorkbenchService,
 					this._extensionService,
+					this._extensionManagementServerService,
 					editor.textModel.viewType,
 					selectedKernelPickItem.extensionIds,
 					this._productService.quality !== 'stable'

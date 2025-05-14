@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange } from 'vs/workbench/services/search/common/search';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange } from '../../common/search.js';
 
 suite('TextSearchResult', () => {
 

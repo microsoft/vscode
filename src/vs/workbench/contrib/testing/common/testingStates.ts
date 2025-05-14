@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapValues } from 'vs/base/common/objects';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { mapValues } from '../../../../base/common/objects.js';
+import { TestResultState } from './testTypes.js';
 
 export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
 

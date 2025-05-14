@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { URI, UriDto } from 'vs/base/common/uri';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from 'vs/base/common/uriIpc';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { URI, UriDto } from '../../../base/common/uri.js';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from './userDataProfile.js';
+import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from '../../../base/common/uriIpc.js';
 
 export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 
@@ -67,8 +67,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly onDidResetWorkspaces: Event<void>;
 
-	private enabled: boolean = true;
-
 	constructor(
 		profiles: readonly UriDto<IUserDataProfile>[],
 		readonly profilesHome: URI,
@@ -84,14 +82,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 		}));
 		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
-	}
-
-	setEnablement(enabled: boolean) {
-		this.enabled = enabled;
-	}
-
-	isEnabled(): boolean {
-		return this.enabled;
 	}
 
 	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleMainService, } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ICodeWindow, LoadReason } from 'vs/platform/window/electron-main/window';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IAnyWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ILifecycleMainService, } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
+import { IUserDataProfilesMainService } from './userDataProfile.js';
+import { IAnyWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
 export class UserDataProfilesHandler extends Disposable {
 

@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
-import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { asArray } from 'vs/base/common/arrays';
+import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
+import { timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from './terminal.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { TerminalGroup } from './terminalGroup.js';
+import { getInstanceFromResource } from './terminalUri.js';
+import { TerminalViewPane } from './terminalView.js';
+import { TERMINAL_VIEW_ID } from '../common/terminal.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { asArray } from '../../../../base/common/arrays.js';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -83,7 +83,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	hidePanel(): void {
 		// Hide the panel if the terminal is in the panel and it has no sibling views
 		const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
-		if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
+		if (panel && this._viewDescriptorService.getViewContainerModel(panel).visibleViewDescriptors.length === 1) {
 			this._viewsService.closeView(TERMINAL_VIEW_ID);
 			TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
 		}

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel, ITextFileEditorModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { isEqual } from 'vs/base/common/resources';
-import { UTF16be } from 'vs/workbench/services/textfile/common/encoding';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
+import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel, ITextFileEditorModelSaveEvent } from '../../common/textfiles.js';
+import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from '../../../../test/browser/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager.js';
+import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from '../../../../../platform/files/common/files.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { assertIsDefined } from '../../../../../base/common/types.js';
+import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { SaveReason, SaveSourceRegistry } from '../../../../common/editor.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { UTF16be } from '../../common/encoding.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('Files - TextFileEditorModel', () => {
 

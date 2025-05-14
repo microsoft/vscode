@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createSingleCallFunction } from 'vs/base/common/functional';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
 
 const charTable: { [hex: string]: number } = {
 	'0': 0,

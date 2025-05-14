@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./toggle';
-import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
+import { Widget } from '../widget.js';
+import { IAction } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import './toggle.css';
+import { isActiveElement, $, addDisposableListener, EventType } from '../../dom.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
@@ -37,6 +37,9 @@ export interface ICheckboxStyles {
 	readonly checkboxBackground: string | undefined;
 	readonly checkboxBorder: string | undefined;
 	readonly checkboxForeground: string | undefined;
+	readonly checkboxDisabledBackground: string | undefined;
+	readonly checkboxDisabledForeground: string | undefined;
+	readonly size?: number;
 }
 
 export const unthemedToggleStyles = {
@@ -49,7 +52,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 
 	protected readonly toggle: Toggle;
 
-	constructor(context: any, action: IAction, options: IActionViewItemOptions) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
 
 		this.toggle = this._register(new Toggle({
@@ -156,6 +159,10 @@ export class Toggle extends Widget {
 		this._register(this.ignoreGesture(this.domNode));
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
+			if (!this.enabled) {
+				return;
+			}
+
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this.checked = !this._checked;
 				this._onChange.fire(true);
@@ -266,6 +273,10 @@ export class Checkbox extends Widget {
 		return this.checkbox.checked;
 	}
 
+	get enabled(): boolean {
+		return this.checkbox.enabled;
+	}
+
 	set checked(newIsChecked: boolean) {
 		this.checkbox.checked = newIsChecked;
 
@@ -282,16 +293,28 @@ export class Checkbox extends Widget {
 
 	enable(): void {
 		this.checkbox.enable();
+		this.applyStyles(true);
 	}
 
 	disable(): void {
 		this.checkbox.disable();
+		this.applyStyles(false);
 	}
 
-	protected applyStyles(): void {
-		this.domNode.style.color = this.styles.checkboxForeground || '';
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground || '';
-		this.domNode.style.borderColor = this.styles.checkboxBorder || '';
+	setTitle(newTitle: string): void {
+		this.checkbox.setTitle(newTitle);
+	}
+
+	protected applyStyles(enabled = this.enabled): void {
+		this.domNode.style.color = (enabled ? this.styles.checkboxForeground : this.styles.checkboxDisabledForeground) || '';
+		this.domNode.style.backgroundColor = (enabled ? this.styles.checkboxBackground : this.styles.checkboxDisabledBackground) || '';
+		this.domNode.style.borderColor = (enabled ? this.styles.checkboxBorder : this.styles.checkboxDisabledBackground) || '';
+
+		const size = this.styles.size || 18;
+		this.domNode.style.width =
+			this.domNode.style.height =
+			this.domNode.style.fontSize = `${size}px`;
+		this.domNode.style.fontSize = `${size - 2}px`;
 	}
 }
 
@@ -304,7 +327,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	protected readonly toggle: Checkbox;
 	private cssClass?: string;
 
-	constructor(context: any, action: IAction, options: ICheckboxActionViewItemOptions) {
+	constructor(context: unknown, action: IAction, options: ICheckboxActionViewItemOptions) {
 		super(context, action, options);
 
 		this.toggle = this._register(new Checkbox(this._action.label, !!this._action.checked, options.checkboxStyles));

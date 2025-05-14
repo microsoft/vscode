@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
-import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/languageSelector';
-import { URI } from 'vs/base/common/uri';
+import { Emitter } from '../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ITextModel, shouldSynchronizeModel } from './model.js';
+import { LanguageFilter, LanguageSelector, score } from './languageSelector.js';
+import { URI } from '../../base/common/uri.js';
 
 interface Entry<T> {
 	readonly selector: LanguageSelector;
