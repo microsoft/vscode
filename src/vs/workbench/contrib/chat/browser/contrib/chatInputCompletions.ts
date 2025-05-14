@@ -9,9 +9,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
@@ -29,10 +31,12 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
+import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
+import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
@@ -44,10 +48,6 @@ import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
-import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { EditorsOrder } from '../../../../common/editor.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -608,12 +608,8 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 		}
 		for (const codeOrDiffEditor of this.editorService.getVisibleTextEditorControls(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			let codeEditor: ICodeEditor;
-			if (isDiffEditor(codeOrDiffEditor)) {
-				codeEditor = codeOrDiffEditor.getModifiedEditor();
-			} else if (isCodeEditor(codeOrDiffEditor)) {
-				codeEditor = codeOrDiffEditor;
-			} else {
+			const codeEditor = getCodeEditor(codeOrDiffEditor);
+			if (!codeEditor) {
 				continue;
 			}
 
